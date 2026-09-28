@@ -1,0 +1,156 @@
+/*
+ * Designporten design tokens.
+ * Source: docs/design/brand-and-identity.md and docs/design/interaction-and-motion.md.
+ * Change a value here only together with the spec. The same values are exported
+ * to TypeScript from src/tokens/index.ts for canvas and WebGL code.
+ */
+
+:root {
+  /* Identity */
+  --dp-lilla: #883dff;
+  --dp-lilla-mork: #6e24e6;
+  --dp-lilla-lys: #b797ff;
+  --dp-cyan: #00c4d6;
+  --dp-cyan-tekst: #00717c;
+  --dp-merkelinje: linear-gradient(90deg, var(--dp-lilla) 0%, var(--dp-cyan) 100%);
+
+  /* Showroom (light, warm) */
+  --papir: #f6f3ee;
+  --flate: #fffdf9;
+  --kalk: #ece7df;
+  --kant: #d9d3c9;
+  --kant-sterk: #8c8680;
+  --blekk: #18171c;
+  --dempet: #5e5a57;
+  --lenke: var(--dp-lilla-mork);
+
+  /* Workshop (dark, graphite) */
+  --verksted: #141317;
+  --grafitt: #1c1b1f;
+  --grafitt-2: #2a282e;
+  --grafitt-3: #34313a;
+  --linje-mork: #3a3740;
+  --tekst-mork: #f1eee8;
+  --dempet-mork: #a7a3a0;
+
+  /* Status (AA on both palettes when used as text on their own surface) */
+  --ok: #1d7a46;
+  --ok-mork: #5fd18f;
+  --advarsel: #8a5a00;
+  --advarsel-mork: #f2b84b;
+  --feil: #b3261e;
+  --feil-mork: #ff8a80;
+
+  /* Semantic defaults (showroom) */
+  --bg: var(--papir);
+  --fg: var(--blekk);
+  --fg-dempet: var(--dempet);
+  --overflate: var(--flate);
+  --linje: var(--kant);
+  --linje-sterk: var(--kant-sterk);
+  --handling: var(--dp-lilla);
+  --handling-hover: var(--dp-lilla-mork);
+  --pa-handling: #ffffff;
+  --fokus: var(--dp-lilla);
+
+  /* Typography */
+  --font-display: 'Archivo Variable', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --font-tekst: 'Archivo Variable', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --display-bredde: 118%;
+  --display-vekt: 760;
+
+  --fs-display: clamp(3.25rem, 1.6rem + 7.2vw, 7.5rem);
+  --fs-h1: clamp(2.5rem, 1.6rem + 3.6vw, 4.5rem);
+  --fs-h2: clamp(1.75rem, 1.3rem + 1.8vw, 2.75rem);
+  --fs-h3: clamp(1.25rem, 1.1rem + 0.6vw, 1.75rem);
+  --fs-ingress: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  --fs-tekst: 1rem;
+  --fs-liten: 0.875rem;
+  --fs-mono: 0.75rem;
+  --fs-mono-liten: 0.625rem;
+
+  --lh-tett: 1.02;
+  --lh-overskrift: 1.1;
+  --lh-tekst: 1.55;
+  --sporing-display: -0.03em;
+  --sporing-mono: 0.08em;
+
+  /* Space (4 px base) */
+  --r-1: 0.25rem;
+  --r-2: 0.5rem;
+  --r-3: 0.75rem;
+  --r-4: 1rem;
+  --r-5: 1.5rem;
+  --r-6: 2rem;
+  --r-7: 3rem;
+  --r-8: 4rem;
+  --r-9: 6rem;
+  --r-seksjon: clamp(3.5rem, 2rem + 6vw, 8rem);
+
+  /* Layout */
+  --innhold-maks: 1280px;
+  --tekst-maks: 62ch;
+  --gutter: clamp(1rem, 0.5rem + 2.5vw, 2.5rem);
+  --header-h: 62px;
+  --header-h-krympet: 48px;
+
+  /* Shape */
+  --radius-0: 0;
+  --radius-panel: 4px;
+  --radius-felt: 3px;
+  --radius-pille: 999px;
+  --skygge-objekt: 0 26px 34px -18px rgb(24 23 28 / 0.35);
+  --skygge-flyt: 0 12px 32px -16px rgb(0 0 0 / 0.45);
+
+  /* Product grid (preserved: fixed card width, max 6 across) */
+  --kort-b: 208px;
+  --kort-maks: 6;
+  --kort-gap: 14px;
+
+  /* Motion */
+  --ease-ut: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-inn-ut: cubic-bezier(0.45, 0, 0.65, 1);
+  --t-rask: 150ms;
+  --t-trinn: 320ms;
+  --t-inngang: 500ms;
+  --t-sekvens: 2000ms;
+
+  /* Layers */
+  --z-header: 40;
+  --z-meny: 60;
+  --z-dialog: 80;
+  --z-varsel: 90;
+
+  /* Touch */
+  --mal-min: 24px;
+  --mal-beroring: 44px;
+
+  color-scheme: light;
+}
+
+/* The workshop surface: Skaperverksted and dark bands. */
+.verksted-flate {
+  --bg: var(--verksted);
+  --fg: var(--tekst-mork);
+  --fg-dempet: var(--dempet-mork);
+  --overflate: var(--grafitt);
+  --linje: var(--linje-mork);
+  --linje-sterk: #6b6671;
+  --handling: var(--dp-lilla);
+  --handling-hover: #9a58ff;
+  --lenke: var(--dp-lilla-lys);
+  --fokus: var(--dp-cyan);
+  color-scheme: dark;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-rask: 1ms;
+    --t-trinn: 120ms;
+    --t-inngang: 1ms;
+    --t-sekvens: 1ms;
+  }
+}

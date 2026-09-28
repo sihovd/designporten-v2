@@ -13,13 +13,13 @@ For people and AI agents (Claude, Codex and others) working in this repository.
 1. **Preserve what works.** Do not remove functionality, rewrite established design decisions or "improve" unrelated areas while working on something else.
 2. **Stay inside your area.** Parallel threads each own a phase or area from the master spec's phase table. Shared files (tokens, domain types, the spec) change only through small, explicit changes.
 3. **No fake content or features.** No invented prices, reviews, stats, contact details or subscription behaviour. Placeholders are labelled as placeholders. Unfinished features are not shown as working.
-4. **AI images are labelled «Konseptbilde».** Do not generate vector graphics or icons without Sivert's approval (see open decision D-3).
+4. **AI images are labelled «Konseptbilde».** Functional programmatic geometry is allowed; decorative vector artwork and invented decorative SVG icons are not (D-3).
 5. **No custom cart, checkout or payment engine.**
 6. **Accessibility (WCAG 2.2 AA), reduced motion and responsive behaviour are part of every component**, not a later pass.
 7. **Before adding a dependency,** check whether the project already has a solution.
 8. **Finish the task.** Implement, run the checks, inspect visually at 320/390/768/1024/1440 px, fix what you find, then report IMPLEMENTED vs NOT IMPLEMENTED / BLOCKED. Only real blockers stop work.
-9. **Copy is Norwegian (bokmål),** concrete and human. Code identifiers are English.
+9. **Copy is Norwegian (bokmål),** concrete and human. **Code identifiers are Norwegian too, written in ASCII** (æ→ae, ø→o, å→a: `leggTil`, `Arbeidsbenk`, `hoyde`), matching the domain words in the spec. Library APIs stay as they are. See `docs/development.md`.
 
 ## Status
 
-As of 2026-09-28 the specification is established and no implementation has started. Phase 0 begins when Sivert gives the instruction.
+The specification was approved on 2026-09-28 and implementation is under way. See `docs/development.md` for how to run, test and build.

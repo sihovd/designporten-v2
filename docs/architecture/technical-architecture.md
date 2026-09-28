@@ -19,22 +19,16 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Covers stack c
 - **Live designporten.no:** a simple set of static-looking pages («Vi gir ideer form», /tjenester.html, /designverksted.html «kommer snart»). The WordPress site registered for www.designporten.no is Jetpack-connected; the earlier sessions record WordPress + Divi 5.11.1 + WooCommerce 11.0.1 at one.com, with all old pages trashed on 2026-08-30 by Sivert to start over.
 - **Aug–Sep 2026 prototype work** on Sivert's machine: a WordPress block-theme port (`wordpress/designporten/`, `theme.json`), plugins `designporten-projects` and `designporten-shop` (WooCommerce attributes `pa_farge`, `pa_plasttype`, custom text option, HPOS), a Stripe/Vipps plan (`DATABASE-OG-BETALING.md`). These files are not in this repo and are legacy, not source of truth.
 
-### Fixed constraints (regardless of D-1)
+### Decision
 
-- **Commerce and payments:** an established platform. WooCommerce is the existing choice; card via Stripe, Vipps as a separate gateway.
-- **Skaperverksted:** a client-side TypeScript application (strict mode), built with Vite, with Three.js for 3D. Its core packages have no dependency on any UI framework or on WordPress.
-- **Showroom pages:** server-rendered HTML with progressive enhancement; the page is complete without JavaScript except for the interactive sequences.
-- **Fonts, images and 3D assets** are self-hosted.
-- **Languages:** TypeScript, modern CSS (custom properties, container queries, `:has`, View Transitions with fallback). No CSS-in-JS runtime.
-- **Quality tooling:** ESLint, Prettier, type check, Vitest for unit tests (geometry and domain above all), Playwright for end-to-end and visual checks at the standard widths, axe for automated accessibility checks. All run in CI.
+Standalone TypeScript application; see [ADR-001](../decisions/adr-001-platform.md) for the comparison with WordPress/WooCommerce and headless options.
 
-### Recommended default for D-1
-
-Keep **WordPress + WooCommerce at one.com**, replace Divi with a **new custom block theme** built from the tokens in this spec, use WooCommerce's own Cart and Checkout blocks, and mount Skaperverksted as a separately built app inside a WordPress page through a small plugin. Skaperverksted orders go to the WooCommerce cart through the Store API as a configurable product with the design attached.
-
-**Why:** it reuses the hosting, commerce, payment plan and admin Sivert already has, gives him an editor for content, and keeps the heavy, novel work (Skaperverksted) in a clean TypeScript codebase that does not depend on WordPress. The alternative, a standalone front end (for example Astro) with WooCommerce headless, gives more control over transitions but adds a second deployment and a headless cart to maintain.
-
-The choice is Sivert's (hosting, cost, who edits content). Phase 0 locks it.
+- **Astro** for routing, prerendered showroom pages, content collections and the few server routes (Node adapter).
+- **Preact** islands for the Skaperverksted shell and complex showroom widgets; plain TypeScript modules for small behaviours.
+- **Skaperverksted core** in framework-free TypeScript; **Three.js** for 3D; **clipper2-js** for polygon booleans/offsets; **opentype.js** for text outlines; own STL/3MF writers.
+- **Commerce** behind a `CommerceProvider` interface; the shipped provider sends order requests (no payment). A hosted checkout is added when an account exists.
+- **Fonts, images and 3D assets** self-hosted. **Languages:** TypeScript strict, modern CSS (custom properties, container queries, `:has`, View Transitions with fallback). No CSS-in-JS runtime.
+- **Quality tooling:** ESLint, Prettier, `astro check`, Vitest, Playwright + axe, all behind npm scripts that CI runs.
 
 ## Repository layout (target)
 
@@ -65,7 +59,7 @@ The exact `src/site/` shape follows the D-1 decision (block theme vs pages). Eve
 
 ## Domain model
 
-The shared Skaperverksted model. Names are English in code; UI text is Norwegian.
+The shared Skaperverksted model. The concept names below are described in English; in code they use Norwegian ASCII identifiers (see `docs/development.md` for the mapping and the actual files).
 
 | Concept | Description |
 |---|---|

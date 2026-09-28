@@ -1,0 +1,55 @@
+---
+/**
+ * Functional UI icons (D-3): simple stroke geometry that names a function.
+ * Not decorative illustration. Add an icon only when a control needs it.
+ */
+export type IkonNavn =
+  | 'handlekurv'
+  | 'sok'
+  | 'meny'
+  | 'lukk'
+  | 'pil-hoyre'
+  | 'pil-venstre'
+  | 'pluss'
+  | 'minus'
+  | 'last-opp'
+  | 'last-ned';
+
+interface Props {
+  navn: IkonNavn;
+  storrelse?: number;
+  class?: string;
+}
+
+const { navn, storrelse = 20, class: klasse } = Astro.props;
+
+const stier: Record<IkonNavn, string> = {
+  handlekurv:
+    'M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.2L20 7.5H6.1 M9.5 20a1 1 0 1 0 0-.01 M17 20a1 1 0 1 0 0-.01',
+  sok: 'M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z M15.3 15.3 20 20',
+  meny: 'M4 7h16 M4 12h16 M4 17h16',
+  lukk: 'M6 6l12 12 M18 6 6 18',
+  'pil-hoyre': 'M5 12h14 M13 6l6 6-6 6',
+  'pil-venstre': 'M19 12H5 M11 6l-6 6 6 6',
+  pluss: 'M12 5v14 M5 12h14',
+  minus: 'M5 12h14',
+  'last-opp': 'M12 16V4 M7 9l5-5 5 5 M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3',
+  'last-ned': 'M12 4v12 M7 11l5 5 5-5 M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3',
+};
+---
+
+<svg
+  class={klasse}
+  width={storrelse}
+  height={storrelse}
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.6"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+  focusable="false"
+>
+  <path d={stier[navn]}></path>
+</svg>

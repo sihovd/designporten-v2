@@ -140,7 +140,7 @@ Short and human. Required fields are minimal.
 
 ## Cart and checkout
 
-- Handled by the chosen commerce platform (open decision D-1). No custom cart, checkout or payment engine.
+- Behind the `CommerceProvider` boundary (ADR-001). No custom cart, checkout or payment engine. Until a hosted provider account exists, the cart is sent as an order request and the page says clearly that no payment is taken.
 - Payment methods planned: card via Stripe, and Vipps.
 - The earlier test bench's shipping options and prices (69/89/179 kr) are placeholders.
 - Skaperverksted orders add a configured item to the same cart, with the design file and a preview image attached.

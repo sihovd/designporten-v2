@@ -1,0 +1,60 @@
+---
+/** Showroom page shell: meta/SEO, skip link, header, main, footer. */
+import '@/styles/base.css';
+import '@/styles/bevegelse.css';
+import Header from '@/components/Header.astro';
+import Footer from '@/components/Footer.astro';
+
+interface Props {
+  tittel: string;
+  beskrivelse: string;
+  /** Absolute image URL path for social previews. */
+  delingsbilde?: string;
+  /** Hide from search engines (cart, receipts). */
+  ikkeIndekser?: boolean;
+}
+
+const { tittel, beskrivelse, delingsbilde, ikkeIndekser = false } = Astro.props;
+const fullTittel =
+  tittel === 'Designporten' ? 'Designporten – Vi gir ideer form' : `${tittel} – Designporten`;
+const kanonisk = new URL(Astro.url.pathname, Astro.site);
+const bilde = delingsbilde ? new URL(delingsbilde, Astro.site).href : undefined;
+---
+
+<!doctype html>
+<html lang="nb">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTittel}</title>
+    <meta name="description" content={beskrivelse} />
+    <link rel="canonical" href={kanonisk.href} />
+    {ikkeIndekser && <meta name="robots" content="noindex" />}
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="nb_NO" />
+    <meta property="og:site_name" content="Designporten" />
+    <meta property="og:title" content={fullTittel} />
+    <meta property="og:description" content={beskrivelse} />
+    <meta property="og:url" content={kanonisk.href} />
+    {bilde && <meta property="og:image" content={bilde} />}
+    <meta name="theme-color" content="#f6f3ee" />
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
+    <slot name="hode" />
+  </head>
+  <body>
+    <a class="hopp-til-innhold" href="#innhold">
+      Hopp til innholdet
+    </a>
+    <Header />
+    <main id="innhold" tabindex="-1">
+      <slot />
+    </main>
+    <Footer />
+    <script>
+      import { startAvsloringer } from '@/scripts/avslor';
+      startAvsloringer();
+    </script>
+  </body>
+</html>

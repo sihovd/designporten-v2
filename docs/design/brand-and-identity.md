@@ -107,12 +107,12 @@ The visual language is drawn from how objects are actually made:
 - **Until then:** AI concept images from the project's own sets are allowed and are always labelled «Konseptbilde» with the mono tag (black, 9 px, uppercase, top-left, as in the test bench).
 - **Transparent product cut-outs** (PNG/WebP with real alpha) over a background image with a light veil is the established scene technique (test bench, 2026-09-03).
 - No stock-photo aesthetics, no invented people presented as staff or customers.
-- **Never generate vector illustrations or vector graphics without asking Sivert** (his rule of 2026-08-28: «ikke generer vektor baserte grafiske elementer. Hvis vektor trengs så spør meg. I alle situasjoner der transparens trengs skal det lages png»). How this applies to procedural geometry is open decision D-3.
+- **Vector rule** (Sivert, 2026-08-28, clarified 2026-09-28 as D-3): no arbitrary decorative vector artwork and no invented decorative SVG iconography. Functional programmatic geometry is allowed: grids, rulers, measurement marks, construction lines, Bézier curves, geometry paths, editor overlays, snapping guides and technical visualisation.
 
 ## Iconography
 
 - Icons only where they carry meaning: tools in the editor, cart, search, menu, close, and the three paths if tested to help.
-- One consistent set, line-based, matching Archivo's stroke weight. Which set is used is covered by D-3; until then the project's own PNG icons (`assets/cta-icons`) are the source.
+- Icons are **functional geometry** drawn from a small, documented set in `src/components/Ikon.astro` (tool, cart, search, menu, close, arrows, eye, lock): simple strokes that explain a function, not decorative illustration. Sivert's own PNG icons replace them when added.
 - No decorative icon rows, no icon above every card.
 
 ## Copy and voice

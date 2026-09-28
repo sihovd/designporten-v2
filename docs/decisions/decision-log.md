@@ -65,23 +65,18 @@ Earlier explicit decisions by Sivert that remain in force.
 | C-15 | Live site speaks as «jeg»; brief and concepts use «vi» | «vi» | Brief's copy examples; a workshop voice |
 | C-16 | Test bench shipped fake content (rating 4.8, 126 reviews, prices, delivery times, shipping costs) marked as placeholders | Placeholders are never published; content appears only when documented | Aug 28 rule, brief §6 honesty |
 
-## Open decisions
+## Resolved decisions (2026-09-28, Sivert's master execution instruction)
 
-### D-1 Platform
-Keep WordPress + WooCommerce at one.com with a new block theme (no Divi) and Skaperverksted mounted inside it, **or** build the site as a standalone front end with WooCommerce (or another platform) behind it.
-**Recommended:** keep WordPress + WooCommerce at one.com. **Blocks:** Phase 0 stack lock and everything after it.
+- **D-1 Platform:** evaluate on actual requirements, not old-site compatibility. Result: standalone TypeScript application (Astro + Preact + framework-free core + Three.js), commerce behind a provider boundary. Full comparison in [ADR-001](adr-001-platform.md).
+- **D-2 Launch:** the website does not need to wait for every advanced Signgen feature; site and Skaperverksted are developed in parallel; nothing that does not exist is faked.
+- **D-3 Vector rule:** functional programmatic geometry is allowed (grids, rulers, measurement marks, construction lines, Bézier curves, geometry paths, editor overlays, snapping guides, technical visualisation). The restriction covers arbitrary decorative vector artwork and invented decorative SVG iconography.
+- **D-4 Export:** Signgen supports real STL and 3MF export; it is not order-only. Commercial-use restrictions, pricing, subscription tiers and free/paid limits are not locked and must not be invented.
+- **Assets:** missing logo, mascot and photography must not stop work; use clearly identified temporary placeholders that can be replaced cleanly; prefer existing project assets.
 
-### D-2 Launch order
-The brief makes «START Å SKAPE» the first hero action, but Skaperverksted does not exist yet. May the new showroom go live before Signgen works?
-**Recommended:** launch the new site together with the Signgen MVP (Phase 3). If an earlier launch is wanted, «FORTELL OSS IDEEN DIN» becomes the primary action until then. **Blocks:** go-live of Phase 1, not its build.
+## Still open (business)
 
-### D-3 Scope of the vector rule
-Sivert's rule of 2026-08-28 says not to generate vector graphics without asking. Does it cover (a) procedural construction lines, contours and measurement marks in the hero and process visuals, and (b) the UI icon set?
-**Recommended:** functional and procedural geometry is allowed (it is drawn from real data, not illustration); a UI icon set is chosen by Sivert from an existing licensed set or his own PNG icons. **Blocks:** the hero's line animation and the icon set.
-
-### D-4 Downloadable files
-The live Designverksted page promised «bestille 3D-print – eller laste ned filen», and the concepts show «Eksporter 3MF». May customers download printable files, and on what terms (free, paid, with attribution)?
-**Recommended:** order-only in the Signgen MVP; decide download terms together with the free/paid model. **Blocks:** the customer-facing export button, not the export engine.
+- Commerce provider account and payment setup (Stripe/Vipps or other). Until then orders are sent as requests; the UI says no payment is taken.
+- Free/paid terms, commercial-use rules and prices for Skaperverksted.
 
 ## Facts that need confirmation before they are published
 
@@ -100,3 +95,4 @@ Not blocking implementation; content stays out until confirmed.
 | Date | Change |
 |---|---|
 | 2026-09-28 | Master specification established from the brief and all inspected sources. |
+| 2026-09-28 | Spec approved by Sivert. D-1 to D-4 resolved; ADR-001 platform decision recorded. |

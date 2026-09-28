@@ -108,7 +108,7 @@ Full rationale is in the detail documents and the decision log.
 - **Logo:** the existing "dp" two-loop mark. It is not redrawn.
 - **Mascot:** the cute, slightly spiky dragon in purple, dark blue and beige/cream seen in the concepts. It is used sparingly, never as decoration on every page.
 - **Imagery:** real workshop and product photography is the goal. AI concept images are allowed until then and are always labelled «Konseptbilde».
-- **No generated vector illustrations or icons without Sivert's approval** (his rule from 2026-08-28). Transparent images are PNG/WebP with alpha. Functional geometry (grids, rulers, handles, editor content, measurement lines) is allowed; see open decision D-3.
+- **Vector rule (D-3, clarified 2026-09-28):** functional programmatic geometry is allowed: grids, rulers, measurement marks, construction lines, Bézier curves, geometry paths, editor overlays, snapping guides, technical visualisation. Arbitrary decorative vector artwork and invented decorative SVG iconography are not. Transparent images are PNG/WebP with alpha.
 
 ### Information architecture
 - **Main navigation:** Produkter · Skaperverksted · Spesialdesign · For bedrifter · Inspirasjon · Om · Kontakt. The logo is the way home; «Hjem» is not a menu item (decision of 2026-09-03).
@@ -132,12 +132,12 @@ Full rationale is in the detail documents and the decision log.
 - **Signgen** builds 3D-printed (never wooden) signs from SVG + text + shapes → layers → heights → profiles → colours → 3D model, with an architecture ready for Bézier side profiles, CSV batch generation and a free/paid split. None of the future features are faked.
 
 ### Technical
-- **Commerce is not custom-built.** No own cart, checkout or payment engine (Sivert, 2026-08-28). Payment via an established platform (Stripe and Vipps have been planned through WooCommerce).
+- **Platform (D-1, decided 2026-09-28):** a standalone TypeScript application: Astro (prerendered showroom, Node adapter for the few server routes), Preact islands, framework-free Skaperverksted core, Three.js. See [ADR-001](docs/decisions/adr-001-platform.md). The old WordPress/WooCommerce site is not reused.
+- **Commerce is not custom-built.** No own cart, checkout or payment engine (Sivert, 2026-08-28). A `CommerceProvider` boundary; until a hosted provider account exists (Stripe/Vipps planned), orders are sent as order requests and the UI says no payment is taken.
 - **Skaperverksted core is framework-agnostic TypeScript:** geometry, layers, profiles, units, history and export live in pure modules with tests, separate from UI.
-- **3D:** Three.js (WebGL) for previews, loaded only where needed. **Export:** 3MF (multi-colour, per-layer) and STL.
+- **3D:** Three.js (WebGL) for previews, loaded only where needed. **Export (D-4):** real 3MF (per-layer colour/material objects) and STL downloads from Signgen, not order-only. No commercial-use, pricing or plan limits are invented.
 - **Accessibility target:** WCAG 2.2 AA (Sivert, 2026-08-28).
 - **Performance:** the homepage hero must never block first paint. Heavy 3D and editor code is split out and loaded on intent.
-- **The stack is locked in Phase 0** within the constraints in [technical-architecture.md](docs/architecture/technical-architecture.md#stack). Whether the new site stays on WordPress/WooCommerce at one.com is open decision D-1.
 
 ## 4. Implementation phases
 
@@ -145,7 +145,7 @@ Each phase ends with its own definition of done (section 5). Phases 1 and 2 may 
 
 | Phase | Deliverable | Parallel? |
 |---|---|---|
-| **0 — Foundation** | Stack locked (after D-1), repo scaffold, lint/format/test/CI, design tokens (colour, type, spacing, motion) as code, fonts self-hosted, base layout and accessibility primitives, a living token/component page. | No, it comes first |
+| **0 — Foundation** | Stack locked (ADR-001), repo scaffold, lint/format/test/CI, design tokens (colour, type, spacing, motion) as code, fonts self-hosted, base layout and accessibility primitives, a living token/component page. | No, it comes first |
 | **1 — Showroom core** | Header and navigation, footer, homepage (hero, three paths, process slider, top slider), Spesialdesign page with the idea form, Kontakt, Om. | Yes, with 2 |
 | **2 — Skaperverksted shell** | Workspace shell, adaptive grid canvas (pan/zoom/select/snap), Layers panel, Inspector, history, units, 2D/3D view switch, generator plug-in contract. | Yes, with 1 |
 | **3 — Signgen MVP** | Text, SVG import, basic shapes, multiple layers, per-layer height/Z/colour, transforms, straight extrusion, 3D preview, 3MF/STL export, order hand-off. | After 2 |
@@ -177,15 +177,17 @@ Report clearly what is **IMPLEMENTED** and what is **NOT IMPLEMENTED / BLOCKED**
 
 After the spec is in place, implementation tasks run to completion without approval stops between normal steps. Only genuine blockers (missing access, assets, permissions or an owner-only decision) are raised. See [CLAUDE.md](CLAUDE.md) for the working rules every thread follows.
 
-## 7. Open decisions
+## 7. Resolved and open decisions
 
-These need Sivert's input. Each has a recommended default; work that does not depend on the answer continues. Details in the [decision log](docs/decisions/decision-log.md#open-decisions).
+The four open decisions of the first draft were resolved by Sivert on 2026-09-28:
 
-| ID | Decision | Blocks | Recommended default |
-|---|---|---|---|
-| D-1 | Platform: keep WordPress + WooCommerce at one.com (new block theme, no Divi), or move the site to a standalone front end | Phase 0 stack lock, Phase 4 | Keep WordPress + WooCommerce at one.com with a new custom block theme; Skaperverksted is a separately built TypeScript app mounted inside it |
-| D-2 | Launch order: may the new site go live before Signgen is usable? | Launch of Phase 1 | Keep «START Å SKAPE» primary; launch the showroom when Signgen MVP (Phase 3) is ready |
-| D-3 | Does the «no generated vector graphics» rule cover procedural motion graphics (hero contour lines, measurement marks) and UI icons? | Hero, icon set | Allowed for functional geometry and the hero's construction lines; icons come from a set Sivert approves |
-| D-4 | Downloadable print files: may customers download STL/3MF from Skaperverksted, and on what terms? | Signgen export step | Order-only in the MVP; export exists internally for production |
+| ID | Decision |
+|---|---|
+| D-1 | Platform chosen on the product's requirements: standalone TypeScript app (Astro + Preact + Three.js). See [ADR-001](docs/decisions/adr-001-platform.md). |
+| D-2 | The website does not wait for advanced Signgen features. Site and Skaperverksted are developed in parallel; nothing is faked. |
+| D-3 | Functional programmatic geometry is allowed; decorative vector artwork and invented decorative SVG icons are not. |
+| D-4 | Signgen exports real STL and 3MF. Commercial-use terms, pricing and plan limits are not invented. |
 
-Assets needed in the repo before Phase 1 visual work (not decisions, just files): the logo in its original SVG/PNG, the mascot source files, and real workshop/product photographs where they exist.
+**Missing assets do not stop work** (Sivert, 2026-09-28). Logo, mascot, workshop and product photography use clearly marked temporary placeholders from `public/midlertidig/`, referenced through one asset registry (`src/content/assets.ts`) so final files replace them in one place. No replacement brand assets are invented or presented as final.
+
+Still open (business, needs Sivert): the commerce provider account (Stripe/Vipps or other) and the free/paid terms for Skaperverksted. Neither blocks implementation.
