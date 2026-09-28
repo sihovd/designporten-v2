@@ -1,0 +1,114 @@
+/* Lamp generator: 3D handle overlay and inspector details. Tokens only. */
+
+.lampe-overlegg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.lampe-overlegg.drar {
+  pointer-events: all;
+  cursor: grabbing;
+}
+
+.lampe-silhuett {
+  fill: none;
+  stroke: var(--dp-cyan);
+  stroke-width: 1.5;
+}
+
+.lampe-vrisporet {
+  fill: none;
+  stroke: var(--dp-cyan);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.9;
+}
+
+.lampe-linjal {
+  stroke: var(--dp-cyan);
+  stroke-width: 1;
+}
+
+.lampe-maletall {
+  fill: var(--dp-cyan);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+}
+
+.lampe-maletall.aktiv {
+  font-size: 13px;
+}
+
+.lampe-grep {
+  pointer-events: all;
+  cursor: grab;
+  outline: none;
+}
+
+.lampe-grep .treff {
+  fill: transparent;
+}
+
+.lampe-grep .merke {
+  fill: var(--fg);
+  stroke: var(--dp-lilla);
+  stroke-width: 2;
+}
+
+.lampe-grep .merke-ring {
+  fill: none;
+  stroke: var(--dp-lilla);
+  stroke-width: 3;
+}
+
+.lampe-grep:hover .merke,
+.lampe-grep.fokus .merke,
+.lampe-grep:focus-visible .merke {
+  fill: var(--dp-lilla);
+}
+
+.lampe-grep:focus-visible .treff,
+.lampe-grep.fokus .treff {
+  stroke: var(--fokus);
+  stroke-width: 2;
+}
+
+.lampe-forhandsvalg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lampe-forhandsvalg .kontroll-knapp {
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.lampe-akse {
+  stroke: var(--fg-dempet);
+  stroke-width: 0.8;
+  stroke-dasharray: 3 3;
+}
+
+.profil-rutenett-linje {
+  stroke: var(--linje);
+  stroke-width: 0.8;
+}
+
+.lampe-mellomrom {
+  height: 10px;
+}
+
+@media (pointer: coarse) {
+  .lampe-grep .treff {
+    r: 24px;
+  }
+}

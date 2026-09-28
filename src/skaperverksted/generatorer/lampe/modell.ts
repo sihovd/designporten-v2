@@ -138,16 +138,25 @@ export function vurderUtskrift(p: LampeParametre, g: LampeGeometri, dok?: Dokume
   return { maksOverheng, overhengVed, maksDiameter, vasemodus, advarsler };
 }
 
+const vurderinger = new WeakMap<Modellresultat, Utskriftsvurdering>();
+
+/** The printability assessment made with a built model (for the inspector). */
+export function vurderingFor(m: Modellresultat | null): Utskriftsvurdering | undefined {
+  return m ? vurderinger.get(m) : undefined;
+}
+
 /** GeneratorPlugin.byggModell: pure, deterministic, never throws. */
 export async function byggLampeModell(dok: Dokument): Promise<Modellresultat> {
   try {
     const p = lesParametre(dok);
     const g = byggLampe(p);
     const v = vurderUtskrift(p, g, dok);
-    return {
+    const resultat: Modellresultat = {
       deler: [{ id: 'skjerm', navn: 'Lampeskjerm', materialId: p.materialId, mesh: g.mesh }],
       advarsler: v.advarsler,
     };
+    vurderinger.set(resultat, v);
+    return resultat;
   } catch (feil) {
     console.error(feil);
     return {

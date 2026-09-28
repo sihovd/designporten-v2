@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { avgrensning, sjekkManifold, volum } from '../../geometri/mesh';
 import { lagForm, samplerSilhuett } from './form';
 import { byggLampe } from './geometri';
+import { ankerRadius, fjernAnker, flyttAnker, flyttHandtak, leggTilAnker, vekslGlatt } from './handlinger';
+import { gloedFarger, paerePosisjon } from './tre';
 import { byggLampeModell, lesParametre, medParametre, nyttLampeDokument, vurderUtskrift } from './modell';
 import {
   MIN_RADIUS,
@@ -248,5 +250,86 @@ describe('lampe: byggModell', () => {
     const r = await byggLampeModell(dok);
     expect(r.deler).toHaveLength(1);
     expect(sjekkManifold(r.deler[0]!.mesh).lukket).toBe(true);
+  });
+});
+
+describe('lampe: redigering', () => {
+  it('flytter endepunktene som diametre', () => {
+    const q = p({ diameterBunn: 100, diameterTopp: 120 });
+    expect(flyttAnker(q, 0, 70, 999)).toEqual({ diameterBunn: 140 });
+    expect(flyttAnker(q, q.silhuett.length - 1, 45, 0)).toEqual({ diameterTopp: 90 });
+  });
+
+  it('flytter et midtpunkt slik at silhuetten går gjennom pekeren', () => {
+    const q = p({
+      silhuett: silhuettForhandsvalg('bue', 10),
+      hoyde: 200,
+      diameterBunn: 100,
+      diameterTopp: 100,
+    });
+    const ny = normaliser({ ...q, ...flyttAnker(q, 1, 80, 120) });
+    expect(ankerRadius(ny, 1)).toBeCloseTo(80, 6);
+    expect(ny.silhuett[1]!.t * ny.hoyde).toBeCloseTo(120, 6);
+    // handles move with the anchor
+    expect(ny.silhuett[1]!.ut!.u - ny.silhuett[1]!.u).toBeCloseTo(q.silhuett[1]!.ut!.u - q.silhuett[1]!.u, 6);
+    expect(lagForm(ny).radius(0.6)).toBeCloseTo(80, 0);
+  });
+
+  it('holder et midtpunkt mellom naboene', () => {
+    const q = p({ silhuett: silhuettForhandsvalg('bue', 10), hoyde: 100 });
+    const ny = normaliser({ ...q, ...flyttAnker(q, 1, 60, 500) });
+    expect(ny.silhuett[1]!.t).toBeLessThan(1);
+    expect(ny.silhuett.map((x) => x.t)).toEqual([...ny.silhuett.map((x) => x.t)].sort((a, b) => a - b));
+  });
+
+  it('legger til, fjerner og glatter punkter', () => {
+    const q = p({ silhuett: silhuettForhandsvalg('rett') });
+    const { endring, indeks } = leggTilAnker(q, 0);
+    const med = normaliser({ ...q, ...endring });
+    expect(med.silhuett).toHaveLength(3);
+    expect(indeks).toBe(1);
+    const glatt = normaliser({ ...med, ...vekslGlatt(med, 1) });
+    expect(glatt.silhuett[1]!.ut).toBeDefined();
+    expect(glatt.silhuett[1]!.inn).toBeDefined();
+    const hjorne = normaliser({ ...glatt, ...vekslGlatt(glatt, 1) });
+    expect(hjorne.silhuett[1]!.ut).toBeUndefined();
+    expect(normaliser({ ...med, ...fjernAnker(med, 1) }).silhuett).toHaveLength(2);
+    expect(fjernAnker(med, 0)).toEqual({});
+  });
+
+  it('flytter håndtak i millimeter', () => {
+    const q = p({
+      silhuett: silhuettForhandsvalg('bue', 10),
+      hoyde: 100,
+      diameterBunn: 100,
+      diameterTopp: 100,
+    });
+    const ny = normaliser({ ...q, ...flyttHandtak(q, 1, 'ut', 70, 90) });
+    expect(ny.silhuett[1]!.ut).toEqual({ u: 20, t: 0.9 });
+  });
+});
+
+describe('lampe: lys', () => {
+  it('lyser sterkere på tynn vegg enn på tykk', () => {
+    // A vertex on the outside facing straight away from the bulb.
+    const q = (vegg: number) =>
+      p({ veggtykkelse: vegg, diameterBunn: 100, diameterTopp: 100, sokkel: 'apen' });
+    const z = paerePosisjon(q(1));
+    const tynn = gloedFarger([50, 0, z], [1, 0, 0], q(0.6), [1, 1, 1])[0]!;
+    const tykk = gloedFarger([50, 0, z], [1, 0, 0], q(3), [1, 1, 1])[0]!;
+    expect(tynn).toBeGreaterThan(tykk);
+  });
+
+  it('lyser mer der lyset går rett gjennom enn på skrå', () => {
+    const q = p({ diameterBunn: 100, diameterTopp: 100, sokkel: 'apen' });
+    const z = paerePosisjon(q);
+    const [rett] = gloedFarger([50, 0, z], [1, 0, 0], q, [0.5, 0.5, 0.5]);
+    const [skra] = gloedFarger([50, 0, z], [0.5, 0.866, 0], q, [0.5, 0.5, 0.5]);
+    expect(rett!).toBeGreaterThan(skra!);
+  });
+
+  it('plasserer pæra over lampeholderen', () => {
+    expect(paerePosisjon(p({ sokkel: 'e27', hoyde: 300, bunnTykkelse: 2 }))).toBe(62);
+    expect(paerePosisjon(p({ sokkel: 'apen', hoyde: 200 }))).toBe(80);
   });
 });
