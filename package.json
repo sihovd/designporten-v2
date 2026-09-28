@@ -28,7 +28,7 @@
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@preact/signals": "^2.11.2",
     "astro": "^7.3.5",
-    "clipper2-js": "^1.2.4",
+    "clipper2-ts": "^2.0.1-18",
     "earcut": "^3.2.4",
     "fflate": "^0.8.3",
     "nodemailer": "^10.0.12",
