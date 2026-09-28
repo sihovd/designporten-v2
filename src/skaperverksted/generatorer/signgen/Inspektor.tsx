@@ -35,6 +35,8 @@ import {
 import { lokalGeometri, objektStorrelse } from './modell';
 import { dupliserValgte, fordel, juster, slettValgte } from './handlinger';
 import { Profilredigerer } from './Profilredigerer';
+import { Batchdialog } from './Batch';
+import { plangrenser } from '../../core/plangrenser';
 
 const PROFILER: { id: Exclude<ProfilType, 'egendefinert'> | 'egendefinert'; navn: string }[] = [
   { id: 'rett', navn: 'Rett' },
@@ -771,6 +773,22 @@ function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
   );
 }
 
+function BatchInngang({ benk }: { benk: Arbeidsbenk }) {
+  const [apen, settApen] = useState(false);
+  if (!plangrenser.csvBatch) return null;
+  return (
+    <Panel tittel="Mange skilt">
+      <p class="tom-melding">
+        Lag ett skilt per rad i en CSV-fil, for eksempel navneskilt til et arrangement.
+      </p>
+      <button type="button" class="kontroll-knapp" onClick={() => settApen(true)}>
+        Lag skilt fra CSV …
+      </button>
+      {apen && <Batchdialog benk={benk} lukk={() => settApen(false)} />}
+    </Panel>
+  );
+}
+
 export function SigngenInspektor({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
   const valgte = t.utvalg.objekter.map((id) => t.dok.objekter[id]).filter((o): o is Objekt => !!o);
@@ -781,6 +799,7 @@ export function SigngenInspektor({ benk }: { benk: Arbeidsbenk }) {
     <>
       {lag && <LagInspektor benk={benk} lag={lag} key={lag.id} />}
       <ProsjektInspektor benk={benk} />
+      <BatchInngang benk={benk} />
     </>
   );
 }

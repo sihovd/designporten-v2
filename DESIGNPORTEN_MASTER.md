@@ -150,7 +150,7 @@ Each phase ends with its own definition of done (section 5). Phases 1 and 2 may 
 | **2 — Skaperverksted shell** | Workspace shell, adaptive grid canvas (pan/zoom/select/snap), Layers panel, Inspector, history, units, 2D/3D view switch, generator plug-in contract. | Yes, with 1 |
 | **3 — Signgen MVP** | Text, SVG import, basic shapes, multiple layers, per-layer height/Z/colour, transforms, straight extrusion, 3D preview, 3MF/STL export, order hand-off. | After 2 |
 | **4 — Products and commerce** | Produkter listing and filters, product page, product window, cart hand-off to the chosen commerce platform, For bedrifter, Inspirasjon. | After 0, parallel with 3 |
-| **5 — Signgen advanced** | Profiles (preset → Bézier), outline/offset, layer influence, multi-select, fonts library, project saving. CSV batch and plate organisation when the account/paid model is decided. | After 3 |
+| **5 — Signgen advanced** | Profiles (preset → Bézier), outline/offset, layer influence, multi-select, fonts library, project saving. CSV batch and plate organisation (built without limits; plan limits stay a config switch until the paid model is decided). | After 3 |
 | **6 — Lamp generator** | Parametric lamp in the shared shell with direct manipulation. | After 2 |
 | **7 — Articulated dragon generator** | Part-based configurable dragon with live 3D. | After 2 |
 
@@ -188,6 +188,6 @@ The four open decisions of the first draft were resolved by Sivert on 2026-09-28
 | D-3 | Functional programmatic geometry is allowed; decorative vector artwork and invented decorative SVG icons are not. |
 | D-4 | Signgen exports real STL and 3MF. Commercial-use terms, pricing and plan limits are not invented. |
 
-**Missing assets do not stop work** (Sivert, 2026-09-28). Logo, mascot, workshop and product photography use clearly marked temporary placeholders from `public/midlertidig/`, referenced through one asset registry (`src/content/assets.ts`) so final files replace them in one place. No replacement brand assets are invented or presented as final.
+**Missing assets do not stop work** (Sivert, 2026-09-28). Logo, mascot, workshop and product photography use clearly marked temporary placeholders from `public/midlertidig/`, referenced through one asset registry (`src/lib/ressurser.ts`) so final files replace them in one place. No replacement brand assets are invented or presented as final.
 
 Still open (business, needs Sivert): the commerce provider account (Stripe/Vipps or other) and the free/paid terms for Skaperverksted. Neither blocks implementation.

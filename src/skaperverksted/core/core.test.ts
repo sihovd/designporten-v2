@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { tolkLengde, mm, tall } from './enheter';
 import { Historikk } from './historikk';
 import { rutenettnivaa, snapTil } from './rutenett';
-import { forhandsvalg, samplerProfil, rettProfil, validerProfil } from './profil';
+import { forhandsvalg, profilOverheng, samplerProfil, rettProfil, validerProfil } from './profil';
 import { anvend, inverter, multipliser, tilMatrise } from './geometri2d';
 import { fraJson, tilJson, tomtDokument, DokumentFeil } from './dokument';
 
@@ -80,6 +80,23 @@ describe('rutenett', () => {
 });
 
 describe('profil', () => {
+  it('forhåndsvalgene heller aldri utover, en utovervendt profil gjør det', () => {
+    for (const type of ['rett', 'fas', 'avrundet', 'konveks', 'konkav', 's-kurve', 'trapp'] as const) {
+      expect(profilOverheng(forhandsvalg(type, 1.5), 3)).toBe(0);
+    }
+    const utover = {
+      ...rettProfil(),
+      type: 'egendefinert' as const,
+      bredde: 3,
+      punkter: [
+        { u: 1, t: 0 },
+        { u: 0, t: 1 },
+      ],
+    };
+    // 3 mm out over 2 mm height: atan(3/2) ≈ 56°
+    expect(profilOverheng(utover, 2)).toBeCloseTo(56.3, 0);
+  });
+
   it('rett profil gir loddrett vegg', () => {
     expect(samplerProfil(rettProfil())).toEqual([
       { inset: 0, t: 0 },

@@ -23,8 +23,15 @@ export interface TremfValg {
   meta?: Record<string, string>;
 }
 
-function modellXml(deler: ModellDel[], valg: TremfValg): string {
-  const matIds = [...new Set(deler.map((d) => d.materialId))];
+/** One build item: parts kept together as one multi-part object. */
+export interface TremfSamling {
+  navn: string;
+  deler: ModellDel[];
+}
+
+function modellXml(samlinger: TremfSamling[], valg: TremfValg): string {
+  const alle = samlinger.flatMap((s) => s.deler);
+  const matIds = [...new Set(alle.map((d) => d.materialId))];
   const ut: string[] = [];
   ut.push('<?xml version="1.0" encoding="UTF-8"?>');
   ut.push(
@@ -43,34 +50,39 @@ function modellXml(deler: ModellDel[], valg: TremfValg): string {
     ut.push(`<base name="${esc(`${m.navn} (${m.type})`)}" displaycolor="${m.hex.toUpperCase()}FF" />`);
   }
   ut.push('</basematerials>');
-  const objektIder: number[] = [];
-  deler.forEach((d, i) => {
-    const id = i + 2;
-    objektIder.push(id);
-    const pindex = matIds.indexOf(d.materialId);
-    ut.push(`<object id="${id}" name="${esc(d.navn)}" type="model" pid="1" pindex="${pindex}">`);
-    ut.push('<mesh><vertices>');
-    const p = d.mesh.posisjoner;
-    const punkter: string[] = [];
-    for (let v = 0; v < p.length; v += 3) {
-      punkter.push(`<vertex x="${tall(p[v]!)}" y="${tall(p[v + 1]!)}" z="${tall(p[v + 2]!)}" />`);
+  let nesteId = 2;
+  const bygg: number[] = [];
+  for (const samling of samlinger) {
+    const objektIder: number[] = [];
+    for (const d of samling.deler) {
+      const id = nesteId++;
+      objektIder.push(id);
+      const pindex = matIds.indexOf(d.materialId);
+      ut.push(`<object id="${id}" name="${esc(d.navn)}" type="model" pid="1" pindex="${pindex}">`);
+      ut.push('<mesh><vertices>');
+      const p = d.mesh.posisjoner;
+      const punkter: string[] = [];
+      for (let v = 0; v < p.length; v += 3) {
+        punkter.push(`<vertex x="${tall(p[v]!)}" y="${tall(p[v + 1]!)}" z="${tall(p[v + 2]!)}" />`);
+      }
+      ut.push(punkter.join(''));
+      ut.push('</vertices><triangles>');
+      const ix = d.mesh.indekser;
+      const tris: string[] = [];
+      for (let t = 0; t < ix.length; t += 3) {
+        tris.push(`<triangle v1="${ix[t]}" v2="${ix[t + 1]}" v3="${ix[t + 2]}" />`);
+      }
+      ut.push(tris.join(''));
+      ut.push('</triangles></mesh></object>');
     }
-    ut.push(punkter.join(''));
-    ut.push('</vertices><triangles>');
-    const ix = d.mesh.indekser;
-    const tris: string[] = [];
-    for (let t = 0; t < ix.length; t += 3) {
-      tris.push(`<triangle v1="${ix[t]}" v2="${ix[t + 1]}" v3="${ix[t + 2]}" />`);
-    }
-    ut.push(tris.join(''));
-    ut.push('</triangles></mesh></object>');
-  });
-  const samling = deler.length + 2;
-  ut.push(`<object id="${samling}" name="${esc(valg.tittel)}" type="model"><components>`);
-  for (const id of objektIder) ut.push(`<component objectid="${id}" />`);
-  ut.push('</components></object>');
+    const id = nesteId++;
+    bygg.push(id);
+    ut.push(`<object id="${id}" name="${esc(samling.navn)}" type="model"><components>`);
+    for (const o of objektIder) ut.push(`<component objectid="${o}" />`);
+    ut.push('</components></object>');
+  }
   ut.push('</resources>');
-  ut.push(`<build><item objectid="${samling}" /></build>`);
+  ut.push(`<build>${bygg.map((id) => `<item objectid="${id}" />`).join('')}</build>`);
   ut.push('</model>');
   return ut.join('\n');
 }
@@ -87,7 +99,14 @@ const RELASJONER = `<?xml version="1.0" encoding="UTF-8"?>
 </Relationships>`;
 
 export function tilTremf(deler: ModellDel[], valg: TremfValg): Uint8Array {
-  const medInnhold = deler.filter((d) => d.mesh.indekser.length > 0);
+  return tilTremfSamlinger([{ navn: valg.tittel, deler }], valg);
+}
+
+/** Several separate objects on one plate (e.g. a batch plate). */
+export function tilTremfSamlinger(samlinger: TremfSamling[], valg: TremfValg): Uint8Array {
+  const medInnhold = samlinger
+    .map((s) => ({ ...s, deler: s.deler.filter((d) => d.mesh.indekser.length > 0) }))
+    .filter((s) => s.deler.length > 0);
   return zipSync(
     {
       '[Content_Types].xml': strToU8(INNHOLDSTYPER),

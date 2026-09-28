@@ -62,12 +62,13 @@ Parallel work stays inside its own folders. Shared foundations change only in sm
 - `core/historikk.ts` — undo/redo over immutable snapshots; `slaSammen` merges drags into one step.
 - `core/arbeidsbenk.ts` — runtime state for one open editor: history, selection (`utvalg`), viewport (`utsnitt`), settings, the latest built model (debounced rebuild).
 - `core/generator.ts` — the plug-in contract: `nyttDokument`, `byggModell` (pure; returns `ModellDel[]` + warnings) and UI contributions to the shell (`Lerret2d`, `Venstrepanel`, `Inspektor`, `Bunnbrett`, …).
-- `core/profil.ts` — side profiles as Bézier chains in normalised space; presets rett, avrundet, konveks, konkav, trapp, fas.
+- `core/profil.ts` — side profiles as Bézier chains in normalised space; presets rett, avrundet, konveks, konkav, s-kurve, trapp, fas; `profilOverheng` for printability warnings.
 - `core/rutenett.ts` — adaptive 1-2-5 grid, cm/mm switching.
 - `core/materialer.ts` — material and printer catalogue (unconfirmed data flagged).
 - `geometri/` — polygons, booleans and offsets (Clipper2), text outlines (opentype.js), SVG import, extrusion with profiles, mesh checks.
 - `eksport/` — STL (binary) and 3MF writers.
 - `shell/` — the shared workspace UI (workshop bar, tool rail, panels, sheets, status bar, 3D view).
-- `generatorer/<id>/` — one folder per generator, registered in `generatorer/index.ts`.
+- `core/plangrenser.ts` — capability limits per plan; one config object, no limits until the paid model is decided.
+- `generatorer/<id>/` — one folder per generator, discovered by `generatorer/index.ts`.
 
-To add a generator: create `generatorer/<id>/index.ts` exporting a `GeneratorPlugin`, register it, and it appears in the hub and at `/skaperverksted/<id>/`.
+To add a generator: create `generatorer/<id>/meta.ts` (a light `GeneratorMeta` for the hub and routes) and `generatorer/<id>/index.ts` (default export: the `GeneratorPlugin`, loaded lazily). Both are picked up by `import.meta.glob`, so the generator appears in the hub and at `/skaperverksted/<id>/` without touching shared files.

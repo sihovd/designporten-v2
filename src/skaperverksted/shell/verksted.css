@@ -1291,3 +1291,122 @@
   font-family: var(--font-mono);
   font-size: 9px;
 }
+
+/* ---------- Signgen batch ---------- */
+
+.batch-innhold {
+  padding: 4px 18px 18px;
+  overflow: auto;
+}
+
+.batch-felt {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.batch-felt li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--linje);
+}
+
+.batch-felt-tekst {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.batch-kobling,
+.batch-organisering {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 0 18px;
+}
+
+.batch-tabell {
+  max-height: 16rem;
+  overflow: auto;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+}
+
+.batch-tabell:focus-visible {
+  outline: 2px solid var(--fokus);
+  outline-offset: 2px;
+}
+
+.batch-tabell table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.batch-tabell th,
+.batch-tabell td {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--linje);
+  text-align: left;
+  vertical-align: top;
+}
+
+.batch-tabell th {
+  position: sticky;
+  top: 0;
+  background: var(--grafitt);
+  color: var(--fg-dempet);
+  font-weight: 500;
+}
+
+.batch-tabell tr.problem td:last-child {
+  color: var(--advarsel-mork);
+}
+
+.batch-plate {
+  margin: 8px 0 0;
+}
+
+.batch-plate svg {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  margin-top: 8px;
+}
+
+.batch-plateflate {
+  fill: var(--bg);
+  stroke: var(--linje);
+  stroke-width: 0.6;
+}
+
+.batch-skilt {
+  stroke: var(--fg-dempet);
+  stroke-width: 0.4;
+}
+
+.batch-nummer {
+  fill: var(--fg);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 1.2;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.batch-innhold progress {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.batch-plate .kontroll-knapp[aria-pressed='true'] {
+  border-color: var(--handling);
+  box-shadow: inset 0 0 0 1px var(--handling);
+}
