@@ -1,0 +1,159 @@
+/* Dragon generator UI. Tokens only; layout classes come from shell/verksted.css. */
+
+.drage-delvelger {
+  display: grid;
+  gap: 8px;
+  padding: 8px 12px 12px;
+}
+
+.drage-faner {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.drage-faner button {
+  flex: none;
+  min-height: var(--kontroll-h);
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--fg-dempet);
+  font: inherit;
+  cursor: pointer;
+}
+
+.drage-faner button:hover {
+  color: var(--fg);
+}
+
+.drage-faner button[aria-selected='true'] {
+  border-color: var(--dp-lilla);
+  color: var(--fg);
+}
+
+.drage-varianter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.drage-variant {
+  flex: none;
+  display: grid;
+  grid-template-rows: auto auto;
+  width: 148px;
+  padding: 4px 4px 8px;
+  border: 1px solid var(--linje);
+  border-radius: var(--r-1);
+  background: var(--panel-2);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.drage-variant:hover {
+  border-color: var(--linje-sterk);
+}
+
+.drage-variant[aria-checked='true'] {
+  border-color: var(--dp-lilla);
+  box-shadow: inset 0 0 0 1px var(--dp-lilla);
+}
+
+.drage-miniatyr {
+  display: block;
+  aspect-ratio: 176 / 120;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--grafitt-2);
+}
+
+.drage-miniatyr img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.drage-laster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--grafitt-2), var(--grafitt-3), var(--grafitt-2));
+  background-size: 200% 100%;
+  animation: drage-laster 1.2s linear infinite;
+}
+
+@keyframes drage-laster {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.drage-variant-navn {
+  padding: 6px 4px 0;
+  font-weight: 600;
+}
+
+/* Descriptions are for assistive tech; the thumbnail carries the look. */
+.drage-variant-tekst {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.drage-forhandsvalg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.drage-glidebryter {
+  width: 100%;
+  margin: 4px 0 8px;
+  accent-color: var(--dp-lilla);
+}
+
+.drage-fakta {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.drage-fakta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drage-fakta dt {
+  color: var(--fg-dempet);
+}
+
+.drage-fakta dd {
+  margin: 0;
+}
+
+.smal .drage-variant {
+  width: 124px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drage-laster {
+    animation: none;
+  }
+
+  .drage-variant {
+    transition: none;
+  }
+}
