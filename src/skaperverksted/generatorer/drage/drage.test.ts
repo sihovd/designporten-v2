@@ -298,3 +298,33 @@ describe('plugin', () => {
     expect(tomt.deler.length).toBeGreaterThan(0);
   });
 });
+
+describe('handlinger', () => {
+  it('endrer parametre gjennom historikken og kan angres', async () => {
+    const { Arbeidsbenk } = await import('../../core/arbeidsbenk');
+    const { endreDrage, parametre } = await import('./handlinger');
+    const benk = new Arbeidsbenk(
+      { ...dragePlugin, ui: { Inspektor: () => null } },
+      dragePlugin.nyttDokument(),
+    );
+    endreDrage(benk, 'Vinger: Store', (p) => ({ ...p, vinger: 'store' }));
+    expect(parametre(benk).vinger).toBe('store');
+    // A change that only produces invalid values is clamped, not stored raw.
+    endreDrage(benk, 'Endre lengde', (p) => ({ ...p, lengde: 5000 }));
+    expect(parametre(benk).lengde).toBe(LENGDE_MAKS);
+    benk.angre();
+    benk.angre();
+    expect(parametre(benk)).toEqual(standardParametre);
+    benk.avslutt();
+  });
+
+  it('bestilling beskriver valgene uten pris', async () => {
+    const dok = dragePlugin.nyttDokument();
+    const modell = await dragePlugin.byggModell(dok);
+    const b = dragePlugin.bestilling!(dok, modell);
+    expect(b.produktId).toBe('skaperverksted-drage');
+    expect(b.valg.Lengde).toBe('160 mm');
+    expect(b.valg.Vinger).toBe('Små');
+    expect(JSON.stringify(b)).not.toMatch(/\bkr\b|pris|nok/i);
+  });
+});
