@@ -1,0 +1,380 @@
+---
+/**
+ * Site header (preserved behaviour, Sivert 2026-09-02/03):
+ * sticky; shrinks, rounds and turns translucent on scroll; mobile shows
+ * only the menu button and cart; logo is the way home; a 2 px scroll-progress
+ * line in the brand gradient sits at the very top.
+ */
+import Ikon from './Ikon.astro';
+import { hovedmeny, erAktiv } from '@/lib/navigasjon';
+import { logo } from '@/lib/ressurser';
+
+const sti = Astro.url.pathname;
+const utvikling = import.meta.env.DEV;
+---
+
+<div class="framdrift" aria-hidden="true">
+  <i data-framdrift></i>
+</div>
+<header class="hd" data-header>
+  <div class="hd__rad">
+    <a class="hd__logo" href="/" aria-label="Designporten, til forsiden">
+      {logo ? (
+        <img src={logo.src} alt="" width={logo.bredde} height={logo.hoyde} />
+      ) : (
+        <span class="hd__ordmerke" data-midlertidig="logo">
+          Designporten
+        </span>
+      )}
+      {!logo && utvikling && <span class="hd__dev mono">midlertidig logo</span>}
+    </a>
+
+    <nav class="hd__nav" aria-label="Hovedmeny">
+      <ul>
+        {hovedmeny.map((p) => (
+          <li class:list={[{ 'hd__nav--sti': p.sti }]}>
+            <a href={p.href} aria-current={erAktiv(p.href, sti) ? 'page' : undefined}>
+              {p.navn}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <div class="hd__verktoy">
+      <a class="hd__ikon hd__sok" href="/sok/" aria-label="Søk">
+        <Ikon navn="sok" />
+      </a>
+      <a class="hd__ikon hd__kurv" href="/handlekurv/" data-kurvlenke aria-label="Handlekurv, 0 varer">
+        <Ikon navn="handlekurv" />
+        <span class="hd__antall tall" data-kurvantall hidden>
+          0
+        </span>
+      </a>
+      <button
+        class="hd__ikon hd__menyknapp"
+        type="button"
+        aria-expanded="false"
+        aria-controls="mobilmeny"
+        data-menyknapp
+      >
+        <Ikon navn="meny" />
+        <span class="visuelt-skjult">Meny</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<dialog class="mobilmeny" id="mobilmeny" aria-label="Meny" data-mobilmeny>
+  <div class="mobilmeny__topp">
+    <span class="mono">Meny</span>
+    <button class="hd__ikon" type="button" data-menylukk aria-label="Lukk menyen">
+      <Ikon navn="lukk" />
+    </button>
+  </div>
+  <nav aria-label="Hovedmeny, mobil">
+    <ul>
+      {hovedmeny.map((p) => (
+        <li>
+          <a href={p.href} aria-current={erAktiv(p.href, sti) ? 'page' : undefined}>
+            {p.navn}
+          </a>
+        </li>
+      ))}
+      <li>
+        <a href="/sok/">Søk</a>
+      </li>
+    </ul>
+  </nav>
+</dialog>
+
+<script>
+  import { antallVarer, hentKurv, lyttPaKurv } from '@/lib/handel/kurv';
+
+  const header = document.querySelector<HTMLElement>('[data-header]');
+  const framdrift = document.querySelector<HTMLElement>('[data-framdrift]');
+  const meny = document.querySelector<HTMLDialogElement>('[data-mobilmeny]');
+  const menyknapp = document.querySelector<HTMLButtonElement>('[data-menyknapp]');
+
+  let planlagt = false;
+  function oppdater() {
+    planlagt = false;
+    const y = window.scrollY;
+    header?.classList.toggle('krympet', y > 24);
+    if (framdrift) {
+      const maks = document.documentElement.scrollHeight - window.innerHeight;
+      framdrift.style.transform = `scaleX(${maks > 0 ? Math.min(1, y / maks) : 0})`;
+    }
+  }
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (!planlagt) {
+        planlagt = true;
+        requestAnimationFrame(oppdater);
+      }
+    },
+    { passive: true },
+  );
+  oppdater();
+
+  menyknapp?.addEventListener('click', () => {
+    meny?.showModal();
+    menyknapp.setAttribute('aria-expanded', 'true');
+  });
+  meny?.addEventListener('close', () => menyknapp?.setAttribute('aria-expanded', 'false'));
+  meny?.querySelector('[data-menylukk]')?.addEventListener('click', () => meny.close());
+  meny?.addEventListener('click', (e) => {
+    if (e.target === meny) meny.close();
+  });
+
+  const antallEl = document.querySelector<HTMLElement>('[data-kurvantall]');
+  const kurvLenke = document.querySelector<HTMLElement>('[data-kurvlenke]');
+  function visAntall(n: number) {
+    if (!antallEl || !kurvLenke) return;
+    antallEl.textContent = String(n);
+    antallEl.hidden = n === 0;
+    kurvLenke.setAttribute('aria-label', `Handlekurv, ${n} ${n === 1 ? 'vare' : 'varer'}`);
+  }
+  visAntall(antallVarer(hentKurv()));
+  lyttPaKurv((l) => visAntall(antallVarer(l)));
+</script>
+
+<style>
+  .framdrift {
+    position: fixed;
+    inset: 0 0 auto;
+    height: 2px;
+    z-index: calc(var(--z-header) + 1);
+    pointer-events: none;
+  }
+
+  .framdrift i {
+    display: block;
+    height: 100%;
+    background: var(--dp-merkelinje);
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+  }
+
+  .hd {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-header);
+    background: var(--flate);
+    border-bottom: 1px solid var(--kant);
+    transition:
+      margin var(--t-trinn) var(--ease-ut),
+      border-radius var(--t-trinn) var(--ease-ut),
+      background-color var(--t-trinn) ease,
+      box-shadow var(--t-trinn) ease;
+  }
+
+  .hd__rad {
+    display: flex;
+    align-items: center;
+    gap: var(--r-5);
+    width: min(var(--innhold-maks), 100% - 2 * var(--gutter));
+    min-height: var(--header-h);
+    margin-inline: auto;
+    transition: min-height var(--t-trinn) var(--ease-ut);
+  }
+
+  .hd:global(.krympet) {
+    margin: 10px 16px 0;
+    top: 10px;
+    border: 1px solid var(--kant);
+    border-radius: var(--radius-pille);
+    background: color-mix(in srgb, var(--flate) 72%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    box-shadow: 0 10px 26px -14px rgb(0 0 0 / 0.32);
+  }
+
+  .hd:global(.krympet) .hd__rad {
+    min-height: var(--header-h-krympet);
+    width: calc(100% - 2 * var(--r-5));
+  }
+
+  .hd__logo {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--r-2);
+    color: var(--blekk);
+    text-decoration: none;
+    flex: none;
+  }
+
+  .hd__ordmerke {
+    font-family: var(--font-display);
+    font-weight: 780;
+    font-stretch: 112%;
+    font-size: 1.25rem;
+    letter-spacing: -0.03em;
+  }
+
+  .hd__dev {
+    font-size: 9px;
+    color: var(--dempet);
+  }
+
+  .hd__nav {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hd__nav ul {
+    display: flex;
+    gap: var(--r-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hd__nav a,
+  .mobilmeny a {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--mal-beroring);
+    padding: 0 var(--r-3);
+    color: var(--blekk);
+    font-size: 0.9375rem;
+    font-weight: 520;
+    text-decoration: none;
+  }
+
+  .hd__nav a:hover {
+    color: var(--lenke);
+  }
+
+  .hd__nav a[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    left: var(--r-3);
+    right: var(--r-3);
+    bottom: 8px;
+    height: 2px;
+    background: var(--dp-lilla);
+  }
+
+  .hd__verktoy {
+    display: flex;
+    align-items: center;
+    gap: var(--r-1);
+    margin-left: auto;
+  }
+
+  .hd__ikon {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: var(--mal-beroring);
+    height: var(--mal-beroring);
+    border: 0;
+    border-radius: var(--radius-pille);
+    background: transparent;
+    color: var(--blekk);
+  }
+
+  .hd__ikon:hover {
+    background: var(--kalk);
+  }
+
+  .hd__antall {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: var(--radius-pille);
+    background: var(--dp-lilla);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+  }
+
+  .hd__menyknapp {
+    display: none;
+  }
+
+  /* Narrower desktop: secondary items give way first, the three paths stay. */
+  @media (max-width: 1180px) {
+    .hd__nav li:not(.hd__nav--sti) {
+      display: none;
+    }
+
+    .hd__menyknapp {
+      display: inline-grid;
+    }
+  }
+
+  /* Mobile: only menu and cart. */
+  @media (max-width: 760px) {
+    .hd__nav,
+    .hd__sok {
+      display: none;
+    }
+
+    .hd:global(.krympet) {
+      margin: 8px 10px 0;
+      top: 8px;
+    }
+  }
+
+  .mobilmeny {
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    padding: var(--r-4) var(--gutter) var(--r-6);
+    border: 0;
+    background: var(--flate);
+    color: var(--blekk);
+  }
+
+  .mobilmeny::backdrop {
+    background: rgb(20 19 23 / 0.4);
+  }
+
+  .mobilmeny__topp {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--r-4);
+  }
+
+  .mobilmeny ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mobilmeny li {
+    border-bottom: 1px solid var(--kant);
+  }
+
+  .mobilmeny a {
+    width: 100%;
+    min-height: 56px;
+    padding: 0;
+    font-size: 1.375rem;
+    font-weight: 650;
+    font-stretch: 110%;
+  }
+
+  .mobilmeny a[aria-current='page'] {
+    color: var(--lenke);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hd,
+    .hd__rad {
+      transition: none;
+    }
+  }
+</style>

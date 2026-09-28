@@ -1,0 +1,315 @@
+---
+/**
+ * Product card (preserved work, docs/design/interaction-and-motion.md#product-cards-and-grid).
+ * Square image, fixed width set by the grid, 0 radius. The card never moves on
+ * hover; only the cart capsule reacts (and the image may crossfade to a second
+ * angle when one exists). Clicking the card opens the product window when one
+ * is on the page, otherwise the product page.
+ *
+ * Usable on its own (e.g. the homepage): drop it in any grid; the capsule
+ * script loads once per page. For the preserved grid and quick view, use
+ * ProduktRutenett.astro.
+ */
+import Ikon from '@/components/Ikon.astro';
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import { formaterKroner } from '@/lib/handel/kurv';
+import { formaterMal, type ProduktVisning } from '@/lib/handel/visning';
+
+interface Props {
+  produkt: ProduktVisning;
+  /** Heading level of the product name in the page outline. */
+  nivaa?: 'h2' | 'h3' | 'h4';
+  /** First cards on a page may load eagerly. */
+  lasting?: 'lazy' | 'eager';
+}
+
+const { produkt: p, nivaa = 'h3', lasting = 'lazy' } = Astro.props;
+const Overskrift = nivaa;
+const mal = formaterMal(p.mal);
+---
+
+<article
+  class="produktkort"
+  data-produktkort
+  data-produkt-id={p.id}
+  data-produkt={JSON.stringify(p)}
+  data-alternativ={p.bildeAlternativ ? '' : undefined}
+>
+  <a class="produktkort__lenke" href={p.href} data-produktlenke>
+    <span class="produktkort__bilde">
+      <Konseptbilde bilde={p.bilde} class="produktkort__img" lasting={lasting} sizes="208px" />
+      {p.bildeAlternativ && (
+        <Konseptbilde
+          bilde={p.bildeAlternativ}
+          class="produktkort__img produktkort__img--alt"
+          merke={false}
+          sizes="208px"
+        />
+      )}
+      {p.egenTekst && <span class="produktkort__tag mono">Egen tekst</span>}
+      {!p.egenTekst && p.generator && <span class="produktkort__tag mono">Lag i Skaperverksted</span>}
+    </span>
+    <span class="produktkort__tekst">
+      <Overskrift class="produktkort__navn">{p.navn}</Overskrift>
+      <span class="produktkort__spec mono">{mal ?? p.kategoriNavn}</span>
+      {p.status === 'plassholder' && <span class="produktkort__status mono">Plassholder</span>}
+      {p.prisOre !== null && <span class="produktkort__pris tall">{formaterKroner(p.prisOre)}</span>}
+    </span>
+  </a>
+  <div class="produktkort__kapselflate">
+    <div class="kurvkapsel" data-kurvkapsel>
+      <button class="kurvkapsel__knapp kurvkapsel__pluss" type="button" data-kurv-pluss>
+        <span class="kurvkapsel__kurv">
+          <Ikon navn="handlekurv" storrelse={20} />
+        </span>
+        <span class="kurvkapsel__plusstegn">
+          <Ikon navn="pluss" storrelse={18} />
+        </span>
+        <span class="visuelt-skjult">Legg {p.navn} i handlekurven</span>
+        <span class="kurvkapsel__merke tall" data-kurv-merke hidden aria-hidden="true">
+          0
+        </span>
+      </button>
+      <span class="kurvkapsel__antall tall" data-kurv-antall hidden>
+        0
+      </span>
+      <button class="kurvkapsel__knapp kurvkapsel__minus" type="button" data-kurv-minus hidden>
+        <Ikon navn="minus" storrelse={18} />
+        <span class="visuelt-skjult">Ta én {p.navn} ut av handlekurven</span>
+      </button>
+    </div>
+  </div>
+</article>
+
+<script>
+  import { startProduktkort } from './kort';
+  startProduktkort();
+</script>
+
+<style>
+  .produktkort {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: var(--flate);
+    border-radius: var(--radius-0);
+    box-shadow: 0 1px 0 var(--kant);
+    color: var(--blekk);
+  }
+
+  .produktkort__lenke {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .produktkort__lenke:focus-visible {
+    outline: 2px solid var(--fokus);
+    outline-offset: 3px;
+  }
+
+  .produktkort__bilde {
+    position: relative;
+    display: block;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background: var(--kalk);
+  }
+
+  .produktkort__bilde :global(.produktkort__img) {
+    position: absolute;
+    inset: 7%;
+    object-fit: contain;
+  }
+
+  .produktkort__bilde :global(.produktkort__img img) {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .produktkort__bilde :global(.konseptbilde__merke) {
+    /* The label sits on the card edge, not inside the 7 % inset. */
+    left: calc(-7% / 0.86);
+    top: calc(-7% / 0.86 + var(--r-3));
+  }
+
+  .produktkort__bilde :global(.produktkort__img--alt) {
+    opacity: 0;
+    transition: opacity var(--t-trinn) ease;
+  }
+
+  @media (hover: hover) {
+    .produktkort:hover .produktkort__bilde :global(.produktkort__img--alt) {
+      opacity: 1;
+    }
+  }
+
+  .produktkort__tag {
+    position: absolute;
+    right: 0;
+    top: var(--r-3);
+    padding: 3px 8px;
+    background: var(--handling);
+    color: var(--pa-handling);
+    font-size: var(--fs-mono-liten);
+    font-weight: 500;
+  }
+
+  .produktkort__tekst {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--r-3) var(--r-3) var(--r-4);
+    flex: 1;
+  }
+
+  .produktkort__navn {
+    font-family: var(--font-tekst);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    font-stretch: 100%;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  .produktkort__lenke:hover .produktkort__navn {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+  }
+
+  .produktkort__spec,
+  .produktkort__status {
+    font-size: var(--fs-mono-liten);
+    color: var(--dempet);
+    letter-spacing: 0.04em;
+  }
+
+  .produktkort__status {
+    color: var(--advarsel);
+  }
+
+  .produktkort__pris {
+    margin-top: auto;
+    padding-top: var(--r-2);
+    font-weight: 600;
+  }
+
+  /* The capsule layer covers exactly the square image, so the capsule sits
+     in the image's bottom-right corner and grows upwards. */
+  .produktkort__kapselflate {
+    position: absolute;
+    inset: 0 0 auto 0;
+    aspect-ratio: 1 / 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: var(--r-2);
+    pointer-events: none;
+  }
+
+  .kurvkapsel {
+    --kapsel-mal: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: auto;
+    background: var(--flate);
+    border: 1px solid var(--kant);
+    border-radius: var(--radius-pille);
+    box-shadow: 0 6px 16px -10px rgb(24 23 28 / 0.45);
+  }
+
+  @media (pointer: coarse) {
+    .kurvkapsel {
+      --kapsel-mal: var(--mal-beroring);
+    }
+  }
+
+  .kurvkapsel__knapp {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--kapsel-mal);
+    height: var(--kapsel-mal);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-pille);
+    background: transparent;
+    color: var(--handling);
+    transition:
+      background-color var(--t-rask) ease,
+      color var(--t-rask) ease;
+  }
+
+  .kurvkapsel__knapp:hover {
+    background: var(--handling);
+    color: var(--pa-handling);
+  }
+
+  .kurvkapsel__knapp:focus-visible {
+    outline: 2px solid var(--fokus);
+    outline-offset: 1px;
+  }
+
+  .kurvkapsel__kurv,
+  .kurvkapsel__plusstegn {
+    grid-area: 1 / 1;
+    display: grid;
+    place-items: center;
+    transition: opacity var(--t-rask) ease;
+  }
+
+  .kurvkapsel__plusstegn {
+    opacity: 0;
+  }
+
+  .kurvkapsel__merke {
+    position: absolute;
+    right: -4px;
+    top: -4px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: var(--radius-pille);
+    background: var(--handling);
+    color: var(--pa-handling);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 17px;
+    text-align: center;
+  }
+
+  .kurvkapsel__antall {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  /* Expanded: cart icon becomes «+», count and «−» appear below it.
+     Hover and keyboard focus expand it; on touch it stays expanded while the
+     product is in the cart. The markup is the same in both states. */
+  .kurvkapsel:not([data-apen]) .kurvkapsel__antall,
+  .kurvkapsel:not([data-apen]) .kurvkapsel__minus {
+    display: none;
+  }
+
+  .kurvkapsel[data-apen] .kurvkapsel__kurv {
+    opacity: 0;
+  }
+
+  .kurvkapsel[data-apen] .kurvkapsel__plusstegn {
+    opacity: 1;
+  }
+
+  .kurvkapsel[data-apen] .kurvkapsel__merke {
+    display: none;
+  }
+</style>

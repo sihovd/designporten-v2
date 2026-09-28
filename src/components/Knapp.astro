@@ -1,0 +1,84 @@
+---
+/**
+ * Primary / secondary action. Renders <a> when href is given, else <button>.
+ * One primary per view; the secondary never competes at equal strength.
+ */
+interface Props {
+  href?: string;
+  variant?: 'primar' | 'sekundar' | 'lenke';
+  type?: 'button' | 'submit';
+  class?: string;
+  [attr: string]: unknown;
+}
+
+const { href, variant = 'primar', type = 'button', class: klasse, ...rest } = Astro.props;
+const Tag = href ? 'a' : 'button';
+---
+
+<Tag class:list={['knapp', `knapp--${variant}`, klasse]} href={href} type={href ? undefined : type} {...rest}>
+  <slot />
+</Tag>
+
+<style>
+  .knapp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--r-2);
+    min-height: var(--mal-beroring);
+    padding: 0 var(--r-5);
+    border-radius: var(--radius-pille);
+    border: 1.5px solid transparent;
+    font-family: var(--font-tekst);
+    font-size: 0.9375rem;
+    font-weight: 650;
+    font-stretch: 108%;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition:
+      background-color var(--t-rask) ease,
+      border-color var(--t-rask) ease,
+      color var(--t-rask) ease;
+  }
+
+  .knapp--primar {
+    background: var(--handling);
+    color: var(--pa-handling);
+  }
+
+  .knapp--primar:hover {
+    background: var(--handling-hover);
+  }
+
+  .knapp--sekundar {
+    background: transparent;
+    color: var(--fg);
+    border-color: var(--linje-sterk);
+  }
+
+  .knapp--sekundar:hover {
+    border-color: var(--handling);
+    color: var(--lenke);
+  }
+
+  .knapp--lenke {
+    min-height: auto;
+    padding: 0;
+    color: var(--lenke);
+    text-transform: none;
+    letter-spacing: 0;
+    font-stretch: 100%;
+  }
+
+  .knapp--lenke:hover {
+    text-decoration: underline;
+  }
+
+  .knapp[aria-disabled='true'],
+  .knapp:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+</style>

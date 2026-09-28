@@ -1,0 +1,16 @@
+{
+  "navn": "Bokstøtter med buet profil",
+  "status": "plassholder",
+  "kategori": "interior",
+  "kortBeskrivelse": "To bokstøtter med en myk bue som holder bøkene oppreist.",
+  "beskrivelse": "Den buede profilen gjør at bokstøttene ser like bra ut fra siden som forfra.\n\nBokstøttene er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "bokstotter",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PLA", "PLA Matt"],
+  "farger": ["matt-sand", "pla-grafitt", "pla-kritthvit"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 9,
+  "lagtTil": "2026-09-28"
+}

@@ -1,0 +1,138 @@
+---
+import { hovedmeny, juridisk } from '@/lib/navigasjon';
+import { kontakt } from '@/lib/kontakt';
+---
+
+<footer class="fot verksted-flate">
+  <div class="ramme fot__rutenett">
+    <div class="fot__merke">
+      <p class="fot__ordmerke">Designporten</p>
+      <p class="fot__linje">Vi gir ideer form.</p>
+      <div class="fot__merkelinje" aria-hidden="true"></div>
+    </div>
+
+    <nav aria-label="Bunnmeny">
+      <p class="mono fot__tittel">Sider</p>
+      <ul>
+        {hovedmeny.map((p) => (
+          <li>
+            <a href={p.href}>{p.navn}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <div>
+      <p class="mono fot__tittel">Kontakt</p>
+      {kontakt.epost ? (
+        <p>
+          <a href={`mailto:${kontakt.epost}`}>{kontakt.epost}</a>
+        </p>
+      ) : (
+        <p class="fot__dempet">
+          <a href="/kontakt/">Send oss en melding</a>
+        </p>
+      )}
+      {kontakt.telefon && <p>{kontakt.telefon}</p>}
+      <p class="fot__dempet">Norge</p>
+    </div>
+
+    <nav aria-label="Vilkår og personvern">
+      <p class="mono fot__tittel">Vilkår</p>
+      <ul>
+        {juridisk.map((p) => (
+          <li>
+            <a href={p.href}>{p.navn}</a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  </div>
+  <div class="ramme fot__bunn mono">
+    <span>© {new Date().getFullYear()} Designporten</span>
+    <span>Fra tanke til noe du kan berøre</span>
+  </div>
+</footer>
+
+<style>
+  .fot {
+    padding-block: var(--r-8) var(--r-5);
+  }
+
+  .fot__rutenett {
+    display: grid;
+    grid-template-columns: 1.4fr repeat(3, 1fr);
+    gap: var(--r-6);
+  }
+
+  @media (max-width: 860px) {
+    .fot__rutenett {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .fot__merke {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .fot__ordmerke {
+    font-family: var(--font-display);
+    font-weight: 780;
+    font-stretch: 118%;
+    font-size: clamp(1.75rem, 1.2rem + 2vw, 2.75rem);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .fot__linje {
+    margin-top: var(--r-2);
+    color: var(--fg-dempet);
+  }
+
+  .fot__merkelinje {
+    width: 72px;
+    height: 3px;
+    margin-top: var(--r-4);
+    background: var(--dp-merkelinje);
+  }
+
+  .fot__tittel {
+    margin-bottom: var(--r-3);
+    color: var(--fg-dempet);
+  }
+
+  .fot ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .fot li a,
+  .fot p a {
+    display: inline-block;
+    padding-block: 6px;
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .fot a:hover {
+    color: var(--dp-lilla-lys);
+    text-decoration: underline;
+  }
+
+  .fot__dempet {
+    color: var(--fg-dempet);
+  }
+
+  .fot__bunn {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--r-3);
+    margin-top: var(--r-7);
+    padding-top: var(--r-4);
+    border-top: 1px solid var(--linje);
+    color: var(--fg-dempet);
+    font-size: var(--fs-mono-liten);
+  }
+</style>

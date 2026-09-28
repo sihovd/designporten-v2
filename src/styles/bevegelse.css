@@ -1,0 +1,56 @@
+/*
+ * Motion foundations. Source: docs/design/interaction-and-motion.md.
+ * All motion respects prefers-reduced-motion; tokens shrink durations there.
+ */
+
+/* Cross-document page transitions (progressive: browsers without support
+   navigate normally). */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root) {
+  animation: side-ut 220ms var(--ease-ut) both;
+}
+
+::view-transition-new(root) {
+  animation: side-inn 440ms var(--ease-ut) both;
+}
+
+@keyframes side-ut {
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes side-inn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+/* One-time scroll reveals: add .avslor; a small script adds .synlig. */
+@media (prefers-reduced-motion: no-preference) {
+  .js .avslor {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity var(--t-inngang) var(--ease-ut),
+      transform var(--t-inngang) var(--ease-ut);
+    transition-delay: calc(var(--i, 0) * 60ms);
+  }
+
+  .js .avslor.synlig {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}

@@ -1,0 +1,54 @@
+---
+import type { Bilde } from '@/lib/ressurser';
+
+/** An image from the registry. AI concept images carry the «Konseptbilde» tag. */
+interface Props {
+  bilde: Bilde;
+  class?: string;
+  lasting?: 'lazy' | 'eager';
+  prioritet?: 'high' | 'auto';
+  sizes?: string;
+  merke?: boolean;
+}
+
+const { bilde, class: klasse, lasting = 'lazy', prioritet = 'auto', sizes, merke = true } = Astro.props;
+---
+
+<span class:list={['konseptbilde', klasse]}>
+  <img
+    src={bilde.src}
+    alt={bilde.alt}
+    width={bilde.bredde}
+    height={bilde.hoyde}
+    loading={lasting}
+    decoding="async"
+    fetchpriority={prioritet}
+    sizes={sizes}
+  />
+  {bilde.konsept && merke && <span class="konseptbilde__merke mono">Konseptbilde</span>}
+</span>
+
+<style>
+  .konseptbilde {
+    position: relative;
+    display: block;
+  }
+
+  .konseptbilde img {
+    width: 100%;
+    height: 100%;
+    object-fit: inherit;
+  }
+
+  .konseptbilde__merke {
+    position: absolute;
+    left: 0;
+    top: var(--r-3);
+    padding: 3px 8px;
+    background: var(--blekk);
+    color: #fff;
+    font-size: var(--fs-mono-liten);
+    font-weight: 500;
+    pointer-events: none;
+  }
+</style>

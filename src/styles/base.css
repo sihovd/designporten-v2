@@ -1,0 +1,177 @@
+/* Base element styles. Components add their own scoped styles. */
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--header-h) + var(--r-4));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:focus-within {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-tekst);
+  font-size: var(--fs-tekst);
+  font-stretch: 100%;
+  line-height: var(--lh-tekst);
+  font-kerning: normal;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  line-height: var(--lh-overskrift);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--fs-h1);
+  font-stretch: var(--display-bredde);
+  font-weight: var(--display-vekt);
+  letter-spacing: var(--sporing-display);
+}
+
+h2 {
+  font-size: var(--fs-h2);
+  font-stretch: 110%;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h3 {
+  font-size: var(--fs-h3);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: var(--lenke);
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+img {
+  height: auto;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--fokus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--dp-lilla) 28%, transparent);
+}
+
+table {
+  border-collapse: collapse;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Utilities */
+.visuelt-skjult {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.hopp-til-innhold {
+  position: absolute;
+  left: var(--r-4);
+  top: -100px;
+  z-index: 100;
+  padding: var(--r-3) var(--r-4);
+  background: var(--blekk);
+  color: #fff;
+  font-weight: 600;
+}
+
+.hopp-til-innhold:focus {
+  top: var(--r-4);
+}
+
+.ramme {
+  width: min(var(--innhold-maks), 100% - 2 * var(--gutter));
+  margin-inline: auto;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  letter-spacing: var(--sporing-mono);
+  text-transform: uppercase;
+}
+
+.ingress {
+  font-size: var(--fs-ingress);
+  color: var(--fg-dempet);
+  max-width: 52ch;
+}
+
+.seksjon {
+  padding-block: var(--r-seksjon);
+}
+
+.tall {
+  font-variant-numeric: tabular-nums;
+}

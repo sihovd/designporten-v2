@@ -1,0 +1,22 @@
+---
+import type { GetStaticPaths } from 'astro';
+import Side from '@/layouts/Side.astro';
+import ProduktListe from '@/components/produkt/ProduktListe.astro';
+import { hentProdukter, kategorierMedProdukter } from '@/lib/handel/katalog';
+import type { Kategori } from '@/lib/handel/kategorier';
+
+/** One page per category that has products. Empty categories get no page. */
+export const getStaticPaths = (async () => {
+  const produkter = await hentProdukter();
+  return kategorierMedProdukter(produkter).map((kategori) => ({
+    params: { slug: kategori.slug },
+    props: { kategori },
+  }));
+}) satisfies GetStaticPaths;
+
+const { kategori } = Astro.props as { kategori: Kategori };
+---
+
+<Side tittel={kategori.navn} beskrivelse={`${kategori.navn} fra Designporten. ${kategori.ingress}`}>
+  <ProduktListe aktiv={kategori.slug} />
+</Side>

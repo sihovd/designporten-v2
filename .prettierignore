@@ -1,0 +1,10 @@
+dist/
+.astro/
+node_modules/
+reference/
+var/
+package-lock.json
+public/
+test-results/
+playwright-report/
+*.md
