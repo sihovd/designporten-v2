@@ -5,7 +5,7 @@
  * the page says so before, during and after sending.
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import type { Bestillingssvar } from '@/lib/handel/bestilling';
+import { erDesignlinje, type Bestillingssvar, type Designvedlegg } from '@/lib/handel/bestilling';
 import {
   antallVarer,
   delsum,
@@ -18,6 +18,7 @@ import {
 } from '@/lib/handel/kurv';
 import { aktivLeverandor } from '@/lib/handel/leverandor';
 import type { ProduktVisning } from '@/lib/handel/visning';
+import { hentDesign } from '@/skaperverksted/core/lagring';
 import './handlekurv.css';
 
 interface Props {
@@ -27,6 +28,10 @@ interface Props {
 type Sendt = { referanse: string; kanal: 'epost' | 'fil'; linjer: KurvLinje[] };
 
 function valgTekst(l: KurvLinje, p: ProduktVisning | undefined): string {
+  if (erDesignlinje(l))
+    return Object.entries(l.valg)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(' · ');
   const farge = p?.farger.find((f) => f.id === l.valg.farge)?.navn ?? l.valg.farge;
   return [
     farge && `Farge: ${farge}`,
@@ -50,7 +55,22 @@ export default function Handlekurv({ produkter }: Props) {
     return lyttPaKurv(settLinjer);
   }, []);
 
-  const ukjente = useMemo(() => (linjer ?? []).filter((l) => !produkter[l.produktId]), [linjer, produkter]);
+  // Designs from Skaperverksted live in this browser's storage (skaperverksted/core/lagring.ts).
+  const design = useMemo(() => {
+    const ut: Record<string, Designvedlegg | null> = {};
+    for (const l of linjer ?? []) {
+      if (!l.designId) continue;
+      const d = hentDesign(l.designId);
+      ut[l.nokkel] = d
+        ? { id: d.id, generator: d.generator, navn: d.navn, sammendrag: d.sammendrag, dokument: d.dokument }
+        : null;
+    }
+    return ut;
+  }, [linjer]);
+  const ukjente = useMemo(
+    () => (linjer ?? []).filter((l) => (erDesignlinje(l) ? !design[l.nokkel] : !produkter[l.produktId])),
+    [linjer, produkter, design],
+  );
 
   async function send(e: Event) {
     e.preventDefault();
@@ -66,7 +86,13 @@ export default function Handlekurv({ produkter }: Props) {
       telefon: String(f.get('telefon') ?? ''),
       melding: String(f.get('melding') ?? ''),
       nettside: String(f.get('nettside') ?? ''),
-      linjer: linjer.map((l) => ({ produktId: l.produktId, antall: l.antall, valg: l.valg })),
+      linjer: linjer.map((l) => ({
+        produktId: l.produktId,
+        navn: l.navn,
+        antall: l.antall,
+        valg: l.valg,
+        design: design[l.nokkel] ?? undefined,
+      })),
     });
     settSender(false);
     if (svar.ok) {
@@ -126,7 +152,9 @@ export default function Handlekurv({ produkter }: Props) {
     );
   }
 
-  const { ore, ukjent } = delsum(linjer);
+  const designlinjer = linjer.filter((l) => erDesignlinje(l));
+  const { ore, ukjent } = delsum(linjer.filter((l) => !erDesignlinje(l)));
+  const antallDesign = antallVarer(designlinjer);
   const n = antallVarer(linjer);
 
   return (
@@ -137,8 +165,10 @@ export default function Handlekurv({ produkter }: Props) {
         </h2>
         <ul>
           {linjer.map((l) => {
-            const p = produkter[l.produktId];
-            const pris = l.enhetspris;
+            const erDesign = erDesignlinje(l);
+            const p = erDesign ? undefined : produkter[l.produktId];
+            const pris = erDesign ? null : l.enhetspris;
+            const manglerDesign = erDesign && !design[l.nokkel];
             return (
               <li class="kurvlinje" key={l.nokkel}>
                 <div class="kurvlinje__bilde">
@@ -150,7 +180,16 @@ export default function Handlekurv({ produkter }: Props) {
                   {p ? <a href={p.href}>{l.navn}</a> : <span>{l.navn}</span>}
                   <span class="kurvlinje__valg">{valgTekst(l, p)}</span>
                   {p?.status === 'plassholder' && <span class="kurvlinje__status mono">Plassholder</span>}
-                  {!p && <span class="kurvlinje__feil">Finnes ikke lenger. Fjern varen for å sende.</span>}
+                  {erDesign && <span class="kurvlinje__kilde mono">Laget i Skaperverksted</span>}
+                  {!erDesign && !p && (
+                    <span class="kurvlinje__feil">Finnes ikke lenger. Fjern varen for å sende.</span>
+                  )}
+                  {manglerDesign && (
+                    <span class="kurvlinje__feil">
+                      Designet finnes ikke lenger i denne nettleseren. Fjern linjen og legg det inn på nytt
+                      fra Skaperverksted.
+                    </span>
+                  )}
                 </div>
                 <div class="kurvlinje__antall" role="group" aria-label={`Antall ${l.navn}`}>
                   <button type="button" onClick={() => settAntall(l.nokkel, l.antall - 1)}>
@@ -170,7 +209,9 @@ export default function Handlekurv({ produkter }: Props) {
                   </button>
                 </div>
                 <div class="kurvlinje__pris">
-                  {pris !== null ? (
+                  {erDesign ? (
+                    <span class="kurvlinje__ingenpris">Pris avtales</span>
+                  ) : pris !== null ? (
                     <span class="tall">{formaterKroner(pris * l.antall)}</span>
                   ) : (
                     <span class="kurvlinje__ingenpris">Pris ikke fastsatt</span>
@@ -196,6 +237,12 @@ export default function Handlekurv({ produkter }: Props) {
             <div>
               <dt>Sum for varer med pris</dt>
               <dd class="tall">{formaterKroner(ore)}</dd>
+            </div>
+          )}
+          {antallDesign > 0 && (
+            <div>
+              <dt>Design, pris avtales</dt>
+              <dd class="tall">{antallDesign}</dd>
             </div>
           )}
           {ukjent > 0 && (

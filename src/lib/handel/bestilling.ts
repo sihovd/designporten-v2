@@ -4,11 +4,32 @@
  */
 import { z } from 'zod';
 
+/** A Skaperverksted design attached to a cart line (see skaperverksted/core/lagring.ts). */
+export const designSkjema = z.object({
+  id: z.string().regex(/^design_[a-z0-9]+$/),
+  generator: z.string().regex(/^[a-z0-9-]{1,40}$/),
+  navn: z.string().trim().min(1).max(120),
+  /** Plain-language summary lines (size, layers, colours). */
+  sammendrag: z.array(z.string().max(400)).max(30),
+  /** The document JSON; checked against the document model on the server. */
+  dokument: z.unknown(),
+});
+
 export const bestillingslinjeSkjema = z.object({
   produktId: z.string().min(1).max(100),
+  /** Line name as shown in the cart; the server uses the catalogue name for products. */
+  navn: z.string().trim().max(160).optional(),
   antall: z.number().int().min(1).max(999),
-  valg: z.record(z.string().max(40), z.string().max(80)),
+  valg: z.record(z.string().max(40), z.string().max(300)),
+  design: designSkjema.optional(),
 });
+
+/** Cart lines from Skaperverksted use produktId `skaperverksted-<generator>`. */
+export const DESIGN_PREFIKS = 'skaperverksted-';
+
+export function erDesignlinje(l: { produktId: string; designId?: string; design?: unknown }): boolean {
+  return l.produktId.startsWith(DESIGN_PREFIKS) || !!l.designId || !!l.design;
+}
 
 export const bestillingSkjema = z.object({
   navn: z.string().trim().min(2, 'Skriv navnet ditt.').max(120),
@@ -22,6 +43,7 @@ export const bestillingSkjema = z.object({
 
 export type Bestilling = z.infer<typeof bestillingSkjema>;
 export type Bestillingslinje = z.infer<typeof bestillingslinjeSkjema>;
+export type Designvedlegg = z.infer<typeof designSkjema>;
 
 export type Bestillingssvar =
   | { ok: true; referanse: string; kanal: 'epost' | 'fil' }

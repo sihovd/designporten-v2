@@ -53,6 +53,16 @@
   color: var(--dempet);
 }
 
+.kurvlinje__design {
+  color: var(--dempet);
+  font-size: var(--fs-mono-liten);
+}
+
+.kurvlinje__kilde {
+  font-size: var(--fs-mono-liten);
+  color: var(--lenke);
+}
+
 .kurvlinje__status {
   font-size: var(--fs-mono-liten);
   color: var(--advarsel);

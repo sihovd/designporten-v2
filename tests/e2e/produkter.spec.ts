@@ -84,6 +84,60 @@ test.describe('Produkter', () => {
     await expect(page.locator('[data-kurvantall]')).toBeHidden();
   });
 
+  test('a Skaperverksted design in the cart shows «pris avtales» and is sent with the request', async ({
+    page,
+  }) => {
+    await page.goto('/handlekurv/');
+    await page.evaluate(() => {
+      const designId = 'design_e2etest1';
+      const dokument = {
+        versjon: 1,
+        id: 'd1',
+        generator: 'signgen',
+        navn: 'Dørskilt',
+        plate: { bredde: 256, dybde: 256, hoyde: 256, printerProfilId: 'x' },
+        lag: [],
+        objekter: {},
+        rekkefolge: {},
+        parametre: {},
+        meta: { opprettet: '2026-09-28', endret: '2026-09-28' },
+      };
+      localStorage.setItem(
+        `dp-design:${designId}`,
+        JSON.stringify({
+          id: designId,
+          generator: 'signgen',
+          navn: 'Dørskilt',
+          lagret: '2026-09-28T22:00:00Z',
+          sammendrag: ['Mål: 160 × 45 × 6 mm'],
+          dokument,
+        }),
+      );
+      localStorage.setItem(
+        'dp-kurv-v1',
+        JSON.stringify([
+          {
+            nokkel: 'skaperverksted-signgen|Lag=2',
+            produktId: 'skaperverksted-signgen',
+            navn: 'Skilt fra Signgen: Dørskilt',
+            antall: 1,
+            enhetspris: null,
+            valg: { Lag: '2' },
+            designId,
+          },
+        ]),
+      );
+    });
+    await page.reload();
+    await expect(page.getByText('Skilt fra Signgen: Dørskilt').first()).toBeVisible();
+    await expect(page.getByText('Pris avtales', { exact: true })).toBeVisible();
+    await expect(page.getByText('Laget i Skaperverksted')).toBeVisible();
+    await page.getByLabel('Navn').fill('Test Testesen');
+    await page.getByLabel('E-post').fill('test@example.com');
+    await page.getByRole('button', { name: 'Send bestillingsforespørsel' }).click();
+    await expect(page.getByRole('heading', { name: 'Takk, forespørselen er sendt.' })).toBeVisible();
+  });
+
   test('empty cart offers a way on', async ({ page }) => {
     await page.goto('/handlekurv/');
     await expect(page.getByRole('heading', { name: 'Handlekurven er tom.' })).toBeVisible();

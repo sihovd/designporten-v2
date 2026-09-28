@@ -95,6 +95,11 @@ describe('bestilling', () => {
     ],
   };
   const katalog = new Map<string, ProduktVisning>([['nokkelring', tilVisning('nokkelring', data)]]);
+  const oppslag = {
+    finnProdukt: (id: string) => katalog.get(id),
+    sjekkDokument: (d: unknown, generator: string) =>
+      (d as { generator?: string })?.generator === generator ? JSON.stringify(d) : null,
+  };
 
   it('validates the request', () => {
     expect(bestillingSkjema.safeParse(gyldig).success).toBe(true);
@@ -104,7 +109,7 @@ describe('bestilling', () => {
   });
 
   it('turns a valid cart into an order request that says no payment is taken', () => {
-    const k = lagInnsending(bestillingSkjema.parse(gyldig), (id) => katalog.get(id));
+    const k = lagInnsending(bestillingSkjema.parse(gyldig), oppslag);
     expect(k.ok).toBe(true);
     if (!k.ok) return;
     const felter = Object.fromEntries(k.innsending.felter);
@@ -117,7 +122,7 @@ describe('bestilling', () => {
 
   it('rejects unknown products, invalid choices and too long text', () => {
     const b = bestillingSkjema.parse(gyldig);
-    const finn = (id: string) => katalog.get(id);
+    const finn = oppslag;
     expect(lagInnsending({ ...b, linjer: [{ ...b.linjer[0]!, produktId: 'borte' }] }, finn).ok).toBe(false);
     expect(
       lagInnsending({ ...b, linjer: [{ ...b.linjer[0]!, valg: { farge: 'x', materiale: 'PLA' } }] }, finn).ok,
@@ -131,5 +136,44 @@ describe('bestilling', () => {
         finn,
       ).ok,
     ).toBe(false);
+  });
+
+  const designlinje = {
+    produktId: 'skaperverksted-signgen',
+    navn: 'Skilt fra Signgen: Dør',
+    antall: 1,
+    valg: { Mål: '160 × 45 × 6 mm', Lag: '2' },
+    design: {
+      id: 'design_abc123',
+      generator: 'signgen',
+      navn: 'Dør',
+      sammendrag: ['Mål: 160 × 45 × 6 mm'],
+      dokument: { generator: 'signgen', lag: [] },
+    },
+  };
+
+  it('sends Skaperverksted designs as «pris avtales» with the document attached', () => {
+    const k = lagInnsending(bestillingSkjema.parse({ ...gyldig, linjer: [designlinje] }), oppslag);
+    expect(k.ok).toBe(true);
+    if (!k.ok) return;
+    const felter = Object.fromEntries(k.innsending.felter);
+    expect(felter.Varer).toContain('Skilt fra Signgen: Dør [Skaperverksted: signgen, pris avtales]');
+    expect(felter.Varer).toContain('Mål: 160 × 45 × 6 mm');
+    expect(felter.Sum).toContain('pris avtales');
+    expect(k.innsending.vedlegg?.[0]?.filnavn).toBe('design-design_abc123.json');
+  });
+
+  it('rejects a design line without a valid design', () => {
+    const { design: _d, ...utenDesign } = designlinje;
+    expect(lagInnsending(bestillingSkjema.parse({ ...gyldig, linjer: [utenDesign] }), oppslag).ok).toBe(
+      false,
+    );
+    const feilGenerator = {
+      ...designlinje,
+      design: { ...designlinje.design, dokument: { generator: 'lampe' } },
+    };
+    expect(lagInnsending(bestillingSkjema.parse({ ...gyldig, linjer: [feilGenerator] }), oppslag).ok).toBe(
+      false,
+    );
   });
 });
