@@ -1,0 +1,51 @@
+---
+/**
+ * Selected products on the homepage (information-architecture.md#homepage, 5).
+ * Confirmed products come first. Until any are confirmed the row shows the
+ * catalogue's first products, each visibly marked «Plassholder» by the card,
+ * with a line saying so.
+ */
+import ProduktRutenett from '@/components/produkt/ProduktRutenett.astro';
+import { hentProdukter } from '@/lib/handel/katalog';
+
+const alle = await hentProdukter();
+const bekreftede = alle.filter((p) => p.status === 'bekreftet');
+const utvalg = (bekreftede.length ? bekreftede : alle).slice(0, 6);
+const bareplassholdere = utvalg.every((p) => p.status === 'plassholder');
+---
+
+{utvalg.length > 0 && (
+  <section class="utvalg" aria-labelledby="utvalg-tittel">
+    <div class="ramme utvalg__hode">
+      <h2 id="utvalg-tittel">Fra produktene</h2>
+      <a href="/produkter/">Se alle produktene</a>
+    </div>
+    {bareplassholdere && (
+      <p class="ramme utvalg__merknad">
+        Produktene er plassholdere med konseptbilder til det ekte utvalget er klart.
+      </p>
+    )}
+    <ProduktRutenett produkter={utvalg} nivaa="h3" etikett="Utvalgte produkter" />
+  </section>
+)}
+
+<style>
+  .utvalg {
+    padding-block: var(--r-seksjon);
+  }
+
+  .utvalg__hode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--r-3);
+    margin-bottom: var(--r-4);
+  }
+
+  .utvalg__merknad {
+    margin-bottom: var(--r-5);
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+</style>
