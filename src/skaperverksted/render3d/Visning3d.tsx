@@ -183,7 +183,10 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
       const senter = boks.getCenter(new THREE.Vector3());
       const str = boks.getSize(new THREE.Vector3());
       const radius = Math.max(20, str.length() / 2);
-      const avstand = (radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.15;
+      // fit the narrower of the vertical and horizontal field of view (portrait phones)
+      const halvV = THREE.MathUtils.degToRad(camera.fov / 2);
+      const halvH = Math.atan(Math.tan(halvV) * camera.aspect);
+      const avstand = (radius / Math.sin(Math.min(halvV, halvH))) * 1.15;
       const retning =
         vinkel === 'topp'
           ? new THREE.Vector3(0, -0.0001, 1)
