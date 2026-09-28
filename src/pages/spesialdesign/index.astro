@@ -1,0 +1,176 @@
+---
+import Side from '@/layouts/Side.astro';
+import SideHode from '@/components/showroom/SideHode.astro';
+import ProsessSlider from '@/components/showroom/ProsessSlider.astro';
+import IdeSkjema from '@/components/showroom/skjema/IdeSkjema.astro';
+import { startpunkter } from '@/components/showroom/startpunkter';
+import { spesialprosess } from '@/components/showroom/data/prosess';
+---
+
+<Side
+  tittel="Spesialdesign"
+  beskrivelse="Har du tegningen, bildet eller bare ideen? Designporten hjelper deg å gjøre den fysisk: fra skisse, bilde, 3D-fil eller ødelagt del til ferdig 3D-printet produkt."
+>
+  <SideHode
+    eyebrow="Spesialdesign"
+    tittel="Har du tegningen, bildet eller bare ideen?"
+    ingress="Vi hjelper deg å gjøre den fysisk. Du trenger ikke ha en ferdig modell. Start med ideen."
+  />
+
+  <section class="ramme start" aria-labelledby="start-tittel">
+    <h2 id="start-tittel" class="visuelt-skjult">
+      Hva har du å starte med?
+    </h2>
+    <ol class="start__liste">
+      {startpunkter.map((s, i) => (
+        <li>
+          <a href={`?start=${s.id}#skjema`}>
+            <span class="mono start__nr">{String(i + 1).padStart(2, '0')}</span>
+            <span class="start__tittel">{s.tittel}</span>
+            <span class="start__tekst">{s.tekst}</span>
+            <span class="start__handling">Start her</span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <ProsessSlider id="tjenesteflyt" tittel="Fra idé til ferdig produkt" steg={spesialprosess} />
+
+  <section class="ramme seksjon pris" aria-labelledby="pris-tittel">
+    <h2 id="pris-tittel">Hva koster det, og hvor lang tid tar det?</h2>
+    <p class="ingress">
+      Det avhenger av størrelse, materiale, antall og hvor mye som må tegnes. Derfor regner vi på hver
+      forespørsel, og sier fra hva vi trenger for å gjøre det.
+    </p>
+  </section>
+
+  <section class="skjemaseksjon" aria-labelledby="skjema-tittel">
+    <div class="ramme skjemaseksjon__rutenett">
+      <div class="skjemaseksjon__intro">
+        <h2 id="skjema-tittel">Fortell oss ideen din</h2>
+        <p class="ingress">Bare det som er merket, må fylles ut. Resten hjelper oss å svare raskere.</p>
+      </div>
+      <IdeSkjema id="skjema" />
+    </div>
+  </section>
+</Side>
+
+<style>
+  .start__liste {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-block: 1px solid var(--kant);
+  }
+
+  .start__liste li + li {
+    border-left: 1px solid var(--kant);
+  }
+
+  .start__liste a {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: var(--r-2);
+    height: 100%;
+    padding: var(--r-5);
+    color: var(--blekk);
+    text-decoration: none;
+  }
+
+  .start__liste a:hover {
+    background: var(--flate);
+  }
+
+  .start__nr {
+    color: var(--dempet);
+  }
+
+  .start__tittel {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-stretch: 112%;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+
+  .start__tekst {
+    color: var(--dempet);
+  }
+
+  .start__handling {
+    margin-top: var(--r-2);
+    color: var(--lenke);
+    font-weight: 620;
+  }
+
+  .start__liste a:hover .start__handling {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 960px) {
+    .start__liste {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .start__liste li:nth-child(3) {
+      border-left: 0;
+    }
+
+    .start__liste li:nth-child(n + 3) {
+      border-top: 1px solid var(--kant);
+    }
+  }
+
+  @media (max-width: 520px) {
+    .start__liste {
+      grid-template-columns: 1fr;
+    }
+
+    .start__liste li + li {
+      border-left: 0;
+      border-top: 1px solid var(--kant);
+    }
+
+    .start__liste a {
+      padding-inline: 0;
+    }
+  }
+
+  .pris {
+    display: grid;
+    gap: var(--r-4);
+  }
+
+  .skjemaseksjon {
+    padding-block: var(--r-8) var(--r-seksjon);
+    background: var(--kalk);
+  }
+
+  .skjemaseksjon__rutenett {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: var(--r-7);
+    align-items: start;
+  }
+
+  .skjemaseksjon__intro {
+    display: grid;
+    gap: var(--r-4);
+    position: sticky;
+    top: calc(var(--header-h) + var(--r-6));
+  }
+
+  @media (max-width: 900px) {
+    .skjemaseksjon__rutenett {
+      grid-template-columns: 1fr;
+      gap: var(--r-5);
+    }
+
+    .skjemaseksjon__intro {
+      position: static;
+    }
+  }
+</style>

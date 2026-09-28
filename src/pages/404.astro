@@ -1,0 +1,89 @@
+---
+import Side from '@/layouts/Side.astro';
+import Knapp from '@/components/Knapp.astro';
+import VaseBygg from '@/components/showroom/bygg/VaseBygg.astro';
+---
+
+<Side tittel="Siden finnes ikke" beskrivelse="Siden du lette etter finnes ikke." ikkeIndekser>
+  <section class="ramme ikkefunnet">
+    <div class="ikkefunnet__tekst">
+      <p class="mono ikkefunnet__kode">404</p>
+      <h1>Denne siden finnes ikke. Ennå.</h1>
+      <p class="ingress">
+        Kanskje er adressen feil, eller så er siden flyttet. Noen ting må tegnes før de finnes.
+      </p>
+      <div class="ikkefunnet__handlinger">
+        <Knapp href="/">Til forsiden</Knapp>
+        <Knapp href="/sok/" variant="sekundar">
+          Søk
+        </Knapp>
+      </div>
+      <ul class="ikkefunnet__veier">
+        <li>
+          <a href="/produkter/">Finn noe</a>
+        </li>
+        <li>
+          <a href="/skaperverksted/">Lag noe</a>
+        </li>
+        <li>
+          <a href="/spesialdesign/">Har du en idé?</a>
+        </li>
+      </ul>
+    </div>
+    <div class="ikkefunnet__figur">
+      <VaseBygg tilstand="skisse" />
+    </div>
+  </section>
+</Side>
+
+<style>
+  .ikkefunnet {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: var(--r-7);
+    align-items: center;
+    padding-block: var(--r-8) var(--r-seksjon);
+  }
+
+  .ikkefunnet__tekst {
+    display: grid;
+    gap: var(--r-4);
+    justify-items: start;
+  }
+
+  .ikkefunnet__kode {
+    color: var(--dempet);
+  }
+
+  .ikkefunnet__handlinger {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-3);
+    margin-top: var(--r-2);
+  }
+
+  .ikkefunnet__veier {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-2) var(--r-5);
+    margin: var(--r-4) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ikkefunnet__figur {
+    max-width: 420px;
+    justify-self: center;
+    width: 100%;
+  }
+
+  @media (max-width: 760px) {
+    .ikkefunnet {
+      grid-template-columns: 1fr;
+    }
+
+    .ikkefunnet__figur {
+      max-width: 260px;
+    }
+  }
+</style>

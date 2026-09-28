@@ -1,0 +1,60 @@
+---
+/** Receipt for forms sent without JavaScript (the enhanced form shows it inline). */
+import Side from '@/layouts/Side.astro';
+import Knapp from '@/components/Knapp.astro';
+import Kvittering from '@/components/showroom/skjema/Kvittering.astro';
+
+export const prerender = false;
+
+const p = Astro.url.searchParams;
+const feil = p.get('feil')?.slice(0, 600);
+const type = p.get('type') === 'kontakt' ? 'kontakt' : 'ide';
+const ref = p.get('ref') ?? '';
+const referanse = /^DP-\d{8}-[A-Z0-9]{1,8}$/.test(ref) ? ref : undefined;
+const kanal = p.get('kanal') === 'fil' ? 'fil' : 'epost';
+const tilbake = type === 'kontakt' ? '/kontakt/#skjema' : '/spesialdesign/#skjema';
+---
+
+<Side
+  tittel={feil ? 'Ikke sendt' : 'Sendt'}
+  beskrivelse="Kvittering for skjema sendt til Designporten."
+  ikkeIndekser
+>
+  <section class="ramme seksjon kv">
+    {feil ? (
+      <div class="kv__feil" role="alert">
+        <h1>Meldingen ble ikke sendt</h1>
+        <p>{feil}</p>
+        <Knapp href={tilbake}>Tilbake til skjemaet</Knapp>
+      </div>
+    ) : (
+      <>
+        <h1 class="visuelt-skjult">Sendt</h1>
+        <Kvittering type={type} referanse={referanse} kanal={kanal} />
+        <p class="kv__videre">
+          <a href="/">Til forsiden</a> · <a href="/skaperverksted/">Skaperverksted</a> ·{' '}
+          <a href="/produkter/">Produkter</a>
+        </p>
+      </>
+    )}
+  </section>
+</Side>
+
+<style>
+  .kv {
+    display: grid;
+    gap: var(--r-5);
+    justify-items: start;
+  }
+
+  .kv__feil {
+    display: grid;
+    gap: var(--r-4);
+    justify-items: start;
+    max-width: 60ch;
+  }
+
+  .kv__feil h1 {
+    font-size: var(--fs-h2);
+  }
+</style>

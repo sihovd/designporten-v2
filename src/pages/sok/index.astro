@@ -1,0 +1,202 @@
+---
+import Side from '@/layouts/Side.astro';
+import SideHode from '@/components/showroom/SideHode.astro';
+import Ikon from '@/components/Ikon.astro';
+---
+
+<Side tittel="Søk" beskrivelse="Søk etter produkter, materialer, verktøy og inspirasjon hos Designporten.">
+  <SideHode eyebrow="Søk" tittel="Hva leter du etter?" />
+
+  <section class="ramme sok" aria-label="Søk">
+    <form class="sok__skjema" role="search" action="/sok/" method="get" data-sokeskjema>
+      <label for="sok-felt" class="visuelt-skjult">
+        Søk
+      </label>
+      <input
+        id="sok-felt"
+        name="q"
+        type="search"
+        placeholder="Søk etter produkt, materiale eller mål"
+        autocomplete="off"
+        data-sokefelt
+      />
+      <button type="submit" class="sok__knapp" aria-label="Søk">
+        <Ikon navn="sok" />
+      </button>
+    </form>
+
+    <p class="sok__status" role="status" aria-live="polite" data-sokestatus></p>
+    <ol class="sok__treff" data-soketreff></ol>
+
+    <noscript>
+      <p class="sok__uten-js">
+        Søket trenger JavaScript. Du finner alt via menyen: <a href="/produkter/">Produkter</a>,
+        <a href="/skaperverksted/">Skaperverksted</a>, <a href="/spesialdesign/">Spesialdesign</a>,
+        <a href="/inspirasjon/">Inspirasjon</a>.
+      </p>
+    </noscript>
+  </section>
+</Side>
+
+<script>
+  import { sok, type Sokepost } from '@/components/showroom/sok/sok';
+
+  const skjema = document.querySelector<HTMLFormElement>('[data-sokeskjema]')!;
+  const felt = document.querySelector<HTMLInputElement>('[data-sokefelt]')!;
+  const status = document.querySelector<HTMLElement>('[data-sokestatus]')!;
+  const liste = document.querySelector<HTMLElement>('[data-soketreff]')!;
+  let poster: Sokepost[] | null = null;
+
+  async function hent(): Promise<Sokepost[]> {
+    if (!poster) poster = (await (await fetch('/sok.json')).json()) as Sokepost[];
+    return poster;
+  }
+
+  let ur: number | undefined;
+  async function vis(sporring: string) {
+    const q = sporring.trim();
+    if (!q) {
+      liste.replaceChildren();
+      status.textContent = '';
+      return;
+    }
+    const treff = sok(await hent(), q);
+    status.textContent = treff.length
+      ? `${treff.length} treff for «${q}»`
+      : `Ingen treff for «${q}». Prøv et annet ord, eller fortell oss hva du leter etter via idéskjemaet.`;
+    liste.replaceChildren(
+      ...treff.map((t) => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = t.url;
+        const type = document.createElement('span');
+        type.className = 'mono sok__type';
+        type.textContent = t.type;
+        const tittel = document.createElement('span');
+        tittel.className = 'sok__tittel';
+        tittel.textContent = t.tittel;
+        a.append(type, tittel);
+        li.append(a);
+        if (t.tekst) {
+          const p = document.createElement('p');
+          p.textContent = t.tekst;
+          li.append(p);
+        }
+        return li;
+      }),
+    );
+  }
+
+  felt.addEventListener('input', () => {
+    window.clearTimeout(ur);
+    ur = window.setTimeout(() => {
+      const url = new URL(window.location.href);
+      if (felt.value.trim()) url.searchParams.set('q', felt.value.trim());
+      else url.searchParams.delete('q');
+      history.replaceState(null, '', url);
+      void vis(felt.value);
+    }, 160);
+  });
+  skjema.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void vis(felt.value);
+  });
+
+  const start = new URLSearchParams(window.location.search).get('q');
+  if (start) {
+    felt.value = start;
+    void vis(start);
+  }
+  felt.focus();
+</script>
+
+<style>
+  .sok {
+    padding-bottom: var(--r-seksjon);
+  }
+
+  .sok > * {
+    max-width: 820px;
+  }
+
+  .sok__skjema {
+    display: flex;
+    border-bottom: 2px solid var(--blekk);
+  }
+
+  .sok__skjema input {
+    flex: 1;
+    min-width: 0;
+    min-height: 56px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: clamp(1.25rem, 1rem + 1vw, 1.75rem);
+  }
+
+  .sok__skjema input:focus-visible {
+    outline: none;
+  }
+
+  .sok__skjema:focus-within {
+    border-bottom-color: var(--dp-lilla);
+  }
+
+  .sok__skjema input::placeholder {
+    color: var(--dempet);
+  }
+
+  .sok__knapp {
+    width: 56px;
+    border: 0;
+    background: none;
+  }
+
+  .sok__status {
+    margin-top: var(--r-4);
+    color: var(--dempet);
+  }
+
+  .sok__treff {
+    margin: var(--r-5) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .sok__treff :global(li) {
+    display: grid;
+    gap: var(--r-1);
+    padding: var(--r-4) 0;
+    border-bottom: 1px solid var(--kant);
+  }
+
+  .sok__treff :global(a) {
+    display: grid;
+    gap: 2px;
+    color: var(--blekk);
+    text-decoration: none;
+  }
+
+  .sok__treff :global(a:hover .sok__tittel) {
+    color: var(--lenke);
+    text-decoration: underline;
+  }
+
+  .sok__treff :global(.sok__type) {
+    color: var(--dempet);
+    font-size: var(--fs-mono-liten);
+  }
+
+  .sok__treff :global(.sok__tittel) {
+    font-size: 1.25rem;
+    font-weight: 650;
+  }
+
+  .sok__treff :global(p) {
+    color: var(--dempet);
+  }
+
+  .sok__uten-js {
+    margin-top: var(--r-4);
+  }
+</style>

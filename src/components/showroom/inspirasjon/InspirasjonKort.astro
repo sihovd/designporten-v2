@@ -1,0 +1,89 @@
+---
+/** Editorial card for an inspiration entry (not the product grid). */
+import type { CollectionEntry } from 'astro:content';
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import { finnBilde } from '@/components/showroom/bilder';
+import { typenavn } from './typer';
+
+interface Props {
+  sak: CollectionEntry<'inspirasjon'>;
+  niva?: 2 | 3;
+}
+
+const { sak, niva = 3 } = Astro.props;
+const { tittel, ingress, type, status, bilde: bildeNokkel } = sak.data;
+const bilde = finnBilde(bildeNokkel);
+const Overskrift = `h${niva}` as 'h2' | 'h3';
+---
+
+<article class="ikort" data-type={type}>
+  <a href={`/inspirasjon/${sak.id}/`} class="ikort__lenke">
+    <div class:list={['ikort__bilde', { 'ikort__bilde--utklipp': bilde?.utklipp }]}>
+      {bilde && <Konseptbilde bilde={bilde} />}
+    </div>
+    <div class="ikort__tekst">
+      <p class="mono ikort__meta">
+        <span>{typenavn[type].en}</span>
+        {status === 'plassholder' && <span class="ikort__plassholder">Plassholder</span>}
+      </p>
+      <Overskrift class="ikort__tittel">{tittel}</Overskrift>
+      <p class="ikort__ingress">{ingress}</p>
+    </div>
+  </a>
+</article>
+
+<style>
+  .ikort__lenke {
+    display: grid;
+    gap: var(--r-4);
+    color: var(--fg);
+    text-decoration: none;
+  }
+
+  .ikort__bilde {
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background: var(--kalk);
+  }
+
+  .ikort__bilde :global(.konseptbilde),
+  .ikort__bilde :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .ikort__bilde--utklipp :global(img) {
+    object-fit: contain;
+    padding: 8%;
+  }
+
+  .ikort__meta {
+    display: flex;
+    gap: var(--r-3);
+    color: var(--dempet);
+  }
+
+  .ikort__plassholder {
+    padding: 0 6px;
+    border: 1px solid var(--advarsel);
+    color: var(--advarsel);
+  }
+
+  .ikort__tittel {
+    margin-top: var(--r-2);
+    font-size: var(--fs-h3);
+  }
+
+  .ikort__lenke:hover .ikort__tittel {
+    color: var(--lenke);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+  }
+
+  .ikort__ingress {
+    margin-top: var(--r-2);
+    color: var(--dempet);
+    max-width: 48ch;
+  }
+</style>
