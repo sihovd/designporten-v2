@@ -24,7 +24,9 @@ export function mm(verdi: number, desimaler = 1): string {
 
 /** "12,5" (no unit), for inputs. */
 export function tall(verdi: number, desimaler = 1): string {
-  return nf(desimaler).format(rund(verdi, desimaler)).replace(/\u00a0/g, '');
+  return nf(desimaler)
+    .format(rund(verdi, desimaler))
+    .replace(/\u00a0/g, '');
 }
 
 export function rund(v: number, desimaler = 1): number {
