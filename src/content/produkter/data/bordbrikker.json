@@ -1,0 +1,16 @@
+{
+  "navn": "Bordbrikker i holder",
+  "status": "plassholder",
+  "kategori": "personlige-gaver",
+  "kortBeskrivelse": "Fire bordbrikker som står samlet i sin egen holder.",
+  "beskrivelse": "Brikkene står i en holder på bordet og er alltid for hånden.\n\nBordbrikkene er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "bordbrikker",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PETG", "PLA"],
+  "farger": ["pla-kritthvit", "pla-isbla", "pla-skog", "pla-rust"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 7,
+  "lagtTil": "2026-09-28"
+}

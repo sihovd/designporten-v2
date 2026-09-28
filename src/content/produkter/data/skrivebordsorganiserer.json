@@ -1,0 +1,16 @@
+{
+  "navn": "Skrivebordsorganiserer",
+  "status": "plassholder",
+  "kategori": "tilbehor",
+  "kortBeskrivelse": "Trappeformet organiserer med rom til penner, kort og små ting.",
+  "beskrivelse": "Rommene står i trinn, så du ser alt på pulten uten å lete.\n\nOrganisereren er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "skrivebordsorganiserer",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PLA", "PLA Matt"],
+  "farger": ["matt-marine", "pla-grafitt", "pla-kritthvit"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 5,
+  "lagtTil": "2026-09-28"
+}

@@ -1,0 +1,16 @@
+{
+  "navn": "Lampeskjerm med ribber",
+  "status": "plassholder",
+  "kategori": "interior",
+  "kortBeskrivelse": "Lampeskjerm med bølgende ribber som sprer lyset mykt.",
+  "beskrivelse": "Ribbene i skjermen bølger slik at lyset faller ujevnt og levende på veggen.\n\nLampeskjermen er en plassholder. Bildet er et konseptbilde. Fatning, mål og pris er ikke fastsatt, og skjermen selges ikke med elektriske deler.",
+  "bilde": "lampeskjerm",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PLA", "PLA Matt"],
+  "farger": ["pla-kritthvit", "matt-sand"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 2,
+  "lagtTil": "2026-09-28"
+}

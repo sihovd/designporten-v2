@@ -1,0 +1,34 @@
+---
+/** Cart. Prerendered shell; the cart itself lives in the browser (island). */
+import Side from '@/layouts/Side.astro';
+import Handlekurv from '@/components/produkt/Handlekurv';
+import { hentProdukter } from '@/lib/handel/katalog';
+
+const produkter = Object.fromEntries((await hentProdukter()).map((p) => [p.id, p]));
+---
+
+<Side
+  tittel="Handlekurv"
+  beskrivelse="Handlekurven din hos Designporten. Send den som en bestillingsforespørsel."
+  ikkeIndekser
+>
+  <div class="handlekurvside ramme">
+    <h1>Handlekurv</h1>
+    <Handlekurv client:load produkter={produkter} />
+    <noscript>
+      <p>
+        Handlekurven trenger JavaScript. Du kan også beskrive hva du vil ha i idéskjemaet på Spesialdesign.
+      </p>
+    </noscript>
+  </div>
+</Side>
+
+<style>
+  .handlekurvside {
+    padding-block: var(--r-7) var(--r-seksjon);
+  }
+
+  h1 {
+    margin-bottom: var(--r-5);
+  }
+</style>

@@ -1,0 +1,16 @@
+{
+  "navn": "Kabelholder med fire spor",
+  "status": "plassholder",
+  "kategori": "tilbehor",
+  "kortBeskrivelse": "Holder med fire spor som holder ladekablene på plass ved bordkanten.",
+  "beskrivelse": "Fire spor holder kablene der du la dem, så de ikke glir ned bak bordet.\n\nKabelholderen er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "kabelholder",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PETG", "PLA"],
+  "farger": ["pla-grafitt", "pla-kritthvit", "pla-cyan"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 8,
+  "lagtTil": "2026-09-28"
+}

@@ -1,0 +1,19 @@
+{
+  "navn": "Nøkkelring med navn",
+  "status": "plassholder",
+  "kategori": "personlige-gaver",
+  "kortBeskrivelse": "Nøkkelring med en innfelt flate til navn eller en kort tekst.",
+  "beskrivelse": "En liten nøkkelring med en innfelt flate der teksten din står opphøyd.\n\nNøkkelringen er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "nokkelring",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PLA", "PETG"],
+  "farger": ["pla-lilla", "pla-cyan", "pla-grafitt", "pla-signal", "pla-rosa"],
+  "egenTekst": {
+    "maksTegn": 14,
+    "tilleggOre": null
+  },
+  "generator": null,
+  "rekkefolge": 4,
+  "lagtTil": "2026-09-28"
+}
