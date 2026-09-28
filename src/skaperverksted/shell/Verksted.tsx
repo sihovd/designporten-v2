@@ -17,6 +17,7 @@ import { Eksportdialog } from './Eksportdialog';
 import { Hjelp } from './Hjelp';
 import { Statuslinje } from './Statuslinje';
 import { Ark } from './Ark';
+import { logomerke } from '../../lib/ressurser';
 
 export function Verksted({ generatorId }: { generatorId: string }) {
   const [plugin, settPlugin] = useState<GeneratorPlugin | null | undefined>(undefined);
@@ -184,6 +185,9 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   return (
     <div class={`verksted${bred ? ' bred' : ' smal'}`}>
       <header class="verkstedlinje">
+        <a class="hjem" href="/" aria-label="Designporten, til forsiden">
+          <img src={logomerke.src} alt="" width={logomerke.bredde} height={logomerke.hoyde} />
+        </a>
         <a class="tilbake" href="/skaperverksted/" aria-label="Tilbake til Skaperverksted">
           <span aria-hidden="true">←</span>
           <span class="tilbake-tekst">Skaperverksted</span>

@@ -7,10 +7,9 @@
  */
 import Ikon from './Ikon.astro';
 import { hovedmeny, erAktiv } from '@/lib/navigasjon';
-import { logo } from '@/lib/ressurser';
+import { logomerke } from '@/lib/ressurser';
 
 const sti = Astro.url.pathname;
-const utvikling = import.meta.env.DEV;
 ---
 
 <div class="framdrift" aria-hidden="true">
@@ -19,14 +18,7 @@ const utvikling = import.meta.env.DEV;
 <header class="hd" data-header>
   <div class="hd__rad">
     <a class="hd__logo" href="/" aria-label="Designporten, til forsiden">
-      {logo ? (
-        <img src={logo.src} alt="" width={logo.bredde} height={logo.hoyde} />
-      ) : (
-        <span class="hd__ordmerke" data-midlertidig="logo">
-          Designporten
-        </span>
-      )}
-      {!logo && utvikling && <span class="hd__dev mono">midlertidig logo</span>}
+      <img src={logomerke.src} alt="" width={logomerke.bredde} height={logomerke.hoyde} />
     </a>
 
     <nav class="hd__nav" aria-label="Hovedmeny">
@@ -198,24 +190,21 @@ const utvikling = import.meta.env.DEV;
 
   .hd__logo {
     display: inline-flex;
-    align-items: baseline;
-    gap: var(--r-2);
-    color: var(--blekk);
-    text-decoration: none;
+    align-items: center;
+    min-width: var(--mal-beroring);
+    min-height: var(--mal-beroring);
     flex: none;
   }
 
-  .hd__ordmerke {
-    font-family: var(--font-display);
-    font-weight: 780;
-    font-stretch: 112%;
-    font-size: 1.25rem;
-    letter-spacing: -0.03em;
+  .hd__logo img {
+    display: block;
+    width: auto;
+    height: 40px;
+    transition: height var(--t-trinn) var(--ease-ut);
   }
 
-  .hd__dev {
-    font-size: 9px;
-    color: var(--dempet);
+  .hd:global(.krympet) .hd__logo img {
+    height: 34px;
   }
 
   .hd__nav {
@@ -373,7 +362,8 @@ const utvikling = import.meta.env.DEV;
 
   @media (prefers-reduced-motion: reduce) {
     .hd,
-    .hd__rad {
+    .hd__rad,
+    .hd__logo img {
       transition: none;
     }
   }

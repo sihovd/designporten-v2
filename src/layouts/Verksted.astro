@@ -5,6 +5,7 @@
  */
 import '@/styles/base.css';
 import '@/skaperverksted/shell/verksted.css';
+import { standardDelingsbilde } from '@/lib/ressurser';
 
 interface Props {
   tittel: string;
@@ -19,13 +20,16 @@ const kanonisk = new URL(Astro.url.pathname, Astro.site);
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <!-- No favicon until the real logo exists (assets list); empty icon avoids a /favicon.ico 404 -->
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <title>{`${tittel} – Skaperverksted – Designporten`}</title>
     <meta name="description" content={beskrivelse} />
     <link rel="canonical" href={kanonisk.href} />
     <meta property="og:title" content={`${tittel} – Designporten`} />
     <meta property="og:description" content={beskrivelse} />
+    <meta property="og:image" content={new URL(standardDelingsbilde.src, Astro.site).href} />
     <meta name="theme-color" content="#141317" />
     <link rel="preload" href="/skaperverksted/fonter/archivo-800.woff" as="fetch" crossorigin />
     <script is:inline>

@@ -1,0 +1,14 @@
+{
+  "name": "Designporten",
+  "short_name": "Designporten",
+  "lang": "nb",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#f6f3ee",
+  "theme_color": "#f6f3ee",
+  "icons": [
+    { "src": "/brand/ikon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/ikon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/brand/ikon-maskerbar-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
