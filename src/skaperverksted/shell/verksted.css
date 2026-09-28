@@ -465,8 +465,13 @@
   cursor: pointer;
 }
 
+.smal .visning3d-vinkler {
+  max-width: calc(100% - 20px);
+}
+
 .smal .visning3d-vinkler button {
   min-height: 36px;
+  padding: 0 6px;
 }
 
 .visning3d-feil {
