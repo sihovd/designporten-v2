@@ -10,7 +10,7 @@ import type { GeneratorPlugin } from '../core/generator';
 import { fraJson, tilJson, DokumentFeil } from '../core/dokument';
 import { autolagre, hentAutolagret, lastNed, slettAutolagret } from '../core/lagring';
 import { lastGenerator } from '../generatorer';
-import { Visning3d } from '../render3d/Visning3d';
+import { forhandslast3d, Visning3d } from '../render3d/Lat3d';
 import { filnavn } from '../eksport/tremf';
 import { brukBenk } from './bruk-benk';
 import { Eksportdialog } from './Eksportdialog';
@@ -86,6 +86,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
 
   useEffect(() => {
     if (gjenopprettet.current) benk.melde('Prosjektet ditt fra forrige gang er hentet fram.');
+    forhandslast3d();
   }, [benk]);
 
   // autosave (debounced)

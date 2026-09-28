@@ -14,7 +14,7 @@ import { tilStl } from '../eksport/stl';
 import { filnavn, tilTremf, STL_TYPE, TREMF_TYPE } from '../eksport/tremf';
 import { leggTil } from '../../lib/handel/kurv';
 import { tall } from '../core/enheter';
-import { Visning3d } from '../render3d/Visning3d';
+import { Visning3d } from '../render3d/Lat3d';
 import { brukBenk } from './bruk-benk';
 import { Dialog } from './Dialog';
 import { mal } from './mal';
