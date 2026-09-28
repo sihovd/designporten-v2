@@ -22,4 +22,4 @@ For people and AI agents (Claude, Codex and others) working in this repository.
 
 ## Status
 
-The specification was approved on 2026-09-28 and implementation is under way. See `docs/development.md` for how to run, test and build.
+The specification was approved on 2026-09-28. Phases 0 to 7 are implemented on the integration branch (`claude/master-spec-58t4b2`, PR #1): foundation, showroom, products and cart with order requests, the Skaperverksted shell, Signgen with CSV batch, the lamp and the dragon generator. Open business decisions and unconfirmed facts are listed in `docs/decisions/decision-log.md`. See `docs/development.md` for how to run, test and build.
