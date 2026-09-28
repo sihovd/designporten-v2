@@ -1,0 +1,16 @@
+{
+  "navn": "Modulære veggknagger",
+  "status": "plassholder",
+  "kategori": "tilbehor",
+  "kortBeskrivelse": "Sett med veggknagger som kan settes sammen i ulike farger.",
+  "beskrivelse": "Knaggene er like i formen, så du kan blande farger og henge dem i den rekkefølgen du vil.\n\nKnaggene er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "veggknagger",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PETG", "PLA"],
+  "farger": ["pla-signal", "pla-cyan", "pla-rust", "pla-grafitt"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 6,
+  "lagtTil": "2026-09-28"
+}

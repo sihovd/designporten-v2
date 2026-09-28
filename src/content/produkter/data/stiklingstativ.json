@@ -1,0 +1,16 @@
+{
+  "navn": "Stativ for stiklinger",
+  "status": "plassholder",
+  "kategori": "interior",
+  "kortBeskrivelse": "Stativ med tre glassrør der stiklinger kan slå rot.",
+  "beskrivelse": "Stativet holder tre glassrør, så du kan følge røttene mens de vokser.\n\nStativet er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt. Glassrørene er ikke 3D-printet.",
+  "bilde": "stiklingstativ",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PLA", "PETG"],
+  "farger": ["pla-kritthvit", "pla-skog", "matt-sand"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 11,
+  "lagtTil": "2026-09-28"
+}
