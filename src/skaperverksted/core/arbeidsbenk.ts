@@ -34,6 +34,8 @@ export interface BenkTilstand {
   dok: Dokument;
   utvalg: Utvalg;
   utsnitt: Utsnitt;
+  /** False until the view has been fitted or moved (views fit on first show). */
+  utsnittSatt: boolean;
   innstillinger: Innstillinger;
   modell: Modellresultat | null;
   bygger: boolean;
@@ -48,6 +50,12 @@ export class Arbeidsbenk {
   private lyttere = new Set<Lytter>();
   private byggNr = 0;
   private byggTidsur: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * View commands registered by the active view (tilpass, zoom-100,
+   * zoom-inn, zoom-ut, tegn) so shortcuts and toolbars can drive whichever
+   * view is showing.
+   */
+  readonly kommandoer = new Map<string, () => void>();
 
   constructor(
     readonly generator: GeneratorPlugin,
@@ -58,6 +66,7 @@ export class Arbeidsbenk {
       dok,
       utvalg: { objekter: [], lag: dok.lag.at(-1)?.id ?? null },
       utsnitt: { zoom: 1, senterX: 0, senterY: 0 },
+      utsnittSatt: false,
       innstillinger: { snap: true, rutenett: true, visning: generator.visninger[0] ?? '2d', ark: 'ingen' },
       modell: null,
       bygger: false,
@@ -108,7 +117,14 @@ export class Arbeidsbenk {
 
   settUtsnitt(u: Partial<Utsnitt>): void {
     const zoom = Math.min(40, Math.max(0.05, u.zoom ?? this.t.utsnitt.zoom));
-    this.oppdater({ utsnitt: { ...this.t.utsnitt, ...u, zoom } });
+    this.oppdater({ utsnitt: { ...this.t.utsnitt, ...u, zoom }, utsnittSatt: true });
+  }
+
+  /** Run a registered view command; returns false if no view offers it. */
+  kommando(navn: string): boolean {
+    const f = this.kommandoer.get(navn);
+    f?.();
+    return !!f;
   }
 
   settInnstillinger(i: Partial<Innstillinger>): void {

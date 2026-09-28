@@ -1,0 +1,149 @@
+---
+import Side from '@/layouts/Side.astro';
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import { katalog } from '@/skaperverksted/generatorer';
+import { utklippbilder } from '@/lib/ressurser';
+
+const bilder = utklippbilder as Record<string, (typeof utklippbilder)[keyof typeof utklippbilder]>;
+---
+
+<Side
+  tittel="Skaperverksted"
+  beskrivelse="Skaperverksted er Designportens verksted i nettleseren. Bygg skilt, lamper og figurer i ekte millimeter, se dem i 3D og last ned filen eller bestill utskrift."
+>
+  <section class="hub verksted-flate">
+    <div class="ramme hub-topp">
+      <p class="mono hub-etikett">Skaperverksted</p>
+      <h1>Fra idé til ferdig fil.</h1>
+      <p class="ingress">
+        Her bygger du selv. Alt måles i ekte millimeter, du ser resultatet i 3D mens du jobber, og det du
+        lager kan lastes ned som 3MF eller STL eller bestilles ferdig printet fra oss.
+      </p>
+    </div>
+    <ul class="ramme hub-liste" role="list">
+      {katalog.map((g) => (
+        <li class:list={['hub-kort', g.status]}>
+          {g.bilde && bilder[g.bilde] && (
+            <Konseptbilde bilde={bilder[g.bilde]!} class="hub-bilde" sizes="(min-width: 900px) 30vw, 90vw" />
+          )}
+          <div class="hub-tekst">
+            <p class="mono hub-undertittel">{g.undertittel}</p>
+            <h2>
+              <a href={`/skaperverksted/${g.id}/`}>{g.navn}</a>
+            </h2>
+            <p>{g.beskrivelse}</p>
+            {g.status === 'under-utvikling' && <p class="mono hub-status">Under utvikling</p>}
+          </div>
+        </li>
+      ))}
+    </ul>
+    <div class="ramme hub-bunn">
+      <h2>Slik fungerer det</h2>
+      <ol class="hub-steg">
+        <li>
+          <strong>Bygg.</strong> Tekst, former og egne SVG-filer blir fysiske lag med høyde og farge.
+        </li>
+        <li>
+          <strong>Se det i 3D.</strong> Forhåndsvisningen viser det som faktisk blir printet.
+        </li>
+        <li>
+          <strong>Last ned eller bestill.</strong> Ta med filen til din egen printer, eller send den til oss.
+        </li>
+      </ol>
+      <p>
+        Har du en idé som ikke passer i et verktøy? <a href="/spesialdesign/">Spesialdesign</a> er for det.
+      </p>
+    </div>
+  </section>
+</Side>
+
+<style>
+  .hub {
+    padding-block: var(--r-seksjon);
+  }
+  .hub-topp {
+    max-width: var(--innhold-maks);
+  }
+  .hub-etikett,
+  .hub-undertittel {
+    color: var(--dp-cyan);
+    letter-spacing: var(--sporing-mono);
+    text-transform: uppercase;
+    font-size: var(--fs-mono);
+  }
+  .hub h1 {
+    font-size: var(--fs-h1);
+    max-width: 16ch;
+  }
+  .hub .ingress {
+    color: var(--fg-dempet);
+    max-width: var(--tekst-maks);
+  }
+  .hub-liste {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: var(--r-4);
+    padding: 0;
+    margin-block: var(--r-7);
+    list-style: none;
+  }
+  .hub-kort {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: var(--overflate);
+    border: 1px solid var(--linje);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+  }
+  .hub-kort:has(a:focus-visible) {
+    outline: 2px solid var(--fokus);
+    outline-offset: 2px;
+  }
+  .hub-kort:hover {
+    border-color: var(--handling);
+  }
+  :global(.hub-bilde) {
+    aspect-ratio: 4 / 3;
+    background: var(--grafitt-2);
+    object-fit: contain;
+  }
+  .hub-tekst {
+    padding: var(--r-5);
+  }
+  .hub-tekst h2 {
+    font-size: var(--fs-h3);
+    margin: var(--r-1) 0 var(--r-2);
+  }
+  .hub-tekst a {
+    color: var(--fg);
+    text-decoration: none;
+  }
+  .hub-tekst a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  .hub-tekst p {
+    color: var(--fg-dempet);
+    margin: 0;
+  }
+  .hub-status {
+    margin-top: var(--r-3) !important;
+    color: var(--advarsel-mork) !important;
+    font-size: var(--fs-mono);
+  }
+  .hub-steg {
+    display: grid;
+    gap: var(--r-3);
+    padding-left: 1.25rem;
+    color: var(--fg-dempet);
+    max-width: var(--tekst-maks);
+  }
+  .hub-steg strong {
+    color: var(--fg);
+  }
+  .hub-bunn a {
+    color: var(--lenke);
+  }
+</style>

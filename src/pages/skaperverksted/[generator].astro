@@ -1,0 +1,15 @@
+---
+import Verksted from '@/layouts/Verksted.astro';
+import { Verksted as VerkstedApp } from '@/skaperverksted/shell/Verksted';
+import { katalog } from '@/skaperverksted/generatorer';
+
+export function getStaticPaths() {
+  return katalog.map((g) => ({ params: { generator: g.id }, props: { meta: g } }));
+}
+
+const { meta } = Astro.props;
+---
+
+<Verksted tittel={meta.navn} beskrivelse={meta.beskrivelse}>
+  <VerkstedApp client:only="preact" generatorId={meta.id} />
+</Verksted>
