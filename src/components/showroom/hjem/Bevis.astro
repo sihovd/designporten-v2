@@ -1,0 +1,45 @@
+---
+/**
+ * Proof: real projects from Inspirasjon. Only confirmed entries are shown;
+ * with none, the section is left out (no invented references or reviews).
+ */
+import { getCollection } from 'astro:content';
+import InspirasjonKort from '@/components/showroom/inspirasjon/InspirasjonKort.astro';
+
+const saker = (
+  await getCollection('inspirasjon', (s) => s.data.status === 'bekreftet' && s.data.type === 'prosjekt')
+)
+  .sort((a, b) => b.data.dato.getTime() - a.data.dato.getTime())
+  .slice(0, 3);
+---
+
+{saker.length > 0 && (
+  <section class="ramme seksjon bevis" aria-labelledby="bevis-tittel">
+    <div class="bevis__hode">
+      <h2 id="bevis-tittel">Laget i verkstedet</h2>
+      <a href="/inspirasjon/">Se flere prosjekter</a>
+    </div>
+    <div class="bevis__rutenett">
+      {saker.map((s) => (
+        <InspirasjonKort sak={s} />
+      ))}
+    </div>
+  </section>
+)}
+
+<style>
+  .bevis__hode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--r-3);
+    margin-bottom: var(--r-6);
+  }
+
+  .bevis__rutenett {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: var(--r-6);
+  }
+</style>

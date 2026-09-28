@@ -1,0 +1,113 @@
+---
+import { getCollection } from 'astro:content';
+import Side from '@/layouts/Side.astro';
+import SideHode from '@/components/showroom/SideHode.astro';
+import InspirasjonKort from '@/components/showroom/inspirasjon/InspirasjonKort.astro';
+import { typenavn } from '@/components/showroom/inspirasjon/typer';
+import { inspirasjonstyper } from '@/content/inspirasjon/samling';
+
+// Confirmed entries first, newest first.
+const saker = (await getCollection('inspirasjon')).sort(
+  (a, b) =>
+    Number(a.data.status === 'plassholder') - Number(b.data.status === 'plassholder') ||
+    b.data.dato.getTime() - a.data.dato.getTime(),
+);
+const typer = inspirasjonstyper.filter((t) => saker.some((s) => s.data.type === t));
+const harPlassholdere = saker.some((s) => s.data.status === 'plassholder');
+---
+
+<Side
+  tittel="Inspirasjon"
+  beskrivelse="Prosjekter, historier og guider fra Designporten: fra idé og skisse til ferdig 3D-printet del."
+>
+  <SideHode
+    eyebrow="Inspirasjon"
+    tittel="Fra idé til noe du kan holde i"
+    ingress="Prosjekter fra verkstedet, historier om hvordan ting ble til, og guider som hjelper deg å velge."
+  />
+
+  <section class="ramme insp" aria-label="Saker">
+    {typer.length > 1 && (
+      <div class="insp__filter" role="group" aria-label="Vis type" data-filter>
+        <button type="button" aria-pressed="true" data-type="alle">
+          Alle
+        </button>
+        {typer.map((t) => (
+          <button type="button" aria-pressed="false" data-type={t}>
+            {typenavn[t].flere}
+          </button>
+        ))}
+      </div>
+    )}
+    {harPlassholdere && (
+      <p class="insp__merknad">
+        Sakene merket «Plassholder» viser oppsettet. De byttes ut med ekte prosjekter fra verkstedet.
+      </p>
+    )}
+    <div class="insp__rutenett" data-saker>
+      {saker.map((s) => (
+        <InspirasjonKort sak={s} niva={2} />
+      ))}
+    </div>
+    <p class="visuelt-skjult" aria-live="polite" data-antall></p>
+  </section>
+</Side>
+
+<script>
+  const filter = document.querySelector<HTMLElement>('[data-filter]');
+  const kort = [...document.querySelectorAll<HTMLElement>('[data-saker] > [data-type]')];
+  const antall = document.querySelector<HTMLElement>('[data-antall]');
+  filter?.addEventListener('click', (e) => {
+    const knapp = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-type]');
+    if (!knapp) return;
+    const type = knapp.dataset.type;
+    filter.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b === knapp)));
+    let synlige = 0;
+    kort.forEach((k) => {
+      const vis = type === 'alle' || k.dataset.type === type;
+      k.hidden = !vis;
+      if (vis) synlige++;
+    });
+    if (antall) antall.textContent = `${synlige} ${synlige === 1 ? 'sak' : 'saker'}`;
+  });
+</script>
+
+<style>
+  .insp {
+    padding-bottom: var(--r-seksjon);
+  }
+
+  .insp__filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-2);
+    margin-bottom: var(--r-5);
+  }
+
+  .insp__filter button {
+    min-height: 40px;
+    padding: 0 var(--r-4);
+    border: 1px solid var(--kant-sterk);
+    border-radius: var(--radius-pille);
+    background: transparent;
+    font-weight: 560;
+  }
+
+  .insp__filter button[aria-pressed='true'] {
+    background: var(--blekk);
+    border-color: var(--blekk);
+    color: var(--papir);
+  }
+
+  .insp__merknad {
+    margin-bottom: var(--r-6);
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+
+  .insp__rutenett {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+    gap: var(--r-7) var(--r-6);
+  }
+</style>

@@ -1,0 +1,315 @@
+---
+/**
+ * The spiral vase in one of its construction states, drawn over the concept
+ * cut-out of the same object. Used by the hero (animated build sequence,
+ * interaction-and-motion.md#homepage-hero) and by the process slider scenes.
+ *
+ *   skisse   → construction lines and a loose profile
+ *   kontur   → the side profile
+ *   geometri → cross-sections
+ *   mesh     → twisted ribs
+ *   lag      → print layers
+ *   objekt   → the printed object
+ *
+ * `tilstand` shows a fixed state (everything up to and including it).
+ * `animert` plays the full sequence once and ends on the object; reduced
+ * motion shows the end state directly.
+ */
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import { utklippbilder } from '@/lib/ressurser';
+import {
+  AKSE_X,
+  BUNN_Y,
+  TOPP_Y,
+  VISNING,
+  frontbue,
+  kontur,
+  lag,
+  ribber,
+  silhuett,
+  snitt,
+  snittliste,
+} from './vasegeometri';
+
+export type Byggtilstand = 'skisse' | 'kontur' | 'geometri' | 'mesh' | 'lag' | 'print' | 'objekt';
+
+interface Props {
+  tilstand?: Byggtilstand;
+  animert?: boolean;
+  /** Show the «Konseptbilde» tag on the photo. */
+  merke?: boolean;
+  lasting?: 'lazy' | 'eager';
+  class?: string;
+}
+
+const { tilstand = 'objekt', animert = false, merke = true, lasting = 'lazy', class: klasse } = Astro.props;
+
+const rekkefolge: Byggtilstand[] = ['skisse', 'kontur', 'geometri', 'mesh', 'lag', 'print', 'objekt'];
+const niva = rekkefolge.indexOf(tilstand);
+
+const k = kontur();
+const snittene = snittliste(7);
+const ribbene = ribber(14, 2.3);
+const lagene = lag(46);
+const bunn = snitt(BUNN_Y);
+const topp = snitt(TOPP_Y);
+const midt = snitt(470);
+const bilde = utklippbilder.spiralvase;
+
+// A fixed state renders only the layers it shows.
+const vis = {
+  skisse: animert || niva <= 1,
+  kontur: animert || (niva >= 1 && niva <= 5),
+  geometri: animert || niva === 2 || niva === 3,
+  mesh: animert || niva === 3,
+  lag: animert || niva === 4 || niva === 5,
+  objekt: animert || niva >= 5,
+};
+---
+
+<div
+  class:list={['bygg', klasse, { 'bygg--animert': animert }]}
+  style={`--silhuett: ${silhuett()}`}
+  data-niva={animert ? undefined : niva}
+  data-bygg
+  aria-hidden="true"
+>
+  {vis.objekt && <span class="bygg__skygge" />}
+  {vis.objekt && <Konseptbilde bilde={bilde} class="bygg__objekt" lasting={lasting} merke={merke} />}
+  <svg class="bygg__tegning" viewBox={`0 0 ${VISNING} ${VISNING}`} preserveAspectRatio="xMidYMid meet">
+    {vis.skisse && (
+      <g class="bygg__skisse">
+        <line x1={AKSE_X} y1={TOPP_Y - 60} x2={AKSE_X} y2={BUNN_Y + 50} pathLength="1" />
+        {[topp, midt, bunn].map((e) => (
+          <line x1={e.cx - e.rx - 60} y1={e.cy} x2={e.cx + e.rx + 60} y2={e.cy} pathLength="1" />
+        ))}
+        <path class="bygg__los" d={k.venstre} pathLength="1" />
+        <path class="bygg__los" d={k.hoyre} pathLength="1" />
+      </g>
+    )}
+    {vis.kontur && (
+      <g class="bygg__kontur">
+        <path d={k.venstre} pathLength="1" />
+        <path d={k.hoyre} pathLength="1" />
+        <ellipse cx={topp.cx} cy={topp.cy} rx={topp.rx} ry={topp.ry} pathLength="1" />
+        <path d={frontbue(bunn)} pathLength="1" />
+      </g>
+    )}
+    {vis.geometri && (
+      <g class="bygg__geometri">
+        {snittene.map((e) => (
+          <ellipse cx={e.cx} cy={e.cy} rx={e.rx} ry={e.ry} pathLength="1" />
+        ))}
+      </g>
+    )}
+    {vis.mesh && (
+      <g class="bygg__mesh">
+        {ribbene.map((d) => (
+          <path d={d} pathLength="1" />
+        ))}
+      </g>
+    )}
+    {vis.lag && (
+      <g class="bygg__lag">
+        {lagene.map((d) => (
+          <path d={d} />
+        ))}
+      </g>
+    )}
+  </svg>
+</div>
+
+<style>
+  .bygg {
+    position: relative;
+    aspect-ratio: 1;
+    width: 100%;
+  }
+
+  .bygg > :global(.bygg__objekt) {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* Contact shadow under the base (a filter shadow would fight the clip). */
+  .bygg__skygge {
+    position: absolute;
+    left: 20%;
+    width: 42%;
+    top: 85%;
+    height: 9%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgb(24 23 28 / 0.28), rgb(24 23 28 / 0));
+  }
+
+  /* Cut to the vase itself (the concept cut-out carries a baked-in shadow). */
+  .bygg :global(.bygg__objekt img) {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    clip-path: var(--silhuett);
+  }
+
+  .bygg__tegning {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+
+  .bygg__tegning * {
+    vector-effect: non-scaling-stroke;
+  }
+
+  .bygg__skisse {
+    stroke: var(--kant-sterk);
+    stroke-width: 1;
+    stroke-dasharray: 0.012 0.01;
+  }
+
+  .bygg__skisse .bygg__los {
+    stroke: var(--dempet);
+    stroke-dasharray: none;
+    stroke-width: 1.25;
+    opacity: 0.8;
+  }
+
+  .bygg__kontur {
+    stroke: var(--blekk);
+    stroke-width: 2;
+  }
+
+  .bygg__geometri {
+    stroke: var(--dp-cyan-tekst);
+    stroke-width: 1;
+  }
+
+  .bygg__mesh {
+    stroke: var(--dp-lilla);
+    stroke-width: 1.2;
+  }
+
+  .bygg__lag {
+    stroke: var(--dp-lilla);
+    stroke-width: 2.4;
+    opacity: 0.85;
+  }
+
+  /* ---------- Fixed states (process slider scenes) ---------- */
+  /* Fixed states render only their own layers (see `vis`). */
+  .bygg[data-niva='3'] .bygg__geometri {
+    opacity: 0.45;
+  }
+
+  /* «print»: layers finished up to about half height, the object printed below them. */
+  .bygg[data-niva='5'] .bygg__kontur {
+    opacity: 0.35;
+  }
+
+  .bygg[data-niva='5'] .bygg__lag {
+    clip-path: inset(52% 0 0 0);
+  }
+
+  .bygg[data-niva='5'] > :global(.bygg__objekt) {
+    clip-path: inset(58% 0 0 0);
+  }
+
+  /* ---------- Animated build sequence (hero) ---------- */
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .bygg--animert .bygg__tegning > g > * {
+      stroke-dasharray: 1 1;
+      stroke-dashoffset: 1;
+      animation: tegn 520ms var(--ease-ut) forwards;
+      animation-delay: var(--d);
+    }
+
+    :global(.js) .bygg--animert .bygg__skisse > line {
+      stroke-dasharray: 0.012 0.01;
+      stroke-dashoffset: 0;
+      opacity: 0;
+      animation: kom 360ms var(--ease-ut) forwards;
+      animation-delay: var(--d);
+    }
+
+    :global(.js) .bygg--animert .bygg__skisse {
+      --d: 150ms;
+    }
+
+    :global(.js) .bygg--animert .bygg__kontur {
+      --d: 520ms;
+    }
+
+    :global(.js) .bygg--animert .bygg__geometri {
+      --d: 860ms;
+    }
+
+    :global(.js) .bygg--animert .bygg__mesh {
+      --d: 1140ms;
+    }
+
+    :global(.js) .bygg--animert .bygg__lag > * {
+      stroke-dasharray: none;
+      stroke-dashoffset: 0;
+      animation: none;
+    }
+
+    :global(.js) .bygg--animert .bygg__lag {
+      clip-path: inset(100% 0 0 0);
+      animation: print 700ms steps(23, end) 1480ms forwards;
+    }
+
+    :global(.js) .bygg--animert > :global(.bygg__objekt) {
+      clip-path: inset(100% 0 0 0);
+      animation: print 760ms steps(23, end) 1780ms forwards;
+    }
+
+    :global(.js) .bygg--animert .bygg__skygge {
+      opacity: 0;
+      animation: kom 500ms var(--ease-ut) 2300ms forwards;
+    }
+
+    :global(.js) .bygg--animert .bygg__tegning {
+      animation: tilbake 600ms var(--ease-ut) 2450ms forwards;
+    }
+  }
+
+  /* Without JS, or with reduced motion, the hero shows its end state. */
+  .bygg--animert .bygg__tegning {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .bygg--animert .bygg__tegning {
+      opacity: 1;
+    }
+  }
+
+  @keyframes tegn {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes kom {
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes print {
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @keyframes tilbake {
+    to {
+      opacity: 0;
+    }
+  }
+</style>
