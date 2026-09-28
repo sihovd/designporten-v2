@@ -1,0 +1,41 @@
+---
+/**
+ * Skaperverksted editor shell page: the workshop replaces the site header
+ * (spec). Full-viewport, dark workshop surface, no footer.
+ */
+import '@/styles/base.css';
+import '@/skaperverksted/shell/verksted.css';
+
+interface Props {
+  tittel: string;
+  beskrivelse: string;
+}
+const { tittel, beskrivelse } = Astro.props;
+const kanonisk = new URL(Astro.url.pathname, Astro.site);
+---
+
+<!doctype html>
+<html lang="nb" class="verksted-html">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{`${tittel} – Skaperverksted – Designporten`}</title>
+    <meta name="description" content={beskrivelse} />
+    <link rel="canonical" href={kanonisk.href} />
+    <meta property="og:title" content={`${tittel} – Designporten`} />
+    <meta property="og:description" content={beskrivelse} />
+    <meta name="theme-color" content="#141317" />
+    <link rel="preload" href="/skaperverksted/fonter/archivo-800.woff" as="fetch" crossorigin />
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
+  </head>
+  <body class="verksted-flate">
+    <slot />
+    <noscript>
+      <p class="verksted-laster">
+        Skaperverksted trenger JavaScript. <a href="/skaperverksted/">Tilbake</a>
+      </p>
+    </noscript>
+  </body>
+</html>

@@ -21,7 +21,8 @@ export interface ProfilPunkt {
   inn?: { u: number; t: number };
 }
 
-export type ProfilType = 'rett' | 'avrundet' | 'konveks' | 'konkav' | 'trapp' | 'fas' | 'egendefinert';
+export type ProfilType =
+  'rett' | 'avrundet' | 'konveks' | 'konkav' | 's-kurve' | 'trapp' | 'fas' | 'egendefinert';
 
 export interface Profil {
   type: ProfilType;
@@ -45,7 +46,7 @@ export const rettProfil = (): Profil => ({
 
 const K = 0.5523; // cubic approximation of a quarter circle
 
-/** Presets from the spec: straight, rounded, stepped, convex, concave (+ chamfer). */
+/** Presets from the spec: straight, rounded, convex (Bue), concave, S-curve, stepped, chamfer (Knekk). */
 export function forhandsvalg(type: Exclude<ProfilType, 'egendefinert'>, bredde = 1.5, trinn = 3): Profil {
   switch (type) {
     case 'rett':
@@ -90,6 +91,17 @@ export function forhandsvalg(type: Exclude<ProfilType, 'egendefinert'>, bredde =
         punkter: [
           { u: 0, t: 0, ut: { u: K, t: 0 } },
           { u: 1, t: 1, inn: { u: 1, t: 1 - K } },
+        ],
+        trinn,
+      };
+    case 's-kurve':
+      // vertical at the bottom and at the top, curving across in between
+      return {
+        type,
+        bredde,
+        punkter: [
+          { u: 0, t: 0, ut: { u: 0, t: 0.5 } },
+          { u: 1, t: 1, inn: { u: 1, t: 0.5 } },
         ],
         trinn,
       };
