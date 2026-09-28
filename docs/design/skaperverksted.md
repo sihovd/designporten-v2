@@ -109,7 +109,7 @@ MVP (Phase 3) and later (Phase 5) are marked. The architecture supports all of t
 | Side profiles: presets, then Bézier | 5 |
 | Library of SVGs, fonts, colour profiles, presets | 5 |
 | Project saving (account) | 5 |
-| CSV batch generation, variant groups, plate organisation | 5+ (depends on the paid model) |
+| CSV batch generation, variant groups, plate organisation | 5 (limits per plan are a config switch, off until the paid model is decided) |
 
 ### Layers panel
 

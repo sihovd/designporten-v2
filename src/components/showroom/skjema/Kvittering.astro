@@ -1,0 +1,68 @@
+---
+/** What happens after a form is sent. Only documented facts, no promised timings. */
+interface Props {
+  type: 'ide' | 'kontakt';
+  referanse?: string;
+  /** 'fil' means the development store: nothing was e-mailed. */
+  kanal?: 'epost' | 'fil';
+}
+
+const { type, referanse, kanal } = Astro.props;
+---
+
+<div class="kvittering" tabindex="-1" data-kvittering>
+  <p class="mono kvittering__merke">Sendt</p>
+  <h2 class="kvittering__tittel">
+    {type === 'ide' ? 'Takk, vi har fått ideen din.' : 'Takk, vi har fått meldingen din.'}
+  </h2>
+  <p>
+    {type === 'ide'
+      ? 'Vi leser gjennom det du har sendt, og svarer deg på e-post. Mangler vi mål eller bilder, spør vi om det.'
+      : 'Vi leser meldingen og svarer deg på e-post.'}
+  </p>
+  {referanse && (
+    <p class="kvittering__ref" data-ref-linje>
+      Referanse:{' '}
+      <span class="mono tall" data-ref>
+        {referanse}
+      </span>
+    </p>
+  )}
+  {kanal === 'fil' && (
+    <p class="kvittering__utvikling" data-utvikling>
+      Utviklingsmodus: e-post er ikke satt opp, så innsendingen er lagret på serveren i var/innsendinger/ og
+      ikke sendt videre.
+    </p>
+  )}
+</div>
+
+<style>
+  .kvittering {
+    display: grid;
+    gap: var(--r-3);
+    padding: var(--r-6);
+    border: 1px solid var(--kant);
+    border-left: 3px solid var(--ok);
+    background: var(--flate);
+    max-width: 60ch;
+  }
+
+  .kvittering:focus {
+    outline: none;
+  }
+
+  .kvittering__merke {
+    color: var(--ok);
+  }
+
+  .kvittering__tittel {
+    font-size: var(--fs-h3);
+  }
+
+  .kvittering__utvikling {
+    padding: var(--r-3);
+    background: var(--kalk);
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+</style>

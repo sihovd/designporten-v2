@@ -1,0 +1,311 @@
+---
+/**
+ * The Produkter listing: category row, sort, the preserved grid with quick
+ * view, and a way on to Spesialdesign. Every card is rendered on every
+ * listing page (hidden when outside the category), so switching category
+ * animates in place; category links still work as plain pages without JS.
+ */
+import {
+  hentProdukter,
+  kategorierMedProdukter,
+  sorteringsnokler,
+  tilgjengeligeSorteringer,
+} from '@/lib/handel/katalog';
+import { finnKategori, spesialbestillinger } from '@/lib/handel/kategorier';
+import { antallTekst, utvalgFor, type Sorteringsgrunnlag } from '@/lib/handel/sortering';
+import ProduktRutenett from './ProduktRutenett.astro';
+
+interface Props {
+  /** 'alle' or a category slug. */
+  aktiv: string;
+}
+
+const { aktiv } = Astro.props;
+const produkter = await hentProdukter();
+const nokler = await sorteringsnokler();
+const kategorier = kategorierMedProdukter(produkter);
+const sorteringer = tilgjengeligeSorteringer(produkter, nokler);
+
+const grunnlag: Sorteringsgrunnlag[] = produkter.map((p) => ({
+  id: p.id,
+  navn: p.navn,
+  kategori: p.kategori,
+  prisOre: p.prisOre,
+  utvalgt: nokler[p.id]?.utvalgt ?? 0,
+  nyeste: nokler[p.id]?.nyeste ?? 0,
+}));
+const synlige = utvalgFor(grunnlag, aktiv, 'utvalgt');
+const skjulte = new Set(produkter.filter((p) => !synlige.includes(p.id)).map((p) => p.id));
+const rekkefolge = [
+  ...synlige.map((id) => produkter.find((p) => p.id === id)!),
+  ...produkter.filter((p) => skjulte.has(p.id)),
+];
+
+const alleTekst = {
+  tittel: 'Produkter',
+  ingress:
+    'Ting vi har tegnet og printet. Åpne et produkt for å velge farge, materiale og eventuell egen tekst.',
+};
+const tekster = Object.fromEntries([
+  ['alle', { ...alleTekst, href: '/produkter/' }],
+  ...kategorier.map((k) => [
+    k.slug,
+    { tittel: k.navn, ingress: k.ingress, href: `/produkter/kategori/${k.slug}/` },
+  ]),
+]);
+const aktivTekst =
+  aktiv === 'alle'
+    ? alleTekst
+    : { tittel: finnKategori(aktiv)?.navn ?? '', ingress: finnKategori(aktiv)?.ingress ?? '' };
+const harPlassholdere = produkter.some((p) => p.status === 'plassholder');
+const data = { grunnlag, tekster };
+---
+
+<div class="produktliste" data-produktliste data-aktiv={aktiv}>
+  <header class="produktliste__topp ramme">
+    <p class="produktliste__sti mono">
+      {aktiv === 'alle' ? 'Finn noe' : <a href="/produkter/">Produkter</a>}
+    </p>
+    <h1 data-liste-tittel>{aktivTekst.tittel}</h1>
+    <p class="ingress" data-liste-ingress>
+      {aktivTekst.ingress}
+    </p>
+  </header>
+
+  <div class="produktliste__verktoy ramme">
+    <nav class="kategorirad" aria-label="Kategorier">
+      <ul>
+        <li>
+          <a href="/produkter/" data-kategori="alle" aria-current={aktiv === 'alle' ? 'page' : undefined}>
+            Alle
+          </a>
+        </li>
+        {kategorier.map((k) => (
+          <li>
+            <a
+              href={`/produkter/kategori/${k.slug}/`}
+              data-kategori={k.slug}
+              aria-current={aktiv === k.slug ? 'page' : undefined}
+            >
+              {k.navn}
+            </a>
+          </li>
+        ))}
+        <li>
+          <a class="kategorirad__spesial" href={spesialbestillinger.href}>
+            {spesialbestillinger.navn}
+          </a>
+        </li>
+      </ul>
+    </nav>
+    <div class="produktliste__hoyre">
+      <p class="produktliste__antall mono" data-liste-antall aria-live="polite">
+        {antallTekst(synlige.length)}
+      </p>
+      <div class="produktliste__sortering" data-kun-js>
+        <label class="mono" for="produktsortering">
+          Sorter
+        </label>
+        <select id="produktsortering" data-liste-sortering>
+          {sorteringer.map((s) => (
+            <option value={s.verdi}>{s.navn}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {harPlassholdere && (
+    <p class="produktliste__notis ramme">
+      <strong>Under oppbygging.</strong> Produktene her er plassholdere med konseptbilder. Navn, mål og priser
+      er ikke fastsatt ennå, men du kan legge dem i handlekurven og sende en uforpliktende forespørsel.
+    </p>
+  )}
+
+  <ProduktRutenett produkter={rekkefolge} skjulte={skjulte} nivaa="h2" etikett="Produkter" />
+
+  <aside class="produktliste__ide ramme">
+    <p class="mono">Finner du ikke det du leter etter?</p>
+    <p class="produktliste__ide-tekst">
+      Vi lager også ting som ikke står her. Start med ideen, en tegning eller et bilde.
+    </p>
+    <a class="produktliste__ide-lenke" href={spesialbestillinger.href}>
+      Fortell oss hva du trenger
+    </a>
+  </aside>
+</div>
+
+<script type="application/json" data-produktliste-data set:html={JSON.stringify(data)} />
+<script>
+  import { startProduktliste } from './liste';
+  startProduktliste();
+</script>
+
+<style>
+  .produktliste {
+    padding-block: var(--r-7) var(--r-seksjon);
+  }
+
+  .produktliste__topp {
+    display: grid;
+    gap: var(--r-3);
+    margin-bottom: var(--r-6);
+  }
+
+  .produktliste__sti {
+    color: var(--dempet);
+  }
+
+  .produktliste__sti a {
+    color: inherit;
+  }
+
+  .produktliste__verktoy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--r-3) var(--r-5);
+    margin-bottom: var(--r-5);
+    border-bottom: 1px solid var(--kant);
+  }
+
+  .kategorirad ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--r-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kategorirad a {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--mal-beroring);
+    color: var(--dempet);
+    font-weight: 550;
+    text-decoration: none;
+  }
+
+  .kategorirad a:hover {
+    color: var(--blekk);
+  }
+
+  .kategorirad a[aria-current='page'] {
+    color: var(--blekk);
+  }
+
+  .kategorirad a[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 -1px;
+    height: 2px;
+    background: var(--handling);
+  }
+
+  .kategorirad__spesial {
+    color: var(--lenke) !important;
+  }
+
+  .kategorirad__spesial::after {
+    content: ' →';
+    white-space: pre;
+  }
+
+  .produktliste__hoyre {
+    display: flex;
+    align-items: center;
+    gap: var(--r-4);
+    min-height: var(--mal-beroring);
+    margin-left: auto;
+  }
+
+  .produktliste__antall {
+    color: var(--dempet);
+  }
+
+  .produktliste__sortering {
+    display: flex;
+    align-items: center;
+    gap: var(--r-2);
+  }
+
+  .produktliste__sortering label {
+    color: var(--dempet);
+  }
+
+  .produktliste__sortering select {
+    min-height: 36px;
+    padding: 0 var(--r-6) 0 var(--r-3);
+    border: 1px solid var(--kant-sterk);
+    border-radius: var(--radius-felt);
+    background: var(--flate);
+    font-size: var(--fs-liten);
+  }
+
+  :global(html:not(.js)) [data-kun-js] {
+    display: none;
+  }
+
+  .produktliste__notis {
+    margin-bottom: var(--r-5);
+    padding: var(--r-3) var(--r-4);
+    border-left: 3px solid var(--advarsel);
+    background: var(--flate);
+    font-size: var(--fs-liten);
+    color: var(--dempet);
+    max-width: none;
+  }
+
+  .produktliste__notis strong {
+    color: var(--blekk);
+  }
+
+  .produktliste__ide {
+    display: grid;
+    justify-items: center;
+    gap: var(--r-2);
+    margin-top: var(--r-8);
+    padding-top: var(--r-6);
+    border-top: 1px solid var(--kant);
+    text-align: center;
+  }
+
+  .produktliste__ide .mono {
+    color: var(--dempet);
+  }
+
+  .produktliste__ide-tekst {
+    font-size: var(--fs-ingress);
+    max-width: 44ch;
+  }
+
+  .produktliste__ide-lenke {
+    font-weight: 600;
+  }
+
+  @media (max-width: 640px) {
+    .produktliste {
+      padding-top: var(--r-5);
+    }
+
+    .kategorirad {
+      width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .kategorirad ul {
+      flex-wrap: nowrap;
+      gap: 0 var(--r-4);
+      white-space: nowrap;
+    }
+
+    .produktliste__hoyre {
+      width: 100%;
+      justify-content: space-between;
+    }
+  }
+</style>

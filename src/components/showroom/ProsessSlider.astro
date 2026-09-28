@@ -1,0 +1,558 @@
+---
+/**
+ * Scroll-driven process slider («Slik blir en idé til en del»).
+ * Preserved component (test bench 2026-09-03/04), re-implemented to
+ * interaction-and-motion.md#process-slider; do not redesign.
+ *
+ * - An outer track (`spor`), one screen drag per step; a sticky inner block.
+ * - progress = (scrollY − trackTop) / (trackHeight − viewportHeight);
+ *   step = floor(progress × N). Only normal scrolling drives it.
+ * - Full-width layered scene; the background drifts slowly upwards.
+ * - Text directly under the image; the progress bar is exactly as wide as the
+ *   text, with one dot per step; labels are buttons that scroll to a step.
+ * - Without JavaScript every step is listed in order.
+ */
+import VaseBygg, { type Byggtilstand } from '@/components/showroom/bygg/VaseBygg.astro';
+import { bakgrunner, type Bilde } from '@/lib/ressurser';
+
+export type Prosessscene =
+  /** The vase in one construction state. */
+  | { type: 'bygg'; tilstand: Byggtilstand }
+  /** One panel (0–3) of the process strip photo, shown as a sheet. */
+  | { type: 'ark'; panel: 0 | 1 | 2 | 3 };
+
+export interface Prosesssteg {
+  /** Short label under the bar (uppercase in the UI). */
+  kort: string;
+  tittel: string;
+  tekst: string;
+  scene: Prosessscene;
+}
+
+interface Props {
+  id: string;
+  tittel: string;
+  steg: Prosesssteg[];
+  bakgrunn?: Bilde;
+  /** Heading level of the section title. */
+  niva?: 2 | 3;
+}
+
+const { id, tittel, steg, bakgrunn = bakgrunner.verksted, niva = 2 } = Astro.props;
+const n = steg.length;
+const to = (i: number) => String(i).padStart(2, '0');
+const Overskrift = `h${niva}` as 'h2' | 'h3';
+const Stegoverskrift = `h${niva + 1}` as 'h3' | 'h4';
+const ark = bakgrunner.prosess.src;
+const forste = steg[0]!;
+---
+
+<section class="prosess" aria-labelledby={`${id}-tittel`} data-prosess style={`--n: ${n}`}>
+  <div class="ramme prosess__hode avslor">
+    <Overskrift id={`${id}-tittel`}>{tittel}</Overskrift>
+    <p class="mono prosess__meta">{n} steg · scroll for å følge dem</p>
+  </div>
+
+  <div class="prosess__spor" data-spor>
+    <div class="prosess__fest">
+      <div class="prosess__scene" aria-hidden="true">
+        <div class="prosess__bg" data-bg style={`background-image: url(${bakgrunn.src})`}></div>
+        {bakgrunn.konsept && <span class="prosess__merke mono">Konseptbilde</span>}
+        {steg.map((s, i) => (
+          <div
+            class:list={['prosess__objekt', `prosess__objekt--${s.scene.type}`, { pa: i === 0 }]}
+            data-trinn={i}
+          >
+            {s.scene.type === 'bygg' ? (
+              <VaseBygg tilstand={s.scene.tilstand} merke={false} />
+            ) : (
+              <div class="prosess__ark" style={`background-image: url(${ark}); --panel: ${s.scene.panel}`} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div class="ramme">
+        <div class="prosess__under" data-under>
+          <p class="mono prosess__nr" data-nr>
+            Steg {to(1)} / {to(n)}
+          </p>
+          <Stegoverskrift class="prosess__stegtittel" data-tittel>
+            {forste.tittel}
+          </Stegoverskrift>
+          <p class="prosess__tekst" data-tekst>
+            {forste.tekst}
+          </p>
+
+          <div class="prosess__progresjon">
+            <div class="prosess__bane" data-bane>
+              <i data-fyll></i>
+              {steg.map((_, i) => (
+                <span
+                  class:list={['prosess__kule', { naa: i === 0 }]}
+                  style={`left: ${n > 1 ? (i / (n - 1)) * 100 : 0}%`}
+                  data-kule={i}
+                />
+              ))}
+            </div>
+            <ol class="prosess__liste">
+              {steg.map((s, i) => (
+                <li>
+                  <button
+                    type="button"
+                    class="mono"
+                    data-til={i}
+                    aria-current={i === 0 ? 'step' : undefined}
+                    aria-label={`Steg ${i + 1} av ${n}: ${s.tittel}`}
+                  >
+                    {s.kort}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <p class="visuelt-skjult" aria-live="polite" data-live></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- All steps, used when JavaScript is off. -->
+  <ol class="ramme prosess__alle" data-alle>
+    {steg.map((s, i) => (
+      <li>
+        <p class="mono prosess__nr">
+          Steg {to(i + 1)} / {to(n)}
+        </p>
+        <Stegoverskrift class="prosess__stegtittel">{s.tittel}</Stegoverskrift>
+        <p class="prosess__tekst">{s.tekst}</p>
+      </li>
+    ))}
+  </ol>
+
+  <script
+    is:inline
+    type="application/json"
+    data-stegdata
+    set:html={JSON.stringify(steg.map((s) => ({ tittel: s.tittel, tekst: s.tekst })))}
+  />
+</section>
+
+<script>
+  interface Steg {
+    tittel: string;
+    tekst: string;
+  }
+
+  const reduser = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const to = (i: number) => String(i).padStart(2, '0');
+
+  function startProsess(rot: HTMLElement) {
+    const spor = rot.querySelector<HTMLElement>('[data-spor]')!;
+    const bg = rot.querySelector<HTMLElement>('[data-bg]');
+    const fyll = rot.querySelector<HTMLElement>('[data-fyll]');
+    const under = rot.querySelector<HTMLElement>('[data-under]')!;
+    const nr = rot.querySelector<HTMLElement>('[data-nr]')!;
+    const tittel = rot.querySelector<HTMLElement>('[data-tittel]')!;
+    const tekst = rot.querySelector<HTMLElement>('[data-tekst]')!;
+    const live = rot.querySelector<HTMLElement>('[data-live]')!;
+    const objekter = [...rot.querySelectorAll<HTMLElement>('[data-trinn]')];
+    const kuler = [...rot.querySelectorAll<HTMLElement>('[data-kule]')];
+    const knapper = [...rot.querySelectorAll<HTMLButtonElement>('[data-til]')];
+    const data = JSON.parse(rot.querySelector('[data-stegdata]')?.textContent ?? '[]') as Steg[];
+    const n = data.length;
+    let naa = 0;
+    let synlig = false;
+
+    function sporTopp(): number {
+      return spor.getBoundingClientRect().top + window.scrollY;
+    }
+
+    function lengde(): number {
+      return spor.offsetHeight - window.innerHeight;
+    }
+
+    function settSteg(i: number) {
+      if (i === naa) return;
+      naa = i;
+      objekter.forEach((o, k) => o.classList.toggle('pa', k === i));
+      kuler.forEach((k, j) => {
+        k.classList.toggle('passert', j < i);
+        k.classList.toggle('naa', j === i);
+      });
+      knapper.forEach((b, j) => {
+        if (j === i) b.setAttribute('aria-current', 'step');
+        else b.removeAttribute('aria-current');
+        b.classList.toggle('passert', j < i);
+      });
+      const s = data[i]!;
+      nr.textContent = `Steg ${to(i + 1)} / ${to(n)}`;
+      tittel.textContent = s.tittel;
+      tekst.textContent = s.tekst;
+      live.textContent = `Steg ${i + 1} av ${n}: ${s.tittel}`;
+      under.classList.remove('bytt');
+      void under.offsetWidth;
+      under.classList.add('bytt');
+    }
+
+    let planlagt = false;
+    function oppdater() {
+      planlagt = false;
+      const l = lengde();
+      if (l <= 0) return;
+      const andel = Math.max(0, Math.min(1, (window.scrollY - sporTopp()) / l));
+      if (fyll) fyll.style.transform = `scaleX(${andel})`;
+      // The optical illusion: the background creeps slowly upwards through the whole track.
+      if (bg) bg.style.transform = reduser.matches ? '' : `translate3d(0, ${(-andel * 11).toFixed(2)}%, 0)`;
+      settSteg(Math.min(n - 1, Math.floor(andel * n)));
+    }
+
+    function planlegg() {
+      if (!planlagt && synlig) {
+        planlagt = true;
+        requestAnimationFrame(oppdater);
+      }
+    }
+
+    new IntersectionObserver(([o]) => {
+      synlig = !!o?.isIntersecting;
+      if (synlig) planlegg();
+    }).observe(spor);
+    window.addEventListener('scroll', planlegg, { passive: true });
+    window.addEventListener('resize', planlegg);
+
+    // Clicking a label (or dot) scrolls to the middle of that step.
+    function tilSteg(i: number) {
+      const y = sporTopp() + ((i + 0.5) / n) * lengde();
+      window.scrollTo({ top: y, behavior: reduser.matches ? 'auto' : 'smooth' });
+    }
+    knapper.forEach((b) => b.addEventListener('click', () => tilSteg(Number(b.dataset.til))));
+    kuler.forEach((k) => k.addEventListener('click', () => tilSteg(Number(k.dataset.kule))));
+
+    oppdater();
+  }
+
+  document.querySelectorAll<HTMLElement>('[data-prosess]').forEach(startProsess);
+</script>
+
+<style>
+  .prosess {
+    --prosess-topp: calc(var(--header-h) + 14px);
+    padding-top: var(--r-seksjon);
+  }
+
+  .prosess__hode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--r-3);
+    margin-bottom: var(--r-5);
+  }
+
+  .prosess__meta {
+    color: var(--dempet);
+  }
+
+  /* ---------- Track and sticky block ---------- */
+  .prosess__spor {
+    position: relative;
+  }
+
+  :global(.js) .prosess__spor {
+    height: calc(var(--n) * 85svh + 15svh);
+  }
+
+  .prosess__fest {
+    padding-bottom: var(--r-5);
+  }
+
+  :global(.js) .prosess__fest {
+    position: sticky;
+    top: var(--prosess-topp);
+  }
+
+  /* ---------- Scene: full width, layered ---------- */
+  .prosess__scene {
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    height: max(200px, min(calc(100vw * 9 / 21), calc(100svh - var(--prosess-topp) - 17.5rem)));
+    background: var(--kalk);
+  }
+
+  .prosess__bg {
+    position: absolute;
+    inset: -14% 0;
+    background-size: cover;
+    background-position: 50% 40%;
+    will-change: transform;
+  }
+
+  /* Light radial veil so the object reads against the photo. */
+  .prosess__bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      58% 68% at 50% 54%,
+      rgb(255 255 255 / 0.8) 0%,
+      rgb(255 255 255 / 0.34) 58%,
+      rgb(255 255 255 / 0) 82%
+    );
+  }
+
+  .prosess__merke {
+    position: absolute;
+    left: 0;
+    top: var(--r-3);
+    z-index: 3;
+    padding: 3px 8px;
+    background: var(--blekk);
+    color: #fff;
+    font-size: var(--fs-mono-liten);
+  }
+
+  .prosess__objekt {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .prosess__objekt.pa {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .prosess__objekt :global(.bygg) {
+    width: auto;
+    height: 100%;
+    max-width: 52%;
+  }
+
+  .prosess__ark {
+    height: 78%;
+    aspect-ratio: 400 / 533;
+    max-width: 44%;
+    background-size: 400% 100%;
+    background-position: calc(var(--panel) * 100% / 3) 0;
+    box-shadow: var(--skygge-objekt);
+    transform: rotate(-2deg);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .prosess__objekt.pa {
+      animation: prosess-inn 340ms var(--ease-ut);
+    }
+
+    .prosess__under:global(.bytt) :is(.prosess__stegtittel, .prosess__tekst) {
+      animation: prosess-tekst 300ms var(--ease-ut);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global(.js) .prosess__objekt.pa {
+      animation: prosess-fade 140ms linear;
+    }
+
+    :global(.js) .prosess__spor {
+      height: calc(var(--n) * 60svh + 15svh);
+    }
+  }
+
+  @keyframes prosess-inn {
+    from {
+      opacity: 0;
+      transform: translateX(28px);
+    }
+  }
+
+  @keyframes prosess-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes prosess-tekst {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+  }
+
+  /* ---------- Text directly under the image ---------- */
+  .prosess__under {
+    display: grid;
+    gap: 12px;
+    justify-items: center;
+    max-width: 52ch;
+    margin-inline: auto;
+    padding-top: 14px;
+    text-align: center;
+  }
+
+  .prosess__nr {
+    color: var(--dempet);
+    margin-bottom: -2px;
+  }
+
+  .prosess__stegtittel {
+    font-size: var(--fs-h3);
+    font-stretch: 112%;
+    font-weight: 720;
+    letter-spacing: -0.02em;
+  }
+
+  .prosess__tekst {
+    color: var(--dempet);
+    min-height: 4.7em;
+  }
+
+  /* ---------- Progress bar: exactly as wide as the text ---------- */
+  .prosess__progresjon {
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .prosess__bane {
+    position: relative;
+    height: 3px;
+    background: var(--kant);
+  }
+
+  .prosess__bane > i {
+    display: block;
+    height: 100%;
+    background: var(--dp-lilla);
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+  }
+
+  .prosess__kule {
+    position: absolute;
+    top: 50%;
+    width: 11px;
+    height: 11px;
+    border: 2px solid var(--kant-sterk);
+    border-radius: 50%;
+    background: var(--flate);
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    transition:
+      background-color var(--t-trinn) ease,
+      border-color var(--t-trinn) ease,
+      width var(--t-trinn) ease,
+      height var(--t-trinn) ease;
+  }
+
+  .prosess__kule:global(.passert) {
+    background: var(--dp-lilla);
+    border-color: var(--dp-lilla);
+  }
+
+  .prosess__kule:global(.naa) {
+    width: 15px;
+    height: 15px;
+    background: var(--dp-lilla);
+    border-color: var(--dp-lilla);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--dp-lilla) 22%, transparent);
+  }
+
+  .prosess__liste {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .prosess__liste li {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+  }
+
+  .prosess__liste li:first-child {
+    justify-content: flex-start;
+  }
+
+  .prosess__liste li:last-child {
+    justify-content: flex-end;
+  }
+
+  .prosess__liste button {
+    min-height: var(--mal-min);
+    padding: 4px 2px;
+    border: 0;
+    background: none;
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    transition: color var(--t-rask) ease;
+  }
+
+  /* Inactive labels use dempet: kant-sterk (3:1) is too faint for 10 px text. */
+  .prosess__liste button {
+    color: var(--dempet);
+  }
+
+  .prosess__liste button:global(.passert) {
+    color: var(--blekk);
+  }
+
+  .prosess__liste button[aria-current='step'] {
+    color: var(--lenke);
+    font-weight: 600;
+  }
+
+  .prosess__liste button:hover {
+    color: var(--lenke);
+    text-decoration: underline;
+  }
+
+  @media (max-width: 600px) {
+    .prosess__scene {
+      height: max(200px, min(75vw, calc(100svh - var(--prosess-topp) - 17.5rem)));
+    }
+
+    .prosess__objekt :global(.bygg) {
+      max-width: 72%;
+    }
+
+    .prosess__ark {
+      max-width: 60%;
+    }
+
+    .prosess__liste button {
+      font-size: 9px;
+      letter-spacing: 0.04em;
+    }
+  }
+
+  /* ---------- Without JavaScript: all steps in order ---------- */
+  .prosess__alle {
+    display: grid;
+    gap: var(--r-5);
+    margin-top: var(--r-6);
+    padding: 0;
+    list-style: none;
+  }
+
+  .prosess__alle li {
+    display: grid;
+    gap: var(--r-2);
+    max-width: 52ch;
+  }
+
+  :global(.js) .prosess__alle {
+    display: none;
+  }
+
+  :global(html:not(.js)) .prosess__under {
+    display: none;
+  }
+</style>

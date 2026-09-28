@@ -1,0 +1,63 @@
+---
+/**
+ * Legal pages. Their text is a draft until Designporten confirms it, and the
+ * page says so plainly. Facts about how this website itself works (forms,
+ * cart storage) are accurate for the code as built.
+ */
+import Side from '@/layouts/Side.astro';
+import SideHode from './SideHode.astro';
+
+interface Props {
+  tittel: string;
+  beskrivelse: string;
+}
+
+const { tittel, beskrivelse } = Astro.props;
+---
+
+<Side tittel={tittel} beskrivelse={beskrivelse}>
+  <SideHode eyebrow="Vilkår og personvern" tittel={tittel} />
+  <div class="ramme juridisk">
+    <p class="juridisk__utkast" role="note">
+      <strong>Utkast og plassholdertekst.</strong> Teksten på denne siden er ikke bekreftet av Designporten
+      ennå og gjelder ikke som avtale. Den erstattes av den endelige teksten før lansering.
+    </p>
+    <div class="juridisk__tekst">
+      <slot />
+    </div>
+  </div>
+</Side>
+
+<style>
+  .juridisk {
+    display: grid;
+    gap: var(--r-6);
+    padding-bottom: var(--r-seksjon);
+  }
+
+  .juridisk > * {
+    max-width: 68ch;
+  }
+
+  .juridisk__utkast {
+    padding: var(--r-4) var(--r-5);
+    border-left: 3px solid var(--advarsel);
+    background: var(--flate);
+    color: var(--advarsel);
+  }
+
+  .juridisk__tekst {
+    display: grid;
+    gap: var(--r-4);
+  }
+
+  .juridisk__tekst :global(h2) {
+    margin-top: var(--r-5);
+    font-size: var(--fs-h3);
+  }
+
+  .juridisk__tekst :global(ul) {
+    margin: 0;
+    padding-left: var(--r-5);
+  }
+</style>

@@ -1,0 +1,16 @@
+{
+  "navn": "Telefonstativ",
+  "status": "plassholder",
+  "kategori": "tilbehor",
+  "kortBeskrivelse": "Stativ som holder telefonen i en fast vinkel på pulten.",
+  "beskrivelse": "Stativet holder telefonen stødig, så skjermen er lett å se mens du jobber.\n\nStativet er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "telefonstativ",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PETG", "PLA"],
+  "farger": ["matt-marine", "pla-grafitt", "pla-kritthvit"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 10,
+  "lagtTil": "2026-09-28"
+}

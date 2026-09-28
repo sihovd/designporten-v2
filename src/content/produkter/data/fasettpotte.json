@@ -1,0 +1,16 @@
+{
+  "navn": "Fasettert plantepotte",
+  "status": "plassholder",
+  "kategori": "interior",
+  "kortBeskrivelse": "Plantepotte med skarpe fasetter, som et slipt mineral.",
+  "beskrivelse": "Fasettene gir potta skarpe kanter og flater som skifter farge med lyset.\n\nPotta er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "fasettpotte",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PLA", "PETG"],
+  "farger": ["pla-lilla", "pla-kritthvit", "pla-skog", "pla-grafitt"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 3,
+  "lagtTil": "2026-09-28"
+}

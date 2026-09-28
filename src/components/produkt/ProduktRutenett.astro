@@ -1,0 +1,122 @@
+---
+/**
+ * The preserved product grid: fixed 208 px square cards, centred, more cards
+ * as space grows, at most 6 across; two equal columns at ≤480 px. Includes
+ * the product window (quick view) unless `medVindu={false}`.
+ *
+ * Homepage use: <ProduktRutenett produkter={utvalg} nivaa="h3" />
+ */
+import Ikon from '@/components/Ikon.astro';
+import type { ProduktVisning } from '@/lib/handel/visning';
+import ProduktKort from './ProduktKort.astro';
+import ProduktVindu from './ProduktVindu';
+
+interface Props {
+  produkter: ProduktVisning[];
+  nivaa?: 'h2' | 'h3' | 'h4';
+  medVindu?: boolean;
+  /** Ids to render hidden (used by the listing's category filter). */
+  skjulte?: Set<string>;
+  /** Accessible name for the list. */
+  etikett?: string;
+  class?: string;
+}
+
+const {
+  produkter,
+  nivaa = 'h3',
+  medVindu = true,
+  skjulte = new Set<string>(),
+  etikett = 'Produkter',
+  class: klasse,
+} = Astro.props;
+---
+
+<ul class:list={['produktrutenett', klasse]} aria-label={etikett} data-produktrutenett>
+  {produkter.map((p, i) => (
+    <li class="produktrutenett__plass" data-plass={p.id} hidden={skjulte.has(p.id)}>
+      <ProduktKort produkt={p} nivaa={nivaa} lasting={i < 6 ? 'eager' : 'lazy'} />
+    </li>
+  ))}
+</ul>
+{medVindu && (
+  <ProduktVindu client:idle>
+    <Ikon navn="lukk" slot="lukk" />
+  </ProduktVindu>
+)}
+
+<style>
+  .produktrutenett {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, var(--kort-b));
+    justify-content: center;
+    gap: var(--kort-gap);
+    width: min(
+      100% - 2 * var(--gutter),
+      var(--kort-maks) * var(--kort-b) + (var(--kort-maks) - 1) * var(--kort-gap)
+    );
+    margin: 0 auto;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (max-width: 480px) {
+    .produktrutenett {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .produktrutenett__plass {
+    display: flex;
+    min-width: 0;
+  }
+
+  /* Category change (preserved): cards that leave fall backwards, rotate
+     slightly and fade; new cards rise in. Driven by kategoribytte.ts. */
+  .produktrutenett :global(.produktrutenett__faller) {
+    position: absolute;
+    z-index: 3;
+    margin: 0;
+    pointer-events: none;
+    transform-origin: 50% 62%;
+    animation: produkt-fall 540ms var(--ease-inn-ut) forwards;
+  }
+
+  .produktrutenett :global(.produktrutenett__kommer) {
+    animation: produkt-inn 360ms var(--ease-ut) backwards;
+  }
+
+  .produktrutenett :global(.produktrutenett__stille) {
+    animation: produkt-tone 150ms ease backwards;
+  }
+
+  @keyframes produkt-fall {
+    0% {
+      opacity: 1;
+      transform: perspective(900px) translate3d(0, 0, 0) rotate(0deg);
+    }
+
+    30% {
+      opacity: 0.9;
+    }
+
+    100% {
+      opacity: 0;
+      transform: perspective(900px) translate3d(0, 58px, -360px) rotate(-15deg);
+    }
+  }
+
+  @keyframes produkt-inn {
+    from {
+      opacity: 0;
+      transform: scale(0.93) translateY(12px);
+    }
+  }
+
+  @keyframes produkt-tone {
+    from {
+      opacity: 0;
+    }
+  }
+</style>

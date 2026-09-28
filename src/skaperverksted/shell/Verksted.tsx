@@ -180,7 +180,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   return (
     <div class={`verksted${bred ? ' bred' : ' smal'}`}>
       <header class="verkstedlinje">
-        <a class="tilbake" href="/skaperverksted/">
+        <a class="tilbake" href="/skaperverksted/" aria-label="Tilbake til Skaperverksted">
           <span aria-hidden="true">←</span>
           <span class="tilbake-tekst">Skaperverksted</span>
         </a>

@@ -25,6 +25,7 @@ import {
 } from '../../core/geometri2d';
 import { finnMateriale, materialtyper } from '../../core/materialer';
 import { mm } from '../../core/enheter';
+import { profilOverheng } from '../../core/profil';
 import {
   areal,
   differanse,
@@ -312,6 +313,16 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
       });
     }
     deler.push({ id: lag.id, navn: lag.navn, materialId: lag.materialId, mesh: e.mesh });
+
+    const maksOverheng = materialtyper[finnMateriale(lag.materialId).type].maksOverheng;
+    const overheng = profilOverheng(lag.profil, lag.hoyde);
+    if (overheng > maksOverheng + 0.5) {
+      advarsler.push({
+        niva: 'advarsel',
+        tekst: `Profilen på «${lag.navn}» heller utover med ${Math.round(overheng)}°. Over ${maksOverheng}° kan veggen henge ned uten støttemateriale.`,
+        lagId: lag.id,
+      });
+    }
 
     const b = regionBoks(region);
     if (

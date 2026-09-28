@@ -1,0 +1,16 @@
+{
+  "navn": "Løkkeknagg",
+  "status": "plassholder",
+  "kategori": "tilbehor",
+  "kortBeskrivelse": "Veggknagg formet som en løkke, til nøkler, vesker eller hodetelefoner.",
+  "beskrivelse": "Løkken er både knagg og form. Den henger like fint tom som full.\n\nKnaggen er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "loopKnagg",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PETG", "PLA"],
+  "farger": ["pla-lilla", "pla-grafitt", "pla-kritthvit"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 12,
+  "lagtTil": "2026-09-28"
+}

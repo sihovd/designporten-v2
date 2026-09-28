@@ -1,0 +1,16 @@
+{
+  "navn": "Spiralvase",
+  "status": "plassholder",
+  "kategori": "interior",
+  "kortBeskrivelse": "Vase med spiralvridde ribber som fanger lyset når du går forbi.",
+  "beskrivelse": "En vase printet i én sammenhengende spiral, så ribbene vrir seg rundt hele formen.\n\nVasen er en plassholder. Bildet er et konseptbilde, og endelig modell, mål og pris er ikke fastsatt.",
+  "bilde": "spiralvase",
+  "mal": null,
+  "prisOre": null,
+  "materialer": ["PLA", "PLA Matt", "PLA Silk"],
+  "farger": ["pla-kritthvit", "matt-sand", "pla-grafitt", "silk-gull"],
+  "egenTekst": null,
+  "generator": null,
+  "rekkefolge": 1,
+  "lagtTil": "2026-09-28"
+}

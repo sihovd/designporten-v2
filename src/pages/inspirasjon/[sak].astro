@@ -1,0 +1,261 @@
+---
+/**
+ * Case template (information-architecture.md#inspirasjon): the problem, the
+ * starting material, the process in stages, the result, materials and
+ * dimensions, and a link to the matching path.
+ */
+import { getCollection, render, type CollectionEntry } from 'astro:content';
+import Side from '@/layouts/Side.astro';
+import Knapp from '@/components/Knapp.astro';
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import { finnBilde } from '@/components/showroom/bilder';
+import { typenavn } from '@/components/showroom/inspirasjon/typer';
+
+export async function getStaticPaths() {
+  const saker = await getCollection('inspirasjon');
+  return saker.map((sak) => ({ params: { sak: sak.id }, props: { sak } }));
+}
+
+interface Props {
+  sak: CollectionEntry<'inspirasjon'>;
+}
+
+const { sak } = Astro.props;
+const d = sak.data;
+const { Content } = await render(sak);
+const bilde = finnBilde(d.bilde);
+const dato = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'long' }).format(d.dato);
+---
+
+<Side
+  tittel={d.tittel}
+  beskrivelse={d.ingress}
+  delingsbilde={bilde?.src}
+  ikkeIndekser={d.status === 'plassholder'}
+>
+  <article class="sak">
+    <header class="ramme sak__hode">
+      <p class="mono sak__meta">
+        <a href="/inspirasjon/">Inspirasjon</a>
+        <span aria-hidden="true">/</span>
+        <span>{typenavn[d.type].en}</span>
+        <span aria-hidden="true">·</span>
+        <time datetime={d.dato.toISOString().slice(0, 10)}>{dato}</time>
+      </p>
+      <h1>{d.tittel}</h1>
+      <p class="ingress">{d.ingress}</p>
+      {d.status === 'plassholder' && (
+        <p class="sak__plassholder" role="note">
+          <strong>Plassholder.</strong> Dette er ikke et ekte prosjekt eller en bekreftet tekst. Den viser
+          oppsettet og byttes ut.
+        </p>
+      )}
+    </header>
+
+    {bilde && (
+      <div class:list={['ramme sak__bilde', { 'sak__bilde--utklipp': bilde.utklipp }]}>
+        <Konseptbilde bilde={bilde} lasting="eager" />
+      </div>
+    )}
+
+    <div class="ramme sak__kropp">
+      {(d.problem || d.utgangspunkt) && (
+        <dl class="sak__fakta">
+          {d.problem && (
+            <div>
+              <dt class="mono">Problemet</dt>
+              <dd>{d.problem}</dd>
+            </div>
+          )}
+          {d.utgangspunkt && (
+            <div>
+              <dt class="mono">Utgangspunktet</dt>
+              <dd>{d.utgangspunkt}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+
+      {d.stadier.length > 0 && (
+        <section aria-labelledby="stadier-tittel" class="sak__stadier">
+          <h2 id="stadier-tittel">Slik ble det til</h2>
+          <ol>
+            {d.stadier.map((s, i) => {
+              const b = finnBilde(s.bilde);
+              return (
+                <li>
+                  <p class="mono sak__stegnr">
+                    Steg {String(i + 1).padStart(2, '0')} / {String(d.stadier.length).padStart(2, '0')}
+                  </p>
+                  <h3>{s.tittel}</h3>
+                  <p>{s.tekst}</p>
+                  {b && <Konseptbilde bilde={b} class="sak__stegbilde" />}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
+
+      {d.resultat && (
+        <section aria-labelledby="resultat-tittel">
+          <h2 id="resultat-tittel">Resultatet</h2>
+          <p class="sak__resultat">{d.resultat}</p>
+        </section>
+      )}
+
+      <div class="sak__tekst">
+        <Content />
+      </div>
+
+      {(d.materialer.length > 0 || d.mal) && (
+        <dl class="sak__spesifikasjon">
+          {d.materialer.length > 0 && (
+            <div>
+              <dt class="mono">Materialer</dt>
+              <dd>{d.materialer.join(' · ')}</dd>
+            </div>
+          )}
+          {d.mal && (
+            <div>
+              <dt class="mono">Mål</dt>
+              <dd class="tall">{d.mal}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+
+      {d.lenke && (
+        <div class="sak__videre">
+          <Knapp href={d.lenke.href}>{d.lenke.tekst}</Knapp>
+          <a href="/inspirasjon/">Tilbake til Inspirasjon</a>
+        </div>
+      )}
+    </div>
+  </article>
+</Side>
+
+<style>
+  .sak {
+    padding-bottom: var(--r-seksjon);
+  }
+
+  .sak__hode {
+    display: grid;
+    gap: var(--r-4);
+    padding-block: var(--r-8) var(--r-6);
+  }
+
+  .sak__hode h1 {
+    max-width: 22ch;
+  }
+
+  .sak__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-2);
+    color: var(--dempet);
+  }
+
+  .sak__plassholder {
+    max-width: 62ch;
+    padding: var(--r-3) var(--r-4);
+    border-left: 3px solid var(--advarsel);
+    background: var(--flate);
+    color: var(--advarsel);
+  }
+
+  .sak__bilde {
+    aspect-ratio: 21 / 9;
+    overflow: hidden;
+    background: var(--kalk);
+  }
+
+  .sak__bilde :global(.konseptbilde),
+  .sak__bilde :global(img) {
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .sak__bilde--utklipp :global(img) {
+    object-fit: contain;
+    padding: 4%;
+  }
+
+  .sak__kropp {
+    display: grid;
+    gap: var(--r-7);
+    max-width: 760px;
+    padding-top: var(--r-7);
+  }
+
+  .sak__fakta,
+  .sak__spesifikasjon {
+    display: grid;
+    gap: var(--r-4);
+    margin: 0;
+  }
+
+  .sak__fakta div,
+  .sak__spesifikasjon div {
+    display: grid;
+    gap: var(--r-1);
+    padding-top: var(--r-3);
+    border-top: 1px solid var(--kant);
+  }
+
+  dt {
+    color: var(--dempet);
+  }
+
+  dd {
+    margin: 0;
+  }
+
+  .sak__stadier ol {
+    display: grid;
+    gap: var(--r-6);
+    margin: var(--r-5) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .sak__stadier li {
+    display: grid;
+    gap: var(--r-2);
+    padding-left: var(--r-5);
+    border-left: 2px solid var(--kant);
+  }
+
+  .sak__stegnr {
+    color: var(--dempet);
+  }
+
+  .sak__stadier :global(.sak__stegbilde) {
+    margin-top: var(--r-3);
+    aspect-ratio: 3 / 1;
+    overflow: hidden;
+  }
+
+  .sak__stadier :global(.sak__stegbilde img) {
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .sak__tekst {
+    display: grid;
+    gap: var(--r-4);
+  }
+
+  .sak__tekst :global(h2) {
+    margin-top: var(--r-4);
+    font-size: var(--fs-h3);
+  }
+
+  .sak__videre {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--r-5);
+  }
+</style>

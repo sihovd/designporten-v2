@@ -1,0 +1,40 @@
+---
+/** Page opening for showroom subpages: mono eyebrow, heading, lead text. */
+interface Props {
+  eyebrow: string;
+  tittel: string;
+  ingress?: string;
+  id?: string;
+}
+
+const { eyebrow, tittel, ingress, id } = Astro.props;
+---
+
+<header class="ramme sidehode">
+  <p class="mono sidehode__eyebrow">{eyebrow}</p>
+  <h1 id={id}>{tittel}</h1>
+  {ingress && <p class="ingress sidehode__ingress">{ingress}</p>}
+  <slot />
+</header>
+
+<style>
+  .sidehode {
+    display: grid;
+    gap: var(--r-4);
+    padding-block: var(--r-8) var(--r-7);
+  }
+
+  .sidehode__eyebrow {
+    color: var(--dempet);
+  }
+
+  .sidehode h1 {
+    max-width: 20ch;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  .sidehode__ingress {
+    max-width: 56ch;
+  }
+</style>

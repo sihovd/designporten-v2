@@ -175,3 +175,20 @@ export function validerProfil(p: Profil): string | null {
   }
   return null;
 }
+
+/**
+ * Steepest outward overhang of a profile, in degrees from vertical
+ * (0 = vertical or leaning in, 90 = a horizontal ledge sticking out).
+ * A wall overhangs where the inset shrinks as the height grows.
+ */
+export function profilOverheng(p: Profil, hoyde: number): number {
+  const s = samplerProfil(p);
+  let maks = 0;
+  for (let i = 1; i < s.length; i++) {
+    const ut = s[i - 1]!.inset - s[i]!.inset;
+    if (ut <= 1e-6) continue;
+    const dz = (s[i]!.t - s[i - 1]!.t) * hoyde;
+    maks = Math.max(maks, dz <= 1e-9 ? 90 : (Math.atan(ut / dz) * 180) / Math.PI);
+  }
+  return maks;
+}

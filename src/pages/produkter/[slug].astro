@@ -1,0 +1,304 @@
+---
+/**
+ * Product page: shareable URL for every product (the window is the quick
+ * view). Placeholder products are marked and kept out of search indexes.
+ */
+import type { GetStaticPaths } from 'astro';
+import Side from '@/layouts/Side.astro';
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import ProduktRutenett from '@/components/produkt/ProduktRutenett.astro';
+import ProduktValg from '@/components/produkt/ProduktValg';
+import { hentProdukter } from '@/lib/handel/katalog';
+import { formaterMal, type ProduktVisning } from '@/lib/handel/visning';
+import { getEntry } from 'astro:content';
+
+export const getStaticPaths = (async () => {
+  const produkter = await hentProdukter();
+  return produkter.map((produkt) => ({
+    params: { slug: produkt.id },
+    props: { produkt, alle: produkter },
+  }));
+}) satisfies GetStaticPaths;
+
+const { produkt: p, alle } = Astro.props as { produkt: ProduktVisning; alle: ProduktVisning[] };
+const oppforing = await getEntry('produkter', p.id);
+const avsnitt = (oppforing?.data.beskrivelse ?? p.kortBeskrivelse).split(/\n\s*\n/).filter(Boolean);
+const mal = formaterMal(p.mal);
+const plassholder = p.status === 'plassholder';
+
+const sammeKategori = alle.filter((x) => x.id !== p.id && x.kategori === p.kategori);
+const andre = alle.filter((x) => x.id !== p.id && x.kategori !== p.kategori);
+const relaterte = [...sammeKategori, ...andre].slice(0, 6);
+
+// Structured data only for confirmed, priced products: never for placeholders.
+const strukturert =
+  !plassholder && p.prisOre !== null
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: p.navn,
+        description: p.kortBeskrivelse,
+        image: new URL(p.bilde.src, Astro.site).href,
+        category: p.kategoriNavn,
+        brand: { '@type': 'Brand', name: 'Designporten' },
+        offers: {
+          '@type': 'Offer',
+          priceCurrency: 'NOK',
+          price: (p.prisOre / 100).toFixed(2),
+          url: new URL(p.href, Astro.site).href,
+        },
+      }
+    : null;
+---
+
+<Side tittel={p.navn} beskrivelse={p.kortBeskrivelse} delingsbilde={p.bilde.src} ikkeIndekser={plassholder}>
+  {strukturert && <script type="application/ld+json" slot="hode" set:html={JSON.stringify(strukturert)} />}
+
+  <article class="produktside ramme">
+    <nav class="produktside__sti mono" aria-label="Brødsmuler">
+      <ol>
+        <li>
+          <a href="/produkter/">Produkter</a>
+        </li>
+        <li>
+          <a href={`/produkter/kategori/${p.kategori}/`}>{p.kategoriNavn}</a>
+        </li>
+        <li aria-current="page">{p.navn}</li>
+      </ol>
+    </nav>
+
+    <div class="produktside__hoved">
+      <div class="produktside__bilde">
+        <Konseptbilde
+          bilde={p.bilde}
+          class="produktside__img"
+          lasting="eager"
+          prioritet="high"
+          sizes="(max-width: 800px) 100vw, 50vw"
+        />
+      </div>
+
+      <div class="produktside__tekst">
+        <p class="produktside__kategori mono">{p.kategoriNavn}</p>
+        <h1 class="produktside__tittel">{p.navn}</h1>
+        {plassholder && (
+          <p class="produktside__plassholder">
+            <strong>Plassholder.</strong> Produktet og bildet viser retningen, men modell, mål og pris er ikke
+            fastsatt ennå. Du kan likevel sende en uforpliktende forespørsel.
+          </p>
+        )}
+        <div class="produktside__beskrivelse">
+          {avsnitt.map((a) => (
+            <p>{a}</p>
+          ))}
+        </div>
+
+        <dl class="produktside__fakta">
+          <div>
+            <dt class="mono">Mål</dt>
+            <dd class:list={['tall', { dempet: !mal }]}>{mal ?? 'Ikke fastsatt ennå'}</dd>
+          </div>
+          <div>
+            <dt class="mono">Materialer</dt>
+            <dd>{p.materialer.map((m) => m.type).join(', ')}</dd>
+          </div>
+          {p.egenTekst && (
+            <div>
+              <dt class="mono">Egen tekst</dt>
+              <dd>Inntil {p.egenTekst.maksTegn} tegn</dd>
+            </div>
+          )}
+        </dl>
+
+        <ProduktValg client:visible produkt={p} />
+
+        {p.generator && (
+          <a class="produktside__generator" href={`/skaperverksted/${p.generator}/`}>
+            Tilpass i Skaperverksted
+          </a>
+        )}
+      </div>
+    </div>
+
+    <section class="produktside__materialer" aria-labelledby="om-materialene">
+      <h2 id="om-materialene">Om materialene</h2>
+      <dl>
+        {p.materialer.map((m) => (
+          <div>
+            <dt>{m.type}</dt>
+            <dd>{m.beskrivelse}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  </article>
+
+  {relaterte.length > 0 && (
+    <section class="produktside__relatert" aria-labelledby="flere-produkter">
+      <h2 id="flere-produkter" class="ramme">
+        {sammeKategori.length > 0 ? `Mer fra ${p.kategoriNavn.toLowerCase()}` : 'Flere produkter'}
+      </h2>
+      <ProduktRutenett produkter={relaterte} nivaa="h3" etikett="Flere produkter" />
+    </section>
+  )}
+</Side>
+
+<style>
+  .produktside {
+    padding-block: var(--r-5) var(--r-8);
+  }
+
+  .produktside__sti ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-2);
+    margin: 0 0 var(--r-5);
+    padding: 0;
+    list-style: none;
+    color: var(--dempet);
+  }
+
+  .produktside__sti li + li::before {
+    content: '/';
+    margin-right: var(--r-2);
+  }
+
+  .produktside__sti a {
+    color: inherit;
+  }
+
+  .produktside__hoved {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: var(--r-7);
+    align-items: start;
+  }
+
+  .produktside__bilde {
+    position: sticky;
+    top: calc(var(--header-h) + var(--r-4));
+    aspect-ratio: 1 / 1;
+    background: var(--kalk);
+  }
+
+  .produktside__bilde :global(.produktside__img) {
+    position: absolute;
+    inset: 8%;
+  }
+
+  .produktside__bilde :global(.produktside__img img) {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .produktside__bilde :global(.konseptbilde__merke) {
+    left: calc(-8% / 0.84);
+    top: calc(-8% / 0.84 + var(--r-3));
+  }
+
+  .produktside__tekst {
+    display: flex;
+    flex-direction: column;
+    gap: var(--r-4);
+  }
+
+  .produktside__kategori {
+    color: var(--dempet);
+  }
+
+  .produktside__tittel {
+    font-size: var(--fs-h2);
+    font-stretch: 112%;
+  }
+
+  .produktside__plassholder {
+    padding: var(--r-3) var(--r-4);
+    border-left: 3px solid var(--advarsel);
+    background: var(--flate);
+    font-size: var(--fs-liten);
+  }
+
+  .produktside__beskrivelse {
+    display: grid;
+    gap: var(--r-3);
+    max-width: var(--tekst-maks);
+  }
+
+  .produktside__fakta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--r-3);
+    margin: 0;
+    padding: var(--r-4) 0;
+    border-block: 1px solid var(--kant);
+  }
+
+  .produktside__fakta dt {
+    color: var(--dempet);
+    font-size: var(--fs-mono-liten);
+  }
+
+  .produktside__fakta dd {
+    margin: 0;
+    font-weight: 550;
+  }
+
+  .produktside__fakta .dempet {
+    color: var(--dempet);
+    font-weight: 400;
+  }
+
+  .produktside__generator {
+    align-self: flex-start;
+    font-weight: 600;
+  }
+
+  .produktside__materialer {
+    margin-top: var(--r-8);
+    padding-top: var(--r-6);
+    border-top: 1px solid var(--kant);
+  }
+
+  .produktside__materialer h2 {
+    font-size: var(--fs-h3);
+    margin-bottom: var(--r-4);
+  }
+
+  .produktside__materialer dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--r-4) var(--r-5);
+    margin: 0;
+  }
+
+  .produktside__materialer dt {
+    font-weight: 650;
+  }
+
+  .produktside__materialer dd {
+    margin: 0;
+    color: var(--dempet);
+  }
+
+  .produktside__relatert {
+    padding-bottom: var(--r-seksjon);
+  }
+
+  .produktside__relatert h2 {
+    font-size: var(--fs-h3);
+    margin-bottom: var(--r-5);
+  }
+
+  @media (max-width: 800px) {
+    .produktside__hoved {
+      grid-template-columns: 1fr;
+      gap: var(--r-5);
+    }
+
+    .produktside__bilde {
+      position: relative;
+      top: 0;
+    }
+  }
+</style>

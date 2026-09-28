@@ -25,7 +25,7 @@ Standalone TypeScript application; see [ADR-001](../decisions/adr-001-platform.m
 
 - **Astro** for routing, prerendered showroom pages, content collections and the few server routes (Node adapter).
 - **Preact** islands for the Skaperverksted shell and complex showroom widgets; plain TypeScript modules for small behaviours.
-- **Skaperverksted core** in framework-free TypeScript; **Three.js** for 3D; **clipper2-js** for polygon booleans/offsets; **opentype.js** for text outlines; own STL/3MF writers.
+- **Skaperverksted core** in framework-free TypeScript; **Three.js** for 3D; **clipper2-ts** for polygon booleans/offsets; **opentype.js** for text outlines; own STL/3MF writers.
 - **Commerce** behind a `CommerceProvider` interface; the shipped provider sends order requests (no payment). A hosted checkout is added when an account exists.
 - **Fonts, images and 3D assets** self-hosted. **Languages:** TypeScript strict, modern CSS (custom properties, container queries, `:has`, View Transitions with fallback). No CSS-in-JS runtime.
 - **Quality tooling:** ESLint, Prettier, `astro check`, Vitest, Playwright + axe, all behind npm scripts that CI runs.
@@ -37,25 +37,28 @@ DESIGNPORTEN_MASTER.md      authoritative spec entry point
 CLAUDE.md                   working rules for people and agents
 docs/                       spec detail (design, content, architecture, decisions)
 reference/                  concept images and preserved prototypes (not shipped)
-public/                     static assets: brand/, fonts/, images/, icons/, models/
+public/                     static assets: fonts/, midlertidig/ (placeholders), skaperverksted/fonter/
 src/
-  tokens/                   design tokens (CSS custom properties + TS export)
-  site/                     showroom: theme templates/blocks or pages, components, styles
-  components/               shared UI components (header, cards, process slider, dialogs)
+  styles/, tokens/          design tokens (CSS custom properties + TS export), base, motion
+  layouts/, components/     site shell and shared UI components
+  pages/                    showroom, products, cart and Skaperverksted routes (Astro)
+  lib/                      navigation, asset registry (ressurser.ts), contact, forms, commerce boundary
+  content/                  products and inspiration content
   skaperverksted/
-    core/                   pure TS: units, geometry, document model, history, validation
-    render2d/               canvas renderer, grid, rulers, hit testing
-    render3d/               Three.js scene, materials, view cube
-    export/                 3MF, STL writers
-    shell/                  workspace UI (tool rail, panels, inspector, sheets)
-    generators/
+    core/                   pure TS: units, document model, history, profiles, materials, plan limits
+    geometri/               polygons (Clipper2), SVG paths, shapes, text, extrusion, mesh checks
+    eksport/                3MF, STL writers
+    render2d/               canvas view, grid, rulers
+    render3d/               Three.js view
+    shell/                  workspace UI (tool rail, panels, inspector, sheets, dialogs)
+    generatorer/
       signgen/
       lampe/
       drage/
-tests/                      e2e and visual tests
+tests/e2e/                  browser tests per area
 ```
 
-The exact `src/site/` shape follows the D-1 decision (block theme vs pages). Everything else is stable.
+The layout follows ADR-001 (standalone Astro app).
 
 ## Domain model
 

@@ -1,0 +1,367 @@
+.kurv {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr);
+  gap: var(--r-7);
+  align-items: start;
+}
+
+.kurv__linjer ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--kant);
+}
+
+.kurvlinje {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) auto auto;
+  gap: var(--r-4);
+  align-items: center;
+  padding: var(--r-4) 0;
+  border-bottom: 1px solid var(--kant);
+}
+
+.kurvlinje__bilde {
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  background: var(--kalk);
+}
+
+.kurvlinje__bilde img {
+  width: 86%;
+  height: 86%;
+  object-fit: contain;
+}
+
+.kurvlinje__tekst {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kurvlinje__tekst a,
+.kurvlinje__tekst > span:first-child {
+  font-weight: 600;
+  color: var(--blekk);
+}
+
+.kurvlinje__valg {
+  font-size: var(--fs-liten);
+  color: var(--dempet);
+}
+
+.kurvlinje__design {
+  color: var(--dempet);
+  font-size: var(--fs-mono-liten);
+}
+
+.kurvlinje__kilde {
+  font-size: var(--fs-mono-liten);
+  color: var(--lenke);
+}
+
+.kurvlinje__status {
+  font-size: var(--fs-mono-liten);
+  color: var(--advarsel);
+}
+
+.kurvlinje__feil {
+  font-size: var(--fs-liten);
+  color: var(--feil);
+}
+
+.kurvlinje__antall {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--kant-sterk);
+  border-radius: var(--radius-pille);
+}
+
+.kurvlinje__antall button {
+  font-size: 1.25rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  width: var(--mal-beroring);
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--blekk);
+  border-radius: var(--radius-pille);
+}
+
+.kurvlinje__antall button:hover:not(:disabled) {
+  color: var(--lenke);
+}
+
+.kurvlinje__antall button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.kurvlinje__antall > span {
+  min-width: 2ch;
+  text-align: center;
+  font-weight: 600;
+}
+
+.kurvlinje__pris {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 7.5rem;
+  font-weight: 600;
+}
+
+.kurvlinje__ingenpris {
+  font-size: var(--fs-liten);
+  font-weight: 500;
+  color: var(--dempet);
+}
+
+.kurvlinje__fjern {
+  min-height: var(--mal-min);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lenke);
+  font-size: var(--fs-liten);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.kurv__oppsummering {
+  position: sticky;
+  top: calc(var(--header-h) + var(--r-4));
+  display: flex;
+  flex-direction: column;
+  gap: var(--r-4);
+  padding: var(--r-5);
+  background: var(--flate);
+  border: 1px solid var(--kant);
+}
+
+.kurv__oppsummering h2 {
+  font-size: var(--fs-h3);
+}
+
+.kurv__oppsummering dl {
+  display: grid;
+  gap: var(--r-2);
+  margin: 0;
+}
+
+.kurv__oppsummering dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--r-4);
+}
+
+.kurv__oppsummering dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.kurv__ingenbetaling {
+  padding: var(--r-3) var(--r-4);
+  border-left: 3px solid var(--handling);
+  background: var(--papir);
+  font-size: var(--fs-liten);
+}
+
+.kurv__skjema {
+  display: flex;
+  flex-direction: column;
+  gap: var(--r-3);
+  padding-top: var(--r-4);
+  border-top: 1px solid var(--kant);
+}
+
+.kurv__skjema h3 {
+  font-size: 1.125rem;
+}
+
+.kurv__skjema label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--r-1);
+  font-weight: 550;
+  font-size: var(--fs-liten);
+}
+
+.kurv__skjema small {
+  font-weight: 400;
+  color: var(--dempet);
+}
+
+.kurv__skjema input,
+.kurv__skjema textarea {
+  min-height: var(--mal-beroring);
+  padding: var(--r-2) var(--r-3);
+  border: 1px solid var(--kant-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--flate);
+  font-size: var(--fs-tekst);
+  font-weight: 400;
+}
+
+.kurv__skjema input:focus-visible,
+.kurv__skjema textarea:focus-visible {
+  outline: 2px solid var(--fokus);
+  outline-offset: 1px;
+  border-color: var(--handling);
+}
+
+.kurv__skjema [aria-invalid='true'] {
+  border-color: var(--feil);
+}
+
+.kurv__feltfeil,
+.kurv__feil {
+  color: var(--feil);
+  font-size: var(--fs-liten);
+  font-weight: 500;
+}
+
+.kurv__feil {
+  padding: var(--r-2) var(--r-3);
+  border-left: 3px solid var(--feil);
+  background: var(--papir);
+}
+
+.kurv__honning {
+  position: absolute !important;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.kurv__send {
+  min-height: var(--mal-beroring);
+  padding: var(--r-2) var(--r-5);
+  line-height: 1.2;
+  border: 0;
+  border-radius: var(--radius-pille);
+  background: var(--handling);
+  color: var(--pa-handling);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  font-stretch: 108%;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transition: background-color var(--t-rask) ease;
+}
+
+.kurv__send:hover:not(:disabled) {
+  background: var(--handling-hover);
+}
+
+.kurv__send:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.kurv__hjelp {
+  font-size: 0.8125rem;
+  color: var(--dempet);
+}
+
+.kurv__tom,
+.kurv__kvittering {
+  display: grid;
+  gap: var(--r-3);
+  justify-items: start;
+  max-width: var(--tekst-maks);
+  padding: var(--r-6) 0;
+}
+
+.kurv__kvittering:focus {
+  outline: none;
+}
+
+.kurv__kvittering .mono {
+  color: var(--dempet);
+}
+
+.kurv__tom-lenker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--r-5);
+  font-weight: 600;
+}
+
+.kurv__utvikling {
+  padding: var(--r-2) var(--r-3);
+  border-left: 3px solid var(--advarsel);
+  background: var(--flate);
+  font-size: var(--fs-liten);
+}
+
+.kurv__sendt {
+  margin: 0;
+  padding-left: var(--r-5);
+}
+
+.kurv__sendt .mono {
+  color: var(--dempet);
+  font-size: var(--fs-mono-liten);
+  text-transform: none;
+}
+
+.kurv__laster {
+  color: var(--dempet);
+  padding: var(--r-6) 0;
+}
+
+@media (max-width: 900px) {
+  .kurv {
+    grid-template-columns: 1fr;
+    gap: var(--r-5);
+  }
+
+  .kurv__oppsummering {
+    position: static;
+  }
+}
+
+@media (max-width: 560px) {
+  .kurvlinje {
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-areas:
+      'bilde tekst'
+      'antall pris';
+    gap: var(--r-3);
+  }
+
+  .kurvlinje__bilde {
+    grid-area: bilde;
+    width: 64px;
+    height: 64px;
+  }
+
+  .kurvlinje__tekst {
+    grid-area: tekst;
+  }
+
+  .kurvlinje__antall {
+    grid-area: antall;
+    grid-column: 1 / 2;
+    justify-self: start;
+  }
+
+  .kurvlinje__pris {
+    grid-area: pris;
+    min-width: 0;
+  }
+
+  .kurv__oppsummering {
+    padding: var(--r-4);
+  }
+}

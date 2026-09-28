@@ -96,3 +96,6 @@ Not blocking implementation; content stays out until confirmed.
 |---|---|
 | 2026-09-28 | Master specification established from the brief and all inspected sources. |
 | 2026-09-28 | Spec approved by Sivert. D-1 to D-4 resolved; ADR-001 platform decision recorded. |
+| 2026-09-28 | Polygon library: **clipper2-ts** (BSL-1.0) instead of clipper2-js. clipper2-js returned empty results from PolyTree operations and wrong miter offsets in testing; clipper2-ts is a maintained port of the same Clipper2 algorithms. |
+| 2026-09-28 | Asset registry path corrected to `src/lib/ressurser.ts` (was `src/content/assets.ts` in the master spec). Generators register through `meta.ts` + `index.ts` discovered by `import.meta.glob`. |
+| 2026-09-28 | Signgen CSV batch built in phase 5, as the execution instruction asks. It runs without limits; `core/plangrenser.ts` holds the on/off switch so plan limits become a data change once the paid model is decided. No plan, price or subscription behaviour is shown. |
