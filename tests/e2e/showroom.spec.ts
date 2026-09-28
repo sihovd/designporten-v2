@@ -150,3 +150,10 @@ test('reduced motion shows the finished hero at once', async ({ browser }) => {
   await expect(page.locator('.helt .bygg__objekt img')).toBeVisible();
   await ctx.close();
 });
+
+test('the homepage shows a row from the products', async ({ page }) => {
+  await page.goto('/');
+  const rad = page.getByRole('list', { name: 'Utvalgte produkter' });
+  await expect(rad.getByRole('listitem')).toHaveCount(6);
+  await expect(page.getByRole('link', { name: 'Se alle produktene' })).toHaveAttribute('href', '/produkter/');
+});
