@@ -7,6 +7,8 @@ import { DrageVrikk } from './Vrikk';
 
 const plugin: GeneratorPlugin = {
   ...drageKjerne,
+  // details such as eyes and horns are sunk into the body
+  delerOverlapper: true,
   ui: {
     Inspektor: DrageInspektor,
     Bunnbrett: DrageDelvelger,

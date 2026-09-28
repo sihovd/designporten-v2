@@ -22,7 +22,12 @@ export function Statuslinje({ benk }: { benk: Arbeidsbenk }) {
         )}
       </span>
       {m && <span class="mono">{m.deler === 1 ? '1 del' : `${m.deler} deler`}</span>}
-      {m && <span class="mono">{tall(m.volum / 1000, 1)} cm³ massivt</span>}
+      {m && (
+        <span class="mono">
+          {benk.generator.delerOverlapper ? 'opptil ' : ''}
+          {tall(m.volum / 1000, 1)} cm³ massivt
+        </span>
+      )}
       {visning === '2d' && <span class="mono">{Math.round(zoom * 100)} %</span>}
       <span class="mono" aria-hidden={!bygger}>
         {bygger ? 'Bygger modell …' : ''}

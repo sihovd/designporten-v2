@@ -95,6 +95,12 @@ export interface GeneratorPlugin {
   /** Development-geometry notice (e.g. dragon parts not final). */
   utviklingsgeometri?: string;
   /**
+   * Parts overlap in space (e.g. details sunk into a body). Summed part
+   * volumes then overstate the solid volume, so the shell shows it as an
+   * upper bound.
+   */
+  delerOverlapper?: boolean;
+  /**
    * Generator keyboard shortcuts (Delete, Ctrl+D, arrows …). Called by the
    * shell for keys outside text fields; return true when handled.
    */

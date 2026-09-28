@@ -98,7 +98,10 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                 </div>
                 <div>
                   <dt>Volum (massivt)</dt>
-                  <dd class="mono">{tall(m.volum / 1000)} cm³</dd>
+                  <dd class="mono">
+                    {plugin.delerOverlapper ? 'opptil ' : ''}
+                    {tall(m.volum / 1000)} cm³
+                  </dd>
                 </div>
               </dl>
               <h3>Deler og farger</h3>

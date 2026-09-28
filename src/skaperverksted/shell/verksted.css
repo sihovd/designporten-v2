@@ -413,9 +413,9 @@
 .utviklingsmerke {
   position: absolute;
   z-index: 5;
-  top: 10px;
-  left: 50%;
-  translate: -50% 0;
+  /* bottom left, clear of the camera presets top right */
+  bottom: 10px;
+  left: 10px;
   margin: 0;
   padding: 6px 12px;
   border: 1px solid var(--advarsel-mork);
