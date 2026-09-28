@@ -77,7 +77,10 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   const bred = brukBred();
   const [eksport, settEksport] = useState(false);
   const [hjelp, settHjelp] = useState(false);
-  const [panelApent, settPanelApent] = useState(true);
+  // the floating panel would cover most of a small laptop canvas, so it starts closed there
+  const [panelApent, settPanelApent] = useState(
+    () => typeof matchMedia === 'undefined' || matchMedia('(min-width: 1280px)').matches,
+  );
   const filvelger = useRef<HTMLInputElement>(null);
   const ui = plugin.ui;
 
@@ -363,9 +366,9 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
       )}
 
       {ui.Bunnbrett && (
-        <div class="bunnbrett">
+        <section class="bunnbrett" aria-label="Varianter">
           <ui.Bunnbrett benk={benk} />
-        </div>
+        </section>
       )}
       <Statuslinje benk={benk} />
       <p class="visuelt-skjult" aria-live="polite" role="status">

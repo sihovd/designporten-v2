@@ -58,10 +58,8 @@
     'status';
 }
 
-.verksted button,
-.verksted input,
-.verksted select,
-.verksted textarea {
+/* zero specificity so component classes can set their own font and colour */
+:where(.verksted) :where(button, input, select, textarea) {
   font: inherit;
   color: inherit;
 }
@@ -1047,7 +1045,11 @@
 }
 
 .lagrad.skjult .lag-navn {
-  opacity: 0.55;
+  color: var(--fg-dempet);
+}
+
+.lagrad.skjult .lag-tittel {
+  text-decoration: line-through;
 }
 
 .lagrad-hode {
@@ -1114,11 +1116,11 @@
 
 .minibryter.synlighet[aria-pressed='false'] {
   text-decoration: line-through;
-  opacity: 0.6;
+  border-style: dashed;
 }
 
 .minibryter.las[aria-pressed='false'] {
-  opacity: 0.6;
+  border-style: dashed;
 }
 
 .minibryter.las[aria-pressed='true'] {

@@ -26,6 +26,8 @@ const bilde = delingsbilde ? new URL(delingsbilde, Astro.site).href : undefined;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- No favicon until the real logo exists (assets list); empty icon avoids a /favicon.ico 404 -->
+    <link rel="icon" href="data:," />
     <title>{fullTittel}</title>
     <meta name="description" content={beskrivelse} />
     <link rel="canonical" href={kanonisk.href} />

@@ -19,6 +19,8 @@ const kanonisk = new URL(Astro.url.pathname, Astro.site);
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- No favicon until the real logo exists (assets list); empty icon avoids a /favicon.ico 404 -->
+    <link rel="icon" href="data:," />
     <title>{`${tittel} – Skaperverksted – Designporten`}</title>
     <meta name="description" content={beskrivelse} />
     <link rel="canonical" href={kanonisk.href} />
