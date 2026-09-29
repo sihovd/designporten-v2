@@ -39,7 +39,7 @@
 - **Content:** Astro content collections with Zod schemas. Every product and case carries `status: "bekreftet" | "plassholder"`; placeholder data is visibly marked in the UI.
 - **Forms:** server route validates and delivers by e-mail (SMTP from environment variables). Without SMTP configured (development), submissions are written to `var/innsendinger/` and the response says so; production start refuses to run the form route unconfigured rather than silently dropping messages.
 - **Tooling:** npm, TypeScript strict, ESLint (typescript-eslint, astro plugin), Prettier, Vitest, Playwright + axe, `astro check`.
-- **Deployment:** `npm run build` produces `dist/` (static client files + a Node server entry). Any Node 22 host or container works; static-only hosting works with forms disabled.
+- **Deployment:** `npm run build` produces `dist/` (static client files + a Node server entry). Any Node 22 host or container works. For PHP web hosting without Node (one.com), `npm run build:onecom` produces a static site with the form and order routes as PHP scripts (2026-09-29, see the decision log).
 
 ## Consequences
 

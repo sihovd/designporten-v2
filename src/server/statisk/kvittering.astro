@@ -1,0 +1,56 @@
+---
+/**
+ * Receipt for forms sent without JavaScript, static version for the php build.
+ * Two pages: /skjema/kvittering/ for the idea form and
+ * /skjema/kvittering/kontakt/ for the contact form. The PHP route redirects
+ * to the right one with ?ref=; the script shows the reference, and without
+ * scripts the reference line is left out. (The Node build renders this on
+ * the server.)
+ */
+import type { GetStaticPaths } from 'astro';
+import Side from '@/layouts/Side.astro';
+import Kvittering from '@/components/showroom/skjema/Kvittering.astro';
+
+export const prerender = true;
+
+export const getStaticPaths = (() => [
+  { params: { type: undefined } },
+  { params: { type: 'kontakt' } },
+]) satisfies GetStaticPaths;
+
+const type = Astro.params.type === 'kontakt' ? 'kontakt' : 'ide';
+---
+
+<Side tittel="Sendt" beskrivelse="Kvittering for skjema sendt til Designporten." ikkeIndekser>
+  <section class="ramme seksjon kv">
+    <h1 class="visuelt-skjult">Sendt</h1>
+    <Kvittering type={type} referanse="DP-00000000-X" />
+    <p class="kv__videre">
+      <a href="/">Til forsiden</a> · <a href="/skaperverksted/">Skaperverksted</a> ·{' '}
+      <a href="/produkter/">Produkter</a>
+    </p>
+  </section>
+</Side>
+
+<script>
+  const ref = new URLSearchParams(location.search).get('ref') ?? '';
+  const felt = document.querySelector('[data-ref]');
+  if (/^DP-\d{8}-[A-Z0-9]{1,8}$/.test(ref) && felt) felt.textContent = ref;
+  else document.querySelector('[data-ref-linje]')?.remove();
+</script>
+
+<noscript>
+  <style>
+    [data-ref-linje] {
+      display: none;
+    }
+  </style>
+</noscript>
+
+<style>
+  .kv {
+    display: grid;
+    gap: var(--r-5);
+    justify-items: start;
+  }
+</style>

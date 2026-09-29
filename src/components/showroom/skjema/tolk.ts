@@ -36,7 +36,10 @@ export async function tolkSkjema(data: FormData): Promise<Tolkning> {
   if (!epost) feil.epost = 'Skriv e-postadressen din, så vi kan svare.';
   else if (!EPOST.test(epost)) feil.epost = 'E-postadressen ser ikke riktig ut.';
 
-  const filer = data.getAll('filer').filter((f): f is File => f instanceof File && f.size > 0);
+  // `filer[]` is the form's field name (PHP needs the brackets to keep every file).
+  const filer = [...data.getAll('filer[]'), ...data.getAll('filer')].filter(
+    (f): f is File => f instanceof File && f.size > 0,
+  );
   if (filer.length > opplasting.maksFiler) {
     feil.filer = `Du kan laste opp opptil ${opplasting.maksFiler} filer.`;
   } else {

@@ -1,0 +1,75 @@
+name: Publiser til one.com
+
+# Builds the PHP version of the site (npm run build:onecom) and uploads it
+# over SFTP to one folder on one.com. Does nothing until the secrets below
+# are set (Settings → Secrets and variables → Actions):
+#   ONECOM_SFTP_HOST, ONECOM_SFTP_BRUKER, ONECOM_SFTP_PASSORD  (one.com: Advanced settings → SSH & SFTP)
+#   ONECOM_MAPPE   the site's folder on the server, for example «ny» for ny.designporten.no
+#   SKJEMA_TIL     where form e-mails go
+#   SKJEMA_FRA     sender address, a mailbox on the site's own domain
+# See docs/development.md#deploy.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: onecom
+  cancel-in-progress: false
+
+jobs:
+  publiser:
+    runs-on: ubuntu-latest
+    env:
+      VERT: ${{ secrets.ONECOM_SFTP_HOST }}
+      BRUKER: ${{ secrets.ONECOM_SFTP_BRUKER }}
+      PASSORD: ${{ secrets.ONECOM_SFTP_PASSORD }}
+      MAPPE: ${{ secrets.ONECOM_MAPPE }}
+      SKJEMA_TIL: ${{ secrets.SKJEMA_TIL }}
+      SKJEMA_FRA: ${{ secrets.SKJEMA_FRA }}
+    steps:
+      - name: Er one.com satt opp?
+        id: oppsett
+        run: |
+          if [ -z "$VERT" ] || [ -z "$BRUKER" ] || [ -z "$PASSORD" ] || [ -z "$MAPPE" ]; then
+            echo "one.com er ikke satt opp ennå (mangler hemmeligheter). Hopper over publisering."
+            echo "klar=nei" >> "$GITHUB_OUTPUT"
+          else
+            echo "klar=ja" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.oppsett.outputs.klar == 'ja'
+        uses: actions/checkout@v4
+      - if: steps.oppsett.outputs.klar == 'ja'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.oppsett.outputs.klar == 'ja'
+        run: npm ci
+      - if: steps.oppsett.outputs.klar == 'ja'
+        run: npm run build:onecom
+
+      - name: Skriv e-postoppsett for skjemaene
+        if: steps.oppsett.outputs.klar == 'ja'
+        run: |
+          node -e '
+            const q = (s) => "\x27" + String(s ?? "").replace(/[\\\x27]/g, (c) => "\\" + c) + "\x27";
+            const php = `<?php\nreturn [\n    \x27til\x27 => ${q(process.env.SKJEMA_TIL)},\n    \x27fra\x27 => ${q(process.env.SKJEMA_FRA)},\n];\n`;
+            require("node:fs").writeFileSync("dist/api/oppsett.php", php);
+          '
+
+      - name: Last opp over SFTP
+        if: steps.oppsett.outputs.klar == 'ja'
+        run: |
+          sudo apt-get install -y -qq lftp > /dev/null
+          case "$MAPPE" in
+            ""|"/"|"."|"./") echo "ONECOM_MAPPE kan ikke være roten. Velg en egen mappe for siden."; exit 1 ;;
+          esac
+          # Never overwrite a WordPress site (the old designporten.no) by mistake.
+          if lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 2; cls -1 '$MAPPE/wp-config.php'; bye" "sftp://$VERT" 2>/dev/null | grep -q wp-config; then
+            echo "Mappen «$MAPPE» inneholder en WordPress-side. Velg en annen mappe."
+            exit 1
+          fi
+          lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 3; mkdir -p -f '$MAPPE'; mirror -R --delete --verbose=1 --exclude-glob .well-known/ dist/ '$MAPPE'; bye" "sftp://$VERT"

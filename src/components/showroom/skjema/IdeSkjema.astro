@@ -87,7 +87,7 @@ const forste = startpunkter[0]!;
           <span>Dra filer hit, eller</span>
           <input
             id={f('filer')}
-            name="filer"
+            name="filer[]"
             type="file"
             multiple
             accept=".jpg,.jpeg,.png,.heic,.webp,.pdf,.stl,.3mf,.step,.stp,.obj,.svg,image/*"
@@ -353,7 +353,7 @@ const forste = startpunkter[0]!;
     function visFeil(feil: Record<string, string>) {
       nullstillFeil();
       for (const [navn, melding] of Object.entries(feil)) {
-        const felt = skjema.querySelector<HTMLElement>(`[name="${navn}"]`);
+        const felt = skjema.querySelector<HTMLElement>(`[name="${navn}"], [name="${navn}[]"]`);
         const tekst = skjema.querySelector<HTMLElement>(`[data-feil-for="${navn}"]`);
         if (tekst) tekst.textContent = melding;
         felt?.setAttribute('aria-invalid', 'true');

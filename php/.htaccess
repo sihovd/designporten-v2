@@ -1,0 +1,30 @@
+# Designporten on Apache web hosting with PHP (one.com). Written by
+# `npm run build:onecom`; see docs/development.md#deploy.
+
+DirectoryIndex index.html index.php
+ErrorDocument 404 /404.html
+Options -Indexes
+
+AddType text/javascript .js .mjs
+AddType application/manifest+json .webmanifest
+AddType application/wasm .wasm
+AddType font/woff2 .woff2
+AddCharset utf-8 .html .css .js .mjs .json .txt .xml .svg
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+
+  # Built assets have content hashes in their names and never change.
+  <If "%{REQUEST_URI} =~ m#^/_astro/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/json image/svg+xml
+</IfModule>

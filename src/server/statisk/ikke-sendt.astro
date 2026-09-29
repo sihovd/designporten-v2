@@ -1,0 +1,48 @@
+---
+/**
+ * «Not sent» page for forms sent without JavaScript, static version for the
+ * php build. The PHP route redirects here with ?feil=&type=; the script shows
+ * that reason, and without scripts the general advice below stands.
+ */
+import Side from '@/layouts/Side.astro';
+import Knapp from '@/components/Knapp.astro';
+
+export const prerender = true;
+---
+
+<Side tittel="Ikke sendt" beskrivelse="Skjemaet ble ikke sendt til Designporten." ikkeIndekser>
+  <section class="ramme seksjon kv">
+    <div class="kv__feil" role="alert">
+      <h1>Meldingen ble ikke sendt</h1>
+      <p data-grunn>
+        Sjekk at beskrivelse, navn og e-post er fylt ut, og at hver fil er under 15 MB. Prøv så igjen.
+      </p>
+      <Knapp href="/spesialdesign/#skjema" data-tilbake>
+        Tilbake til skjemaet
+      </Knapp>
+    </div>
+  </section>
+</Side>
+
+<script>
+  const p = new URLSearchParams(location.search);
+  const grunn = p.get('feil')?.slice(0, 600);
+  const felt = document.querySelector('[data-grunn]');
+  if (grunn && felt) felt.textContent = grunn;
+  if (p.get('type') === 'kontakt') {
+    document.querySelector<HTMLAnchorElement>('[data-tilbake]')?.setAttribute('href', '/kontakt/#skjema');
+  }
+</script>
+
+<style>
+  .kv__feil {
+    display: grid;
+    gap: var(--r-4);
+    justify-items: start;
+    max-width: 60ch;
+  }
+
+  .kv__feil h1 {
+    font-size: var(--fs-h2);
+  }
+</style>
