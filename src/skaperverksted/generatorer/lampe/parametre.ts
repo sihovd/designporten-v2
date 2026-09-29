@@ -8,6 +8,14 @@
  */
 import type { ProfilPunkt } from '../../core/profil';
 import { finnMateriale, materialer } from '../../core/materialer';
+import {
+  TILPASNING_GRENSER,
+  maskinvare,
+  standardTilpasning,
+  type Festemetode,
+  type SokkelId,
+  type Tilpasning,
+} from './maskinvare';
 
 export type Monstertype = 'glatt' | 'ribber' | 'bolger' | 'fasetter' | 'diamant';
 
@@ -19,52 +27,7 @@ export interface Monster {
   dybde: number;
 }
 
-export type SokkelId = 'apen' | 'lukket' | 'e27' | 'e14';
-
-export interface Sokkel {
-  id: SokkelId;
-  navn: string;
-  beskrivelse: string;
-  /** Centre hole for the lamp holder (mm). 0 = closed; null = no bottom at all. */
-  hullDiameter: number | null;
-  /** Measurements confirmed by Designporten (open question in the decision log). */
-  bekreftet: boolean;
-}
-
-/**
- * Base/fitting catalogue. Hole sizes are common values for lamp holder rings,
- * not yet confirmed by Designporten; the editor says so.
- */
-export const sokler: Record<SokkelId, Sokkel> = {
-  apen: {
-    id: 'apen',
-    navn: 'Åpen bunn',
-    beskrivelse: 'Ren skjerm uten bunn, til lampeholder med skjermring.',
-    hullDiameter: null,
-    bekreftet: true,
-  },
-  lukket: {
-    id: 'lukket',
-    navn: 'Lukket bunn',
-    beskrivelse: 'Hel bunnplate. Kan skrives ut i vasemodus og brukes som lykt eller vase.',
-    hullDiameter: 0,
-    bekreftet: true,
-  },
-  e27: {
-    id: 'e27',
-    navn: 'E27-holder',
-    beskrivelse: 'Bunnplate med hull til E27-lampeholder.',
-    hullDiameter: 42,
-    bekreftet: false,
-  },
-  e14: {
-    id: 'e14',
-    navn: 'E14-holder',
-    beskrivelse: 'Bunnplate med hull til E14-lampeholder.',
-    hullDiameter: 29,
-    bekreftet: false,
-  },
-};
+export type { SokkelId } from './maskinvare';
 
 export interface LampeParametre {
   hoyde: number;
@@ -83,9 +46,12 @@ export interface LampeParametre {
   /** Twist of the pattern from bottom to top (degrees). */
   vridning: number;
   veggtykkelse: number;
+  /** Light source / fitting (hardware profile id, see maskinvare.ts). */
   sokkel: SokkelId;
-  /** Bottom plate thickness when the base has a plate (mm). */
+  /** Bottom plate thickness when the base is a plate (holders, closed bottom) (mm). */
   bunnTykkelse: number;
+  /** Fit settings for the selected hardware. */
+  tilpasning: Tilpasning;
   materialId: string;
 }
 
@@ -167,8 +133,9 @@ export function standardParametre(): LampeParametre {
     monster: { type: 'ribber', antall: 24, dybde: 3 },
     vridning: 60,
     veggtykkelse: 0.8,
-    sokkel: 'e27',
+    sokkel: 'bambu-001',
     bunnTykkelse: 2,
+    tilpasning: standardTilpasning(),
     materialId: 'pla-kritthvit',
   };
 }
@@ -209,6 +176,32 @@ export function normaliserSilhuett(v: unknown): ProfilPunkt[] {
   return pk;
 }
 
+function valgfri(v: unknown, min: number, maks: number): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? Math.min(maks, Math.max(min, v)) : null;
+}
+
+/** Make fit settings valid: clamp, fill in defaults for anything missing. */
+export function normaliserTilpasning(v: unknown): Tilpasning {
+  const s = standardTilpasning();
+  const t = (v && typeof v === 'object' ? v : {}) as Partial<Record<keyof Tilpasning, unknown>>;
+  const G = TILPASNING_GRENSER;
+  const feste: Festemetode = t.feste === 'klemkant' ? 'klemkant' : 'tape';
+  return {
+    toleranse: tall(t.toleranse, s.toleranse, G.toleranse.min, G.toleranse.maks),
+    fordypning: tall(t.fordypning, s.fordypning, G.fordypning.min, G.fordypning.maks),
+    feste,
+    klemkant: tall(t.klemkant, s.klemkant, G.klemkant.min, G.klemkant.maks),
+    kabelHull: tall(t.kabelHull, s.kabelHull, G.kabelHull.min, G.kabelHull.maks),
+    kabelBredde: tall(t.kabelBredde, s.kabelBredde, G.kabelBredde.min, G.kabelBredde.maks),
+    kabelHoyde: tall(t.kabelHoyde, s.kabelHoyde, G.kabelHoyde.min, G.kabelHoyde.maks),
+    gulv: tall(t.gulv, s.gulv, G.gulv.min, G.gulv.maks),
+    holderHull: valgfri(t.holderHull, G.holderHull.min, G.holderHull.maks),
+    modulDiameter: valgfri(t.modulDiameter, G.modulDiameter.min, G.modulDiameter.maks),
+    modulHoyde: valgfri(t.modulHoyde, G.modulHoyde.min, G.modulHoyde.maks),
+    provebit: t.provebit === true,
+  };
+}
+
 const monstertyper: Monstertype[] = ['glatt', 'ribber', 'bolger', 'fasetter', 'diamant'];
 
 /** Turn stored/untrusted parameters into a valid, clamped set. */
@@ -218,7 +211,8 @@ export function normaliser(v: unknown): LampeParametre {
   const m = (p.monster && typeof p.monster === 'object' ? p.monster : {}) as Partial<Record<string, unknown>>;
   const type = monstertyper.includes(m.type as Monstertype) ? (m.type as Monstertype) : s.monster.type;
   const antallGrense = type === 'bolger' ? GRENSER.antallBolger : GRENSER.antall;
-  const sokkel = typeof p.sokkel === 'string' && p.sokkel in sokler ? (p.sokkel as SokkelId) : s.sokkel;
+  const sokkel =
+    typeof p.sokkel === 'string' && Object.hasOwn(maskinvare, p.sokkel) ? (p.sokkel as SokkelId) : s.sokkel;
   const materialId =
     typeof p.materialId === 'string' && materialer.some((x) => x.id === p.materialId)
       ? p.materialId
@@ -237,6 +231,7 @@ export function normaliser(v: unknown): LampeParametre {
     veggtykkelse: tall(p.veggtykkelse, s.veggtykkelse, GRENSER.veggtykkelse.min, GRENSER.veggtykkelse.maks),
     sokkel,
     bunnTykkelse: tall(p.bunnTykkelse, s.bunnTykkelse, GRENSER.bunnTykkelse.min, GRENSER.bunnTykkelse.maks),
+    tilpasning: normaliserTilpasning(p.tilpasning),
     materialId,
   };
 }

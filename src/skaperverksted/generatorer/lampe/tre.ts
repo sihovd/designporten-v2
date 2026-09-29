@@ -13,13 +13,27 @@ import type { Scene3d } from '../../core/generator';
 import { finnMateriale } from '../../core/materialer';
 import { cssFarge } from '../../shell/tema';
 import { lesParametre } from './modell';
-import { sokler, type LampeParametre } from './parametre';
+import { holderHull, maskinvare, modulMal } from './maskinvare';
+import type { LampeParametre } from './parametre';
 import { lys } from './lys';
 
-/** Where the bulb sits (mm above the plate). */
+/** Where the light comes from (mm above the plate): a module's top face, else a bulb. */
 export function paerePosisjon(p: LampeParametre): number {
-  const harBunn = sokler[p.sokkel].hullDiameter !== null;
+  const m = modulMal(p.sokkel, p.tilpasning);
+  if (m) return Math.min(m.zGulv + m.hModul, p.hoyde * 0.9);
+  const harBunn = holderHull(p.sokkel, p.tilpasning) !== null;
   return harBunn ? Math.min(p.bunnTykkelse + 60, p.hoyde * 0.45) : p.hoyde * 0.4;
+}
+
+/**
+ * The selected light module as a plain cylinder at its real size, standing
+ * on the floor of the recess. Preview only: it is not part of the model and
+ * never exported. Holders have no verified body size, so nothing is drawn.
+ */
+export function modulForhandsvisning(p: LampeParametre): { r: number; h: number; z: number } | null {
+  if (maskinvare[p.sokkel].type !== 'modul') return null;
+  const m = modulMal(p.sokkel, p.tilpasning)!;
+  return { r: m.rModul, h: m.hModul, z: m.zGulv };
 }
 
 /** Per-vertex glow colours (linear RGB, 0–1). Pure, for tests and the view. */
@@ -65,6 +79,33 @@ export function tilpassLampe3d(s: Scene3d, benk: Arbeidsbenk): () => void {
       andreLys.push({ lys: o as THREE.Light, styrke: (o as THREE.Light).intensity });
   });
   const dag = s.scene.background;
+
+  // The light module, drawn inside the lamp (preview only, see modulForhandsvisning).
+  const modulGeo = new T.CylinderGeometry(1, 1, 1, 64);
+  modulGeo.rotateX(Math.PI / 2);
+  modulGeo.translate(0, 0, 0.5);
+  const modulMat = new T.MeshStandardMaterial({
+    color: cssFarge(s.lerret, '--fg-dempet', '#8a8790'),
+    roughness: 0.6,
+    metalness: 0,
+    transparent: true,
+    opacity: 0.85,
+  });
+  const lysPa = new T.Color(cssFarge(s.lerret, '--papir', '#f6f3ee'));
+  const lysflate = new T.MeshBasicMaterial({ color: modulMat.color.clone() });
+  const modul = new T.Mesh(modulGeo, [modulMat, lysflate, modulMat]);
+  modul.name = 'lampe-modul';
+  modul.renderOrder = 1;
+  s.scene.add(modul);
+  const plasserModul = () => {
+    const p = lesParametre(benk.dok);
+    const f = modulForhandsvisning(p);
+    modul.visible = !!f && lys.t.visModul;
+    if (!f) return;
+    modul.scale.set(f.r, f.r, f.h);
+    modul.position.set(0, 0, f.z);
+    lysflate.color.copy(lys.t.pa ? lysPa : modulMat.color);
+  };
   const natt = new T.Color(cssFarge(s.lerret, '--verksted', '#141317')).multiplyScalar(0.3);
 
   const lagGlod = (m: THREE.Mesh) => {
@@ -101,12 +142,14 @@ export function tilpassLampe3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     for (const x of andreLys) x.lys.intensity = x.styrke * (erNatt ? 0.12 : 1);
     s.scene.background = erNatt ? natt : dag;
     for (const c of s.modell.children) oppdaterMesh(c as THREE.Mesh, pa);
+    plasserModul();
     s.tegn();
   };
 
   const lagtTil = (e: { child: THREE.Object3D }) => {
     oppdaterMesh(e.child as THREE.Mesh, lys.t.pa);
     paere.position.z = paerePosisjon(lesParametre(benk.dok));
+    plasserModul();
   };
   // The view disposes the active material on rebuild; release the swapped-out original too.
   const fjernet = (e: { child: THREE.Object3D }) => {
@@ -126,5 +169,9 @@ export function tilpassLampe3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     s.scene.background = dag;
     s.scene.remove(paere);
     paere.dispose();
+    s.scene.remove(modul);
+    modulGeo.dispose();
+    modulMat.dispose();
+    lysflate.dispose();
   };
 }

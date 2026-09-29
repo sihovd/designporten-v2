@@ -112,3 +112,103 @@
     r: 24px;
   }
 }
+
+/* Light source and fitting mode */
+
+.lampe-tilpasning {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-panel);
+  background: var(--panel-2);
+}
+
+.lampe-tilpasning > .merknad,
+.lampe-tilpasning .avkryssing {
+  margin: 0;
+}
+
+.lampe-produkt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.lampe-status {
+  padding: 1px 6px;
+  border: 1px solid var(--advarsel-mork);
+  border-radius: 2px;
+  color: var(--advarsel-mork);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.lampe-maal {
+  margin: 0;
+}
+
+.lampe-maal dd {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+
+.lampe-sikkerhet {
+  color: var(--fg-dempet);
+  font-size: 11px;
+}
+
+.lampe-avansert {
+  border-top: 1px solid var(--linje);
+  padding-top: 8px;
+}
+
+.lampe-avansert summary {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.lampe-avansert[open] summary {
+  margin-bottom: 6px;
+}
+
+.lampe-avansert .kontroll-knapp {
+  justify-self: start;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.lampe-kilder {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.lampe-kilder a {
+  color: var(--dp-cyan);
+}
+
+.lampe-elektrisk {
+  margin-top: 10px;
+  padding-left: 8px;
+  border-left: 2px solid var(--linje-sterk);
+}
+
+@media (pointer: coarse) {
+  .lampe-avansert summary {
+    min-height: 44px;
+  }
+}

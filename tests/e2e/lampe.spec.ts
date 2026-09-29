@@ -34,6 +34,27 @@ test.describe('Lampegeneratoren', () => {
     await expect(page.getByRole('textbox', { name: 'Vridning', exact: true })).toHaveValue('120');
   });
 
+  test('bygges rundt Bambu Lab Lamp Kit 001 og kan lage en prøvebit', async ({ page, isMobile }) => {
+    if (isMobile) await page.getByRole('button', { name: 'Egenskaper' }).click();
+    await expect(page.locator('#lampe-lyskilde')).toHaveValue('bambu-001');
+    await expect(page.getByText('Ikke fysisk verifisert').first()).toBeVisible();
+    await page.getByRole('checkbox', { name: 'Lag bare en prøvebit' }).check();
+    // Recess Ø59 + 2 × 0,3 mm tolerance + 2 × 4 mm ring.
+    await expect(page.locator('.statuslinje')).toContainText('67,6');
+    await page.getByRole('checkbox', { name: 'Lag bare en prøvebit' }).uncheck();
+    await expect(page.locator('.statuslinje')).toContainText('180 mm');
+  });
+
+  test('bytter lyskilde til E27 med justerbart hull', async ({ page, isMobile }) => {
+    if (isMobile) await page.getByRole('button', { name: 'Egenskaper' }).click();
+    await page.locator('#lampe-lyskilde').selectOption('e27');
+    const hull = page.getByRole('textbox', { name: 'Hull til holderen', exact: true });
+    await expect(hull).toHaveValue('42');
+    await hull.fill('40');
+    await hull.press('Enter');
+    await expect(page.getByText('Hullet følger målet du har lagt inn.')).toBeVisible();
+  });
+
   // Scoped to the lamp's own UI; the shared workshop bar is covered by the shell's tests.
   test('har ingen alvorlige tilgjengelighetsfeil', async ({ page, isMobile }) => {
     if (isMobile) await page.getByRole('button', { name: 'Egenskaper' }).click();

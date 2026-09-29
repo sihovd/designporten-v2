@@ -9,7 +9,10 @@ import type { Advarsel, Modellresultat } from '../../core/generator';
 import { finnMateriale, materialtyper, standardPrinter } from '../../core/materialer';
 import { mm, tall } from '../../core/enheter';
 import { byggLampe, type LampeGeometri } from './geometri';
-import { normaliser, sokler, standardParametre, type LampeParametre } from './parametre';
+import { maskinvare, PROVEBIT_KANT } from './maskinvare';
+import { normaliser, standardParametre, type LampeParametre } from './parametre';
+import { provebitMal, vurderPassform, vurderProvebit } from './passform';
+import { byggProvebit } from './sokkel';
 
 export const LAMPE_ID = 'lampe';
 
@@ -56,7 +59,7 @@ export function vurderUtskrift(p: LampeParametre, g: LampeGeometri, dok?: Dokume
   };
 
   const { ytreRutenett: rn, vinkler: N, rader: M } = g;
-  const dz = p.hoyde / M;
+  const dz = (p.hoyde - g.zStart) / M;
   let maksOverheng = 0;
   let overhengVed = 0;
   let maksR = 0;
@@ -106,23 +109,16 @@ export function vurderUtskrift(p: LampeParametre, g: LampeGeometri, dok?: Dokume
         'Silhuetten går nesten inn til midten. Den er rettet ut til minste radius, så modellen avviker fra kurven.',
     });
   }
-  const sokkel = sokler[p.sokkel];
-  if (g.hullForStort) {
-    advarsler.push({
-      niva: 'feil',
-      tekst: `Hullet til ${sokkel.navn} er ${mm(sokkel.hullDiameter ?? 0, 0)}, men bunnen er bare ${mm(g.minIndreBunn * 2, 0)} innvendig. Gjør bunnen bredere.`,
-    });
-  }
-  if (!sokkel.bekreftet) {
-    advarsler.push({
-      niva: 'info',
-      tekst: `Hullmålet for ${sokkel.navn} (${mm(sokkel.hullDiameter ?? 0, 0)}) er et vanlig mål, men ikke bekreftet av Designporten ennå.`,
-    });
-  }
+  advarsler.push(...vurderPassform(p, g));
 
   const vaseVegg = standardPrinter.dyse * 2;
   let vasemodus: Utskriftsvurdering['vasemodus'];
-  if (p.veggtykkelse > vaseVegg) {
+  if (g.modul) {
+    vasemodus = {
+      mulig: false,
+      grunn: 'Sokkelen til lysmodulen er massiv, så lampen kan ikke skrives ut i vasemodus.',
+    };
+  } else if (p.veggtykkelse > vaseVegg) {
     vasemodus = {
       mulig: false,
       grunn: `Vasemodus skriver én strengbredde. Veggen må være ${mm(vaseVegg)} eller tynnere.`,
@@ -145,10 +141,38 @@ export function vurderingFor(m: Modellresultat | null): Utskriftsvurdering | und
   return m ? vurderinger.get(m) : undefined;
 }
 
+/** The fit-test piece alone (recess, lip, cable route), in place of the lamp. */
+function byggProvebitModell(p: LampeParametre): Modellresultat {
+  const m = provebitMal(p)!;
+  const mesh = byggProvebit(m);
+  const d = (m.rLomme + PROVEBIT_KANT) * 2;
+  const resultat: Modellresultat = {
+    deler: [
+      {
+        id: 'provebit',
+        navn: `Prøvebit for ${maskinvare[p.sokkel].navn}`,
+        materialId: p.materialId,
+        mesh,
+      },
+    ],
+    advarsler: vurderProvebit(p, m),
+  };
+  vurderinger.set(resultat, {
+    maksOverheng: 0,
+    overhengVed: 0,
+    maksDiameter: d,
+    vasemodus: { mulig: false, grunn: 'Prøvebiten skrives ut som en vanlig, massiv del.' },
+    advarsler: resultat.advarsler,
+  });
+  return resultat;
+}
+
 /** GeneratorPlugin.byggModell: pure, deterministic, never throws. */
 export async function byggLampeModell(dok: Dokument): Promise<Modellresultat> {
   try {
     const p = lesParametre(dok);
+    const hw = maskinvare[p.sokkel];
+    if (hw.type === 'modul' && p.tilpasning.provebit) return byggProvebitModell(p);
     const g = byggLampe(p);
     const v = vurderUtskrift(p, g, dok);
     const resultat: Modellresultat = {
