@@ -92,6 +92,9 @@
   --innhold-maks: 1280px;
   --tekst-maks: 62ch;
   --gutter: clamp(1rem, 0.5rem + 2.5vw, 2.5rem);
+  /* Side padding for full-bleed sections: aligns their content with .ramme.
+     Use as padding-inline on an element that spans the page width. */
+  --sidekant: max(var(--gutter), (100% - var(--innhold-maks)) / 2);
   --header-h: 62px;
   --header-h-krympet: 48px;
 

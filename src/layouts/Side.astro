@@ -46,6 +46,15 @@ const bilde = new URL(delingsbilde ?? standardDelingsbilde.src, Astro.site).href
     <meta name="theme-color" content="#f6f3ee" />
     <script is:inline>
       document.documentElement.classList.add('js');
+      // The portal: showroom → Skaperverksted gets its own page transition.
+      window.addEventListener('pagereveal', function (e) {
+        const vt = e.viewTransition;
+        const fra = window.navigation && navigation.activation && navigation.activation.from;
+        if (!vt || !fra || !vt.types) return;
+        const inn = location.pathname.indexOf('/skaperverksted') === 0;
+        const fraVerksted = new URL(fra.url).pathname.indexOf('/skaperverksted') === 0;
+        if (inn && !fraVerksted) vt.types.add('portal');
+      });
     </script>
     <slot name="hode" />
   </head>
@@ -60,7 +69,9 @@ const bilde = new URL(delingsbilde ?? standardDelingsbilde.src, Astro.site).href
     <Footer />
     <script>
       import { startAvsloringer } from '@/scripts/avslor';
+      import { startRulling } from '@/scripts/rulle';
       startAvsloringer();
+      startRulling();
     </script>
   </body>
 </html>

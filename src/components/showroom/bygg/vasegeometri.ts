@@ -99,12 +99,13 @@ export function frontbue(e: Ellipse): string {
 
 /**
  * Twisted ribs: each rib turns `vri` radians from base to rim. Only the
- * parts facing the viewer are returned, as separate path strings.
+ * parts facing the viewer are returned, as separate path strings. `fase`
+ * turns the whole vase about its axis (radians).
  */
-export function ribber(antall: number, vri: number, steg = 90): string[] {
+export function ribber(antall: number, vri: number, steg = 90, fase = 0): string[] {
   const ut: string[] = [];
   for (let n = 0; n < antall; n++) {
-    const start = (n / antall) * Math.PI * 2;
+    const start = (n / antall) * Math.PI * 2 + fase;
     let lop: [number, number][] = [];
     for (let i = 0; i <= steg; i++) {
       const t = i / steg;

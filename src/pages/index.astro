@@ -7,6 +7,7 @@ import TopSlider from '@/components/showroom/TopSlider.astro';
 import IdeBand from '@/components/showroom/IdeBand.astro';
 import Bevis from '@/components/showroom/hjem/Bevis.astro';
 import UtvalgteProdukter from '@/components/showroom/hjem/UtvalgteProdukter.astro';
+import VerkstedPortal from '@/components/showroom/hjem/VerkstedPortal.astro';
 import { hjemmeprosess } from '@/components/showroom/data/prosess';
 import { bakgrunner, utklippbilder } from '@/lib/ressurser';
 ---
@@ -19,6 +20,7 @@ import { bakgrunner, utklippbilder } from '@/lib/ressurser';
   <Helt />
   <TreDorer />
   <ProsessSlider id="prosess" tittel="Slik blir en idé til en del" steg={hjemmeprosess} />
+  <UtvalgteProdukter />
   <TopSlider
     id="fra-verkstedet"
     etikett="Fra verkstedet"
@@ -54,7 +56,7 @@ import { bakgrunner, utklippbilder } from '@/lib/ressurser';
       },
     ]}
   />
-  <UtvalgteProdukter />
-  <IdeBand />
   <Bevis />
+  <VerkstedPortal />
+  <IdeBand />
 </Side>

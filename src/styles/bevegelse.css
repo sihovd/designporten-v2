@@ -48,9 +48,39 @@
   }
 }
 
+/*
+ * The portal (interaction-and-motion.md#page-transitions): from the showroom
+ * into Skaperverksted the graphite page opens from the centre like a door,
+ * ≤700 ms. Side.astro adds the `portal` transition type on such navigations.
+ */
+html:active-view-transition-type(portal)::view-transition-old(root) {
+  animation: portal-ut 640ms var(--ease-inn-ut) both;
+}
+
+html:active-view-transition-type(portal)::view-transition-new(root) {
+  animation: portal-inn 640ms var(--ease-ut) both;
+}
+
+@keyframes portal-ut {
+  to {
+    opacity: 0.4;
+    transform: scale(0.97);
+  }
+}
+
+@keyframes portal-inn {
+  from {
+    clip-path: inset(0 46% 0 46%);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root),
   ::view-transition-new(root) {
-    animation: none;
+    animation: none !important;
   }
 }

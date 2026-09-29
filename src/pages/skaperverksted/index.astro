@@ -1,18 +1,29 @@
 ---
 import Side from '@/layouts/Side.astro';
 import Konseptbilde from '@/components/Konseptbilde.astro';
+import GeneratorForhandsvisning from '@/components/showroom/verksted/GeneratorForhandsvisning.astro';
 import { katalog } from '@/skaperverksted/generatorer';
 import { utklippbilder } from '@/lib/ressurser';
 
 const bilder = utklippbilder as Record<string, (typeof utklippbilder)[keyof typeof utklippbilder]>;
+// Generators with a drawn preview of their real starting design.
+const forhandsvisbare = new Set(['signgen', 'lampe', 'drage']);
+const tilgjengelige = katalog.filter((g) => g.status === 'tilgjengelig').length;
 ---
 
 <Side
   tittel="Skaperverksted"
   beskrivelse="Skaperverksted er Designportens verksted i nettleseren. Bygg skilt, lamper og figurer i ekte millimeter, se dem i 3D og last ned filen eller bestill utskrift."
 >
-  <section class="hub verksted-flate">
-    <div class="ramme hub-topp">
+  <section class="hub verksted-flate" data-mork>
+    <div class="hub-rutenett" aria-hidden="true"></div>
+    <div class="hub-linje mono" aria-hidden="true">
+      <span>Skaperverksted</span>
+      <span>Enhet: mm</span>
+      <span>Rutenett: 10 mm</span>
+      <span>{tilgjengelige} verktøy</span>
+    </div>
+    <div class="hub-topp">
       <p class="mono hub-etikett">Skaperverksted</p>
       <h1>Fra idé til ferdig fil.</h1>
       <p class="ingress">
@@ -20,12 +31,19 @@ const bilder = utklippbilder as Record<string, (typeof utklippbilder)[keyof type
         lager kan lastes ned som 3MF eller STL eller bestilles ferdig printet fra oss.
       </p>
     </div>
-    <ul class="ramme hub-liste" role="list">
-      {katalog.map((g) => (
-        <li class:list={['hub-kort', g.status]}>
-          {g.bilde && bilder[g.bilde] && (
-            <Konseptbilde bilde={bilder[g.bilde]!} class="hub-bilde" sizes="(min-width: 900px) 30vw, 90vw" />
-          )}
+    <ul class="hub-liste" role="list">
+      {katalog.map((g, i) => (
+        <li class:list={['hub-kort', 'gf-vert', g.status]} style={`--i:${i}`}>
+          <div class="hub-bilde">
+            {forhandsvisbare.has(g.id) ? (
+              <GeneratorForhandsvisning id={g.id as 'signgen' | 'lampe' | 'drage'} />
+            ) : (
+              g.bilde &&
+              bilder[g.bilde] && (
+                <Konseptbilde bilde={bilder[g.bilde]!} sizes="(min-width: 900px) 30vw, 90vw" />
+              )
+            )}
+          </div>
           <div class="hub-tekst">
             <p class="mono hub-undertittel">{g.undertittel}</p>
             <h2>
@@ -33,24 +51,31 @@ const bilder = utklippbilder as Record<string, (typeof utklippbilder)[keyof type
             </h2>
             <p>{g.beskrivelse}</p>
             {g.status === 'under-utvikling' && <p class="mono hub-status">Under utvikling</p>}
+            <span class="hub-apne mono" aria-hidden="true">
+              Åpne verktøyet
+            </span>
           </div>
         </li>
       ))}
     </ul>
-    <div class="ramme hub-bunn">
+    <p class="mono hub-fotnote">Tegningene viser startmodellen i hvert verktøy, med ruter på 10 mm.</p>
+    <div class="hub-bunn">
       <h2>Slik fungerer det</h2>
       <ol class="hub-steg">
         <li>
+          <span class="mono hub-nr">01</span>
           <strong>Bygg.</strong> Tekst, former og egne SVG-filer blir fysiske lag med høyde og farge.
         </li>
         <li>
+          <span class="mono hub-nr">02</span>
           <strong>Se det i 3D.</strong> Forhåndsvisningen viser det som faktisk blir printet.
         </li>
         <li>
+          <span class="mono hub-nr">03</span>
           <strong>Last ned eller bestill.</strong> Ta med filen til din egen printer, eller send den til oss.
         </li>
       </ol>
-      <p>
+      <p class="hub-spes">
         Har du en idé som ikke passer i et verktøy? <a href="/spesialdesign/">Spesialdesign</a> er for det.
       </p>
     </div>
@@ -59,94 +84,245 @@ const bilder = utklippbilder as Record<string, (typeof utklippbilder)[keyof type
 
 <style>
   .hub {
-    padding-block: var(--r-seksjon);
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    padding-bottom: var(--r-seksjon);
   }
+
+  /* The measurement grid draws in from the centre as the workshop opens. */
+  .hub-rutenett {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      linear-gradient(var(--linje-mork) 1px, transparent 1px),
+      linear-gradient(90deg, var(--linje-mork) 1px, transparent 1px);
+    background-size: 80px 80px;
+    background-position: 50% 0;
+    mask-image: radial-gradient(ellipse 80% 55% at 50% 20%, #000 10%, transparent 80%);
+    opacity: 0.6;
+  }
+
+  /* A thin workshop bar: the units the tools work in. */
+  .hub-linje {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-2) var(--r-6);
+    padding: var(--r-3) var(--sidekant);
+    border-bottom: 1px solid var(--linje-mork);
+    color: var(--dempet-mork);
+    font-size: var(--fs-mono-liten);
+  }
+
+  .hub-linje span:first-child {
+    color: var(--dp-cyan);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .hub-rutenett {
+      animation: hub-rutenett 900ms var(--ease-ut) 80ms both;
+    }
+
+    :global(.js) .hub-linje {
+      animation: hub-linje 520ms var(--ease-ut) 200ms both;
+    }
+
+    :global(.js) .hub-kort {
+      animation: hub-kort 560ms var(--ease-ut) both;
+      animation-delay: calc(320ms + var(--i) * 90ms);
+    }
+  }
+
+  @keyframes hub-rutenett {
+    from {
+      opacity: 0;
+      transform: scale(0.35);
+    }
+  }
+
+  @keyframes hub-linje {
+    from {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+  }
+
+  @keyframes hub-kort {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+  }
+
   .hub-topp {
-    max-width: var(--innhold-maks);
+    display: grid;
+    gap: var(--r-4);
+    padding: var(--r-8) var(--sidekant) var(--r-7);
   }
+
   .hub-etikett,
   .hub-undertittel {
     color: var(--dp-cyan);
-    letter-spacing: var(--sporing-mono);
-    text-transform: uppercase;
     font-size: var(--fs-mono);
   }
+
   .hub h1 {
-    font-size: var(--fs-h1);
-    max-width: 16ch;
+    font-size: clamp(2.75rem, 1.2rem + 6vw, 7rem);
+    font-stretch: 125%;
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    text-transform: uppercase;
+    max-width: 12ch;
   }
+
   .hub .ingress {
     color: var(--fg-dempet);
     max-width: var(--tekst-maks);
   }
+
   .hub-liste {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-    align-items: start;
-    gap: var(--r-4);
-    padding: 0;
-    margin-block: var(--r-7);
+    margin: 0;
+    padding: 0 var(--sidekant);
     list-style: none;
   }
+
   .hub-kort {
     position: relative;
     display: flex;
     flex-direction: column;
-    background: var(--overflate);
-    border: 1px solid var(--linje);
-    border-radius: var(--radius-panel);
-    overflow: hidden;
+    border-top: 1px solid var(--linje);
+    transition: background-color var(--t-trinn) var(--ease-ut);
   }
+
+  .hub-kort + .hub-kort {
+    border-left: 1px solid var(--linje);
+  }
+
+  .hub-kort:hover {
+    background: color-mix(in srgb, var(--grafitt) 70%, transparent);
+  }
+
   .hub-kort:has(a:focus-visible) {
     outline: 2px solid var(--fokus);
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
-  .hub-kort:hover {
-    border-color: var(--handling);
+
+  .hub-bilde {
+    position: relative;
+    height: clamp(200px, 22vw, 300px);
+    margin: var(--r-5) var(--r-5) 0;
+    overflow: visible;
   }
-  :global(.hub-bilde) {
-    aspect-ratio: 16 / 10;
-    min-height: 0;
-    overflow: hidden;
-    background: var(--grafitt-2);
+
+  .hub-bilde :global(.konseptbilde),
+  .hub-bilde :global(.konseptbilde img) {
+    height: 100%;
     object-fit: contain;
   }
+
   .hub-tekst {
+    display: grid;
+    gap: var(--r-2);
     padding: var(--r-5);
   }
+
   .hub-tekst h2 {
     font-size: var(--fs-h3);
-    margin: var(--r-1) 0 var(--r-2);
   }
+
   .hub-tekst a {
     color: var(--fg);
     text-decoration: none;
   }
+
   .hub-tekst a::after {
     content: '';
     position: absolute;
     inset: 0;
   }
+
+  .hub-kort:hover h2 a {
+    color: var(--dp-lilla-lys);
+  }
+
   .hub-tekst p {
     color: var(--fg-dempet);
     margin: 0;
+    max-width: 40ch;
   }
+
+  .hub-apne {
+    margin-top: var(--r-2);
+    color: var(--dp-cyan);
+    font-size: var(--fs-mono-liten);
+    transition: transform var(--t-rask) var(--ease-ut);
+  }
+
+  .hub-kort:is(:hover, :has(a:focus-visible)) .hub-apne {
+    transform: translateX(4px);
+  }
+
   .hub-status {
     margin-top: var(--r-3) !important;
     color: var(--advarsel-mork) !important;
     font-size: var(--fs-mono);
   }
+
+  .hub-fotnote {
+    padding: var(--r-4) var(--sidekant) 0;
+    color: var(--dempet-mork);
+    font-size: var(--fs-mono-liten);
+  }
+
+  .hub-bunn {
+    display: grid;
+    gap: var(--r-5);
+    padding: var(--r-8) var(--sidekant) 0;
+  }
+
+  .hub-bunn h2 {
+    font-size: var(--fs-h2);
+  }
+
   .hub-steg {
     display: grid;
-    gap: var(--r-3);
-    padding-left: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: var(--r-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
     color: var(--fg-dempet);
-    max-width: var(--tekst-maks);
   }
+
+  .hub-steg li {
+    display: grid;
+    gap: var(--r-2);
+    align-content: start;
+    padding-top: var(--r-4);
+    border-top: 1px solid var(--linje);
+    max-width: 36ch;
+  }
+
+  .hub-nr {
+    color: var(--dp-cyan);
+    font-size: var(--fs-mono-liten);
+  }
+
   .hub-steg strong {
     color: var(--fg);
   }
-  .hub-bunn a {
+
+  .hub-spes a {
     color: var(--lenke);
+  }
+
+  @media (max-width: 960px) {
+    .hub-kort + .hub-kort {
+      border-left: 0;
+    }
   }
 </style>

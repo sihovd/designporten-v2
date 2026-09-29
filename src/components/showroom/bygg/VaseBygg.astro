@@ -1,8 +1,8 @@
 ---
 /**
  * The spiral vase in one of its construction states, drawn over the concept
- * cut-out of the same object. Used by the hero (animated build sequence,
- * interaction-and-motion.md#homepage-hero) and by the process slider scenes.
+ * cut-out of the same object. Used by the process slider scenes, Om and 404.
+ * The hero draws the same geometry as one continuous build (HeltBygg.astro).
  *
  *   skisse   → construction lines and a loose profile
  *   kontur   → the side profile
@@ -12,8 +12,6 @@
  *   objekt   → the printed object
  *
  * `tilstand` shows a fixed state (everything up to and including it).
- * `animert` plays the full sequence once and ends on the object; reduced
- * motion shows the end state directly.
  */
 import Konseptbilde from '@/components/Konseptbilde.astro';
 import { utklippbilder } from '@/lib/ressurser';
@@ -35,14 +33,13 @@ export type Byggtilstand = 'skisse' | 'kontur' | 'geometri' | 'mesh' | 'lag' | '
 
 interface Props {
   tilstand?: Byggtilstand;
-  animert?: boolean;
   /** Show the «Konseptbilde» tag on the photo. */
   merke?: boolean;
   lasting?: 'lazy' | 'eager';
   class?: string;
 }
 
-const { tilstand = 'objekt', animert = false, merke = true, lasting = 'lazy', class: klasse } = Astro.props;
+const { tilstand = 'objekt', merke = true, lasting = 'lazy', class: klasse } = Astro.props;
 
 const rekkefolge: Byggtilstand[] = ['skisse', 'kontur', 'geometri', 'mesh', 'lag', 'print', 'objekt'];
 const niva = rekkefolge.indexOf(tilstand);
@@ -58,19 +55,19 @@ const bilde = utklippbilder.spiralvase;
 
 // A fixed state renders only the layers it shows.
 const vis = {
-  skisse: animert || niva <= 1,
-  kontur: animert || (niva >= 1 && niva <= 5),
-  geometri: animert || niva === 2 || niva === 3,
-  mesh: animert || niva === 3,
-  lag: animert || niva === 4 || niva === 5,
-  objekt: animert || niva >= 5,
+  skisse: niva <= 1,
+  kontur: niva >= 1 && niva <= 5,
+  geometri: niva === 2 || niva === 3,
+  mesh: niva === 3,
+  lag: niva === 4 || niva === 5,
+  objekt: niva >= 5,
 };
 ---
 
 <div
-  class:list={['bygg', klasse, { 'bygg--animert': animert }]}
+  class:list={['bygg', klasse]}
   style={`--silhuett: ${silhuett()}`}
-  data-niva={animert ? undefined : niva}
+  data-niva={niva}
   data-bygg
   aria-hidden="true"
 >
@@ -217,99 +214,5 @@ const vis = {
 
   .bygg[data-niva='5'] > :global(.bygg__objekt) {
     clip-path: inset(58% 0 0 0);
-  }
-
-  /* ---------- Animated build sequence (hero) ---------- */
-  @media (prefers-reduced-motion: no-preference) {
-    :global(.js) .bygg--animert .bygg__tegning > g > * {
-      stroke-dasharray: 1 1;
-      stroke-dashoffset: 1;
-      animation: tegn 520ms var(--ease-ut) forwards;
-      animation-delay: var(--d);
-    }
-
-    :global(.js) .bygg--animert .bygg__skisse > line {
-      stroke-dasharray: 0.012 0.01;
-      stroke-dashoffset: 0;
-      opacity: 0;
-      animation: kom 360ms var(--ease-ut) forwards;
-      animation-delay: var(--d);
-    }
-
-    :global(.js) .bygg--animert .bygg__skisse {
-      --d: 150ms;
-    }
-
-    :global(.js) .bygg--animert .bygg__kontur {
-      --d: 520ms;
-    }
-
-    :global(.js) .bygg--animert .bygg__geometri {
-      --d: 860ms;
-    }
-
-    :global(.js) .bygg--animert .bygg__mesh {
-      --d: 1140ms;
-    }
-
-    :global(.js) .bygg--animert .bygg__lag > * {
-      stroke-dasharray: none;
-      stroke-dashoffset: 0;
-      animation: none;
-    }
-
-    :global(.js) .bygg--animert .bygg__lag {
-      clip-path: inset(100% 0 0 0);
-      animation: print 700ms steps(23, end) 1480ms forwards;
-    }
-
-    :global(.js) .bygg--animert > :global(.bygg__objekt) {
-      clip-path: inset(100% 0 0 0);
-      animation: print 760ms steps(23, end) 1780ms forwards;
-    }
-
-    :global(.js) .bygg--animert .bygg__skygge {
-      opacity: 0;
-      animation: kom 500ms var(--ease-ut) 2300ms forwards;
-    }
-
-    :global(.js) .bygg--animert .bygg__tegning {
-      animation: tilbake 600ms var(--ease-ut) 2450ms forwards;
-    }
-  }
-
-  /* Without JS, or with reduced motion, the hero shows its end state. */
-  .bygg--animert .bygg__tegning {
-    opacity: 0;
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    :global(.js) .bygg--animert .bygg__tegning {
-      opacity: 1;
-    }
-  }
-
-  @keyframes tegn {
-    to {
-      stroke-dashoffset: 0;
-    }
-  }
-
-  @keyframes kom {
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes print {
-    to {
-      clip-path: inset(0 0 0 0);
-    }
-  }
-
-  @keyframes tilbake {
-    to {
-      opacity: 0;
-    }
   }
 </style>

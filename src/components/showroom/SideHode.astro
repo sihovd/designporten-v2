@@ -1,5 +1,12 @@
 ---
-/** Page opening for showroom subpages: mono eyebrow, heading, lead text. */
+/**
+ * Page opening for showroom subpages: mono eyebrow, oversized heading, lead
+ * text, and optionally a visual (slot `visuell`) that takes the right-hand
+ * side of an asymmetric composition. The opening spans the browser width;
+ * the text keeps the page's content edge and a readable measure. A hairline
+ * draws across the full width underneath and becomes the first line of the
+ * page.
+ */
 interface Props {
   eyebrow: string;
   tittel: string;
@@ -8,20 +15,42 @@ interface Props {
 }
 
 const { eyebrow, tittel, ingress, id } = Astro.props;
+const harVisuell = Astro.slots.has('visuell');
 ---
 
-<header class="ramme sidehode">
-  <p class="mono sidehode__eyebrow">{eyebrow}</p>
-  <h1 id={id}>{tittel}</h1>
-  {ingress && <p class="ingress sidehode__ingress">{ingress}</p>}
-  <slot />
+<header class:list={['sidehode', { 'sidehode--visuell': harVisuell }]}>
+  <div class="sidehode__tekst">
+    <p class="mono sidehode__eyebrow">{eyebrow}</p>
+    <h1 id={id}>{tittel}</h1>
+    {ingress && <p class="ingress sidehode__ingress">{ingress}</p>}
+    <slot />
+  </div>
+  {harVisuell && (
+    <div class="sidehode__visuell">
+      <slot name="visuell" />
+    </div>
+  )}
+  <span class="sidehode__linje" aria-hidden="true"></span>
 </header>
 
 <style>
   .sidehode {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    column-gap: var(--r-7);
+    align-items: end;
+    padding: var(--r-8) var(--sidekant) var(--r-7);
+  }
+
+  .sidehode--visuell {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+
+  .sidehode__tekst {
     display: grid;
     gap: var(--r-4);
-    padding-block: var(--r-8) var(--r-7);
+    justify-items: start;
   }
 
   .sidehode__eyebrow {
@@ -29,12 +58,57 @@ const { eyebrow, tittel, ingress, id } = Astro.props;
   }
 
   .sidehode h1 {
-    max-width: 20ch;
+    max-width: 17ch;
+    font-size: clamp(2.5rem, 1.2rem + 5.2vw, 6.25rem);
+    font-stretch: 120%;
+    font-weight: 800;
+    line-height: 0.98;
+    letter-spacing: -0.04em;
     overflow-wrap: break-word;
     hyphens: auto;
   }
 
   .sidehode__ingress {
-    max-width: 56ch;
+    max-width: 52ch;
+  }
+
+  .sidehode__visuell {
+    position: relative;
+    align-self: stretch;
+    min-height: 280px;
+  }
+
+  /* The full-width rule under the opening; it draws in from the left once. */
+  .sidehode__linje {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--kant-sterk);
+    transform-origin: 0 50%;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .sidehode__linje {
+      animation: sidehode-linje 900ms var(--ease-ut) 120ms both;
+    }
+  }
+
+  @keyframes sidehode-linje {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  @media (max-width: 860px) {
+    .sidehode--visuell {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--r-6);
+    }
+
+    .sidehode {
+      padding-top: var(--r-7);
+    }
   }
 </style>
