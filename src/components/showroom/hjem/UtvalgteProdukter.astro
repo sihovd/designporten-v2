@@ -122,7 +122,8 @@ const klipp = fremhevet?.bilde.src === utklippbilder.spiralvase.src ? silhuett(0
   }
 
   .utvalg__hode h2 {
-    font-size: var(--fs-h1);
+    /* Long uppercase words must fit a 320 px screen. */
+    font-size: min(var(--fs-h1), 10.4vw);
     font-stretch: 122%;
     font-weight: 800;
     letter-spacing: -0.035em;

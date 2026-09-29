@@ -52,7 +52,10 @@ test.describe('pages', () => {
 test('the hero says VI GIR IDEER FORM with both actions usable at once', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/vi gir ideer\s*form/i);
-  await expect(page.getByRole('link', { name: 'Start å skape' })).toHaveAttribute('href', '/skaperverksted/');
+  await expect(page.locator('.helt').getByRole('link', { name: 'Start å skape' })).toHaveAttribute(
+    'href',
+    '/skaperverksted/',
+  );
   await expect(page.getByRole('link', { name: 'Fortell oss ideen din' }).first()).toBeVisible();
 });
 
