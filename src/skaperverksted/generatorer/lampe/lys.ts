@@ -9,10 +9,12 @@ export interface Lystilstand {
   pa: boolean;
   /** Night background: the room goes dark. */
   natt: boolean;
+  /** Show the light module inside the lamp. */
+  visModul: boolean;
 }
 
 class Lyslager {
-  t: Lystilstand = { pa: false, natt: false };
+  t: Lystilstand = { pa: false, natt: false, visModul: true };
   private lyttere = new Set<(t: Lystilstand) => void>();
   sett(d: Partial<Lystilstand>): void {
     this.t = { ...this.t, ...d };

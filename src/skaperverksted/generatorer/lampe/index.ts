@@ -4,7 +4,8 @@ import { finnMateriale } from '../../core/materialer';
 import { tall } from '../../core/enheter';
 import { meta } from './meta';
 import { byggLampeModell, lesParametre, nyttLampeDokument, vurderingFor } from './modell';
-import { monsternavn, sokler } from './parametre';
+import { maskinvare } from './maskinvare';
+import { monsternavn } from './parametre';
 import { LampeInspektor } from './Inspektor';
 import { LampeOverlegg } from './Overlegg';
 import { tilpassLampe3d } from './tre';
@@ -42,9 +43,21 @@ const plugin: GeneratorPlugin = {
     ['L', 'Lys i lampen av/på'],
     ['N', 'Kveld i rommet av/på'],
   ],
-  bestilling(dok, modell) {
+  bestilling(dok, modell): { produktId: string; navn: string; valg: Record<string, string> } {
     const p = lesParametre(dok);
     const v = vurderingFor(modell);
+    const hw = maskinvare[p.sokkel];
+    if (hw.type === 'modul' && p.tilpasning.provebit) {
+      return {
+        produktId: 'skaperverksted-lampe',
+        navn: `Prøvebit for ${hw.navn}: ${dok.navn}`,
+        valg: {
+          Lyskilde: hw.navn,
+          Del: 'Bare prøvebiten (fordypning og kabelføring)',
+          Materiale: `${finnMateriale(p.materialId).type}, ${finnMateriale(p.materialId).navn}`,
+        },
+      };
+    }
     return {
       produktId: 'skaperverksted-lampe',
       navn: `Lampeskjerm fra Lampegeneratoren: ${dok.navn}`,
@@ -52,7 +65,7 @@ const plugin: GeneratorPlugin = {
         Mål: `${tall(v?.maksDiameter ?? Math.max(p.diameterBunn, p.diameterTopp), 0)} × ${tall(p.hoyde, 0)} mm`,
         Mønster: p.monster.type === 'glatt' ? 'Glatt' : `${monsternavn[p.monster.type]}, ${p.monster.antall}`,
         Vegg: `${tall(p.veggtykkelse, 2)} mm`,
-        Bunn: sokler[p.sokkel].navn,
+        [hw.type === 'ingen' ? 'Bunn' : 'Lyskilde']: hw.navn,
         Materiale: `${finnMateriale(p.materialId).type}, ${finnMateriale(p.materialId).navn}`,
       },
     };
