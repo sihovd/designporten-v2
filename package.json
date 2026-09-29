@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "build:onecom": "node scripts/bygg-onecom.mjs",
     "preview": "astro preview",
     "start": "node ./dist/server/entry.mjs",
     "check": "astro check",

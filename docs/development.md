@@ -15,6 +15,7 @@ How to run, test and extend Designporten 2.0. The product rules are in [DESIGNPO
 | `npm run dev` | Development server at http://localhost:4321 |
 | `npm run build` | Production build into `dist/` (static client + Node server) |
 | `npm start` | Run the production build (`HOST`, `PORT` env vars) |
+| `npm run build:onecom` | Static build with PHP form routes, for web hosts without Node (one.com); see [Deploy](#deploy) |
 | `npm run check` | Astro + TypeScript type check |
 | `npm run lint` | ESLint |
 | `npm run format` / `format:check` | Prettier |
@@ -23,6 +24,25 @@ How to run, test and extend Designporten 2.0. The product rules are in [DESIGNPO
 | `npm run verify` | Everything except e2e, in CI order |
 
 Copy `.env.example` to `.env` to configure e-mail delivery for forms. Without SMTP, development stores submissions in `var/innsendinger/`.
+
+## Deploy
+
+There are two build targets from the same pages. Both pass the same e2e suite.
+
+**Node host** (`npm run build`, then `npm start`): showroom pages are static; the idea form, contact form and order requests run as server routes (`src/server/ruter/`) on the Node adapter and send e-mail over SMTP (`.env`).
+
+**PHP web host without Node, such as one.com** (`npm run build:onecom`): everything is static, and the three server routes are replaced by PHP scripts from `php/` (`api/foresporsel/`, `api/bestilling/`) plus static receipt pages (`src/server/statisk/`). The PHP scripts send e-mail with the host's `mail()`, validate exactly like the TypeScript routes (a unit test keeps the shared lists in step) and check order requests against `api/katalog.json`, which the build writes from the product collection. `dist/` is uploaded as it is; `.htaccess` sets the 404 page, caching and headers. Requires PHP 8.1 or newer and Apache.
+
+**Publishing to one.com** is automatic on every push to `main` once these GitHub secrets exist (Settings → Secrets and variables → Actions); without them the workflow skips itself:
+
+| Secret | Value |
+|---|---|
+| `ONECOM_SFTP_HOST`, `ONECOM_SFTP_BRUKER`, `ONECOM_SFTP_PASSORD` | From one.com: Advanced settings → SSH & SFTP |
+| `ONECOM_MAPPE` | The site's own folder on the server, relative to where SFTP logs in (for example `ny` for a subdomain `ny.designporten.no`). Never the root, and the workflow refuses a folder with a WordPress site in it |
+| `SKJEMA_TIL` | Where form e-mails go |
+| `SKJEMA_FRA` | Sender address; must be a mailbox on the site's own domain |
+
+The workflow (`.github/workflows/onecom.yml`) builds, writes `api/oppsett.php` from the two e-mail secrets, and mirrors `dist/` into the folder, deleting files that are no longer part of the site. It can also be run by hand from the Actions tab.
 
 ## Project structure and ownership
 
@@ -34,7 +54,7 @@ Parallel work stays inside its own folders. Shared foundations change only in sm
 | `src/styles/` (`tokens.css`, `base.css`, `bevegelse.css`), `src/tokens/` | Design tokens, base, motion | Foundation |
 | `src/layouts/`, `src/components/Header.astro`, `Footer.astro`, `Knapp.astro`, `Ikon.astro`, `Konseptbilde.astro` | Site shell and primitives | Foundation |
 | `src/lib/navigasjon.ts`, `src/lib/ressurser.ts`, `src/lib/kontakt.ts` | IA, asset registry, contact data | Foundation (add entries, don't restructure) |
-| `src/lib/skjema/` | Form delivery (e-mail / dev file store) | Foundation |
+| `src/lib/skjema/`, `src/server/`, `php/` | Form delivery (e-mail / dev file store), server routes, PHP versions for one.com | Foundation |
 | `src/pages/` showroom pages, `src/components/showroom/`, `src/content/inspirasjon/` | Home, Spesialdesign, Bedrift, Inspirasjon, Om, Kontakt, Søk, legal, 404 | Showroom workstream |
 | `src/pages/produkter/`, `src/pages/handlekurv/`, `src/components/produkt/`, `src/content/produkter/`, `src/lib/handel/` | Products, cart, commerce boundary | Products workstream |
 | `src/skaperverksted/core/`, `geometri/`, `eksport/`, `shell/`, `render2d/`, `render3d/` | Shared editor architecture | Foundation (Skaperverksted) |

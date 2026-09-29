@@ -1,0 +1,5 @@
+# Only the two routes are public. The shared code and the e-mail settings
+# are included by them and never served.
+<FilesMatch "^(_felles|oppsett)\.php$">
+  Require all denied
+</FilesMatch>
