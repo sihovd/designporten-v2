@@ -4,13 +4,18 @@
  * sticky; shrinks, rounds and turns translucent on scroll; mobile shows
  * only the menu button and cart; logo is the way home; a 2 px scroll-progress
  * line in the brand gradient sits at the very top.
+ *
+ * Added in the visual pass: one marker slides under the navigation to the
+ * link being hovered or focused and settles back on the current page; over
+ * the graphite workshop surfaces (sections marked `data-mork`, the footer)
+ * the header turns graphite too, so the showroom-to-workshop change reaches
+ * the chrome.
  */
 import Ikon from './Ikon.astro';
 import { hovedmeny, erAktiv } from '@/lib/navigasjon';
-import { logo } from '@/lib/ressurser';
+import { logomerke } from '@/lib/ressurser';
 
 const sti = Astro.url.pathname;
-const utvikling = import.meta.env.DEV;
 ---
 
 <div class="framdrift" aria-hidden="true">
@@ -19,18 +24,11 @@ const utvikling = import.meta.env.DEV;
 <header class="hd" data-header>
   <div class="hd__rad">
     <a class="hd__logo" href="/" aria-label="Designporten, til forsiden">
-      {logo ? (
-        <img src={logo.src} alt="" width={logo.bredde} height={logo.hoyde} />
-      ) : (
-        <span class="hd__ordmerke" data-midlertidig="logo">
-          Designporten
-        </span>
-      )}
-      {!logo && utvikling && <span class="hd__dev mono">midlertidig logo</span>}
+      <img src={logomerke.src} alt="" width={logomerke.bredde} height={logomerke.hoyde} />
     </a>
 
     <nav class="hd__nav" aria-label="Hovedmeny">
-      <ul>
+      <ul data-navliste>
         {hovedmeny.map((p) => (
           <li class:list={[{ 'hd__nav--sti': p.sti }]}>
             <a href={p.href} aria-current={erAktiv(p.href, sti) ? 'page' : undefined}>
@@ -39,6 +37,7 @@ const utvikling = import.meta.env.DEV;
           </li>
         ))}
       </ul>
+      <span class="hd__markor" aria-hidden="true" data-markor></span>
     </nav>
 
     <div class="hd__verktoy">
@@ -128,6 +127,58 @@ const utvikling = import.meta.env.DEV;
     if (e.target === meny) meny.close();
   });
 
+  // Navigation marker: follows hover and focus, rests on the current page.
+  const liste = document.querySelector<HTMLElement>('[data-navliste]');
+  const markor = document.querySelector<HTMLElement>('[data-markor]');
+  if (liste && markor) {
+    const lenker = [...liste.querySelectorAll<HTMLAnchorElement>('a')];
+    const gjeldende = lenker.find((a) => a.getAttribute('aria-current') === 'page') ?? null;
+    const flytt = (a: HTMLAnchorElement | null, synlig = true) => {
+      if (!a || !a.offsetParent) {
+        markor.style.opacity = '0';
+        return;
+      }
+      const l = a.offsetLeft + 12;
+      const b = Math.max(0, a.offsetWidth - 24);
+      markor.style.transform = `translateX(${l}px) scaleX(${b / 100})`;
+      markor.style.opacity = synlig ? '1' : '0';
+    };
+    liste.parentElement?.classList.add('hd__nav--markor');
+    // Place without a slide first.
+    markor.style.transition = 'none';
+    flytt(gjeldende, !!gjeldende);
+    requestAnimationFrame(() => (markor.style.transition = ''));
+    lenker.forEach((a) => {
+      a.addEventListener('pointerenter', () => flytt(a));
+      a.addEventListener('focus', () => flytt(a));
+    });
+    const tilbake = () => flytt(gjeldende, !!gjeldende);
+    liste.addEventListener('pointerleave', tilbake);
+    liste.addEventListener('focusout', (e) => {
+      if (!liste.contains(e.relatedTarget as Node)) tilbake();
+    });
+    window.addEventListener('resize', tilbake);
+    document.fonts?.ready.then(tilbake);
+  }
+
+  // Graphite header over the workshop surfaces.
+  const morke = document.querySelectorAll<HTMLElement>('[data-mork], body > footer');
+  if (header && morke.length && 'IntersectionObserver' in window) {
+    const over = new Set<Element>();
+    const obs = new IntersectionObserver(
+      (oppforinger) => {
+        for (const o of oppforinger) {
+          if (o.isIntersecting) over.add(o.target);
+          else over.delete(o.target);
+        }
+        header.classList.toggle('hd--mork', over.size > 0);
+      },
+      // A thin band where the header sits.
+      { rootMargin: '-20px 0px -94% 0px' },
+    );
+    morke.forEach((el) => obs.observe(el));
+  }
+
   const antallEl = document.querySelector<HTMLElement>('[data-kurvantall]');
   const kurvLenke = document.querySelector<HTMLElement>('[data-kurvlenke]');
   function visAntall(n: number) {
@@ -164,6 +215,8 @@ const utvikling = import.meta.env.DEV;
     background: var(--flate);
     border-bottom: 1px solid var(--kant);
     transition:
+      color var(--t-trinn) ease,
+      border-color var(--t-trinn) ease,
       margin var(--t-trinn) var(--ease-ut),
       border-radius var(--t-trinn) var(--ease-ut),
       background-color var(--t-trinn) ease,
@@ -198,24 +251,21 @@ const utvikling = import.meta.env.DEV;
 
   .hd__logo {
     display: inline-flex;
-    align-items: baseline;
-    gap: var(--r-2);
-    color: var(--blekk);
-    text-decoration: none;
+    align-items: center;
+    min-width: var(--mal-beroring);
+    min-height: var(--mal-beroring);
     flex: none;
   }
 
-  .hd__ordmerke {
-    font-family: var(--font-display);
-    font-weight: 780;
-    font-stretch: 112%;
-    font-size: 1.25rem;
-    letter-spacing: -0.03em;
+  .hd__logo img {
+    display: block;
+    width: auto;
+    height: 40px;
+    transition: height var(--t-trinn) var(--ease-ut);
   }
 
-  .hd__dev {
-    font-size: 9px;
-    color: var(--dempet);
+  .hd:global(.krympet) .hd__logo img {
+    height: 34px;
   }
 
   .hd__nav {
@@ -246,6 +296,30 @@ const utvikling = import.meta.env.DEV;
 
   .hd__nav a:hover {
     color: var(--lenke);
+  }
+
+  .hd__nav {
+    position: relative;
+  }
+
+  /* One marker for the whole list, moved with transform only. */
+  .hd__markor {
+    position: absolute;
+    left: 0;
+    bottom: 8px;
+    width: 100px;
+    height: 2px;
+    background: var(--dp-lilla);
+    transform-origin: 0 50%;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform var(--t-trinn) var(--ease-ut),
+      opacity var(--t-rask) ease;
+  }
+
+  .hd__nav--markor a[aria-current='page']::after {
+    content: none;
   }
 
   .hd__nav a[aria-current='page']::after {
@@ -299,6 +373,34 @@ const utvikling = import.meta.env.DEV;
 
   .hd__menyknapp {
     display: none;
+  }
+
+  /* Over the workshop: graphite, light text, cyan focus. */
+  .hd:global(.hd--mork) {
+    --fokus: var(--dp-cyan);
+    background: var(--verksted);
+    border-color: var(--linje-mork);
+  }
+
+  .hd:global(.hd--mork.krympet) {
+    background: color-mix(in srgb, var(--grafitt) 78%, transparent);
+    border-color: var(--linje-mork);
+  }
+
+  .hd:global(.hd--mork) :is(.hd__nav a, .hd__ikon) {
+    color: var(--tekst-mork);
+  }
+
+  .hd:global(.hd--mork) .hd__nav a:hover {
+    color: var(--dp-lilla-lys);
+  }
+
+  .hd:global(.hd--mork) .hd__ikon:hover {
+    background: var(--grafitt-2);
+  }
+
+  .hd:global(.hd--mork) .hd__markor {
+    background: var(--dp-cyan);
   }
 
   /* Narrower desktop: secondary items give way first, the three paths stay. */
@@ -373,7 +475,9 @@ const utvikling = import.meta.env.DEV;
 
   @media (prefers-reduced-motion: reduce) {
     .hd,
-    .hd__rad {
+    .hd__rad,
+    .hd__logo img,
+    .hd__markor {
       transition: none;
     }
   }

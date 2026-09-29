@@ -134,6 +134,21 @@
   min-width: 0;
 }
 
+.verkstedlinje .hjem {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.verkstedlinje .hjem img {
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+
 .verkstedlinje .tilbake {
   display: inline-flex;
   align-items: center;
@@ -285,6 +300,7 @@
     overflow-x: auto;
   }
   .verkstedlinje .lang,
+  .verkstedlinje .hjem,
   .verktoynavn {
     display: none;
   }

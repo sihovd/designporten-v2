@@ -75,11 +75,39 @@ export const utklippbilder = {
 } satisfies Record<string, Bilde>;
 
 /**
- * The logo. `null` until Sivert's original "dp" mark is added to
- * public/brand/. Until then the header renders the typographic wordmark
- * and marks it as temporary in development builds.
+ * Sivert's logo (supplied 2026-09-28), in public/brand/. The artwork is his
+ * original, only optimised. `logo` is the full stacked lockup ("dp" mark over
+ * the wordmark); `logomerke` is the same "dp" mark on its own, cut from the
+ * same file, for small places (header, favicon). The favicon set in public/
+ * is generated from `logomerke`.
  */
-export const logo: Bilde | null = null;
+export const logo: Bilde = {
+  src: '/brand/designporten-logo.svg',
+  alt: 'Designporten',
+  bredde: 2684,
+  hoyde: 1205,
+  konsept: false,
+  midlertidig: false,
+};
+
+export const logomerke: Bilde = {
+  src: '/brand/designporten-merke.svg',
+  alt: 'Designporten',
+  bredde: 731,
+  hoyde: 731,
+  konsept: false,
+  midlertidig: false,
+};
+
+/** Default social preview: the full logo on the showroom paper colour. */
+export const standardDelingsbilde: Bilde = {
+  src: '/brand/delingsbilde.png',
+  alt: 'Designporten',
+  bredde: 1200,
+  hoyde: 630,
+  konsept: false,
+  midlertidig: false,
+};
 
 /** Mascot (cute, slightly spiky dragon). Not yet supplied. */
 export const maskot: Bilde | null = null;

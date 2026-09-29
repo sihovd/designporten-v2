@@ -1,12 +1,20 @@
 ---
 import { hovedmeny, juridisk } from '@/lib/navigasjon';
 import { kontakt } from '@/lib/kontakt';
+import { logo } from '@/lib/ressurser';
 ---
 
 <footer class="fot verksted-flate">
   <div class="ramme fot__rutenett">
     <div class="fot__merke">
-      <p class="fot__ordmerke">Designporten</p>
+      <img
+        class="fot__logo"
+        src={logo.src}
+        alt={logo.alt}
+        width={logo.bredde}
+        height={logo.hoyde}
+        loading="lazy"
+      />
       <p class="fot__linje">Vi gir ideer form.</p>
       <div class="fot__merkelinje" aria-hidden="true"></div>
     </div>
@@ -75,13 +83,10 @@ import { kontakt } from '@/lib/kontakt';
     }
   }
 
-  .fot__ordmerke {
-    font-family: var(--font-display);
-    font-weight: 780;
-    font-stretch: 118%;
-    font-size: clamp(1.75rem, 1.2rem + 2vw, 2.75rem);
-    letter-spacing: -0.03em;
-    line-height: 1;
+  .fot__logo {
+    display: block;
+    width: clamp(180px, 40vw, 240px);
+    height: auto;
   }
 
   .fot__linje {

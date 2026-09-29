@@ -667,6 +667,68 @@ const forste = startpunkter[0]!;
     display: none;
   }
 
+  /* Sending: a print line runs along the bottom of the button. */
+  .skjema__send :global([data-send]) {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skjema__send :global([data-send][aria-busy='true']) {
+    cursor: progress;
+    opacity: 0.85;
+  }
+
+  .skjema__send :global([data-send][aria-busy='true'])::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: repeating-linear-gradient(90deg, #fff 0 10px, transparent 10px 20px);
+    opacity: 0.8;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .skjema__send :global([data-send][aria-busy='true'])::after {
+      animation: skjema-sender 700ms linear infinite;
+    }
+
+    .skjema__status:not(:empty),
+    .skjema__oppsummering,
+    .skjema__feil:not(:empty) {
+      animation: skjema-inn var(--t-trinn) var(--ease-ut) both;
+    }
+
+    :global(.kvittering) {
+      animation: skjema-kvittering 520ms var(--ease-ut) both;
+    }
+  }
+
+  @keyframes skjema-sender {
+    from {
+      background-position: 0 0;
+    }
+
+    to {
+      background-position: 20px 0;
+    }
+  }
+
+  @keyframes skjema-inn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  @keyframes skjema-kvittering {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+
   .skjema__status {
     font-weight: 560;
   }

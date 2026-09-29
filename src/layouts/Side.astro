@@ -4,6 +4,7 @@ import '@/styles/base.css';
 import '@/styles/bevegelse.css';
 import Header from '@/components/Header.astro';
 import Footer from '@/components/Footer.astro';
+import { standardDelingsbilde } from '@/lib/ressurser';
 
 interface Props {
   tittel: string;
@@ -18,7 +19,7 @@ const { tittel, beskrivelse, delingsbilde, ikkeIndekser = false } = Astro.props;
 const fullTittel =
   tittel === 'Designporten' ? 'Designporten – Vi gir ideer form' : `${tittel} – Designporten`;
 const kanonisk = new URL(Astro.url.pathname, Astro.site);
-const bilde = delingsbilde ? new URL(delingsbilde, Astro.site).href : undefined;
+const bilde = new URL(delingsbilde ?? standardDelingsbilde.src, Astro.site).href;
 ---
 
 <!doctype html>
@@ -26,8 +27,10 @@ const bilde = delingsbilde ? new URL(delingsbilde, Astro.site).href : undefined;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- No favicon until the real logo exists (assets list); empty icon avoids a /favicon.ico 404 -->
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <title>{fullTittel}</title>
     <meta name="description" content={beskrivelse} />
     <link rel="canonical" href={kanonisk.href} />
@@ -38,10 +41,20 @@ const bilde = delingsbilde ? new URL(delingsbilde, Astro.site).href : undefined;
     <meta property="og:title" content={fullTittel} />
     <meta property="og:description" content={beskrivelse} />
     <meta property="og:url" content={kanonisk.href} />
-    {bilde && <meta property="og:image" content={bilde} />}
+    <meta property="og:image" content={bilde} />
+    {!delingsbilde && <meta property="og:image:alt" content={standardDelingsbilde.alt} />}
     <meta name="theme-color" content="#f6f3ee" />
     <script is:inline>
       document.documentElement.classList.add('js');
+      // The portal: showroom → Skaperverksted gets its own page transition.
+      window.addEventListener('pagereveal', function (e) {
+        const vt = e.viewTransition;
+        const fra = window.navigation && navigation.activation && navigation.activation.from;
+        if (!vt || !fra || !vt.types) return;
+        const inn = location.pathname.indexOf('/skaperverksted') === 0;
+        const fraVerksted = new URL(fra.url).pathname.indexOf('/skaperverksted') === 0;
+        if (inn && !fraVerksted) vt.types.add('portal');
+      });
     </script>
     <slot name="hode" />
   </head>
@@ -56,7 +69,9 @@ const bilde = delingsbilde ? new URL(delingsbilde, Astro.site).href : undefined;
     <Footer />
     <script>
       import { startAvsloringer } from '@/scripts/avslor';
+      import { startRulling } from '@/scripts/rulle';
       startAvsloringer();
+      startRulling();
     </script>
   </body>
 </html>

@@ -39,16 +39,19 @@ URL slugs are Norwegian, lowercase, without æøå (`vilkar`, not `vilkår`). Fi
 
 The homepage must communicate VI GIR IDEER FORM and let a first-time visitor see within seconds that Designporten can (1) make something for them, (2) help develop their idea and (3) let them design certain products themselves.
 
-**Section order (default):**
+**Section order (implemented 2026-09-29):**
 
 1. **Hero** — VI GIR IDEER FORM, the build sequence, «START Å SKAPE» + «FORTELL OSS IDEEN DIN». See [interaction-and-motion.md](../design/interaction-and-motion.md#homepage-hero).
-2. **The three paths** — FINN NOE / LAG NOE / HAR DU EN IDÉ?
+2. **The three paths** — FINN NOE / LAG NOE / HAR DU EN IDÉ?, as a full-width band.
 3. **Process slider** — «Slik blir en idé til en del», 5 steps.
-4. **Skaperverksted preview** — a live, small, working piece of a generator (for example type a name and watch a Signgen sign extrude). Only when it genuinely works; otherwise a short video of the real tool.
-5. **Selected products** — a short row from Produkter, real products only.
-6. **Idea band** — DU TRENGER IKKE HA EN FERDIG MODELL. START MED IDEEN. with the four ways to start (idé, tegning/bilde, 3D-fil, ødelagt del) and the button to the form. Dark band.
-7. **Proof** — real projects from Inspirasjon. Reviews and references only when they are real; the test bench's rating block is a placeholder and is not published as is.
-8. Footer.
+4. **Selected products** — one featured product large across the full width with its real specifications, then a horizontal row of the preserved product cards. The featured product is the vase the hero printed. Real products only; placeholders are marked.
+5. **Top slider** — «Fra verkstedet».
+6. **Proof** — real projects from Inspirasjon. Reviews and references only when they are real.
+7. **Skaperverksted portal** — the page turns graphite and shows the available generators with previews drawn from their real defaults, and «START Å SKAPE». A live embedded generator remains an option once it genuinely works in that space.
+8. **Idea band** — DU TRENGER IKKE HA EN FERDIG MODELL. START MED IDEEN. Dark band, leading into the footer.
+9. Footer.
+
+The products moved up to follow the process (the object you just saw made, then objects you can order), and the portal moved next to the idea band so the page ends in the two ways to make something: yourself, or with us.
 
 ### The three paths: not three generic cards
 

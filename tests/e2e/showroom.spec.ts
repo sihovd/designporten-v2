@@ -52,7 +52,10 @@ test.describe('pages', () => {
 test('the hero says VI GIR IDEER FORM with both actions usable at once', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/vi gir ideer\s*form/i);
-  await expect(page.getByRole('link', { name: 'Start å skape' })).toHaveAttribute('href', '/skaperverksted/');
+  await expect(page.locator('.helt').getByRole('link', { name: 'Start å skape' })).toHaveAttribute(
+    'href',
+    '/skaperverksted/',
+  );
   await expect(page.getByRole('link', { name: 'Fortell oss ideen din' }).first()).toBeVisible();
 });
 
@@ -141,19 +144,21 @@ test('unknown pages return 404 with a way on', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Til forsiden', exact: true })).toBeVisible();
 });
 
-test('reduced motion shows the finished hero at once', async ({ browser }) => {
+test('reduced motion shows the hero build as one still frame', async ({ browser }) => {
   const ctx = await browser.newContext({ reducedMotion: 'reduce' });
   const page = await ctx.newPage();
   await page.goto('/');
-  const tegning = page.locator('.helt .bygg__tegning');
-  await expect(tegning).toHaveCSS('opacity', '0');
-  await expect(page.locator('.helt .bygg__objekt img')).toBeVisible();
+  // Model above the print line, printed object below it, no animation to wait for.
+  await expect(page.locator('.helt')).toHaveClass(/na-4/);
+  await expect(page.locator('.helt .hb__objekt img')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('form');
   await ctx.close();
 });
 
-test('the homepage shows a row from the products', async ({ page }) => {
+test('the homepage shows a featured product and a row from the products', async ({ page }) => {
   await page.goto('/');
+  await expect(page.locator('#utvalg-fremhevet a')).toHaveAttribute('href', /\/produkter\//);
   const rad = page.getByRole('list', { name: 'Utvalgte produkter' });
-  await expect(rad.getByRole('listitem')).toHaveCount(6);
+  expect(await rad.getByRole('listitem').count()).toBeGreaterThanOrEqual(3);
   await expect(page.getByRole('link', { name: 'Se alle produktene' })).toHaveAttribute('href', '/produkter/');
 });

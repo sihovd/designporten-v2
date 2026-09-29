@@ -59,8 +59,8 @@ const tjenester = [
     ingress="Prototyper, småserier, profilering og deler som ikke finnes. Vi tegner, printer og følger opp, fra første skisse til ferdig serie."
   />
 
-  <div class="ramme bedrift__bilde">
-    <Konseptbilde bilde={bakgrunner.samarbeid} lasting="eager" sizes="(max-width: 1280px) 100vw, 1280px" />
+  <div class="bedrift__bilde" data-rulle="gjennom" data-rulle-rolig="0.5">
+    <Konseptbilde bilde={bakgrunner.samarbeid} lasting="eager" sizes="100vw" />
   </div>
 
   <section class="ramme seksjon" aria-labelledby="tjenester-tittel">
@@ -103,6 +103,7 @@ const tjenester = [
 </Side>
 
 <style>
+  /* Full-bleed photo; the picture drifts slowly inside its frame on scroll. */
   .bedrift__bilde {
     aspect-ratio: 21 / 8;
     overflow: hidden;
@@ -113,6 +114,20 @@ const tjenester = [
   .bedrift__bilde :global(img) {
     height: 100%;
     object-fit: cover;
+  }
+
+  .bedrift__bilde :global(img) {
+    transform: scale(1.12) translateY(calc((0.5 - var(--p, 0.5)) * 7%));
+  }
+
+  .bedrift__bilde :global(.konseptbilde__merke) {
+    left: var(--sidekant);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bedrift__bilde :global(img) {
+      transform: none;
+    }
   }
 
   .tjenester__tittel {

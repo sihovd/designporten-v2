@@ -98,7 +98,10 @@ The visual language is drawn from how objects are actually made:
 
 ## Logo and mascot
 
-- **Logo:** the existing "dp" mark of two linked loops with the violet→cyan gradient, plus the wordmark «Designporten». Source: `E:\3d print\designporten\profil\Designporten logo.svg` on Sivert's machine; it must be added to `public/brand/`. Never redrawn or re-generated. Clear space and minimum size are defined when the file is in the repo.
+- **Logo:** the existing "dp" mark of two linked loops with the violet→cyan gradient, above the wordmark «Designporten». Sivert's file (supplied 2026-09-28) is in `public/brand/`: `designporten-logo.svg` is the full stacked lockup, `designporten-merke.svg` is the "dp" mark alone, cut from the same file. Both are only optimised (SVGO, lossless recompression of the embedded gradient PNG) and given an accessible title; never redrawn or re-generated. Referenced through `src/lib/ressurser.ts` (`logo`, `logomerke`).
+  - **Where:** the site header uses the mark (40 px, 34 px when the header shrinks), because the lockup's wordmark is too small to read at header height. The footer uses the full lockup (180–240 px wide). The workshop bar shows the mark as a link home on wide screens; at 760 px and below that bar is already full, so the mark is hidden there. The favicons, the web manifest icons and the default social preview (`delingsbilde.png`, 1200×630, lockup on paper) are generated from these files.
+  - **Contrast:** logotypes are exempt from WCAG text contrast, but for reference: violet `#9B51E0` is 4.1:1 on paper and on graphite; cyan `#1FA8E2` is 2.5:1 on paper and 6.8:1 on graphite. The lockup reads on both surfaces.
+  - **Minimum size in use:** mark 24 px, lockup 160 px wide (below that the wordmark stops being legible). Sivert may set formal clear-space rules later.
 - **Mascot:** a cute, slightly spiky baby dragon. The concepts show a cream/white version (portal and workshop scenes) and a purple/dark-blue articulated version (product). Colours: purple, dark blue, beige/cream. It appears in a few chosen moments (404, empty states, the dragon generator, Inspirasjon stories), never on every section. The articulated dragon product and the mascot are related but not the same thing.
 
 ## Imagery

@@ -33,6 +33,7 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Covers motion 
 - The object is a real Designporten product (for example the lamp or the dragon) so the sequence ends in something the visitor can buy or make.
 - The sequence plays once on load (≈1.2–2.4 s), then settles. Scrolling or pointer movement may scrub or gently rotate the object; it never replays on its own in a loop.
 - **Implementation order:** the first version uses layered images/video frames of the same object in each state (as the process slider already does). A real-time WebGL version is an enhancement that loads after first paint and is skipped on low-power devices and reduced motion.
+- **Implemented (2026-09-29, full-width pass):** the hero is one continuous field across the full browser width. Construction lines run from edge to edge; the spiral vase is built from programmatic geometry (axis, profile from 11 measurement points, 7 cross-sections, 14 ribs at 132° twist) and printed in 46 layers. Above the moving print line the object is still the model; below it, the concept photo of the printed vase. A mono readout names each stage. On load the stages draw in (≈1.4 s) and the print runs to about a third (half on narrow screens); from there **normal scrolling advances the print** to the finished object. On ≥1024 px the hero is pinned (sticky) for about 70 % of a screen of scroll so the print can finish; below 1024 px it is not pinned and the print follows the hero leaving the screen. A fine pointer turns the ribs slightly. The word FORM is printed with the same line. «Bygg på nytt» replays the load sequence. Without JavaScript the finished object shows; reduced motion shows one still frame with the model above the line and the object below it, all stages listed.
 - **Primary actions**, visible from the first frame without waiting for the animation:
   - «START Å SKAPE» → Skaperverksted (primary, filled lilla)
   - «FORTELL OSS IDEEN DIN» → idea form (secondary, outline)
@@ -99,7 +100,8 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Covers motion 
 - Left: logo (the way home). Centre or left-of-centre: main navigation. Right: search, cart (and account when accounts exist).
 - **Mobile:** only the menu button and cart are visible. The menu opens as a full-height sheet with large touch targets (≥48 px rows).
 - A 2 px scroll-progress line at the very top is kept (it uses the brand gradient; this is one of the permitted brand-line uses).
-- Current section is marked with a 2 px underline and `aria-current="page"`.
+- Current section is marked with a 2 px underline and `aria-current="page"`. With JavaScript a single marker slides between the links on hover and focus and returns to the current one (transform only).
+- Over graphite sections (`data-mork`: the Skaperverksted portal, the idea band, the hub) and the footer the header turns graphite, detected with IntersectionObserver on a thin band at the header's position.
 - Inside Skaperverksted the site header collapses to a slim workshop bar (logo, generator name, project name, save/export, exit to the showroom).
 
 ## Product cards and grid
@@ -126,12 +128,25 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Covers motion 
 ## Page transitions
 
 - Between showroom pages: the outgoing page fades and lifts slightly (≈220 ms), the incoming content enters in a short stagger (≈60 ms per block). Implemented with the View Transitions API where supported; plain navigation elsewhere.
-- **Showroom → Skaperverksted («the portal»):** the one transition allowed to be theatrical. The warm showroom surface gives way to the graphite workshop and the measurement grid draws in from the centre. ≤700 ms, skipped under reduced motion.
+- **Showroom → Skaperverksted («the portal»):** the one transition allowed to be theatrical. The warm showroom surface gives way to the graphite workshop and the measurement grid draws in from the centre. ≤700 ms, skipped under reduced motion. Implemented as a cross-document view transition of type `portal`: the workshop opens from a centre slit (clip-path, 640 ms) while the showroom page recedes; the hub's grid then draws in from the centre. On the homepage the portal section itself scales a graphite surface out to full width as it scrolls in, so the visitor enters the workshop before clicking.
 - The thin line that slid down on page change is removed (Sivert, 2026-09-03).
 
 ## Scroll reveals
 
 Sections may rise 20 px and fade in once, with a small stagger. Never on text the visitor is already reading, never repeated when scrolling back.
+
+## Scroll sequences (2026-09-29)
+
+A small shared engine (`src/scripts/rulle.ts`) drives the scroll-linked sequences by setting `--p` (0–1) on elements marked `data-rulle`. It uses IntersectionObserver to run only while an element is on screen, one rAF per scroll frame, and measures only on resize, never on scroll. Modes: `fest` (pinned track), `inn` (entering), `gjennom` (passing through), `ut` (leaving). `data-rulle-smal` picks another mode below 1024 px; `data-rulle-rolig` sets a fixed value under reduced motion, where content is never hidden. Used by: the hero, the Skaperverksted portal, the featured product, the Spesialdesign opening (sketch → post-processing → finished, «Konseptbilde») and the Bedrift photo. No scroll hijacking.
+
+## Buttons and forms
+
+- Buttons press physically: on hover they rise 2 px and show a 2 px edge below; on press they sink flush. Reduced motion keeps the colour change only.
+- The idea form's send button shows a moving stripe while sending (`aria-busy`); status, error summary and receipt fade in.
+
+## Generator previews
+
+The portal and the Skaperverksted hub show each available generator's real default design on a 10 mm grid, computed at build time from the generator's own defaults (functional geometry, D-3). Hover or focus on the card animates what the tool does: Signgen's layers separate with their print slices, the lamp's ribs turn further and the light comes on, the dragon's parts turn at their joints. Touch screens show that state at rest; reduced motion shows the resting state.
 
 ## Cursor and hover
 

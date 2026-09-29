@@ -1,92 +1,284 @@
 ---
 /**
  * Homepage hero (interaction-and-motion.md#homepage-hero).
- * «VI GIR IDEER FORM» is the composition: the vase is built in front of the
- * visitor (skisse → kontur → geometri → mesh → lag → printet objekt) and
- * stands on the word FORM, which is itself printed layer by layer.
+ *
+ * One continuous build field across the full width. «VI GIR IDEER FORM» is
+ * the composition: the vase stands on the word FORM, and both are printed
+ * by the same print line. On load the construction draws itself
+ * (hjelpelinjer → kontur → geometri → mesh) and printing starts; scrolling
+ * then prints the rest. On desktop the field is pinned for a short track;
+ * on narrow screens it is not pinned and prints over a short scroll.
+ * The pointer turns the digital model slightly. Reduced motion shows one
+ * still frame with every stage visible: model above the line, object below.
+ *
  * The actions are visible and usable from the first frame.
  */
 import Knapp from '@/components/Knapp.astro';
-import VaseBygg from '@/components/showroom/bygg/VaseBygg.astro';
+import HeltBygg from '@/components/showroom/bygg/HeltBygg.astro';
 
-const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
+/** Stages with a note taken from the drawn geometry itself (vasegeometri.ts). */
+const tilstander = [
+  { navn: 'Skisse', note: 'Akse og hjelpelinjer' },
+  { navn: 'Kontur', note: 'Profil fra 11 målepunkter' },
+  { navn: 'Geometri', note: '7 tverrsnitt' },
+  { navn: 'Mesh', note: '14 ribber, 132° vridning' },
+  { navn: 'Lag', note: '46 lag' },
+  { navn: 'Objekt', note: 'Printet' },
+];
 ---
 
-<section class="helt" aria-labelledby="helt-tittel" data-helt>
-  <div class="ramme helt__rutenett">
-    <p class="helt__eyebrow mono">Designporten · 3D-print og spesialdesign</p>
+<section class="helt" aria-labelledby="helt-tittel" data-helt data-rulle="fest" data-rulle-smal="ut">
+  <div class="helt__fest">
+    <div class="helt__felt">
+      <p class="helt__eyebrow mono">Designporten · 3D-print og spesialdesign</p>
 
-    <h1 class="helt__tittel" id="helt-tittel">
-      <span class="helt__linje1">Vi gir ideer</span>
-      <span class="helt__form">
-        form
-        <span class="helt__print" aria-hidden="true">
-          form
+      <h1 class="helt__tittel" id="helt-tittel">
+        <span class="helt__linje1">
+          <span class="helt__nb">Vi gir</span> ideer
         </span>
-      </span>
-    </h1>
+        <span class="helt__form">
+          form
+          <span class="helt__print" aria-hidden="true">
+            form
+          </span>
+        </span>
+      </h1>
 
-    <div class="helt__scene">
-      <VaseBygg animert lasting="eager" class="helt__vase" />
-      <div class="helt__avlesning" aria-hidden="true">
-        <ol class="mono">
-          {tilstander.map((t, i) => (
-            <li style={`--i:${i}`}>
-              <span class="tall">{String(i + 1).padStart(2, '0')}</span> {t}
-            </li>
-          ))}
-        </ol>
+      <div class="helt__scene">
+        <HeltBygg class="helt__bygg" />
+        <div class="helt__avlesning">
+          <ol class="mono" aria-hidden="true">
+            {tilstander.map((t, i) => (
+              <li data-trinn={i}>
+                <span class="tall">{String(i + 1).padStart(2, '0')}</span> {t.navn}
+                <span class="helt__note">{t.note}</span>
+              </li>
+            ))}
+          </ol>
+          <button class="helt__igjen mono" type="button" data-bygg-igjen>
+            Bygg på nytt
+          </button>
+        </div>
+        <p class="helt__dyse mono" aria-hidden="true">
+          Lag{' '}
+          <span class="tall" data-lagnr>
+            0
+          </span>{' '}
+          / 46
+        </p>
       </div>
-      <button class="helt__igjen mono" type="button" data-bygg-igjen>
-        Bygg på nytt
-      </button>
-    </div>
 
-    <div class="helt__tekst">
-      <p class="helt__statement">Fra tanke til noe du kan berøre</p>
-      <p class="helt__ingress">
-        Vi tegner og printer ting som passer, holder og ser ut som noe du vil ha stående framme. Finn noe
-        ferdig, lag noe selv, eller fortell oss ideen din.
-      </p>
-      <div class="helt__handlinger">
-        <Knapp href="/skaperverksted/">Start å skape</Knapp>
-        <Knapp href="/spesialdesign/#skjema" variant="sekundar">
-          Fortell oss ideen din
-        </Knapp>
+      <div class="helt__tekst">
+        <p class="helt__statement">Fra tanke til noe du kan berøre</p>
+        <p class="helt__ingress">
+          Vi tegner og printer ting som passer, holder og ser ut som noe du vil ha stående framme. Finn noe
+          ferdig, lag noe selv, eller fortell oss ideen din.
+        </p>
+        <div class="helt__handlinger">
+          <Knapp href="/skaperverksted/">Start å skape</Knapp>
+          <Knapp href="/spesialdesign/#skjema" variant="sekundar">
+            Fortell oss ideen din
+          </Knapp>
+        </div>
       </div>
     </div>
   </div>
 </section>
+<script is:inline>
+  // Set the start state before first paint so the finished vase never
+  // flashes before the build. If the hero script never runs, show the end.
+  (function () {
+    const h = document.currentScript && document.currentScript.previousElementSibling;
+    if (!h || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    h.classList.add('bygging');
+    h.style.setProperty('--q', '0');
+    setTimeout(function () {
+      if (h.classList.contains('startet')) return;
+      h.classList.add('na-0', 'na-1', 'na-2', 'na-3', 'na-4', 'na-5');
+      h.style.setProperty('--q', '1');
+    }, 4000);
+  })();
+</script>
 
 <script>
-  // Replays the build sequence on request. It never replays on its own.
+  import { folgRulling, startRulling } from '@/scripts/rulle';
+  import { ribber } from '@/components/showroom/bygg/vasegeometri';
+
+  const LAG = 46;
+  // Start of each stage (ms) and the print that follows on load.
+  const TIDER = [0, 320, 700, 1060, 1420];
+  const PRINT_START = 1420;
+  const PRINT_TID = 950;
+
+  const rolig = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const bred = window.matchMedia('(min-width: 1024px)');
+  const peker = window.matchMedia('(hover: hover) and (pointer: fine)');
+
   document.querySelectorAll<HTMLElement>('[data-helt]').forEach((helt) => {
-    helt.querySelector('[data-bygg-igjen]')?.addEventListener('click', () => {
-      helt.classList.remove('helt--spiller');
-      const animerte = helt.querySelectorAll<HTMLElement>('.bygg--animert, .helt__print, .helt__avlesning');
-      animerte.forEach((el) => {
-        el.getAnimations({ subtree: true }).forEach((a) => {
-          a.cancel();
-          a.play();
-        });
+    helt.classList.add('startet');
+    const lagnr = helt.querySelector<HTMLElement>('[data-lagnr]');
+    const ribbeSti = helt.querySelector<SVGPathElement>('[data-ribber]');
+    const trinnListe = [...helt.querySelectorAll<HTMLElement>('[data-trinn]')];
+
+    let trinn = -1;
+    let q = -1;
+    let introQ = 0;
+    let rullQ = 0;
+    let spillId = 0;
+
+    // How far the load sequence prints before scrolling takes over.
+    const startQ = () => (bred.matches ? 0.36 : 0.5);
+
+    function settTrinn(n: number) {
+      if (n === trinn) return;
+      trinn = n;
+      for (let i = 0; i <= 5; i++) helt.classList.toggle(`na-${i}`, i <= n);
+      trinnListe.forEach((li, i) => {
+        li.classList.toggle('er-na', i === n);
+        li.classList.toggle('er-ferdig', i < n);
       });
+    }
+
+    function settQ(v: number) {
+      v = Math.min(1, Math.max(0, v));
+      if (Math.abs(v - q) < 0.0005) return;
+      q = v;
+      helt.style.setProperty('--q', v.toFixed(4));
+      if (lagnr) lagnr.textContent = String(Math.round(v * LAG));
+      if (v >= 0.999) settTrinn(5);
+      else if (trinn >= 4 || v > 0) settTrinn(4);
+    }
+
+    function blandQ() {
+      settQ(Math.max(introQ, rullQ));
+    }
+
+    function spill() {
+      const id = ++spillId;
+      helt.classList.add('bygging');
+      introQ = 0;
+      trinn = -1;
+      for (let i = 0; i <= 5; i++) helt.classList.remove(`na-${i}`);
+      q = -1;
+      blandQ();
+      const t0 = performance.now();
+      const takt = (na: number) => {
+        if (id !== spillId) return;
+        const t = na - t0;
+        if (trinn < 4) {
+          let n = -1;
+          TIDER.forEach((start, i) => {
+            if (t >= start) n = i;
+          });
+          if (n > trinn) settTrinn(n);
+        }
+        if (t >= PRINT_START) {
+          const x = Math.min(1, (t - PRINT_START) / PRINT_TID);
+          introQ = startQ() * (1 - (1 - x) ** 3);
+          blandQ();
+        }
+        if (t < PRINT_START + PRINT_TID) requestAnimationFrame(takt);
+      };
+      // One frame at the start state so the drawing transitions in.
+      requestAnimationFrame(() => requestAnimationFrame(takt));
+    }
+
+    if (rolig.matches) {
+      // One still frame: every stage visible, model above the line, object below.
+      helt.classList.add('bygging');
+      settTrinn(4);
+      settQ(0.55);
+      trinnListe.forEach((li) => li.classList.add('er-ferdig'));
+      return;
+    }
+
+    startRulling(helt.parentElement ?? document);
+    folgRulling(helt, (p) => {
+      rullQ = p <= 0 ? 0 : startQ() + (1 - startQ()) * Math.min(1, p / 0.8);
+      blandQ();
     });
+
+    spill();
+    helt.querySelector('[data-bygg-igjen]')?.addEventListener('click', () => {
+      rullQ = 0;
+      spill();
+    });
+
+    // The pointer turns the digital model a little (never on its own).
+    if (peker.matches && ribbeSti) {
+      let mal = 0;
+      let na = 0;
+      let kjorer = false;
+      const tegn = () => {
+        na += (mal - na) * 0.14;
+        if (Math.abs(mal - na) < 0.002) na = mal;
+        helt.style.setProperty('--mx', na.toFixed(3));
+        if (trinn >= 3 && trinn < 5) ribbeSti.setAttribute('d', ribber(14, 2.3, 90, na * 0.7).join(' '));
+        kjorer = na !== mal;
+        if (kjorer) requestAnimationFrame(tegn);
+      };
+      const start = () => {
+        if (!kjorer) {
+          kjorer = true;
+          requestAnimationFrame(tegn);
+        }
+      };
+      helt.addEventListener('pointermove', (e) => {
+        mal = (e.clientX / window.innerWidth) * 2 - 1;
+        start();
+      });
+      helt.addEventListener('pointerleave', () => {
+        mal = 0;
+        start();
+      });
+    }
   });
 </script>
 
 <style>
+  /* ---------- Track and pinned field ---------- */
   .helt {
+    --q: 1;
+    --mx: 0;
+    --fest-h: max(620px, calc(100svh - var(--header-h)));
     position: relative;
-    overflow: hidden;
-    padding-block: var(--r-6) var(--r-7);
+    z-index: 1;
   }
 
-  .helt__rutenett {
+  .helt__fest {
+    position: relative;
+    overflow-x: clip;
+  }
+
+  .helt__felt {
     display: grid;
     grid-template-columns: 1fr minmax(260px, 34%) 1fr;
     grid-template-rows: auto auto auto;
     column-gap: var(--r-5);
     align-items: end;
+    padding: var(--r-6) var(--gutter) var(--r-7);
+  }
+
+  @media (min-width: 1024px) {
+    .helt {
+      height: calc(var(--fest-h) + 70svh);
+    }
+
+    .helt__fest {
+      position: sticky;
+      top: var(--header-h);
+      height: var(--fest-h);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .helt__felt {
+      grid-template-columns: minmax(0, 1fr) minmax(300px, min(38vw, 58svh)) minmax(0, 1fr);
+      padding-block: var(--r-5) clamp(var(--r-5), 4svh, var(--r-7));
+      flex: 1;
+      grid-template-rows: auto 1fr auto;
+    }
   }
 
   .helt__eyebrow {
@@ -112,21 +304,31 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
     text-transform: uppercase;
   }
 
+  .helt__nb {
+    white-space: nowrap;
+  }
+
   .helt__linje1 {
     grid-column: 1;
     grid-row: 1;
     align-self: end;
-    max-width: 6.2ch;
     padding-bottom: var(--r-4);
+    font-size: min(var(--fs-display), 12svh, 7vw);
   }
 
+  @media (min-width: 1280px) {
+    .helt__felt {
+      grid-template-columns: minmax(0, 1fr) minmax(300px, min(32vw, 58svh)) minmax(0, 1fr);
+    }
+  }
+
+  /* FORM runs edge to edge: the word is about 3.7 em wide at this setting. */
   .helt__form {
     position: relative;
     grid-column: 1 / -1;
     grid-row: 2;
     justify-self: center;
-    /* Fills the content width: FORM is about 3.7 em wide at this setting. */
-    font-size: min(calc((100vw - 2 * var(--gutter)) / 3.75), 21rem);
+    font-size: min(calc((100vw - 2 * var(--gutter)) / 3.72), 26rem);
     line-height: 0.78;
     letter-spacing: -0.045em;
     color: transparent;
@@ -134,7 +336,14 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
     padding-top: 0.04em;
   }
 
-  /* FORM set on layer lines: printed bottom-up, one layer at a time. */
+  @media (min-width: 1024px) {
+    .helt__form {
+      /* Never taller than a third of the field, so everything fits one screen. */
+      font-size: min(calc((100vw - 2 * var(--gutter)) / 3.72), 26rem, calc(var(--fest-h) * 0.4));
+    }
+  }
+
+  /* FORM set on layer lines, printed by the same line as the vase. */
   .helt__print {
     position: absolute;
     inset: 0;
@@ -148,6 +357,8 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    clip-path: inset(calc((1 - var(--q)) * 100%) 0 0 0);
+    transform: translateX(calc(var(--mx) * -3px));
   }
 
   .helt__scene {
@@ -159,13 +370,18 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
     margin-bottom: -12%;
   }
 
+  /* The construction lines break around the text, as on a drawing. */
   .helt__tekst {
+    position: relative;
+    z-index: 2;
     grid-column: 3;
     grid-row: 2;
     display: grid;
     gap: var(--r-4);
     align-self: end;
-    padding-bottom: var(--r-5);
+    margin-left: calc(-1 * var(--r-4));
+    padding: var(--r-4) var(--r-4) var(--r-5);
+    background: var(--papir);
   }
 
   .helt__statement {
@@ -191,16 +407,20 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
     margin-top: var(--r-2);
   }
 
-  /* The readout and replay sit in the empty right third of the picture. */
+  /* ---------- Readout: stages with what each one adds ---------- */
+  /* Wide screens: the full list beside the vase's shoulder. */
   .helt__avlesning {
     position: absolute;
-    top: 8%;
-    right: 0;
+    top: 6%;
+    left: 74%;
+    display: grid;
+    justify-items: start;
+    gap: var(--r-4);
   }
 
   .helt__avlesning ol {
     display: grid;
-    gap: 2px;
+    gap: 3px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -208,8 +428,8 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
     color: var(--dempet);
   }
 
-  .helt__avlesning li:last-child {
-    color: var(--blekk);
+  .helt__avlesning li {
+    transition: color var(--t-trinn) var(--ease-ut);
   }
 
   .helt__avlesning .tall {
@@ -217,17 +437,95 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
     margin-right: 4px;
   }
 
-  .helt__igjen {
+  .helt__note {
+    display: block;
+    max-width: 18ch;
+    height: 0;
+    overflow: hidden;
+    padding-left: 2.6em;
+    color: var(--dempet);
+    letter-spacing: 0.04em;
+    text-transform: none;
+    opacity: 0;
+    transition:
+      height var(--t-trinn) var(--ease-ut),
+      opacity var(--t-trinn) var(--ease-ut);
+  }
+
+  /* Without the hero script the list simply ends on «Objekt». */
+  .helt:not(.bygging) .helt__avlesning li:last-child {
+    color: var(--blekk);
+  }
+
+  .helt__avlesning li:global(.er-ferdig) {
+    color: var(--blekk);
+  }
+
+  .helt__avlesning li:global(.er-na) {
+    color: var(--lenke);
+  }
+
+  .helt__avlesning li:global(.er-na) .helt__note {
+    height: 1.5em;
+    opacity: 1;
+  }
+
+  /* Below 1280 px only the current stage shows, on one line above the rim. */
+  @media (max-width: 1279px) {
+    .helt__avlesning {
+      top: 0;
+      left: auto;
+      right: 0;
+      justify-items: end;
+    }
+
+    .helt.bygging .helt__avlesning li:not(:global(.er-na)) {
+      display: none;
+    }
+
+    .helt__avlesning li:global(.er-na) .helt__note {
+      display: inline;
+      height: auto;
+      padding-left: 0.6em;
+    }
+
+    .helt:not(.bygging) .helt__avlesning ol {
+      display: none;
+    }
+  }
+
+  /* ---------- The label that rides the print line ---------- */
+  .helt__dyse {
     position: absolute;
-    right: 0;
-    bottom: 22%;
-    min-height: var(--mal-min);
-    padding: 4px 10px;
+    left: 70%;
+    top: calc((805 - 655 * var(--q)) / 9 * 1%);
+    translate: 0 -50%;
+    padding: 2px 8px;
+    background: var(--papir);
+    color: var(--lenke);
+    font-size: var(--fs-mono-liten);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity var(--t-trinn) var(--ease-ut);
+  }
+
+  .helt:global(.bygging.na-4):not(:global(.na-5)) .helt__dyse {
+    opacity: 1;
+  }
+
+  .helt__igjen {
+    display: none;
+    align-items: center;
+    min-height: var(--mal-beroring);
+    padding: 4px 12px;
     border: 1px solid var(--kant);
     border-radius: var(--radius-pille);
     background: var(--flate);
     color: var(--dempet);
     font-size: var(--fs-mono-liten);
+    transition:
+      color var(--t-rask) ease,
+      border-color var(--t-rask) ease;
   }
 
   .helt__igjen:hover {
@@ -235,62 +533,32 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
     border-color: var(--lenke);
   }
 
-  .helt__igjen {
-    display: none;
+  .helt:global(.bygging.na-5) .helt__igjen {
+    display: inline-flex;
   }
 
-  @media (prefers-reduced-motion: no-preference) {
-    :global(.js) .helt__igjen {
-      display: inline-flex;
-      align-items: center;
+  @media (prefers-reduced-motion: reduce) {
+    .helt:global(.bygging) .helt__igjen {
+      display: none;
     }
 
-    :global(.js) .helt__print {
-      clip-path: inset(100% 0 0 0);
-      animation: helt-print 900ms steps(18, end) 1500ms forwards;
+    .helt:global(.bygging) .helt__dyse {
+      opacity: 1;
     }
 
-    :global(.js) .helt__avlesning li {
-      animation: helt-les 420ms linear both;
-      animation-delay: calc(150ms + var(--i) * 380ms);
+    .helt__print {
+      transform: none;
     }
 
-    :global(.js) .helt__avlesning li:last-child {
-      animation-name: helt-les-siste;
-    }
-  }
-
-  @keyframes helt-print {
-    to {
-      clip-path: inset(0 0 0 0);
+    .helt__avlesning li,
+    .helt__note {
+      transition: none;
     }
   }
 
-  @keyframes helt-les {
-    0%,
-    100% {
-      color: var(--dempet);
-    }
-
-    10%,
-    90% {
-      color: var(--lenke);
-    }
-  }
-
-  @keyframes helt-les-siste {
-    0% {
-      color: var(--dempet);
-    }
-
-    100% {
-      color: var(--blekk);
-    }
-  }
-
-  /* ---------- Narrower screens: one column, the vase between the lines ---------- */
+  /* ---------- Below 1024 px: one column, the vase between the lines ---------- */
   @media (max-width: 1023px) {
-    .helt__rutenett {
+    .helt__felt {
       grid-template-columns: 1fr;
       grid-template-rows: auto auto auto auto auto;
     }
@@ -304,12 +572,13 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
       grid-row: 1;
       max-width: none;
       padding-bottom: 0;
+      font-size: var(--fs-display);
     }
 
     .helt__scene {
       grid-column: 1;
       grid-row: 3;
-      width: min(78%, 420px);
+      width: min(74%, 420px);
       justify-self: center;
       margin-top: var(--r-2);
     }
@@ -326,6 +595,11 @@ const tilstander = ['Skisse', 'Kontur', 'Geometri', 'Mesh', 'Lag', 'Objekt'];
 
     .helt__statement {
       max-width: none;
+    }
+
+    .helt__tekst {
+      margin-left: 0;
+      padding-inline: 0;
     }
   }
 </style>

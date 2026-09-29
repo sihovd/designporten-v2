@@ -1,0 +1,141 @@
+---
+/**
+ * A rough sketch becomes a manufactured object (Spesialdesign opening).
+ * Three concept frames of the same vase: the pencil sketch, the printed part
+ * being finished by hand, and the finished vase at home. Scrolling the page
+ * opening moves from one to the next (the parent sets `--p` through
+ * `data-rulle`). Reduced motion shows the three frames side by side.
+ */
+import { bakgrunner } from '@/lib/ressurser';
+
+const stripe = bakgrunner.prosess;
+// Frames in the strip (four across): 0 sketch, 2 finishing, 3 finished.
+const bilder = [
+  { navn: 'Skisse', x: '0%' },
+  { navn: 'Etterarbeid', x: '66.667%' },
+  { navn: 'Ferdig', x: '100%' },
+];
+---
+
+<figure class="sto" style={`--stripe: url(${stripe.src})`}>
+  <div
+    class="sto__ramme"
+    role="img"
+    aria-label="Fra blyantskisse til printet og ferdig pusset vase, i tre bilder"
+  >
+    {bilder.map((b, i) => (
+      <span class="sto__bilde" style={`--x:${b.x}; --i:${i}`} />
+    ))}
+    <span class="sto__merke mono" aria-hidden="true">
+      Konseptbilde
+    </span>
+  </div>
+  <figcaption class="sto__steg mono">
+    {bilder.map((b, i) => (
+      <span style={`--i:${i}`}>
+        {String(i + 1).padStart(2, '0')} {b.navn}
+      </span>
+    ))}
+    <i class="sto__fremdrift" aria-hidden="true"></i>
+  </figcaption>
+</figure>
+
+<style>
+  .sto {
+    display: grid;
+    gap: var(--r-3);
+    justify-items: end;
+    margin: 0;
+  }
+
+  .sto__ramme {
+    position: relative;
+    width: min(100%, calc(62svh * 400 / 533), 420px);
+    aspect-ratio: 400 / 533;
+    overflow: hidden;
+    background: var(--kalk);
+    box-shadow: var(--skygge-objekt);
+  }
+
+  .sto__bilde {
+    position: absolute;
+    inset: 0;
+    background-image: var(--stripe);
+    background-size: 400% 100%;
+    background-position: var(--x) 0;
+  }
+
+  /* Later frames cover earlier ones as the page opening scrolls away. */
+  .sto__bilde:nth-child(2) {
+    opacity: clamp(0, calc((var(--p, 0) - 0.18) * 4), 1);
+    transform: scale(calc(1.04 - clamp(0, calc((var(--p, 0) - 0.18) * 4), 1) * 0.04));
+  }
+
+  .sto__bilde:nth-child(3) {
+    opacity: clamp(0, calc((var(--p, 0) - 0.52) * 4), 1);
+    transform: scale(calc(1.04 - clamp(0, calc((var(--p, 0) - 0.52) * 4), 1) * 0.04));
+  }
+
+  .sto__merke {
+    position: absolute;
+    left: 0;
+    top: var(--r-3);
+    padding: 3px 8px;
+    background: var(--blekk);
+    color: #fff;
+    font-size: var(--fs-mono-liten);
+  }
+
+  .sto__steg {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    width: min(100%, calc(62svh * 400 / 533), 420px);
+    padding-bottom: var(--r-2);
+    color: var(--dempet);
+    font-size: var(--fs-mono-liten);
+  }
+
+  .sto__fremdrift {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--dp-lilla);
+    transform: scaleX(calc(0.08 + var(--p, 0) * 0.92));
+    transform-origin: 0 50%;
+  }
+
+  /* Reduced motion: the three states side by side, nothing moves. */
+  @media (prefers-reduced-motion: reduce) {
+    .sto__ramme {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      width: 100%;
+      aspect-ratio: 1200 / 533;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .sto__bilde {
+      position: relative;
+      inset: auto;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+
+    .sto__steg {
+      width: 100%;
+    }
+
+    .sto__steg span {
+      flex: 1;
+    }
+
+    .sto__fremdrift {
+      display: none;
+    }
+  }
+</style>

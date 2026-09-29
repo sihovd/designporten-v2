@@ -1,0 +1,338 @@
+---
+/**
+ * A generator's starting design drawn on the measurement grid, for the
+ * homepage portal and the Skaperverksted hub. Each shows what the tool makes
+ * and how, and moves when the link around it (or an ancestor marked
+ * `.gf-vert`) is hovered or holds focus. Touch screens show that state at
+ * rest, since there is no hover:
+ *   signgen  the sign's layers separate, each with its print slices
+ *   lampe    the ribs turn further and the light comes on
+ *   drage    the parts turn at their joints
+ * Grid cells are 10 mm; the dimension is the generator's real default size.
+ * Reduced motion shows the resting state only.
+ */
+import { drage, lampe, skilt } from './forhandsvisning';
+
+interface Props {
+  id: 'signgen' | 'lampe' | 'drage';
+  class?: string;
+}
+
+const { id, class: klasse } = Astro.props;
+
+const vb = (b: { x: number; y: number; b: number; h: number }) => `${b.x} ${b.y} ${b.b} ${b.h}`;
+
+/** Grid lines every 10 mm across a box (in the drawing's own mm). */
+function rutenett(b: { x: number; y: number; b: number; h: number }, x0 = 0, y0 = 0): string {
+  const d: string[] = [];
+  for (let x = Math.ceil((b.x - x0) / 10) * 10 + x0; x <= b.x + b.b; x += 10)
+    d.push(`M${x} ${b.y}V${b.y + b.h}`);
+  for (let y = Math.ceil((b.y - y0) / 10) * 10 + y0; y <= b.y + b.h; y += 10)
+    d.push(`M${b.x} ${y}H${b.x + b.b}`);
+  return d.join('');
+}
+
+const s = id === 'signgen' ? skilt() : null;
+const l = id === 'lampe' ? lampe() : null;
+const dr = id === 'drage' ? drage() : null;
+
+// The dragon is a chain: each part's group holds the next one, so turning a
+// joint carries the rest of the tail with it.
+let drageSvg = '';
+if (dr) {
+  const deler = dr.deler;
+  const bolge = (i: number) => (9 * Math.sin(i * 0.85 + 0.6)).toFixed(1);
+  drageSvg = deler
+    .map((d, i) => {
+      const ledd = d.ledd ? `<circle class="gf__ledd" cx="${d.ledd[0].toFixed(2)}" cy="0" r="1.6"/>` : '';
+      const apne = d.ledd
+        ? `<g class="gf__del" style="--jx:${d.ledd[0].toFixed(2)}px;--b:${bolge(i)}deg">`
+        : '<g class="gf__del gf__del--forst">';
+      return `${apne}<path class="gf__omriss" d="${d.omriss}"/>${ledd}`;
+    })
+    .join('');
+  drageSvg += '</g>'.repeat(deler.length);
+}
+---
+
+<div class:list={['gf', `gf--${id}`, klasse]} aria-hidden="true">
+  {s && (
+    <svg viewBox={vb(s.visning)} preserveAspectRatio="xMidYMid meet">
+      <g transform={`matrix(${s.plan.join(' ')} 0 0)`}>
+        <path class="gf__rutenett" d={rutenett({ x: -90, y: -45, b: 180, h: 90 })} />
+      </g>
+      {s.lag.map((lag, i) => (
+        <g class="gf__lag" style={`--i:${i}`}>
+          {lag.skiver.map((z) => (
+            <g transform={`translate(0 ${(-z * s.zSkala).toFixed(2)}) matrix(${s.plan.join(' ')} 0 0)`}>
+              {i === 0 ? (
+                <rect
+                  class="gf__skive"
+                  x={-s.bredde / 2}
+                  y={-s.dybde / 2}
+                  width={s.bredde}
+                  height={s.dybde}
+                  rx={s.radius}
+                  style={`--farge:${lag.farge}`}
+                />
+              ) : (
+                <text
+                  class="gf__skive gf__tekst"
+                  x="0"
+                  y="0"
+                  font-size={s.tekstStorrelse}
+                  style={`--farge:${lag.farge}`}
+                >
+                  {s.tekst}
+                </text>
+              )}
+            </g>
+          ))}
+          <g
+            transform={`translate(0 ${(-(lag.zBunn + lag.hoyde) * s.zSkala).toFixed(2)}) matrix(${s.plan.join(' ')} 0 0)`}
+          >
+            {i === 0 ? (
+              <rect
+                class="gf__flate"
+                x={-s.bredde / 2}
+                y={-s.dybde / 2}
+                width={s.bredde}
+                height={s.dybde}
+                rx={s.radius}
+                style={`--farge:${lag.farge}`}
+              />
+            ) : (
+              <text
+                class="gf__flate gf__tekst"
+                x="0"
+                y="0"
+                font-size={s.tekstStorrelse}
+                style={`--farge:${lag.farge}`}
+              >
+                {s.tekst}
+              </text>
+            )}
+          </g>
+        </g>
+      ))}
+    </svg>
+  )}
+  {l && (
+    <svg viewBox={vb(l.visning)} preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <radialGradient id="gf-lys" cx="50%" cy="55%" r="50%">
+          <stop offset="0" stop-color="#ffd9a0" stop-opacity="0.75" />
+          <stop offset="0.55" stop-color="#ffb35c" stop-opacity="0.22" />
+          <stop offset="1" stop-color="#ffb35c" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <path class="gf__rutenett" d={rutenett(l.visning)} />
+      <ellipse
+        class="gf__lys"
+        cx="0"
+        cy={l.hoyde * 0.55}
+        rx={l.diameterTopp * 0.9}
+        ry={l.hoyde * 0.72}
+        fill="url(#gf-lys)"
+      />
+      <path class="gf__ribber" d={l.ribber} />
+      <path class="gf__ribber gf__ribber--vridd" d={l.ribberVridd} />
+      <path class="gf__kontur" d={l.kontur} />
+      <path class="gf__kontur" d={l.topp} />
+      <path class="gf__kontur" d={l.bunn} />
+      <g class="gf__mal">
+        <path
+          d={`M${l.visning.x + 14} 0V${l.hoyde}M${l.visning.x + 10} 0h8M${l.visning.x + 10} ${l.hoyde}h8`}
+        />
+        <text
+          x={l.visning.x + 10}
+          y={l.hoyde / 2}
+          transform={`rotate(-90 ${l.visning.x + 10} ${l.hoyde / 2})`}
+        >
+          {l.hoyde} mm
+        </text>
+      </g>
+    </svg>
+  )}
+  {dr && (
+    <svg viewBox={vb(dr.visning)} preserveAspectRatio="xMidYMid meet" style={`--farge:${dr.farge}`}>
+      <path class="gf__rutenett" d={rutenett(dr.visning)} />
+      <g set:html={drageSvg} />
+      <g class="gf__mal">
+        <path
+          d={`M${dr.visning.x + 16} ${dr.visning.y + 10}H${dr.visning.x + dr.visning.b - 16}M${dr.visning.x + 16} ${dr.visning.y + 6}v8M${dr.visning.x + dr.visning.b - 16} ${dr.visning.y + 6}v8`}
+        />
+        <text x={dr.visning.x + dr.visning.b / 2} y={dr.visning.y + 7} text-anchor="middle">
+          {dr.lengde} mm
+        </text>
+      </g>
+    </svg>
+  )}
+</div>
+
+<style>
+  .gf {
+    --eksplodert: 0;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .gf svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .gf__rutenett {
+    fill: none;
+    stroke: var(--linje-mork);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .gf__mal path {
+    fill: none;
+    stroke: var(--dp-cyan);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .gf__mal text {
+    fill: var(--dp-cyan);
+    font-family: var(--font-mono);
+    font-size: 7px;
+    letter-spacing: 0.06em;
+  }
+
+  .gf--lampe .gf__mal text {
+    text-anchor: middle;
+    dominant-baseline: text-after-edge;
+  }
+
+  /* ---------- Signgen: layers and print slices ---------- */
+  .gf__lag {
+    transition: transform 520ms var(--ease-ut);
+    transform: translateY(calc(var(--eksplodert) * var(--i) * -14px));
+  }
+
+  .gf__skive {
+    fill: color-mix(in srgb, var(--farge) 62%, #000);
+    stroke: color-mix(in srgb, var(--farge) 40%, #000);
+    stroke-width: 0.15;
+  }
+
+  .gf__flate {
+    fill: var(--farge);
+    stroke: color-mix(in srgb, var(--farge) 55%, #fff);
+    stroke-width: 0.4;
+  }
+
+  .gf__tekst {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 100%;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+
+  .gf--signgen .gf__lag:first-of-type .gf__flate {
+    stroke: #6b6f76;
+  }
+
+  /* ---------- Lamp ---------- */
+  .gf__kontur {
+    fill: none;
+    stroke: var(--tekst-mork);
+    stroke-width: 1.6;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .gf__ribber {
+    fill: none;
+    stroke: var(--dp-lilla-lys);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+    transition: opacity 560ms var(--ease-ut);
+  }
+
+  .gf__ribber--vridd {
+    opacity: 0;
+  }
+
+  .gf__lys {
+    opacity: 0;
+    transition: opacity 560ms var(--ease-ut);
+  }
+
+  /* ---------- Dragon ---------- */
+  .gf :global(.gf__del) {
+    transform-box: view-box;
+    transform-origin: var(--jx, 0) 0;
+    transition: transform 620ms var(--ease-ut);
+  }
+
+  .gf :global(.gf__omriss) {
+    fill: color-mix(in srgb, var(--farge) 88%, transparent);
+    stroke: color-mix(in srgb, var(--farge) 45%, #fff);
+    stroke-width: 1.2;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .gf :global(.gf__ledd) {
+    fill: var(--verksted);
+    stroke: var(--dp-cyan);
+    stroke-width: 1.2;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* ---------- Active: hover or focus on the card, or touch at rest ---------- */
+  :global(:is(a, .gf-vert):is(:hover, :focus-visible, :has(:focus-visible))) .gf {
+    --eksplodert: 1;
+  }
+
+  :global(:is(a, .gf-vert):is(:hover, :focus-visible, :has(:focus-visible)))
+    .gf__ribber:not(.gf__ribber--vridd) {
+    opacity: 0;
+  }
+
+  :global(:is(a, .gf-vert):is(:hover, :focus-visible, :has(:focus-visible)))
+    :is(.gf__ribber--vridd, .gf__lys) {
+    opacity: 1;
+  }
+
+  :global(:is(a, .gf-vert):is(:hover, :focus-visible, :has(:focus-visible)))
+    .gf
+    :global(.gf__del:not(.gf__del--forst)) {
+    transform: rotate(var(--b));
+  }
+
+  @media (hover: none) {
+    .gf {
+      --eksplodert: 1;
+    }
+
+    .gf__ribber:not(.gf__ribber--vridd) {
+      opacity: 0;
+    }
+
+    :is(.gf__ribber--vridd, .gf__lys) {
+      opacity: 1;
+    }
+
+    .gf :global(.gf__del:not(.gf__del--forst)) {
+      transform: rotate(var(--b));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gf *,
+    .gf :global(*) {
+      transition: none !important;
+    }
+  }
+</style>

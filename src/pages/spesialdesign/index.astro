@@ -1,6 +1,7 @@
 ---
 import Side from '@/layouts/Side.astro';
 import SideHode from '@/components/showroom/SideHode.astro';
+import SkisseTilObjekt from '@/components/showroom/SkisseTilObjekt.astro';
 import ProsessSlider from '@/components/showroom/ProsessSlider.astro';
 import IdeSkjema from '@/components/showroom/skjema/IdeSkjema.astro';
 import { startpunkter } from '@/components/showroom/startpunkter';
@@ -11,11 +12,15 @@ import { spesialprosess } from '@/components/showroom/data/prosess';
   tittel="Spesialdesign"
   beskrivelse="Har du tegningen, bildet eller bare ideen? Designporten hjelper deg å gjøre den fysisk: fra skisse, bilde, 3D-fil eller ødelagt del til ferdig 3D-printet produkt."
 >
-  <SideHode
-    eyebrow="Spesialdesign"
-    tittel="Har du tegningen, bildet eller bare ideen?"
-    ingress="Vi hjelper deg å gjøre den fysisk. Du trenger ikke ha en ferdig modell. Start med ideen."
-  />
+  <div data-rulle="ut" data-rulle-rolig="1">
+    <SideHode
+      eyebrow="Spesialdesign"
+      tittel="Har du tegningen, bildet eller bare ideen?"
+      ingress="Vi hjelper deg å gjøre den fysisk. Du trenger ikke ha en ferdig modell. Start med ideen."
+    >
+      <SkisseTilObjekt slot="visuell" />
+    </SideHode>
+  </div>
 
   <section class="ramme start" aria-labelledby="start-tittel">
     <h2 id="start-tittel" class="visuelt-skjult">

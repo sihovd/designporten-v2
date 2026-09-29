@@ -14,8 +14,8 @@ import { bakgrunner, utklippbilder } from '@/lib/ressurser';
 const skisse = bakgrunner.prosess;
 ---
 
-<section class="dorer" aria-labelledby="dorer-tittel">
-  <div class="ramme dorer__hode">
+<section class="dorer" id="dorer" aria-labelledby="dorer-tittel">
+  <div class="dorer__hode">
     <h2 id="dorer-tittel">Tre veier inn i verkstedet</h2>
     <p class="mono dorer__meta">Velg der du står</p>
   </div>
@@ -90,8 +90,9 @@ const skisse = bakgrunner.prosess;
 </section>
 
 <style>
+  /* Full-bleed: the band is the width of the browser, the text keeps the gutters. */
   .dorer {
-    padding-block: var(--r-8) var(--r-seksjon);
+    padding-block: var(--r-8) 0;
   }
 
   .dorer__hode {
@@ -100,7 +101,18 @@ const skisse = bakgrunner.prosess;
     align-items: baseline;
     justify-content: space-between;
     gap: var(--r-3);
-    margin-bottom: var(--r-5);
+    padding: 0 var(--gutter) var(--r-5);
+  }
+
+  .dorer__hode h2 {
+    /* Long uppercase words must fit a 320 px screen. */
+    font-size: min(var(--fs-h1), 10.4vw);
+    font-stretch: 122%;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 0.95;
+    text-transform: uppercase;
+    max-width: 14ch;
   }
 
   .dorer__meta {
@@ -110,10 +122,8 @@ const skisse = bakgrunner.prosess;
   .dorer__band {
     display: grid;
     grid-template-columns: 1.15fr 1.45fr 1fr;
-    width: min(var(--innhold-maks), 100% - 2 * var(--gutter));
-    margin-inline: auto;
-    min-height: 540px;
-    border-block: 1px solid var(--kant);
+    min-height: clamp(540px, 74svh, 820px);
+    border-top: 1px solid var(--kant);
     transition: grid-template-columns var(--t-inngang) var(--ease-ut);
   }
 
@@ -159,7 +169,7 @@ const skisse = bakgrunner.prosess;
 
   .dor__merke {
     position: absolute;
-    left: 0;
+    left: var(--r-4);
     top: var(--r-3);
     padding: 3px 8px;
     background: var(--blekk);
@@ -170,7 +180,15 @@ const skisse = bakgrunner.prosess;
   .dor__tekst {
     display: grid;
     gap: var(--r-2);
-    padding: var(--r-5);
+    padding: var(--r-5) var(--r-6) var(--r-7);
+  }
+
+  .dor--finn .dor__tekst {
+    padding-left: var(--gutter);
+  }
+
+  .dor--ide .dor__tekst {
+    padding-right: var(--gutter);
   }
 
   .dor__nr {
@@ -393,12 +411,14 @@ const skisse = bakgrunner.prosess;
     .dorer__band:has(.dor:is(:hover, :focus-visible)) {
       grid-template-columns: 1fr;
       min-height: 0;
-      border: 0;
-      gap: var(--r-3);
     }
 
     .dor__scene {
-      min-height: 240px;
+      min-height: clamp(240px, 62vw, 420px);
+    }
+
+    .dor .dor__tekst {
+      padding-inline: var(--gutter);
     }
 
     .dor__objekter > :global(.dor__o--1),

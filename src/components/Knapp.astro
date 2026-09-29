@@ -2,6 +2,10 @@
 /**
  * Primary / secondary action. Renders <a> when href is given, else <button>.
  * One primary per view; the secondary never competes at equal strength.
+ *
+ * Press response: a button is a thin printed layer. On hover it rises by
+ * its own thickness and shows the edge; on press it sinks flush. Only
+ * transform and box-shadow change, never layout.
  */
 interface Props {
   href?: string;
@@ -37,13 +41,29 @@ const Tag = href ? 'a' : 'button';
     text-decoration: none;
     text-transform: uppercase;
     white-space: nowrap;
+    --kant-farge: transparent;
+    box-shadow: 0 0 0 0 var(--kant-farge);
     transition:
       background-color var(--t-rask) ease,
       border-color var(--t-rask) ease,
-      color var(--t-rask) ease;
+      color var(--t-rask) ease,
+      transform var(--t-rask) var(--ease-ut),
+      box-shadow var(--t-rask) var(--ease-ut);
+  }
+
+  .knapp:is(.knapp--primar, .knapp--sekundar):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 0 0 var(--kant-farge);
+  }
+
+  .knapp:is(.knapp--primar, .knapp--sekundar):active {
+    transform: translateY(0);
+    box-shadow: 0 0 0 0 var(--kant-farge);
+    transition-duration: 60ms;
   }
 
   .knapp--primar {
+    --kant-farge: color-mix(in srgb, var(--handling) 55%, #000);
     background: var(--handling);
     color: var(--pa-handling);
   }
@@ -53,6 +73,7 @@ const Tag = href ? 'a' : 'button';
   }
 
   .knapp--sekundar {
+    --kant-farge: var(--handling);
     background: transparent;
     color: var(--fg);
     border-color: var(--linje-sterk);
@@ -80,5 +101,13 @@ const Tag = href ? 'a' : 'button';
   .knapp:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .knapp:is(.knapp--primar, .knapp--sekundar):hover {
+      transform: none;
+    }
   }
 </style>
