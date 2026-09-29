@@ -18,12 +18,12 @@ import {
   normaliser,
   silhuettForhandsvalg,
   silhuettnavn,
-  sokler,
   type LampeParametre,
   type Monstertype,
   type Silhuettvalg,
-  type SokkelId,
 } from './parametre';
+import { holderHull } from './maskinvare';
+import { Lyskildepanel } from './Lyskildepanel';
 import { Silhuettredigerer } from './Silhuettredigerer';
 
 const antallEtikett: Record<Monstertype, string> = {
@@ -42,7 +42,7 @@ export function LampeInspektor({ benk }: { benk: Arbeidsbenk }) {
   const lysT = brukLys();
   const vurdering = vurderingFor(modell);
   const mat = finnMateriale(p.materialId);
-  const sokkel = sokler[p.sokkel];
+  const harPlate = holderHull(p.sokkel, p.tilpasning) !== null;
 
   /** Numeric field change: arrow steps merge into one undo step per field. */
   const felt =
@@ -195,7 +195,9 @@ export function LampeInspektor({ benk }: { benk: Arbeidsbenk }) {
         {type === 'glatt' && <p class="merknad">Glatt vegg uten mønster.</p>}
       </Panel>
 
-      <Panel tittel="Vegg og bunn">
+      <Lyskildepanel benk={benk} p={p} />
+
+      <Panel tittel={harPlate ? 'Vegg og bunn' : 'Vegg'}>
         <TallFelt
           etikett="Veggtykkelse"
           verdi={p.veggtykkelse}
@@ -205,31 +207,7 @@ export function LampeInspektor({ benk }: { benk: Arbeidsbenk }) {
           desimaler={2}
           endre={felt('Endre veggtykkelse', 'veggtykkelse')}
         />
-        <label class="felt" for="lampe-sokkel">
-          <span>Bunn</span>
-          <select
-            id="lampe-sokkel"
-            value={p.sokkel}
-            onChange={(e) => {
-              const v = (e.target as HTMLSelectElement).value as SokkelId;
-              endreLampe(benk, `Bunn: ${sokler[v].navn}`, () => ({ sokkel: v }));
-            }}
-          >
-            {Object.values(sokler).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.navn}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p class="merknad">{sokkel.beskrivelse}</p>
-        {!sokkel.bekreftet && (
-          <p class="merknad">
-            Hullet er {mm(sokkel.hullDiameter ?? 0, 0)}, et vanlig mål for {sokkel.navn.toLowerCase()}. Målet
-            er ikke bekreftet av Designporten ennå.
-          </p>
-        )}
-        {sokkel.hullDiameter !== null && (
+        {harPlate && (
           <TallFelt
             etikett="Bunntykkelse"
             verdi={p.bunnTykkelse}

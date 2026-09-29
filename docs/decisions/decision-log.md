@@ -87,7 +87,9 @@ Not blocking implementation; content stays out until confirmed.
 - Prices, delivery times, response time for enquiries, what an enquiry costs, whether a reprint round is included, whether customers keep their files.
 - Real contact details, opening hours, organisation details.
 - Real customer reviews and references.
-- Lamp fittings (for example E27) and electrical safety wording.
+- Lamp fittings (for example E27) and electrical safety wording. E27 42 mm and E14 29 mm are common values, marked `vanlig-mal` and adjustable per design.
+- Bambu Lab LED Lamp Kit 001: module height (18 mm in the product data we could read; Bambu Lab sources disagree), cable exit, cable diameter, plug size, screw positions. The official store page and Bambu Lab's design guide PDF could not be read from the build environment on 2026-09-29; values are taken from Bambu Lab's product data as quoted by retailers (sources in `generatorer/lampe/maskinvare.ts`).
+- Lamp fit tolerances (0.3 mm recess clearance, 0.5 mm lip, 20 mm cable hole, 7 × 5 mm channel): Designporten design defaults until a test print of the fit-test piece has been made.
 - The dragon generator part library: who models the parts and in which tool.
 
 ## Log
@@ -99,3 +101,4 @@ Not blocking implementation; content stays out until confirmed.
 | 2026-09-28 | Polygon library: **clipper2-ts** (BSL-1.0) instead of clipper2-js. clipper2-js returned empty results from PolyTree operations and wrong miter offsets in testing; clipper2-ts is a maintained port of the same Clipper2 algorithms. |
 | 2026-09-28 | Asset registry path corrected to `src/lib/ressurser.ts` (was `src/content/assets.ts` in the master spec). Generators register through `meta.ts` + `index.ts` discovered by `import.meta.glob`. |
 | 2026-09-28 | Signgen CSV batch built in phase 5, as the execution instruction asks. It runs without limits; `core/plangrenser.ts` holds the on/off switch so plan limits become a data change once the paid model is decided. No plan, price or subscription behaviour is shown. |
+| 2026-09-29 | Lamp generator: light sources become data-driven hardware profiles with provenance per dimension (Sivert's items 58–61). Bambu Lab LED Lamp Kit 001 added as a geometry-aware option (recess, lip, cable route, fit-test piece, hardware checks) and made the default light source; E27/E14 holes adjustable and marked as common values. Its diameter (59 mm) is the manufacturer's figure; its height is marked uncertain and can be overridden. No electrical certification is claimed. |

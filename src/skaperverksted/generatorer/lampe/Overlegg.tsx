@@ -17,6 +17,7 @@ import { brukUtdrag } from '../../shell/bruk-benk';
 import { lagForm } from './form';
 import { ankerRadius, endreLampe, flyttAnker } from './handlinger';
 import { GRENSER, normaliser } from './parametre';
+import { erModul } from './maskinvare';
 
 type Grep = { type: 'anker'; i: number } | { type: 'hoyde' } | { type: 'vri'; x0: number; v0: number };
 
@@ -163,6 +164,9 @@ export function LampeOverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene
         ? `${tall(p.vridning, 0)}°`
         : `Ø ${tall(ankere[grep.i]!.r * 2, 0)} mm · ${tall(ankere[grep.i]!.z, 0)} mm opp`
     : null;
+
+  // The fit-test piece has no shade to shape.
+  if (p.tilpasning.provebit && erModul(p.sokkel)) return null;
 
   return (
     <svg

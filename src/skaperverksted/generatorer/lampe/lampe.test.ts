@@ -3,7 +3,15 @@ import { avgrensning, sjekkManifold, volum } from '../../geometri/mesh';
 import { lagForm, samplerSilhuett } from './form';
 import { byggLampe } from './geometri';
 import { ankerRadius, fjernAnker, flyttAnker, flyttHandtak, leggTilAnker, vekslGlatt } from './handlinger';
-import { gloedFarger, paerePosisjon } from './tre';
+import { gloedFarger, modulForhandsvisning, paerePosisjon } from './tre';
+import {
+  PROVEBIT_KANT,
+  holderHull,
+  maskinvare,
+  modulMal,
+  modulStorrelse,
+  standardTilpasning,
+} from './maskinvare';
 import { byggLampeModell, lesParametre, medParametre, nyttLampeDokument, vurderUtskrift } from './modell';
 import {
   MIN_RADIUS,
@@ -331,5 +339,211 @@ describe('lampe: lys', () => {
   it('plasserer pæra over lampeholderen', () => {
     expect(paerePosisjon(p({ sokkel: 'e27', hoyde: 300, bunnTykkelse: 2 }))).toBe(62);
     expect(paerePosisjon(p({ sokkel: 'apen', hoyde: 200 }))).toBe(80);
+  });
+});
+
+describe('lampe: maskinvareprofiler', () => {
+  it('har Bambu Lab Lamp Kit 001 med kilder og ærlig sikkerhet', () => {
+    const b = maskinvare['bambu-001'];
+    expect(b.type).toBe('modul');
+    expect(b.modul!.ytreDiameter).toMatchObject({ verdi: 59, sikkerhet: 'produsentoppgitt' });
+    expect(b.modul!.kroppHoyde.sikkerhet).toBe('uklar');
+    expect(b.modul!.skruehull.verdi).toBeNull();
+    expect(b.passformVerifisert).toBe(false);
+    expect(b.kilder.length).toBeGreaterThan(0);
+    for (const k of b.kilder) expect(k.url).toMatch(/^https:\/\//);
+  });
+
+  it('merker E27 og E14 som vanlige mål, ikke bekreftede', () => {
+    for (const id of ['e27', 'e14'] as const) {
+      expect(maskinvare[id].hullDiameter!.sikkerhet).toBe('vanlig-mal');
+      expect(maskinvare[id].passformVerifisert).toBe(false);
+    }
+  });
+
+  it('normaliserer tilpasningen og avviser ukjente lyskilder', () => {
+    expect(normaliser({ sokkel: 'toString' }).sokkel).toBe(standardParametre().sokkel);
+    const t = normaliser({
+      tilpasning: { toleranse: 9, feste: 'lim', modulHoyde: 'x', holderHull: 40 },
+    }).tilpasning;
+    expect(t.toleranse).toBe(1.5);
+    expect(t.feste).toBe('tape');
+    expect(t.modulHoyde).toBeNull();
+    expect(t.holderHull).toBe(40);
+    expect(normaliser({}).tilpasning).toEqual(standardTilpasning());
+  });
+
+  it('bruker egne mål før profilens', () => {
+    const t = { ...standardTilpasning(), modulHoyde: 16.4 };
+    expect(modulStorrelse('bambu-001', t)).toEqual({ diameter: 59, hoyde: 16.4 });
+    expect(modulStorrelse('e27', t)).toBeNull();
+    expect(holderHull('e27', { ...t, holderHull: 40 })).toBe(40);
+    expect(holderHull('e27', t)).toBe(42);
+  });
+
+  it('regner ut fordypningen fra profil og tilpasning', () => {
+    const m = modulMal('bambu-001', standardTilpasning())!;
+    expect(m.rLomme).toBeCloseTo(29.8, 9);
+    expect(m.zGulv).toBeCloseTo(6.6, 9);
+    expect(m.zTopp).toBeCloseTo(12.6, 9);
+    const k = modulMal('bambu-001', { ...standardTilpasning(), feste: 'klemkant', fordypning: 19.2 })!;
+    expect(k.rApning).toBeCloseTo(29.3, 9);
+    expect(k.zKlem).toBeCloseTo(k.zTopp - 1.2, 9);
+  });
+});
+
+describe('lampe: sokkel for lysmodul', () => {
+  const monstre: Monstertype[] = ['glatt', 'ribber', 'bolger', 'fasetter', 'diamant'];
+  for (const type of monstre) {
+    for (const feste of ['tape', 'klemkant'] as const) {
+      it(`er vanntett: ${type} med Bambu-modul og ${feste}`, () => {
+        const g = byggLampe(
+          p({
+            sokkel: 'bambu-001',
+            monster: { type, antall: 12, dybde: 4 },
+            vridning: type === 'fasetter' ? 0 : 90,
+            tilpasning: { ...standardTilpasning(), feste, fordypning: feste === 'klemkant' ? 19.2 : 6 },
+          }),
+        );
+        expect(sjekkManifold(g.mesh)).toEqual({ lukket: true, aapneKanter: 0, feilKanter: 0 });
+        expect(volum(g.mesh)).toBeGreaterThan(0);
+      });
+    }
+  }
+
+  it('er vanntett når fordypningen må krympes', () => {
+    const tilfeller: Partial<LampeParametre>[] = [
+      {
+        sokkel: 'bambu-001',
+        diameterBunn: 40,
+        diameterTopp: 40,
+        hoyde: 40,
+        silhuett: silhuettForhandsvalg('rett'),
+      },
+      {
+        sokkel: 'egendefinert',
+        tilpasning: { ...standardTilpasning(), modulDiameter: 150, kabelHull: 40, fordypning: 40 },
+      },
+    ];
+    for (const t of tilfeller) {
+      const g = byggLampe(p(t));
+      expect(sjekkManifold(g.mesh).lukket).toBe(true);
+      expect(g.modul!.apningKlemt || g.modul!.lommeKlemt || g.modul!.dybdeKlemt).toBe(true);
+    }
+  }, 30_000);
+
+  it('lager fordypning, kabelhull og kabelspor med riktige mål', () => {
+    const q = p({ ...rett(), sokkel: 'bambu-001', diameterBunn: 110, diameterTopp: 110, veggtykkelse: 1 });
+    const g = byggLampe(q);
+    const m = g.modul!.mal;
+    expect(m.rLomme).toBeCloseTo(29.8, 9);
+    expect(g.zStart).toBeCloseTo(12.6, 9);
+    const pos = g.mesh.posisjoner;
+    let lommeVegg = false;
+    let kanalBunn = false;
+    let underKanal = false;
+    for (let i = 0; i < pos.length; i += 3) {
+      const [x, y, z] = [pos[i]!, pos[i + 1]!, pos[i + 2]!];
+      const r = Math.hypot(x, y);
+      if (Math.abs(r - 29.8) < 0.01 && z > 6.6 - 1e-3 && z < 12.6 + 1e-3) lommeVegg = true;
+      // The channel runs out through the back (+Y) and is open underneath.
+      if (Math.abs(Math.abs(x) - 3.5) < 1e-3 && y > 50 && Math.abs(z) < 1e-4) kanalBunn = true;
+      if (Math.abs(x) < 3.4 && y > 12 && y < 50 && z < 5 - 1e-3) underKanal = true;
+    }
+    expect(lommeVegg).toBe(true);
+    expect(kanalBunn).toBe(true);
+    expect(underKanal).toBe(false);
+    const b = avgrensning(g.mesh);
+    expect(b.min[2]).toBeCloseTo(0, 5);
+    expect(b.maks[2]).toBeCloseTo(q.hoyde, 3);
+  });
+
+  it('bygger en vanntett prøvebit med bare fordypning og kabelføring', async () => {
+    const dok = medParametre(nyttLampeDokument(), {
+      sokkel: 'bambu-001',
+      tilpasning: { ...standardTilpasning(), provebit: true },
+    });
+    const r = await byggLampeModell(dok);
+    expect(r.deler).toHaveLength(1);
+    expect(r.deler[0]!.id).toBe('provebit');
+    expect(sjekkManifold(r.deler[0]!.mesh).lukket).toBe(true);
+    const b = avgrensning(r.deler[0]!.mesh);
+    expect(b.maks[0]).toBeCloseTo(29.8 + PROVEBIT_KANT, 2);
+    expect(b.maks[2]).toBeCloseTo(12.6, 3);
+    expect(r.advarsler.some((a) => a.tekst.includes('prøvebiten'))).toBe(true);
+  });
+
+  it('viser modulen i riktig størrelse og lyset fra toppen av den', () => {
+    const q = p({ sokkel: 'bambu-001' });
+    expect(modulForhandsvisning(q)).toEqual({ r: 29.5, h: 18, z: expect.closeTo(6.6, 9) });
+    expect(paerePosisjon(q)).toBeCloseTo(24.6, 9);
+    expect(modulForhandsvisning(p({ sokkel: 'e27' }))).toBeNull();
+  });
+});
+
+describe('lampe: passform', () => {
+  const tekster = (q: LampeParametre) => vurderUtskrift(q, byggLampe(q)).advarsler;
+
+  it('godtar standardlampen med Bambu-modul uten feil', () => {
+    const a = tekster(p({ sokkel: 'bambu-001' }));
+    expect(a.filter((x) => x.niva === 'feil')).toEqual([]);
+    expect(a.some((x) => x.niva === 'info' && x.tekst.includes('ikke fysisk verifisert'))).toBe(true);
+    expect(a.some((x) => x.tekst.includes('Høyden på modulen'))).toBe(true);
+    expect(a.some((x) => x.tekst.includes('Kabeltykkelsen er ikke oppgitt'))).toBe(true);
+  });
+
+  it('sier fra når lampen er for smal til modulen', () => {
+    const a = tekster(p({ ...rett(), sokkel: 'bambu-001', diameterBunn: 60, diameterTopp: 60 }));
+    expect(a.some((x) => x.niva === 'feil' && x.tekst.includes('får ikke plass'))).toBe(true);
+  });
+
+  it('sier fra når modulen ikke kommer ned gjennom toppen', () => {
+    const a = tekster(p({ ...rett(), sokkel: 'bambu-001', diameterBunn: 120, diameterTopp: 50 }));
+    expect(a.some((x) => x.niva === 'feil' && x.tekst.includes('kommer ikke ned'))).toBe(true);
+  });
+
+  it('sier fra når klemkanten treffer modulen', () => {
+    const a = tekster(
+      p({ sokkel: 'bambu-001', tilpasning: { ...standardTilpasning(), feste: 'klemkant', fordypning: 6 } }),
+    );
+    expect(a.some((x) => x.niva === 'feil' && x.tekst.includes('Klemkanten sitter lavere'))).toBe(true);
+  });
+
+  it('sier fra når lampeveggen treffer en modul som står opp', () => {
+    const a = tekster(
+      p({
+        sokkel: 'egendefinert',
+        silhuett: silhuettForhandsvalg('midje', 19.5),
+        monster: { type: 'glatt', antall: 3, dybde: 0 },
+        diameterBunn: 100,
+        diameterTopp: 100,
+        hoyde: 60,
+        tilpasning: { ...standardTilpasning(), modulDiameter: 60, modulHoyde: 50 },
+      }),
+    );
+    expect(a.some((x) => x.niva === 'feil' && x.tekst.includes('treffer modulen'))).toBe(true);
+  });
+
+  it('sier fra om for tynn bunn og for stort kabelhull', () => {
+    const a = tekster(
+      p({
+        sokkel: 'bambu-001',
+        tilpasning: { ...standardTilpasning(), gulv: 0.6, kabelHull: 40, modulDiameter: 40 },
+      }),
+    );
+    expect(a.some((x) => x.niva === 'advarsel' && x.tekst.includes('Bunnen over kabelsporet'))).toBe(true);
+    expect(a.some((x) => x.niva === 'feil' && x.tekst.includes('Kabelhullet'))).toBe(true);
+  });
+
+  it('slutter å kalle holderhullet ubekreftet når brukeren har målt selv', () => {
+    const q = p({ sokkel: 'e27', tilpasning: { ...standardTilpasning(), holderHull: 40 } });
+    const g = byggLampe(q);
+    expect(g.hullRadius).toBe(20);
+    expect(vurderUtskrift(q, g).advarsler.some((x) => x.tekst.includes('ikke bekreftet'))).toBe(false);
+  });
+
+  it('avviser vasemodus med massiv sokkel', () => {
+    const q = p({ ...rett(), sokkel: 'bambu-001', veggtykkelse: 0.8 });
+    expect(vurderUtskrift(q, byggLampe(q)).vasemodus.mulig).toBe(false);
   });
 });
