@@ -33,6 +33,8 @@ There are two build targets from the same pages. Both pass the same e2e suite.
 
 **PHP web host without Node, such as one.com** (`npm run build:onecom`): everything is static, and the three server routes are replaced by PHP scripts from `php/` (`api/foresporsel/`, `api/bestilling/`) plus static receipt pages (`src/server/statisk/`). The PHP scripts send e-mail with the host's `mail()`, validate exactly like the TypeScript routes (a unit test keeps the shared lists in step) and check order requests against `api/katalog.json`, which the build writes from the product collection. `dist/` is uploaded as it is; `.htaccess` sets the 404 page, caching and headers. Requires PHP 8.1 or newer and Apache.
 
+**Preview on Render** (`render.yaml`): the Node build runs as a free Render web service, deployed from `main` on every push, at a `*.onrender.com` address. Nothing on one.com is touched. Create it in Render with New → Blueprint and this repository. Form e-mail needs the SMTP variables from `.env.example` under Environment; without them submissions are stored on the server (and lost on redeploy) and the receipt says e-mail is not set up. The free plan sleeps when idle, so the first visit after a pause is slow.
+
 **Publishing to one.com** is automatic on every push to `main` once these GitHub secrets exist (Settings → Secrets and variables → Actions); without them the workflow skips itself:
 
 | Secret | Value |
