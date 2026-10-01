@@ -11,6 +11,11 @@ name: Publiser til one.com
 
 on:
   workflow_dispatch:
+    inputs:
+      bare_vis_mapper:
+        description: Bare vis mappene på serveren (laster ikke opp noe)
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -29,10 +34,23 @@ jobs:
       SKJEMA_TIL: ${{ secrets.SKJEMA_TIL }}
       SKJEMA_FRA: ${{ secrets.SKJEMA_FRA }}
     steps:
+      # Shows the folder tree SFTP logs into, to find the value for ONECOM_MAPPE.
+      - name: Vis mappene på serveren
+        if: inputs.bare_vis_mapper
+        run: |
+          if [ -z "$VERT" ] || [ -z "$BRUKER" ] || [ -z "$PASSORD" ]; then
+            echo "Legg inn ONECOM_SFTP_HOST, ONECOM_SFTP_BRUKER og ONECOM_SFTP_PASSORD først."
+            exit 1
+          fi
+          sudo apt-get install -y -qq lftp > /dev/null
+          lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 2; pwd; cls -1 -d */ */*/ */*/*/; bye" "sftp://$VERT"
+
       - name: Er one.com satt opp?
         id: oppsett
         run: |
-          if [ -z "$VERT" ] || [ -z "$BRUKER" ] || [ -z "$PASSORD" ] || [ -z "$MAPPE" ]; then
+          if [ "${{ inputs.bare_vis_mapper }}" = "true" ]; then
+            echo "klar=nei" >> "$GITHUB_OUTPUT"
+          elif [ -z "$VERT" ] || [ -z "$BRUKER" ] || [ -z "$PASSORD" ] || [ -z "$MAPPE" ]; then
             echo "one.com er ikke satt opp ennå (mangler hemmeligheter). Hopper over publisering."
             echo "klar=nei" >> "$GITHUB_OUTPUT"
           else

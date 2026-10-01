@@ -42,7 +42,7 @@ There are two build targets from the same pages. Both pass the same e2e suite.
 | `SKJEMA_TIL` | Where form e-mails go |
 | `SKJEMA_FRA` | Sender address; must be a mailbox on the site's own domain |
 
-The workflow (`.github/workflows/onecom.yml`) builds, writes `api/oppsett.php` from the two e-mail secrets, and mirrors `dist/` into the folder, deleting files that are no longer part of the site. It can also be run by hand from the Actions tab.
+The workflow (`.github/workflows/onecom.yml`) builds, writes `api/oppsett.php` from the two e-mail secrets, and mirrors `dist/` into the folder, deleting files that are no longer part of the site. It can also be run by hand from the Actions tab; with «Bare vis mappene på serveren» ticked it only lists the folders SFTP sees (three levels), to find the value for `ONECOM_MAPPE`.
 
 ## Project structure and ownership
 
