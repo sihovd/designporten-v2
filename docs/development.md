@@ -33,16 +33,18 @@ There are two build targets from the same pages. Both pass the same e2e suite.
 
 **PHP web host without Node, such as one.com** (`npm run build:onecom`): everything is static, and the three server routes are replaced by PHP scripts from `php/` (`api/foresporsel/`, `api/bestilling/`) plus static receipt pages (`src/server/statisk/`). The PHP scripts send e-mail with the host's `mail()`, validate exactly like the TypeScript routes (a unit test keeps the shared lists in step) and check order requests against `api/katalog.json`, which the build writes from the product collection. `dist/` is uploaded as it is; `.htaccess` sets the 404 page, caching and headers. Requires PHP 8.1 or newer and Apache.
 
+**Preview on Render** (`render.yaml`): the Node build runs as a free Render web service, deployed from `main` on every push, at a `*.onrender.com` address. Nothing on one.com is touched. Create it in Render with New → Blueprint and this repository. Form e-mail needs the SMTP variables from `.env.example` under Environment; without them submissions are stored on the server (and lost on redeploy) and the receipt says e-mail is not set up. The free plan sleeps when idle, so the first visit after a pause is slow.
+
 **Publishing to one.com** is automatic on every push to `main` once these GitHub secrets exist (Settings → Secrets and variables → Actions); without them the workflow skips itself:
 
 | Secret | Value |
 |---|---|
 | `ONECOM_SFTP_HOST`, `ONECOM_SFTP_BRUKER`, `ONECOM_SFTP_PASSORD` | From one.com: Advanced settings → SSH & SFTP |
-| `ONECOM_MAPPE` | The site's own folder on the server, relative to where SFTP logs in (for example `ny` for a subdomain `ny.designporten.no`). Never the root, and the workflow refuses a folder with a WordPress site in it |
+| `ONECOM_MAPPE` | The site's own folder on the server, relative to where SFTP logs in (for example `ny` for a subdomain `ny.designporten.no`). Never the root, and the workflow refuses a folder with WordPress files in it (`wp-config.php`, `wp-content`, `wp-admin`, `oc-migrator`) |
 | `SKJEMA_TIL` | Where form e-mails go |
 | `SKJEMA_FRA` | Sender address; must be a mailbox on the site's own domain |
 
-The workflow (`.github/workflows/onecom.yml`) builds, writes `api/oppsett.php` from the two e-mail secrets, and mirrors `dist/` into the folder, deleting files that are no longer part of the site. It can also be run by hand from the Actions tab.
+The workflow (`.github/workflows/onecom.yml`) builds, writes `api/oppsett.php` from the two e-mail secrets, and mirrors `dist/` into the folder, deleting files that are no longer part of the site. It can also be run by hand from the Actions tab; with «Bare vis mappene på serveren» ticked it only lists the folders SFTP sees (three levels), to find the value for `ONECOM_MAPPE`.
 
 ## Project structure and ownership
 

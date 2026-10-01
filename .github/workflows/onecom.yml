@@ -11,6 +11,11 @@ name: Publiser til one.com
 
 on:
   workflow_dispatch:
+    inputs:
+      bare_vis_mapper:
+        description: Bare vis mappene på serveren (laster ikke opp noe)
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -29,10 +34,23 @@ jobs:
       SKJEMA_TIL: ${{ secrets.SKJEMA_TIL }}
       SKJEMA_FRA: ${{ secrets.SKJEMA_FRA }}
     steps:
+      # Shows the folder tree SFTP logs into, to find the value for ONECOM_MAPPE.
+      - name: Vis mappene på serveren
+        if: inputs.bare_vis_mapper
+        run: |
+          if [ -z "$VERT" ] || [ -z "$BRUKER" ] || [ -z "$PASSORD" ]; then
+            echo "Legg inn ONECOM_SFTP_HOST, ONECOM_SFTP_BRUKER og ONECOM_SFTP_PASSORD først."
+            exit 1
+          fi
+          sudo apt-get install -y -qq lftp > /dev/null
+          lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 2; pwd; cls -1 -d */ */*/ */*/*/; bye" "sftp://$VERT"
+
       - name: Er one.com satt opp?
         id: oppsett
         run: |
-          if [ -z "$VERT" ] || [ -z "$BRUKER" ] || [ -z "$PASSORD" ] || [ -z "$MAPPE" ]; then
+          if [ "${{ inputs.bare_vis_mapper }}" = "true" ]; then
+            echo "klar=nei" >> "$GITHUB_OUTPUT"
+          elif [ -z "$VERT" ] || [ -z "$BRUKER" ] || [ -z "$PASSORD" ] || [ -z "$MAPPE" ]; then
             echo "one.com er ikke satt opp ennå (mangler hemmeligheter). Hopper over publisering."
             echo "klar=nei" >> "$GITHUB_OUTPUT"
           else
@@ -67,9 +85,9 @@ jobs:
           case "$MAPPE" in
             ""|"/"|"."|"./") echo "ONECOM_MAPPE kan ikke være roten. Velg en egen mappe for siden."; exit 1 ;;
           esac
-          # Never overwrite a WordPress site (the old designporten.no) by mistake.
-          if lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 2; cls -1 '$MAPPE/wp-config.php'; bye" "sftp://$VERT" 2>/dev/null | grep -q wp-config; then
-            echo "Mappen «$MAPPE» inneholder en WordPress-side. Velg en annen mappe."
+          # Never overwrite a WordPress site or its leftovers (the old designporten.no) by mistake.
+          if lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 2; cls -1 '$MAPPE/'; bye" "sftp://$VERT" 2>/dev/null | grep -qE '(^|/)(wp-config\.php|wp-content|wp-admin|oc-migrator)/?$'; then
+            echo "Mappen «$MAPPE» inneholder WordPress-filer. Velg en annen mappe, eller slett dem først."
             exit 1
           fi
           lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 3; mkdir -p -f '$MAPPE'; mirror -R --delete --verbose=1 --exclude-glob .well-known/ dist/ '$MAPPE'; bye" "sftp://$VERT"

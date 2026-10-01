@@ -1,0 +1,20 @@
+# Preview hosting on Render (render.com), Node build. Render reads this
+# file when the repository is added as a Blueprint; it deploys main on
+# every push. See docs/development.md#deploy.
+services:
+  - type: web
+    name: designporten
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: HOST
+        value: 0.0.0.0
+# Form e-mail: add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SKJEMA_TIL
+# and SKJEMA_FRA under Environment in the Render dashboard. Without them,
+# submissions are stored on the server and the receipt says so.
