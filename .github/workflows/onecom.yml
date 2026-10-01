@@ -67,9 +67,9 @@ jobs:
           case "$MAPPE" in
             ""|"/"|"."|"./") echo "ONECOM_MAPPE kan ikke være roten. Velg en egen mappe for siden."; exit 1 ;;
           esac
-          # Never overwrite a WordPress site (the old designporten.no) by mistake.
-          if lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 2; cls -1 '$MAPPE/wp-config.php'; bye" "sftp://$VERT" 2>/dev/null | grep -q wp-config; then
-            echo "Mappen «$MAPPE» inneholder en WordPress-side. Velg en annen mappe."
+          # Never overwrite a WordPress site or its leftovers (the old designporten.no) by mistake.
+          if lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 2; cls -1 '$MAPPE/'; bye" "sftp://$VERT" 2>/dev/null | grep -qE '(^|/)(wp-config\.php|wp-content|wp-admin|oc-migrator)/?$'; then
+            echo "Mappen «$MAPPE» inneholder WordPress-filer. Velg en annen mappe, eller slett dem først."
             exit 1
           fi
           lftp -u "$BRUKER,$PASSORD" -e "set sftp:auto-confirm yes; set net:max-retries 3; mkdir -p -f '$MAPPE'; mirror -R --delete --verbose=1 --exclude-glob .well-known/ dist/ '$MAPPE'; bye" "sftp://$VERT"

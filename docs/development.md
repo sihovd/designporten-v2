@@ -38,7 +38,7 @@ There are two build targets from the same pages. Both pass the same e2e suite.
 | Secret | Value |
 |---|---|
 | `ONECOM_SFTP_HOST`, `ONECOM_SFTP_BRUKER`, `ONECOM_SFTP_PASSORD` | From one.com: Advanced settings → SSH & SFTP |
-| `ONECOM_MAPPE` | The site's own folder on the server, relative to where SFTP logs in (for example `ny` for a subdomain `ny.designporten.no`). Never the root, and the workflow refuses a folder with a WordPress site in it |
+| `ONECOM_MAPPE` | The site's own folder on the server, relative to where SFTP logs in (for example `ny` for a subdomain `ny.designporten.no`). Never the root, and the workflow refuses a folder with WordPress files in it (`wp-config.php`, `wp-content`, `wp-admin`, `oc-migrator`) |
 | `SKJEMA_TIL` | Where form e-mails go |
 | `SKJEMA_FRA` | Sender address; must be a mailbox on the site's own domain |
 
