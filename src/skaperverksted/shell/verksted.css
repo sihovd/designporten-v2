@@ -459,15 +459,25 @@
   min-height: 260px;
 }
 
-.visning3d-vinkler {
+.visning3d-verktoy {
   position: absolute;
   right: 10px;
   top: 10px;
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  max-width: 60%;
+}
+
+.smal .visning3d-verktoy {
+  max-width: calc(100% - 20px);
+}
+
+.visning3d-vinkler {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
-  max-width: 60%;
 }
 
 .visning3d-vinkler button {
@@ -481,8 +491,41 @@
   cursor: pointer;
 }
 
-.smal .visning3d-vinkler {
-  max-width: calc(100% - 20px);
+.visning3d-printlag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.visning3d-printlag button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.visning3d-printlag button[aria-pressed='true'] {
+  border-color: var(--dp-lilla);
+  background: color-mix(in srgb, var(--dp-lilla) 22%, var(--panel));
+}
+
+.visning3d-hint {
+  padding: 4px 8px;
+  border-radius: var(--radius-felt);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--fg-dempet);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.smal .visning3d-printlag button {
+  min-height: 36px;
 }
 
 .smal .visning3d-vinkler button {
