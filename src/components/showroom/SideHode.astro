@@ -20,7 +20,7 @@ const harVisuell = Astro.slots.has('visuell');
 
 <header class:list={['sidehode', { 'sidehode--visuell': harVisuell }]}>
   <div class="sidehode__tekst">
-    <p class="mono sidehode__eyebrow">{eyebrow}</p>
+    <p class="etikett sidehode__eyebrow">{eyebrow}</p>
     <h1 id={id}>{tittel}</h1>
     {ingress && <p class="ingress sidehode__ingress">{ingress}</p>}
     <slot />
@@ -40,7 +40,7 @@ const harVisuell = Astro.slots.has('visuell');
     grid-template-columns: minmax(0, 1fr);
     column-gap: var(--r-7);
     align-items: end;
-    padding: var(--r-8) var(--sidekant) var(--r-7);
+    padding: var(--r-8) var(--sidekant) var(--r-6);
   }
 
   .sidehode--visuell {
@@ -58,12 +58,8 @@ const harVisuell = Astro.slots.has('visuell');
   }
 
   .sidehode h1 {
-    max-width: 17ch;
-    font-size: clamp(2.5rem, 1.2rem + 5.2vw, 6.25rem);
-    font-stretch: 120%;
-    font-weight: 800;
-    line-height: 0.98;
-    letter-spacing: -0.04em;
+    max-width: 20ch;
+    font-size: var(--fs-h1);
     overflow-wrap: break-word;
     hyphens: auto;
   }

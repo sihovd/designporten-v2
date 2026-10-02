@@ -30,16 +30,14 @@ const Tag = href ? 'a' : 'button';
     justify-content: center;
     gap: var(--r-2);
     min-height: var(--mal-beroring);
-    padding: 0 var(--r-5);
+    padding: 0 1.375rem;
     border-radius: var(--radius-pille);
-    border: 1.5px solid transparent;
+    border: 1px solid transparent;
     font-family: var(--font-tekst);
     font-size: 0.9375rem;
-    font-weight: 650;
-    font-stretch: 108%;
-    letter-spacing: 0.02em;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     text-decoration: none;
-    text-transform: uppercase;
     white-space: nowrap;
     --kant-farge: transparent;
     box-shadow: 0 0 0 0 var(--kant-farge);
@@ -52,8 +50,8 @@ const Tag = href ? 'a' : 'button';
   }
 
   .knapp:is(.knapp--primar, .knapp--sekundar):hover {
-    transform: translateY(-2px);
-    box-shadow: 0 2px 0 0 var(--kant-farge);
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 0 var(--kant-farge);
   }
 
   .knapp:is(.knapp--primar, .knapp--sekundar):active {
@@ -88,9 +86,7 @@ const Tag = href ? 'a' : 'button';
     min-height: auto;
     padding: 0;
     color: var(--lenke);
-    text-transform: none;
     letter-spacing: 0;
-    font-stretch: 100%;
   }
 
   .knapp--lenke:hover {

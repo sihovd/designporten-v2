@@ -208,45 +208,61 @@ const sti = Astro.url.pathname;
     transform-origin: 0 50%;
   }
 
+  /*
+   * The header keeps one height in the flow at all times, so nothing below
+   * it moves when it changes. At the top it is a full-width bar with the
+   * navigation centred between logo and tools. On scroll the bar's surface
+   * fades away and the row itself becomes a floating, centred pill: narrower,
+   * rounded, a discreet shadow, generous padding inside its ends.
+   */
   .hd {
     position: sticky;
     top: 0;
     z-index: var(--z-header);
+    height: var(--header-h);
     background: var(--flate);
     border-bottom: 1px solid var(--kant);
     transition:
-      color var(--t-trinn) ease,
-      border-color var(--t-trinn) ease,
-      margin var(--t-trinn) var(--ease-ut),
-      border-radius var(--t-trinn) var(--ease-ut),
       background-color var(--t-trinn) ease,
-      box-shadow var(--t-trinn) ease;
+      border-color var(--t-trinn) ease;
   }
 
   .hd__rad {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    gap: var(--r-5);
+    column-gap: var(--r-4);
     width: min(var(--innhold-maks), 100% - 2 * var(--gutter));
-    min-height: var(--header-h);
-    margin-inline: auto;
-    transition: min-height var(--t-trinn) var(--ease-ut);
+    height: var(--header-h);
+    margin: 0 auto;
+    padding-inline: 0;
+    border: 1px solid transparent;
+    border-radius: var(--radius-pille);
+    transition:
+      width var(--t-inngang) var(--ease-ut),
+      height var(--t-inngang) var(--ease-ut),
+      margin var(--t-inngang) var(--ease-ut),
+      padding var(--t-inngang) var(--ease-ut),
+      background-color var(--t-trinn) ease,
+      border-color var(--t-trinn) ease,
+      box-shadow var(--t-trinn) ease;
   }
 
   .hd:global(.krympet) {
-    margin: 10px 16px 0;
-    top: 10px;
-    border: 1px solid var(--kant);
-    border-radius: var(--radius-pille);
-    background: color-mix(in srgb, var(--flate) 72%, transparent);
-    backdrop-filter: saturate(1.4) blur(14px);
-    -webkit-backdrop-filter: saturate(1.4) blur(14px);
-    box-shadow: 0 10px 26px -14px rgb(0 0 0 / 0.32);
+    background: transparent;
+    border-color: transparent;
   }
 
   .hd:global(.krympet) .hd__rad {
-    min-height: var(--header-h-krympet);
-    width: calc(100% - 2 * var(--r-5));
+    width: min(1040px, 100% - 2 * var(--r-4));
+    height: var(--header-h-krympet);
+    margin-top: calc((var(--header-h) - var(--header-h-krympet)) / 2);
+    padding-inline: var(--r-6) var(--r-4);
+    border-color: color-mix(in srgb, var(--kant) 80%, transparent);
+    background: color-mix(in srgb, var(--flate) 82%, transparent);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    box-shadow: var(--skygge-meny);
   }
 
   .hd__logo {
@@ -254,28 +270,28 @@ const sti = Astro.url.pathname;
     align-items: center;
     min-width: var(--mal-beroring);
     min-height: var(--mal-beroring);
-    flex: none;
+    justify-self: start;
   }
 
   .hd__logo img {
     display: block;
     width: auto;
-    height: 40px;
+    height: 38px;
     transition: height var(--t-trinn) var(--ease-ut);
   }
 
   .hd:global(.krympet) .hd__logo img {
-    height: 34px;
+    height: 32px;
   }
 
   .hd__nav {
-    flex: 1;
     min-width: 0;
   }
 
   .hd__nav ul {
     display: flex;
-    gap: var(--r-1);
+    justify-content: center;
+    gap: 2px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -290,7 +306,8 @@ const sti = Astro.url.pathname;
     padding: 0 var(--r-3);
     color: var(--blekk);
     font-size: 0.9375rem;
-    font-weight: 520;
+    font-weight: 550;
+    letter-spacing: 0.01em;
     text-decoration: none;
   }
 
@@ -336,7 +353,7 @@ const sti = Astro.url.pathname;
     display: flex;
     align-items: center;
     gap: var(--r-1);
-    margin-left: auto;
+    justify-self: end;
   }
 
   .hd__ikon {
@@ -383,8 +400,14 @@ const sti = Astro.url.pathname;
   }
 
   .hd:global(.hd--mork.krympet) {
-    background: color-mix(in srgb, var(--grafitt) 78%, transparent);
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .hd:global(.hd--mork.krympet) .hd__rad {
+    background: color-mix(in srgb, var(--grafitt) 82%, transparent);
     border-color: var(--linje-mork);
+    box-shadow: 0 14px 34px -18px rgb(0 0 0 / 0.6);
   }
 
   .hd:global(.hd--mork) :is(.hd__nav a, .hd__ikon) {
@@ -421,9 +444,13 @@ const sti = Astro.url.pathname;
       display: none;
     }
 
-    .hd:global(.krympet) {
-      margin: 8px 10px 0;
-      top: 8px;
+    .hd__rad {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .hd:global(.krympet) .hd__rad {
+      width: calc(100% - 2 * var(--r-3));
+      padding-inline: var(--r-4) var(--r-2);
     }
   }
 
@@ -464,9 +491,9 @@ const sti = Astro.url.pathname;
     width: 100%;
     min-height: 56px;
     padding: 0;
+    font-family: var(--font-display);
     font-size: 1.375rem;
-    font-weight: 650;
-    font-stretch: 110%;
+    font-weight: 400;
   }
 
   .mobilmeny a[aria-current='page'] {

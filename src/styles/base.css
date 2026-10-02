@@ -1,5 +1,6 @@
 /* Base element styles. Components add their own scoped styles. */
-@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource-variable/sora/wght.css';
+@import '@fontsource-variable/manrope/wght.css';
 @import '@fontsource/ibm-plex-mono/400.css';
 @import '@fontsource/ibm-plex-mono/500.css';
 @import './tokens.css';
@@ -29,7 +30,6 @@ body {
   color: var(--fg);
   font-family: var(--font-tekst);
   font-size: var(--fs-tekst);
-  font-stretch: 100%;
   line-height: var(--lh-tekst);
   font-kerning: normal;
   -webkit-font-smoothing: antialiased;
@@ -42,28 +42,31 @@ h3,
 h4 {
   margin: 0;
   font-family: var(--font-display);
+  font-weight: var(--vekt-overskrift);
   line-height: var(--lh-overskrift);
+  letter-spacing: var(--sporing-overskrift);
   text-wrap: balance;
 }
 
 h1 {
   font-size: var(--fs-h1);
-  font-stretch: var(--display-bredde);
-  font-weight: var(--display-vekt);
+  font-weight: var(--vekt-display);
   letter-spacing: var(--sporing-display);
+  line-height: var(--lh-tett);
 }
 
 h2 {
   font-size: var(--fs-h2);
-  font-stretch: 110%;
-  font-weight: 700;
-  letter-spacing: -0.02em;
 }
 
 h3 {
   font-size: var(--fs-h3);
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-weight: var(--vekt-h3);
+}
+
+h4 {
+  font-size: var(--fs-tekst);
+  font-weight: var(--vekt-h3);
 }
 
 p {
@@ -160,6 +163,17 @@ table {
   font-size: var(--fs-mono);
   letter-spacing: var(--sporing-mono);
   text-transform: uppercase;
+}
+
+/* Small spaced capitals above a heading (the references' eyebrow). */
+.etikett {
+  font-family: var(--font-tekst);
+  font-size: var(--fs-etikett);
+  font-weight: 600;
+  letter-spacing: var(--sporing-etikett);
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--fg-dempet);
 }
 
 .ingress {
