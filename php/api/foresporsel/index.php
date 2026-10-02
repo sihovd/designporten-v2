@@ -46,18 +46,34 @@ $beskrivelse = dp_tekst($_POST['beskrivelse'] ?? '', 8000);
 $navn = dp_tekst($_POST['navn'] ?? '', 200);
 $epost = dp_tekst($_POST['epost'] ?? '', 200);
 $telefon = dp_tekst($_POST['telefon'] ?? '', 40);
+$kundetype = dp_tekst($_POST['kundetype'] ?? '') === 'bedrift' ? 'bedrift' : 'privat';
+$bedrift = $type === 'ide' && $kundetype === 'bedrift';
+$firma = dp_tekst($_POST['firma'] ?? '', 200);
+$orgnr = preg_replace('/\s/', '', dp_tekst($_POST['orgnr'] ?? '', 20)) ?? '';
+$fillenke = dp_tekst($_POST['fillenke'] ?? '', 1000);
 $feil = [];
 
 if ($beskrivelse === '') {
-    $feil['beskrivelse'] = $type === 'ide' ? 'Skriv litt om hva du vil lage.' : 'Skriv hva henvendelsen gjelder.';
+    $feil['beskrivelse'] = $type === 'kontakt'
+        ? 'Skriv hva henvendelsen gjelder.'
+        : ($bedrift ? 'Skriv litt om prosjektet.' : 'Skriv litt om hva du ser for deg.');
 }
 if ($navn === '') {
-    $feil['navn'] = 'Skriv navnet ditt.';
+    $feil['navn'] = $bedrift ? 'Skriv navnet på kontaktpersonen.' : 'Skriv navnet ditt.';
 }
 if ($epost === '') {
     $feil['epost'] = 'Skriv e-postadressen din, så vi kan svare.';
 } elseif (!preg_match(DP_EPOST, $epost)) {
     $feil['epost'] = 'E-postadressen ser ikke riktig ut.';
+}
+if ($bedrift && $firma === '') {
+    $feil['firma'] = 'Skriv navnet på firmaet.';
+}
+if ($bedrift && $orgnr !== '' && !preg_match('/^\d{9}$/', $orgnr)) {
+    $feil['orgnr'] = 'Organisasjonsnummeret har ni siffer.';
+}
+if ($fillenke !== '' && !preg_match('/^https?:\/\/\S+$/i', $fillenke)) {
+    $feil['fillenke'] = 'Lenken må begynne med https://';
 }
 
 // Uploaded files (field `filer[]`), skipping empty file inputs.
@@ -89,13 +105,16 @@ if (count($filer) > DP_MAKS_FILER) {
             $f['storrelse'] > DP_MAKS_BYTE_PER_FIL
             || in_array($f['feil'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
         ) {
-            $filfeil[] = "«{$f['filnavn']}» er større enn 15 MB.";
+            $filfeil[] = "«{$f['filnavn']}» er større enn " . intdiv(DP_MAKS_BYTE_PER_FIL, 1024 * 1024) . ' MB.';
         } elseif ($f['feil'] !== UPLOAD_ERR_OK || !is_uploaded_file($f['sti'])) {
             $filfeil[] = "«{$f['filnavn']}» kom ikke fram. Prøv å legge den ved på nytt.";
         }
     }
     if ($filfeil) {
         $feil['filer'] = implode(' ', $filfeil);
+    } elseif (array_sum(array_column($filer, 'storrelse')) > DP_MAKS_BYTE_TOTALT) {
+        $feil['filer'] = 'Filene er til sammen større enn ' . intdiv(DP_MAKS_BYTE_TOTALT, 1024 * 1024)
+            . ' MB. Send store filer som en lenke.';
     }
 }
 
@@ -122,27 +141,39 @@ $vedlegg = array_map(
     $filer,
 );
 
-$kundetype = dp_tekst($_POST['kundetype'] ?? '') === 'bedrift' ? 'bedrift' : 'privat';
-$firma = dp_tekst($_POST['firma'] ?? '', 200);
 $felter = [];
 if ($type === 'ide') {
     $start = dp_tekst($_POST['start'] ?? '');
     $antall = dp_tekst($_POST['antall'] ?? '');
+    $felter[] = ['Kundetype', $bedrift ? 'Bedrift' : 'Privat'];
+    if ($bedrift) {
+        $felter[] = ['Firma', $firma];
+        $felter[] = ['Organisasjonsnummer', $orgnr];
+    }
     $felter[] = ['Utgangspunkt', STARTPUNKTER[$start] ?? ''];
-    $felter[] = ['Hva vil du lage?', $beskrivelse];
+    $felter[] = [$bedrift ? 'Prosjektbeskrivelse' : 'Hva ser du for deg?', $beskrivelse];
     $felter[] = ['Omtrentlige mål', dp_tekst($_POST['mal'] ?? '', 400)];
-    $felter[] = ['Antall', in_array($antall, ANTALL_VALG, true) ? $antall : ''];
-    $felter[] = ['Til når?', dp_tekst($_POST['ingenHast'] ?? '') !== '' ? 'Ingen hast' : dp_tekst($_POST['frist'] ?? '', 40)];
+    if ($bedrift) {
+        $felter[] = ['Antall', in_array($antall, ANTALL_VALG, true) ? $antall : ''];
+        $felter[] = ['Materialønske', dp_tekst($_POST['materiale'] ?? '', 400)];
+        $felter[] = ['Tekniske krav', dp_tekst($_POST['krav'] ?? '', 4000)];
+    }
+    $felter[] = [
+        $bedrift ? 'Ønsket leveringsfrist' : 'Til når?',
+        dp_tekst($_POST['ingenHast'] ?? '') !== '' ? 'Ingen hast' : dp_tekst($_POST['frist'] ?? '', 40),
+    ];
+    $felter[] = ['Lenke til filer', $fillenke];
 } else {
     $felter[] = ['Melding', $beskrivelse];
 }
-$felter[] = ['Navn', $navn];
+$felter[] = [$bedrift ? 'Kontaktperson' : 'Navn', $navn];
 $felter[] = ['E-post', $epost];
 $felter[] = ['Telefon', $telefon];
-$felter[] = ['Privat eller bedrift', $kundetype === 'bedrift' ? 'Bedrift' . ($firma !== '' ? ": $firma" : '') : 'Privat'];
 $felter[] = ['Vedlegg', implode(', ', array_column($vedlegg, 'filnavn'))];
 
-$emne = $type === 'ide' ? "Ny idé fra $navn" : "Melding fra $navn";
+$emne = $type === 'kontakt'
+    ? "Melding fra $navn"
+    : ($bedrift ? "Ny bedriftsforespørsel fra $firma" : "Ny forespørsel fra $navn");
 $ref = dp_send($oppsett, $emne, $felter, $epost, $vedlegg);
 if ($ref === null) {
     avvis('Meldingen kunne ikke sendes akkurat nå. Prøv igjen om litt.', [], $vilJson, $type, 503);

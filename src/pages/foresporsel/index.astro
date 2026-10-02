@@ -1,0 +1,37 @@
+---
+/**
+ * The enquiry form as its own page. Every enquiry button opens the same form
+ * in a modal; this page is where those links lead without JavaScript, and a
+ * plain address to share. ?kundetype=bedrift and ?start=del choose up front.
+ */
+import Side from '@/layouts/Side.astro';
+import Foresporsel from '@/components/showroom/skjema/Foresporsel.astro';
+---
+
+<Side
+  tittel="Fortell oss hva du trenger"
+  beskrivelse="Send Designporten en forespørsel om spesialdesign, prototype eller produksjon. Start med ideen, en tegning, et bilde eller en 3D-modell."
+>
+  <section class="ramme foresporsel" aria-labelledby="foresporsel-tittel">
+    <header class="foresporsel__hode">
+      <p class="etikett">Spesialdesign</p>
+      <h1 id="foresporsel-tittel">Fortell oss hva du trenger</h1>
+      <p class="ingress">Bare det som er merket, må fylles ut. Resten hjelper oss å svare raskere.</p>
+    </header>
+    <Foresporsel id="skjema" />
+  </section>
+</Side>
+
+<style>
+  .foresporsel {
+    display: grid;
+    gap: var(--r-6);
+    max-width: 760px;
+    padding-block: var(--r-8) var(--r-seksjon);
+  }
+
+  .foresporsel__hode {
+    display: grid;
+    gap: var(--r-3);
+  }
+</style>

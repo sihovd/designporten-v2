@@ -1,0 +1,216 @@
+---
+/**
+ * The enquiry form as a modal (design revision 2026-10-02, §16). Any element
+ * with `data-apne-foresporsel` opens it; `data-kundetype="bedrift"` and
+ * `data-start="del"` (etc.) choose for the customer. Those elements are links
+ * to /foresporsel/, so without JavaScript the same form opens as a page.
+ *
+ * A native modal <dialog>: the rest of the page is inert and dimmed under a
+ * light blur, focus stays inside, Escape and the close button close it, and
+ * so does a click outside the panel. Focus returns to the button that opened
+ * it. After a successful send the receipt shows; the next opening starts with
+ * a fresh form.
+ */
+import Ikon from '@/components/Ikon.astro';
+import Foresporsel from './Foresporsel.astro';
+---
+
+<dialog class="fmodal" aria-labelledby="fmodal-tittel" data-foresporsel-modal>
+  <div class="fmodal__panel">
+    <div class="fmodal__hode">
+      <div>
+        <p class="etikett">Spesialdesign</p>
+        <h2 id="fmodal-tittel" class="fmodal__tittel">
+          Fortell oss hva du trenger
+        </h2>
+      </div>
+      <button class="fmodal__lukk" type="button" data-fmodal-lukk aria-label="Lukk skjemaet">
+        <Ikon navn="lukk" storrelse={22} />
+      </button>
+    </div>
+    <div class="fmodal__innhold" data-fmodal-innhold>
+      <Foresporsel id="modal-skjema" />
+    </div>
+  </div>
+</dialog>
+
+<script>
+  import { settValg, startSkjema } from './klient';
+
+  const modal = document.querySelector<HTMLDialogElement>('[data-foresporsel-modal]');
+  const innhold = modal?.querySelector<HTMLElement>('[data-fmodal-innhold]');
+  if (modal && innhold) {
+    const ren = innhold.innerHTML;
+    let sendt = false;
+    let kilde: HTMLElement | null = null;
+
+    innhold.addEventListener('skjema:sendt', () => (sendt = true));
+
+    function apne(valg: { kundetype?: string; start?: string }, fra: HTMLElement | null) {
+      if (sendt) {
+        // A fresh form after a sent one.
+        innhold!.innerHTML = ren;
+        sendt = false;
+      }
+      const skjema = innhold!.querySelector<HTMLFormElement>('[data-skjema]');
+      if (!skjema) return;
+      startSkjema(skjema);
+      settValg(skjema, { kundetype: valg.kundetype ?? 'privat', start: valg.start ?? 'ide' });
+      kilde = fra;
+      modal!.showModal();
+      innhold!.scrollTop = 0;
+      modal!.querySelector<HTMLElement>('.fmodal__panel')!.scrollTop = 0;
+    }
+
+    document.addEventListener('click', (e) => {
+      const el = (e.target as Element | null)?.closest<HTMLElement>('[data-apne-foresporsel]');
+      if (!el) return;
+      const me = e as MouseEvent;
+      if (me.metaKey || me.ctrlKey || me.shiftKey || me.altKey || me.button !== 0) return;
+      e.preventDefault();
+      apne({ kundetype: el.dataset.kundetype, start: el.dataset.start }, el);
+    });
+
+    modal.querySelector('[data-fmodal-lukk]')?.addEventListener('click', () => modal.close());
+    modal.addEventListener('click', (e) => {
+      if (e.target !== modal) return;
+      const r = modal.getBoundingClientRect();
+      const utenfor = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+      if (utenfor) modal.close();
+    });
+    modal.addEventListener('close', () => {
+      kilde?.focus({ preventScroll: true });
+      kilde = null;
+    });
+
+    // Deep link: /?foresporsel=bedrift opens the form with business chosen.
+    const sok = new URLSearchParams(location.search).get('foresporsel');
+    if (sok) apne({ kundetype: sok === 'bedrift' ? 'bedrift' : 'privat' }, null);
+  }
+</script>
+
+<style>
+  .fmodal {
+    width: min(760px, 100% - 2 * var(--r-4));
+    max-width: none;
+    max-height: min(92dvh, 960px);
+    margin: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 18px;
+    background: var(--papir);
+    color: var(--blekk);
+    box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.55);
+    overflow: hidden;
+  }
+
+  .fmodal[open] {
+    display: flex;
+  }
+
+  .fmodal::backdrop {
+    background: rgb(20 19 23 / 0.42);
+    backdrop-filter: blur(6px) saturate(0.9);
+    -webkit-backdrop-filter: blur(6px) saturate(0.9);
+  }
+
+  :global(html:has(.fmodal[open])) {
+    overflow: hidden;
+  }
+
+  .fmodal__panel {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: inherit;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .fmodal__hode {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--r-4);
+    padding: var(--r-5) var(--r-6) var(--r-4);
+    background: color-mix(in srgb, var(--papir) 94%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--kant);
+  }
+
+  .fmodal__tittel {
+    margin-top: var(--r-1);
+    font-size: var(--fs-h2);
+  }
+
+  .fmodal__lukk {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: var(--mal-beroring);
+    height: var(--mal-beroring);
+    margin: calc(-1 * var(--r-2)) calc(-1 * var(--r-3)) 0 0;
+    border: 1px solid var(--kant);
+    border-radius: 50%;
+    background: var(--flate);
+    transition:
+      background-color var(--t-rask) ease,
+      border-color var(--t-rask) ease;
+  }
+
+  .fmodal__lukk:hover {
+    border-color: var(--blekk);
+  }
+
+  .fmodal__innhold {
+    padding: var(--r-5) var(--r-6) var(--r-6);
+  }
+
+  .fmodal__innhold :global(.kvittering) {
+    max-width: none;
+  }
+
+  @media (max-width: 640px) {
+    .fmodal {
+      width: 100%;
+      max-height: 100dvh;
+      height: 100dvh;
+      border-radius: 0;
+    }
+
+    .fmodal__hode,
+    .fmodal__innhold {
+      padding-inline: var(--gutter);
+    }
+
+    .fmodal__hode {
+      padding-top: var(--r-4);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .fmodal[open] {
+      animation: fmodal-inn 260ms var(--ease-ut);
+    }
+
+    .fmodal[open]::backdrop {
+      animation: fmodal-bakgrunn 260ms ease;
+    }
+  }
+
+  @keyframes fmodal-inn {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.985);
+    }
+  }
+
+  @keyframes fmodal-bakgrunn {
+    from {
+      opacity: 0;
+    }
+  }
+</style>

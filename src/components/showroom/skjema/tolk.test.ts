@@ -22,7 +22,18 @@ describe('tolkSkjema', () => {
     if (!r.ok) expect(Object.keys(r.feil).sort()).toEqual(['beskrivelse', 'epost', 'navn']);
   });
 
-  it('builds an idea submission with the chosen start and quantity', async () => {
+  it('builds a private enquiry without business fields', async () => {
+    const r = await tolkSkjema(skjema({ ...gyldig, start: 'tegning', antall: '2–10', ingenHast: 'ja' }));
+    if (!r.ok) throw new Error('forventet ok');
+    const felt = Object.fromEntries(r.innsending.felter);
+    expect(felt['Kundetype']).toBe('Privat');
+    expect(felt['Hva ser du for deg?']).toBe('En holder til stiklinger');
+    expect(felt['Til når?']).toBe('Ingen hast');
+    expect('Antall' in felt).toBe(false);
+    expect(r.innsending.emne).toBe('Ny forespørsel fra Kari');
+  });
+
+  it('builds a business enquiry with the chosen start and quantity', async () => {
     const r = await tolkSkjema(
       skjema({
         ...gyldig,
@@ -30,6 +41,9 @@ describe('tolkSkjema', () => {
         antall: '2–10',
         kundetype: 'bedrift',
         firma: 'Firma AS',
+        orgnr: '123 456 789',
+        materiale: 'PETG',
+        krav: 'Tåler 60 °C',
         ingenHast: 'ja',
       }),
     );
@@ -40,13 +54,33 @@ describe('tolkSkjema', () => {
     expect(r.innsending.svarTil).toBe('kari@example.no');
     expect(felt['Utgangspunkt']).toBe('Jeg trenger en del');
     expect(felt['Antall']).toBe('2–10');
-    expect(felt['Til når?']).toBe('Ingen hast');
-    expect(felt['Privat eller bedrift']).toBe('Bedrift: Firma AS');
+    expect(felt['Ønsket leveringsfrist']).toBe('Ingen hast');
+    expect(felt['Firma']).toBe('Firma AS');
+    expect(felt['Organisasjonsnummer']).toBe('123456789');
+    expect(felt['Materialønske']).toBe('PETG');
+    expect(felt['Kontaktperson']).toBe('Kari');
+    expect(r.innsending.emne).toBe('Ny bedriftsforespørsel fra Firma AS');
     expect(r.honningkrukke).toBe(false);
   });
 
+  it('requires a company name for business, a 9-digit org. number and a web link', async () => {
+    const r = await tolkSkjema(skjema({ ...gyldig, kundetype: 'bedrift', orgnr: '12', fillenke: 'ftp://x' }));
+    if (r.ok) throw new Error('forventet feil');
+    expect(Object.keys(r.feil).sort()).toEqual(['fillenke', 'firma', 'orgnr']);
+  });
+
+  it('refuses files that are too large together', async () => {
+    const stor = new File([new Uint8Array(10 * 1024 * 1024)], 'a.stl');
+    const stor2 = new File([new Uint8Array(10 * 1024 * 1024)], 'b.stl');
+    const r = await tolkSkjema(skjema(gyldig, [stor, stor2]));
+    if (r.ok) throw new Error('forventet feil');
+    expect(r.feil.filer).toContain('til sammen');
+  });
+
   it('ignores unknown select values', async () => {
-    const r = await tolkSkjema(skjema({ ...gyldig, start: 'hacket', antall: '9999' }));
+    const r = await tolkSkjema(
+      skjema({ ...gyldig, kundetype: 'bedrift', firma: 'Firma AS', start: 'hacket', antall: '9999' }),
+    );
     if (!r.ok) throw new Error('forventet ok');
     const felt = Object.fromEntries(r.innsending.felter);
     expect(felt['Utgangspunkt']).toBe('');
