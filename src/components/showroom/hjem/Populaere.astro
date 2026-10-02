@@ -1,0 +1,123 @@
+---
+/**
+ * A compact look at the products right after the hero (design revision
+ * 2026-10-02, §4): five product cards in one row, each opening the product,
+ * and a quiet link to the whole selection. Confirmed products come first;
+ * until any are confirmed the catalogue's first products show, marked
+ * «Plassholder» on the cards, with a line saying so.
+ */
+import Ikon from '@/components/Ikon.astro';
+import ProduktRutenett from '@/components/produkt/ProduktRutenett.astro';
+import { hentProdukter } from '@/lib/handel/katalog';
+
+const alle = await hentProdukter();
+const bekreftede = alle.filter((p) => p.status === 'bekreftet');
+const utvalg = (bekreftede.length ? bekreftede : alle).slice(0, 5);
+const bareplassholdere = utvalg.every((p) => p.status === 'plassholder');
+---
+
+{utvalg.length > 0 && (
+  <section class="populaere" aria-labelledby="populaere-tittel">
+    <div class="ramme populaere__hode">
+      <div>
+        <p class="etikett">Vårt utvalg</p>
+        <h2 id="populaere-tittel" class="populaere__tittel">
+          Populære produkter
+        </h2>
+      </div>
+      <a class="populaere__alle" href="/produkter/">
+        Se utvalget <Ikon navn="pil-hoyre" storrelse={18} />
+      </a>
+    </div>
+    <ProduktRutenett produkter={utvalg} nivaa="h3" etikett="Populære produkter" class="populaere__kort" />
+    {bareplassholdere && (
+      <p class="ramme populaere__merknad">
+        Produktene er plassholdere med konseptbilder til det ekte utvalget er klart.
+      </p>
+    )}
+  </section>
+)}
+
+<style>
+  .populaere {
+    padding-top: var(--r-8);
+  }
+
+  .populaere__hode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--r-3);
+    margin-bottom: var(--r-5);
+  }
+
+  .populaere__tittel {
+    margin-top: var(--r-2);
+  }
+
+  .populaere__alle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--r-2);
+    min-height: var(--mal-beroring);
+    padding-inline: var(--r-4);
+    border: 1px solid var(--kant);
+    border-radius: 999px;
+    color: var(--blekk);
+    font-weight: 600;
+    text-decoration: none;
+    transition: border-color var(--t-rask) ease;
+  }
+
+  .populaere__alle:hover {
+    border-color: var(--blekk);
+  }
+
+  .populaere__alle :global(svg) {
+    transition: transform var(--t-rask) ease;
+  }
+
+  .populaere__alle:hover :global(svg) {
+    transform: translateX(3px);
+  }
+
+  /* Aligned with the page's content: five across on wide screens, four on
+     tablets, two by two on phones. */
+  .populaere :global(.populaere__kort) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: min(var(--innhold-maks), 100% - 2 * var(--gutter));
+  }
+
+  @media (max-width: 1100px) {
+    .populaere :global(.populaere__kort) {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .populaere :global(.populaere__kort > li:nth-child(5)) {
+      display: none;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .populaere :global(.populaere__kort) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .populaere__merknad {
+    margin-top: var(--r-4);
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .populaere__alle :global(svg) {
+      transition: none;
+    }
+
+    .populaere__alle:hover :global(svg) {
+      transform: none;
+    }
+  }
+</style>

@@ -1,62 +1,37 @@
 ---
 import Side from '@/layouts/Side.astro';
-import Helt from '@/components/showroom/hjem/Helt.astro';
-import TreDorer from '@/components/showroom/hjem/TreDorer.astro';
+import BildeHelt from '@/components/showroom/BildeHelt.astro';
+import Knapp from '@/components/Knapp.astro';
+import Populaere from '@/components/showroom/hjem/Populaere.astro';
+import Snarveier from '@/components/showroom/hjem/Snarveier.astro';
 import ProsessSlider from '@/components/showroom/ProsessSlider.astro';
-import TopSlider from '@/components/showroom/TopSlider.astro';
-import IdeBand from '@/components/showroom/IdeBand.astro';
 import Bevis from '@/components/showroom/hjem/Bevis.astro';
-import UtvalgteProdukter from '@/components/showroom/hjem/UtvalgteProdukter.astro';
 import VerkstedPortal from '@/components/showroom/hjem/VerkstedPortal.astro';
 import { hjemmeprosess } from '@/components/showroom/data/prosess';
-import { bakgrunner, utklippbilder } from '@/lib/ressurser';
+import { bakgrunner } from '@/lib/ressurser';
 ---
 
 <Side
   tittel="Designporten"
   beskrivelse="Designporten er et norsk verksted for 3D-print, spesialdesign og personlige produkter. Finn noe ferdig, lag noe selv i Skaperverksted, eller fortell oss ideen din."
 >
-  <link slot="hode" rel="preload" as="image" href={utklippbilder.spiralvase.src} fetchpriority="high" />
-  <Helt />
-  <TreDorer />
-  <ProsessSlider id="prosess" tittel="Slik blir en idé til en del" steg={hjemmeprosess} />
-  <UtvalgteProdukter />
-  <TopSlider
-    id="fra-verkstedet"
-    etikett="Fra verkstedet"
-    lysbilder={[
-      {
-        kategori: '3D-design og print · Norge',
-        tittel: 'Ferdige print, eller noe som ikke finnes ennå',
-        tekst:
-          'Vi tegner, printer og sender. Velg noe fra produktene, eller fortell oss ideen din og få den produsert i et materiale som tåler bruken.',
-        bakgrunn: bakgrunner.samarbeid,
-        objekt: utklippbilder.lampeskjerm,
-        handlinger: [
-          { tekst: 'Se produktene', href: '/produkter/' },
-          { tekst: 'Fortell oss ideen din', href: '/spesialdesign/#skjema', variant: 'sekundar' },
-        ],
-      },
-      {
-        kategori: 'Spesialdesign',
-        tittel: 'Delen du leter etter finnes kanskje ikke ennå',
-        tekst:
-          'Braketten som passer akkurat din hylle, eller reservedelen produsenten sluttet å lage. Send oss et mål eller en skisse, så sier vi fra hva som lar seg printe.',
-        bakgrunn: bakgrunner.verksted,
-        objekt: utklippbilder.kabelholder,
-        handlinger: [{ tekst: 'Send en forespørsel', href: '/spesialdesign/?start=del#skjema' }],
-      },
-      {
-        kategori: 'Materialvalg',
-        tittel: 'Materialet avgjør om delen holder',
-        tekst: 'PLA til det som skal stå pent innendørs. PETG til det som skal tåle sol, vann og bruk.',
-        bakgrunn: bakgrunner.samarbeid,
-        objekt: utklippbilder.fasettpotte,
-        handlinger: [{ tekst: 'Spør oss om materialet', href: '/kontakt/', variant: 'sekundar' }],
-      },
-    ]}
-  />
+  <link slot="hode" rel="preload" as="image" href={bakgrunner.verksted.src} fetchpriority="high" />
+  <BildeHelt
+    bilde={bakgrunner.verksted}
+    etikett="3D-design og print"
+    tittel="Vi gir ideer form"
+    ingress="Ferdige produkter, verktøy du kan bygge med selv, og spesialdesign når det du trenger ikke finnes ennå."
+    stor
+    fokus="72% 45%"
+  >
+    <Knapp href="/skaperverksted/">Start å skape</Knapp>
+    <Knapp href="/foresporsel/" variant="sekundar" data-apne-foresporsel>
+      Fortell oss ideen din
+    </Knapp>
+  </BildeHelt>
+  <Populaere />
+  <Snarveier />
+  <ProsessSlider id="prosess" tittel="Slik blir en idé til et ferdig produkt" steg={hjemmeprosess} />
   <Bevis />
   <VerkstedPortal />
-  <IdeBand />
 </Side>

@@ -1,0 +1,175 @@
+---
+/**
+ * A compact Forge tool card on the dark workshop surface (design revision
+ * 2026-10-02, §11): the tool's real starting design on the grid, its name,
+ * one line and an arrow. The whole card is one link. A planned tool has no
+ * link and no drawing, only an empty grid and the word «Planlagt».
+ */
+import Ikon from '@/components/Ikon.astro';
+import GeneratorForhandsvisning from './GeneratorForhandsvisning.astro';
+import type { Verktoy } from './verktoy';
+
+interface Props {
+  verktoy: Verktoy;
+  nivaa?: 'h2' | 'h3';
+}
+
+const { verktoy: v, nivaa = 'h3' } = Astro.props;
+const Overskrift = nivaa;
+const planlagt = v.status === 'planlagt' || !v.href;
+---
+
+<article class:list={['vkort', 'gf-vert', { 'vkort--planlagt': planlagt }]}>
+  <div class="vkort__bilde">
+    {v.forhandsvisning && <GeneratorForhandsvisning id={v.forhandsvisning} />}
+    {planlagt && <span class="vkort__status mono">Planlagt</span>}
+  </div>
+  <div class="vkort__tekst">
+    <p class="vkort__under">{v.undertittel}</p>
+    <Overskrift class="vkort__navn">{planlagt ? v.navn : <a href={v.href}>{v.navn}</a>}</Overskrift>
+    <p class="vkort__beskrivelse">{v.beskrivelse}</p>
+    {v.status === 'under-utvikling' && <p class="vkort__under">Under utvikling</p>}
+  </div>
+  {!planlagt && (
+    <span class="vkort__pil" aria-hidden="true">
+      <Ikon navn="pil-hoyre" storrelse={18} />
+    </span>
+  )}
+</article>
+
+<style>
+  .vkort {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100%;
+    border: 1px solid var(--linje-mork);
+    border-radius: var(--radius-kort);
+    background: color-mix(in srgb, var(--grafitt) 80%, transparent);
+    color: var(--tekst-mork);
+    transition:
+      border-color var(--t-rask) ease,
+      background-color var(--t-rask) ease,
+      transform var(--t-trinn) var(--ease-ut);
+  }
+
+  .vkort:not(.vkort--planlagt):hover,
+  .vkort:focus-within {
+    border-color: color-mix(in srgb, var(--tekst-mork) 40%, transparent);
+    background: var(--grafitt);
+  }
+
+  .vkort:not(.vkort--planlagt):hover {
+    transform: translateY(-2px);
+  }
+
+  .vkort__bilde {
+    position: relative;
+    height: clamp(132px, 13vw, 176px);
+    margin: var(--r-3) var(--r-3) 0;
+    border-radius: calc(var(--radius-kort) - 6px);
+    background-image:
+      linear-gradient(var(--linje-mork) 1px, transparent 1px),
+      linear-gradient(90deg, var(--linje-mork) 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-position: 50% 50%;
+    overflow: hidden;
+  }
+
+  .vkort__bilde :global(.gf) {
+    height: 100%;
+  }
+
+  .vkort__status {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    padding: 4px 10px;
+    border: 1px solid var(--linje-mork);
+    border-radius: 999px;
+    background: var(--verksted);
+    color: var(--dempet-mork);
+    font-size: var(--fs-mono-liten);
+  }
+
+  .vkort__tekst {
+    display: grid;
+    align-content: start;
+    gap: var(--r-1);
+    padding: var(--r-4) var(--r-5) var(--r-5);
+    padding-right: calc(var(--r-5) + 28px);
+  }
+
+  .vkort__under {
+    color: var(--dp-cyan);
+    font-size: var(--fs-etikett);
+    font-weight: 600;
+    letter-spacing: var(--sporing-etikett);
+    text-transform: uppercase;
+  }
+
+  .vkort--planlagt .vkort__under {
+    color: var(--dempet-mork);
+  }
+
+  .vkort__navn {
+    color: var(--tekst-mork);
+    font-size: var(--fs-h3);
+    font-weight: var(--vekt-h3);
+    letter-spacing: 0.01em;
+  }
+
+  .vkort__navn a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* The whole card is the link. */
+  .vkort__navn a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+
+  .vkort__navn a:focus-visible {
+    outline: none;
+  }
+
+  .vkort:has(a:focus-visible) {
+    outline: 2px solid var(--dp-cyan);
+    outline-offset: 3px;
+  }
+
+  .vkort__beskrivelse {
+    color: var(--dempet-mork);
+    font-size: var(--fs-liten);
+  }
+
+  .vkort__pil {
+    position: absolute;
+    right: var(--r-5);
+    bottom: var(--r-5);
+    color: var(--dempet-mork);
+    transition:
+      transform var(--t-rask) ease,
+      color var(--t-rask) ease;
+  }
+
+  .vkort:hover .vkort__pil {
+    color: var(--tekst-mork);
+    transform: translateX(3px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vkort,
+    .vkort__pil {
+      transition: none;
+    }
+
+    .vkort:not(.vkort--planlagt):hover,
+    .vkort:hover .vkort__pil {
+      transform: none;
+    }
+  }
+</style>

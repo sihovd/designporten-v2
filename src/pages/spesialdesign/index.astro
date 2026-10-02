@@ -1,181 +1,175 @@
 ---
 import Side from '@/layouts/Side.astro';
-import SideHode from '@/components/showroom/SideHode.astro';
-import SkisseTilObjekt from '@/components/showroom/SkisseTilObjekt.astro';
+import BildeHelt from '@/components/showroom/BildeHelt.astro';
+import Ikon from '@/components/Ikon.astro';
 import ProsessSlider from '@/components/showroom/ProsessSlider.astro';
-import IdeSkjema from '@/components/showroom/skjema/IdeSkjema.astro';
-import { startpunkter } from '@/components/showroom/startpunkter';
 import { spesialprosess } from '@/components/showroom/data/prosess';
+import { bakgrunner } from '@/lib/ressurser';
+
+const innganger = [
+  {
+    kundetype: 'privat',
+    etikett: 'Privatkunde',
+    tittel: 'Noe du vil ha laget',
+    tekst:
+      'En reservedel, en gave, en ting som mangler hjemme. Du trenger ikke ha en ferdig modell; en skisse, et bilde eller et par setninger holder.',
+    knapp: 'Start som privatkunde',
+  },
+  {
+    kundetype: 'bedrift',
+    etikett: 'Bedriftskunde',
+    tittel: 'Prototyper, småserier og profilering',
+    tekst:
+      'For bedrifter og organisasjoner. Fortell oss om prosjektet, antallet og kravene, så finner vi ut av resten sammen.',
+    knapp: 'Start som bedrift',
+  },
+];
 ---
 
 <Side
   tittel="Spesialdesign"
   beskrivelse="Har du tegningen, bildet eller bare ideen? Designporten hjelper deg å gjøre den fysisk: fra skisse, bilde, 3D-fil eller ødelagt del til ferdig 3D-printet produkt."
 >
-  <div data-rulle="ut" data-rulle-rolig="1">
-    <SideHode
-      eyebrow="Spesialdesign"
-      tittel="Har du tegningen, bildet eller bare ideen?"
-      ingress="Vi hjelper deg å gjøre den fysisk. Du trenger ikke ha en ferdig modell. Start med ideen."
-    >
-      <SkisseTilObjekt slot="visuell" />
-    </SideHode>
-  </div>
+  <link slot="hode" rel="preload" as="image" href={bakgrunner.samarbeid.src} fetchpriority="high" />
+  <BildeHelt
+    bilde={bakgrunner.samarbeid}
+    etikett="Spesialdesign"
+    tittel="Har du tegningen, bildet eller bare ideen?"
+    ingress="Vi hjelper deg å gjøre den fysisk. Du trenger ikke ha en ferdig modell. Start med ideen."
+    fokus="68% 50%"
+  />
 
-  <section class="ramme start" aria-labelledby="start-tittel">
-    <h2 id="start-tittel" class="visuelt-skjult">
-      Hva har du å starte med?
+  <section class="ramme innganger" aria-labelledby="innganger-tittel">
+    <h2 id="innganger-tittel" class="innganger__tittel">
+      Hvem er du?
     </h2>
-    <ol class="start__liste">
-      {startpunkter.map((s, i) => (
-        <li>
-          <a href={`?start=${s.id}#skjema`}>
-            <span class="mono start__nr">{String(i + 1).padStart(2, '0')}</span>
-            <span class="start__tittel">{s.tittel}</span>
-            <span class="start__tekst">{s.tekst}</span>
-            <span class="start__handling">Start her</span>
+    <ul class="innganger__liste" role="list">
+      {innganger.map((g) => (
+        <li class="inngang">
+          <p class="etikett">{g.etikett}</p>
+          <h3 class="inngang__tittel">{g.tittel}</h3>
+          <p class="inngang__tekst">{g.tekst}</p>
+          <a
+            class="inngang__knapp"
+            href={`/foresporsel/?kundetype=${g.kundetype}`}
+            data-apne-foresporsel
+            data-kundetype={g.kundetype}
+          >
+            {g.knapp} <Ikon navn="pil-hoyre" storrelse={18} />
           </a>
         </li>
       ))}
-    </ol>
-  </section>
-
-  <ProsessSlider id="tjenesteflyt" tittel="Fra idé til ferdig produkt" steg={spesialprosess} />
-
-  <section class="ramme seksjon pris" aria-labelledby="pris-tittel">
-    <h2 id="pris-tittel">Hva koster det, og hvor lang tid tar det?</h2>
-    <p class="ingress">
-      Det avhenger av størrelse, materiale, antall og hvor mye som må tegnes. Derfor regner vi på hver
-      forespørsel, og sier fra hva vi trenger for å gjøre det.
+    </ul>
+    <p class="innganger__merknad">
+      Pris og tid avhenger av størrelse, materiale, antall og hvor mye som må tegnes. Derfor regner vi på hver
+      forespørsel. Les mer <a href="/bedrift/">for bedrifter</a>.
     </p>
   </section>
 
-  <section class="skjemaseksjon" aria-labelledby="skjema-tittel">
-    <div class="ramme skjemaseksjon__rutenett">
-      <div class="skjemaseksjon__intro">
-        <h2 id="skjema-tittel">Fortell oss ideen din</h2>
-        <p class="ingress">Bare det som er merket, må fylles ut. Resten hjelper oss å svare raskere.</p>
-      </div>
-      <IdeSkjema id="skjema" />
-    </div>
-  </section>
+  <ProsessSlider id="tjenesteflyt" tittel="Fra idé til ferdig produkt" steg={spesialprosess} takt={38} />
+  <div class="slutt" aria-hidden="true"></div>
 </Side>
 
 <style>
-  .start__liste {
+  .innganger {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    gap: var(--r-5);
+    padding-block: var(--r-8) var(--r-4);
+  }
+
+  .innganger__tittel {
+    font-size: var(--fs-h2);
+  }
+
+  .innganger__liste {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--r-4);
     margin: 0;
     padding: 0;
     list-style: none;
-    border-block: 1px solid var(--kant);
   }
 
-  .start__liste li + li {
-    border-left: 1px solid var(--kant);
-  }
-
-  .start__liste a {
+  .inngang {
     display: grid;
     grid-template-rows: auto auto 1fr auto;
-    gap: var(--r-2);
-    height: 100%;
-    padding: var(--r-5);
-    color: var(--blekk);
-    text-decoration: none;
-  }
-
-  .start__liste a:hover {
+    gap: var(--r-3);
+    padding: var(--r-6);
+    border: 1px solid var(--kant);
+    border-radius: var(--radius-kort);
     background: var(--flate);
   }
 
-  .start__nr {
-    color: var(--dempet);
-  }
-
-  .start__tittel {
-    font-family: var(--font-display);
-    font-size: 1.25rem;
-    font-stretch: 112%;
-    font-weight: 700;
-    line-height: 1.15;
-  }
-
-  .start__tekst {
-    color: var(--dempet);
-  }
-
-  .start__handling {
-    margin-top: var(--r-2);
-    color: var(--lenke);
-    font-weight: 620;
-  }
-
-  .start__liste a:hover .start__handling {
-    text-decoration: underline;
-  }
-
-  @media (max-width: 960px) {
-    .start__liste {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .start__liste li:nth-child(3) {
-      border-left: 0;
-    }
-
-    .start__liste li:nth-child(n + 3) {
-      border-top: 1px solid var(--kant);
-    }
-  }
-
-  @media (max-width: 520px) {
-    .start__liste {
-      grid-template-columns: 1fr;
-    }
-
-    .start__liste li + li {
-      border-left: 0;
-      border-top: 1px solid var(--kant);
-    }
-
-    .start__liste a {
-      padding-inline: 0;
-    }
-  }
-
-  .pris {
-    display: grid;
-    gap: var(--r-4);
-  }
-
-  .skjemaseksjon {
-    padding-block: var(--r-8) var(--r-seksjon);
+  .inngang:last-child {
     background: var(--kalk);
   }
 
-  .skjemaseksjon__rutenett {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-    gap: var(--r-7);
-    align-items: start;
+  .inngang__tittel {
+    font-size: var(--fs-h3);
   }
 
-  .skjemaseksjon__intro {
-    display: grid;
-    gap: var(--r-4);
-    position: sticky;
-    top: calc(var(--header-h) + var(--r-6));
+  .inngang__tekst {
+    max-width: 46ch;
+    color: var(--dempet);
   }
 
-  @media (max-width: 900px) {
-    .skjemaseksjon__rutenett {
-      grid-template-columns: 1fr;
-      gap: var(--r-5);
+  .inngang__knapp {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    gap: var(--r-2);
+    min-height: var(--mal-beroring);
+    margin-top: var(--r-2);
+    padding-inline: 1.375rem;
+    border-radius: var(--radius-pille);
+    background: var(--blekk);
+    color: var(--papir);
+    font-weight: 600;
+    text-decoration: none;
+    transition: transform var(--t-rask) ease;
+  }
+
+  .inngang__knapp:hover {
+    transform: translateY(-1px);
+  }
+
+  .inngang__knapp :global(svg) {
+    transition: transform var(--t-rask) ease;
+  }
+
+  .inngang__knapp:hover :global(svg) {
+    transform: translateX(3px);
+  }
+
+  .innganger__merknad {
+    max-width: 62ch;
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+
+  .slutt {
+    height: var(--r-seksjon);
+  }
+
+  @media (max-width: 760px) {
+    .innganger__liste {
+      grid-template-columns: minmax(0, 1fr);
     }
 
-    .skjemaseksjon__intro {
-      position: static;
+    .inngang {
+      padding: var(--r-5);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .inngang__knapp,
+    .inngang__knapp :global(svg) {
+      transition: none;
+    }
+
+    .inngang__knapp:hover,
+    .inngang__knapp:hover :global(svg) {
+      transform: none;
     }
   }
 </style>
