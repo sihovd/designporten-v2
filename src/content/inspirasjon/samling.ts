@@ -5,12 +5,19 @@
  * Every entry carries `status`: only `bekreftet` entries are real projects
  * and stories confirmed by Designporten. `plassholder` entries show the
  * structure and are visibly marked as placeholders wherever they appear.
+ *
+ * Inspirasjon is public (design revision 2026-10-02, §21). `tilgang`
+ * prepares early access for members without building membership: an entry
+ * marked `medlemmer-forst` stays out of every public list and page until
+ * `offentligFra`. There is no member login yet, so until then nobody sees it.
  */
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 
-export const inspirasjonstyper = ['prosjekt', 'historie', 'prosess', 'guide'] as const;
+export const inspirasjonstyper = ['prosjekt', 'historie', 'prosess', 'guide', 'tips', 'nyhet'] as const;
+
+export const tilgangsnivaer = ['offentlig', 'medlemmer-forst'] as const;
 
 export const inspirasjon = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/inspirasjon/data' }),
@@ -20,6 +27,10 @@ export const inspirasjon = defineCollection({
     type: z.enum(inspirasjonstyper),
     status: z.enum(['bekreftet', 'plassholder']),
     dato: z.coerce.date(),
+    /** Who can read it. Default public. */
+    tilgang: z.enum(tilgangsnivaer).default('offentlig'),
+    /** For `medlemmer-forst`: the day it opens to everyone. */
+    offentligFra: z.coerce.date().optional(),
     /** Key in the asset registry (src/lib/ressurser.ts): `bakgrunner.x` or `utklippbilder.x`. */
     bilde: z.string().optional(),
     /** Case template: the problem and what the customer started with. */

@@ -28,9 +28,11 @@ import Foresporsel from './Foresporsel.astro';
         <Ikon navn="lukk" storrelse={22} />
       </button>
     </div>
-    <div class="fmodal__innhold" data-fmodal-innhold>
+    <div class="fmodal__innhold" data-fmodal-innhold></div>
+    <!-- The form is put in place on first opening, so pages carry only one live form. -->
+    <template data-fmodal-mal>
       <Foresporsel id="modal-skjema" />
-    </div>
+    </template>
   </div>
 </dialog>
 
@@ -39,17 +41,17 @@ import Foresporsel from './Foresporsel.astro';
 
   const modal = document.querySelector<HTMLDialogElement>('[data-foresporsel-modal]');
   const innhold = modal?.querySelector<HTMLElement>('[data-fmodal-innhold]');
-  if (modal && innhold) {
-    const ren = innhold.innerHTML;
+  const mal = modal?.querySelector<HTMLTemplateElement>('[data-fmodal-mal]');
+  if (modal && innhold && mal) {
     let sendt = false;
     let kilde: HTMLElement | null = null;
 
     innhold.addEventListener('skjema:sendt', () => (sendt = true));
 
     function apne(valg: { kundetype?: string; start?: string }, fra: HTMLElement | null) {
-      if (sendt) {
-        // A fresh form after a sent one.
-        innhold!.innerHTML = ren;
+      if (sendt || !innhold!.firstElementChild) {
+        // The first opening, or a fresh form after a sent one.
+        innhold!.replaceChildren(mal!.content.cloneNode(true));
         sendt = false;
       }
       const skjema = innhold!.querySelector<HTMLFormElement>('[data-skjema]');

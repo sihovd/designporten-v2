@@ -8,6 +8,25 @@ export interface Sokepost {
   type: string;
   /** Extra words that should match (categories, materials). */
   ord?: string;
+  /** Which group the result is shown under. Default: sider. */
+  kategori?: Sokekategori;
+}
+
+export type Sokekategori = 'produkter' | 'verktoy' | 'inspirasjon' | 'sider';
+
+/** Result groups in the order they are shown (design revision 2026-10-02, §24). */
+export const sokekategorier: { id: Sokekategori; navn: string }[] = [
+  { id: 'produkter', navn: 'Produkter' },
+  { id: 'verktoy', navn: 'Skaperverksted' },
+  { id: 'inspirasjon', navn: 'Inspirasjon' },
+  { id: 'sider', navn: 'Sider' },
+];
+
+/** Groups results by category, keeping the ranking inside each group and leaving out empty groups. */
+export function grupper(treff: readonly Sokepost[]): { id: Sokekategori; navn: string; treff: Sokepost[] }[] {
+  return sokekategorier
+    .map((k) => ({ ...k, treff: treff.filter((t) => (t.kategori ?? 'sider') === k.id) }))
+    .filter((g) => g.treff.length > 0);
 }
 
 /** Lowercase and fold accents, but keep æ, ø and å. */

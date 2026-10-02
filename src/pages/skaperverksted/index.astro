@@ -9,7 +9,7 @@ const tilgjengelige = verktoy.filter((v) => v.status === 'tilgjengelig').length;
 const steg = [
   { navn: 'Bygg', tekst: 'Tekst, former og egne filer blir fysiske lag med høyde og farge.' },
   { navn: 'Se i 3D', tekst: 'Snu og zoom modellen mens du jobber, i ekte millimeter.' },
-  { navn: 'Forhåndsvis print', tekst: 'Se lagene slik printeren bygger dem, og hva som må justeres.' },
+  { navn: 'Forhåndsvis print', tekst: 'Slå på printlag og se lagene slik printeren bygger dem.' },
   { navn: 'Last ned eller bestill', tekst: 'Ta filen med til din egen printer, eller send den til oss.' },
 ];
 ---
@@ -25,22 +25,26 @@ const steg = [
         <p class="etikett hub-etikett">Skaperverksted · {tilgjengelige} verktøy · mål i mm</p>
         <h1 id="hub-tittel">Fra idé til ferdig fil</h1>
         <p class="hub-ingress">
-          Her bygger du selv. Alt måles i ekte millimeter, du ser resultatet i 3D mens du jobber, og det du lager
-          kan lastes ned som 3MF eller STL eller bestilles ferdig printet fra oss.
+          Her bygger du selv. Alt måles i ekte millimeter, du ser resultatet i 3D mens du jobber, og det du
+          lager kan lastes ned som 3MF eller STL eller bestilles ferdig printet fra oss.
         </p>
       </div>
 
       <ul class="hub-liste" role="list">
-        {verktoy.map((v, i) => (
-          <li style={`--i:${i}`}>
+        {verktoy.map((v) => (
+          <li>
             <VerktoyKort verktoy={v} nivaa="h2" />
           </li>
         ))}
       </ul>
-      <p class="hub-fotnote">Tegningene viser startmodellen i hvert verktøy, på et rutenett med ruter på 10 mm.</p>
+      <p class="hub-fotnote">
+        Tegningene viser startmodellen i hvert verktøy, på et rutenett med ruter på 10 mm.
+      </p>
 
       <section class="hub-bunn" aria-labelledby="slik-tittel">
-        <h2 id="slik-tittel" class="hub-bunn__tittel">Slik fungerer det</h2>
+        <h2 id="slik-tittel" class="hub-bunn__tittel">
+          Slik fungerer det
+        </h2>
         <ol class="hub-steg">
           {steg.map((s, i) => (
             <li>
@@ -86,20 +90,6 @@ const steg = [
   .hub-innhold {
     width: min(var(--innhold-maks), 100% - 2 * var(--gutter));
     margin-inline: auto;
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    :global(.js) .hub-liste > li {
-      animation: hub-kort 520ms var(--ease-ut) both;
-      animation-delay: calc(120ms + var(--i) * 70ms);
-    }
-  }
-
-  @keyframes hub-kort {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
-    }
   }
 
   .hub-topp {

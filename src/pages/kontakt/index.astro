@@ -10,7 +10,7 @@ const harDetaljer = Boolean(kontakt.epost || kontakt.telefon || kontakt.apningst
 
 <Side
   tittel="Kontakt"
-  beskrivelse="Kontakt Designporten. Skriv hva det gjelder, så svarer vi på e-post. Har du en idé du vil ha laget, bruk idéskjemaet."
+  beskrivelse="Kontakt Designporten. Skriv hva det gjelder, så svarer vi på e-post. Har du noe du vil ha laget, bruk forespørselsskjemaet."
 >
   <SideHode eyebrow="Kontakt" tittel="Skriv hva det gjelder" ingress="Vi svarer på e-post." />
 
@@ -20,15 +20,15 @@ const harDetaljer = Boolean(kontakt.epost || kontakt.telefon || kontakt.apningst
     </div>
     <aside class="kontakt__side" aria-label="Andre måter">
       <div class="kontakt__boks">
-        <p class="mono kontakt__etikett">Har du en idé?</p>
-        <p>Vil du ha noe laget, gir idéskjemaet oss det vi trenger: bilder, mål og filer.</p>
+        <p class="etikett">Vil du ha noe laget?</p>
+        <p>Forespørselsskjemaet tar imot bilder, mål og filer, for både privatpersoner og bedrifter.</p>
         <a href="/foresporsel/" data-apne-foresporsel>
           Åpne forespørselsskjemaet
         </a>
       </div>
       {harDetaljer && (
         <div class="kontakt__boks">
-          <p class="mono kontakt__etikett">Direkte</p>
+          <p class="etikett">Direkte</p>
           {kontakt.epost && (
             <p>
               <a href={`mailto:${kontakt.epost}`}>{kontakt.epost}</a>
@@ -61,11 +61,8 @@ const harDetaljer = Boolean(kontakt.epost || kontakt.telefon || kontakt.apningst
     gap: var(--r-2);
     padding: var(--r-5);
     border: 1px solid var(--kant);
+    border-radius: var(--radius-kort);
     background: var(--flate);
-  }
-
-  .kontakt__etikett {
-    color: var(--dempet);
   }
 
   @media (max-width: 860px) {

@@ -1,141 +1,258 @@
 ---
 import Side from '@/layouts/Side.astro';
-import SideHode from '@/components/showroom/SideHode.astro';
-import VaseBygg from '@/components/showroom/bygg/VaseBygg.astro';
 import Knapp from '@/components/Knapp.astro';
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import { bakgrunner } from '@/lib/ressurser';
 
 /*
- * The story text is the test bench draft kept by the spec
- * (information-architecture.md#om-designporten). Facts (years, printers,
- * materials, delivered projects) and photos of the real workshop are added
- * only when confirmed; until then no fact tiles and no people are shown.
+ * Om, rewritten around skaperglede (design revision 2026-10-02, §22). The
+ * story builds on Sivert's own words in the brief. Facts (years, printers,
+ * delivered projects) and the profile photo are added only when confirmed;
+ * until then the photo is a marked placeholder and no fact tiles are shown.
  */
 const lager = [
-  '3D-print av ferdige produkter',
-  'Spesialdesign fra idé, skisse, bilde eller ødelagt del',
-  'Personlige produkter med navn og tekst',
-  'Prototyper og småserier',
-  'Grafisk design og profilering',
-  'Skaperverksted: verktøy der du designer selv',
+  { navn: 'Ferdige produkter', tekst: 'Ting vi har tegnet og printet selv.' },
+  { navn: 'Spesialdesign', tekst: 'Fra idé, skisse, bilde eller ødelagt del.' },
+  { navn: 'Skaperverksted', tekst: 'Verktøy der du bygger noe eget i nettleseren.' },
+  { navn: 'For bedrifter', tekst: 'Prototyper, småserier og profilering.' },
 ];
 ---
 
 <Side
   tittel="Om Designporten"
-  beskrivelse="Designporten er et lite norsk verksted som både tegner og produserer: 3D-print, spesialdesign, personlige produkter og digitale verktøy."
+  beskrivelse="Designporten handler om skaperglede: å lage noe som bare er ditt, med dagens teknologi. Et verksted for 3D-design og print."
 >
-  <SideHode eyebrow="Om" tittel="Et verksted som både tegner og produserer" />
+  <section class="ramme om-topp" aria-labelledby="om-tittel">
+    <p class="etikett">Om Designporten</p>
+    <h1 id="om-tittel">La oss lage noe sammen</h1>
+    <p class="om-topp__ingress">
+      Designporten handler om skaperglede: følelsen av å holde noe som er laget akkurat til deg, eller som du
+      har laget selv.
+    </p>
+  </section>
 
-  <section class="ramme om" aria-label="Historien">
-    <div class="om__tekst">
-      <p class="om__stor">
-        Designporten er et lite verksted som både tegner og produserer. Vi startet fordi altfor mye 3D-print
-        stopper på halvveien: en fil finnes, men ingen tar ansvar for at delen faktisk passer, holder og ser
-        ut som noe man vil ha stående framme.
+  <section class="ramme om-historie" aria-label="Historien">
+    <div class="om-historie__tekst">
+      <p class="om-historie__stor">
+        Jeg husker følelsen av at pappa hadde sittet og laget noe spesielt til meg. Han jobbet med det utover
+        kvelden, og neste morgen våknet jeg spent, fordi det fantes noe som bare var mitt.
       </p>
       <p>
-        Derfor gjør vi begge deler. Du kan finne noe ferdig blant produktene, designe noe selv i
-        Skaperverksted, eller la oss tegne noe fra bunnen. I alle tilfeller er det samme verksted som printer
-        det.
+        Den følelsen er grunnen til Designporten. Før måtte man være snekker, modellbygger eller
+        industridesigner for å lage noe helt eget. I dag gjør 3D-design og 3D-print terskelen mye lavere.
+      </p>
+      <p>
+        Et barn har en idé. En forelder hjelper til. Vi gjør den fysisk. Det kan være en leke, et skilt, en
+        figur eller en gave, og det ender med noe dere kan peke på og si: dette har vi laget.
+      </p>
+      <p>
+        Samtidig er Designporten et ordentlig verksted. Vi tegner i CAD, printer i materialer som tåler bruk,
+        kontrollerer mål og passform, og lager prototyper og småserier for bedrifter. Håndverk og teknologi,
+        med samme omtanke enten det gjelder én nøkkelring eller hundre deler.
       </p>
     </div>
-    <figure class="om__figur">
-      <VaseBygg tilstand="mesh" />
-      <figcaption class="mono">Kontur og modell av vasen fra forsiden, slik den tegnes før print.</figcaption>
+    <figure class="om-historie__bilde">
+      <Konseptbilde bilde={bakgrunner.samarbeid} sizes="(min-width: 900px) 40vw, 100vw" />
     </figure>
   </section>
 
-  <section class="ramme seksjon" aria-labelledby="lager-tittel">
-    <h2 id="lager-tittel">Det verkstedet lager</h2>
-    <ul class="lager">
-      {lager.map((l) => (
-        <li>{l}</li>
-      ))}
-    </ul>
+  <section class="ramme om-profil" aria-labelledby="profil-tittel">
+    <div class="om-profil__bilde" role="img" aria-label="Plassholder for profilbilde av Sivert">
+      <span class="om-profil__merke mono">Plassholder</span>
+      <span class="om-profil__tekst">Profilbilde kommer</span>
+    </div>
+    <div class="om-profil__innhold">
+      <p class="etikett">Personen bak</p>
+      <h2 id="profil-tittel">Sivert</h2>
+      <p>
+        Hei, jeg er Sivert, og det er jeg som står bak Designporten. Jeg liker å finne ut hvordan ting kan
+        lages, og aller best liker jeg øyeblikket når en idé på papiret blir til noe man kan holde i hånda.
+      </p>
+      <p>
+        Send meg gjerne en skisse, et bilde eller bare et par setninger. Du trenger ikke vite hvordan det skal
+        konstrueres; det finner vi ut av sammen.
+      </p>
+      <div class="om-profil__handlinger">
+        <Knapp href="/foresporsel/" data-apne-foresporsel>
+          Fortell meg ideen din
+        </Knapp>
+        <Knapp href="/kontakt/" variant="sekundar">
+          Kontakt
+        </Knapp>
+      </div>
+    </div>
   </section>
 
-  <section class="ramme seksjon om__videre" aria-labelledby="videre-tittel">
-    <h2 id="videre-tittel">Vil du se verkstedet i arbeid?</h2>
-    <p class="ingress">
-      Bilder av verkstedet og maskinene kommer. Til da kan du se hvordan en idé blir til en del.
-    </p>
-    <div class="om__handlinger">
-      <Knapp href="/foresporsel/" data-apne-foresporsel>
-        Fortell oss ideen din
-      </Knapp>
-      <Knapp href="/kontakt/" variant="sekundar">
-        Kontakt oss
-      </Knapp>
-    </div>
+  <section class="ramme seksjon" aria-labelledby="lager-tittel">
+    <p class="etikett">Verkstedet</p>
+    <h2 id="lager-tittel" class="lager__tittel">
+      Det vi lager
+    </h2>
+    <ul class="lager" role="list">
+      {lager.map((l) => (
+        <li>
+          <span class="lager__navn">{l.navn}</span>
+          <span class="lager__tekst">{l.tekst}</span>
+        </li>
+      ))}
+    </ul>
   </section>
 </Side>
 
 <style>
-  .om {
-    display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-    gap: var(--r-7);
-    align-items: center;
-  }
-
-  .om__tekst {
-    display: grid;
-    gap: var(--r-5);
-    max-width: 60ch;
-  }
-
-  .om__stor {
-    font-size: var(--fs-ingress);
-    line-height: 1.5;
-  }
-
-  .om__figur {
-    margin: 0;
+  .om-topp {
     display: grid;
     gap: var(--r-3);
-    padding: var(--r-5);
-    border: 1px solid var(--kant);
-    background: var(--flate);
+    padding-block: var(--r-8) var(--r-6);
   }
 
-  .om__figur figcaption {
+  .om-topp h1 {
+    max-width: 18ch;
+  }
+
+  .om-topp__ingress {
+    max-width: 52ch;
     color: var(--dempet);
-    text-transform: none;
-    letter-spacing: 0;
+    font-size: var(--fs-ingress);
+  }
+
+  .om-historie {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: var(--r-7);
+    align-items: start;
+  }
+
+  .om-historie__tekst {
+    display: grid;
+    gap: var(--r-4);
+    max-width: 62ch;
+  }
+
+  .om-historie__stor {
+    font-family: var(--font-display);
+    font-size: var(--fs-h3);
+    font-weight: var(--vekt-display);
+    line-height: 1.45;
+  }
+
+  .om-historie__bilde {
+    margin: 0;
+    border-radius: var(--radius-kort);
+    overflow: hidden;
+    aspect-ratio: 4 / 5;
+  }
+
+  .om-historie__bilde :global(.konseptbilde),
+  .om-historie__bilde :global(img) {
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .om-profil {
+    display: grid;
+    grid-template-columns: minmax(180px, 280px) minmax(0, 1fr);
+    gap: var(--r-7);
+    align-items: center;
+    margin-top: var(--r-8);
+    padding-block: var(--r-7);
+    border-block: 1px solid var(--kant);
+  }
+
+  .om-profil__bilde {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border: 1px dashed var(--kant-sterk);
+    border-radius: 50%;
+    background: var(--kalk);
+  }
+
+  .om-profil__merke {
+    position: absolute;
+    top: 12%;
+    padding: 2px 8px;
+    background: var(--blekk);
+    color: #fff;
+    font-size: var(--fs-mono-liten);
+  }
+
+  .om-profil__tekst {
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+
+  .om-profil__innhold {
+    display: grid;
+    gap: var(--r-3);
+    max-width: 58ch;
+  }
+
+  .om-profil__innhold h2 {
+    margin-bottom: var(--r-2);
+  }
+
+  .om-profil__handlinger {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-3);
+    margin-top: var(--r-3);
+  }
+
+  .lager__tittel {
+    margin: var(--r-2) 0 var(--r-5);
   }
 
   .lager {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    margin: var(--r-6) 0 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--r-4);
+    margin: 0;
     padding: 0;
     list-style: none;
-    border-top: 1px solid var(--kant);
   }
 
   .lager li {
-    padding: var(--r-4) var(--r-4) var(--r-4) 0;
-    border-bottom: 1px solid var(--kant);
-    font-size: 1.125rem;
-    font-weight: 560;
-  }
-
-  .om__videre {
     display: grid;
-    gap: var(--r-4);
-    justify-items: start;
+    gap: var(--r-1);
+    padding-top: var(--r-3);
+    border-top: 1px solid var(--kant);
   }
 
-  .om__handlinger {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--r-3);
-    margin-top: var(--r-2);
+  .lager__navn {
+    font-family: var(--font-display);
+    font-weight: var(--vekt-h3);
   }
 
-  @media (max-width: 860px) {
-    .om {
-      grid-template-columns: 1fr;
+  .lager__tekst {
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+
+  @media (max-width: 900px) {
+    .om-historie,
+    .om-profil {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--r-5);
+    }
+
+    .om-historie__bilde {
+      aspect-ratio: 4 / 3;
+    }
+
+    .om-profil__bilde {
+      width: min(220px, 60%);
+    }
+
+    .lager {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 480px) {
+    .lager {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>

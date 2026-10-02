@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normaliser, sok, type Sokepost } from './sok';
+import { normaliser, sok, type Sokepost, grupper } from './sok';
 
 const poster: Sokepost[] = [
   { tittel: 'Spesialdesign', tekst: 'Send en skisse eller et bilde', url: '/spesialdesign/', type: 'Side' },
@@ -36,5 +36,31 @@ describe('sok', () => {
 
   it('finds «idé» when typing «ide»', () => {
     expect(sok([{ tittel: 'Har du en idé?', tekst: '', url: '/i/', type: 'Side' }], 'ide')).toHaveLength(1);
+  });
+});
+
+describe('grupper', () => {
+  it('groups results by category in a fixed order and keeps the ranking', () => {
+    const treff = [
+      { tittel: 'Om', tekst: '', url: '/om/', type: 'Side' },
+      {
+        tittel: 'Sign Forge',
+        tekst: '',
+        url: '/skaperverksted/signgen/',
+        type: 'Verktøy',
+        kategori: 'verktoy' as const,
+      },
+      { tittel: 'Vase', tekst: '', url: '/produkter/vase/', type: 'Produkt', kategori: 'produkter' as const },
+      {
+        tittel: 'Lampe',
+        tekst: '',
+        url: '/produkter/lampe/',
+        type: 'Produkt',
+        kategori: 'produkter' as const,
+      },
+    ];
+    const g = grupper(treff);
+    expect(g.map((x) => x.id)).toEqual(['produkter', 'verktoy', 'sider']);
+    expect(g[0]!.treff.map((t) => t.tittel)).toEqual(['Vase', 'Lampe']);
   });
 });

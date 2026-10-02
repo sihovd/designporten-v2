@@ -6,7 +6,7 @@ const synligeKort = '[data-produktrutenett] > li[data-plass]:not([hidden])';
 test.describe('Produkter', () => {
   test('lists the placeholder products and marks them honestly', async ({ page }) => {
     await page.goto('/produkter/');
-    await expect(page.getByRole('heading', { level: 1, name: 'Produkter' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Vårt utvalg' })).toBeVisible();
     await expect(page.locator(synligeKort)).toHaveCount(12);
     await expect(page.getByText('Under oppbygging.')).toBeVisible();
     await expect(page.locator('.produktkort__status').first()).toHaveText('Plassholder');
@@ -16,7 +16,7 @@ test.describe('Produkter', () => {
 
   test('changes category in place and updates the URL', async ({ page }) => {
     await page.goto('/produkter/');
-    await page.locator('[data-kategori="interior"]').click();
+    await page.locator('[data-kategori="interior"]').filter({ visible: true }).first().click();
     await expect(page).toHaveURL(/\/produkter\/kategori\/interior\/$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Interiør' })).toBeVisible();
     await expect(page.locator(synligeKort)).toHaveCount(5);
@@ -39,6 +39,32 @@ test.describe('Produkter', () => {
     await expect(page.locator('[data-kurvantall]')).toHaveText('2');
     await kort.getByRole('button', { name: 'Ta én Spiralvase ut av handlekurven' }).click();
     await expect(page.locator('[data-kurvantall]')).toHaveText('1');
+  });
+
+  test('the plus button stays under the pointer while the count grows', async ({ page }) => {
+    await page.goto('/produkter/');
+    const kort = page.locator('[data-produktkort][data-produkt-id="spiralvase"]');
+    const pluss = kort.getByRole('button', { name: 'Legg Spiralvase i handlekurven' });
+    await pluss.click();
+    const for_ = await pluss.boundingBox();
+    await pluss.click();
+    await pluss.click();
+    const etter = await pluss.boundingBox();
+    expect(etter?.x).toBeCloseTo(for_!.x, 0);
+    expect(etter?.y).toBeCloseTo(for_!.y, 0);
+    await expect(page.locator('[data-kurvantall]')).toHaveText('3');
+  });
+
+  test('filters narrow the list and can be reset', async ({ page }) => {
+    await page.goto('/produkter/');
+    const apne = page.getByRole('button', { name: /^Filter/ });
+    if (await apne.isVisible()) await apne.click();
+    const filter = page.locator('[data-filter]');
+    await filter.getByRole('checkbox', { name: 'Kan få egen tekst' }).check();
+    await expect.poll(() => page.locator(synligeKort).count()).toBeLessThan(12);
+    expect(await page.locator(synligeKort).count()).toBeGreaterThan(0);
+    await filter.getByRole('button', { name: 'Nullstill' }).click();
+    await expect(page.locator(synligeKort)).toHaveCount(12);
   });
 
   test('the product window opens, adds with choices, closes with Esc and returns focus', async ({ page }) => {

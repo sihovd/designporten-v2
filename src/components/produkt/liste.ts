@@ -43,7 +43,8 @@ export function startProduktliste(): void {
   const tekst = $<HTMLInputElement>('[data-filter-tekst]');
   const teller = $<HTMLElement>('[data-filter-teller]');
   const nullstill = $<HTMLButtonElement>('[data-filter-nullstill]');
-  const ark = $<HTMLDialogElement>('[data-filter]');
+  const panel = $<HTMLElement>('[data-filter]');
+  const ark = $<HTMLDialogElement>('[data-filterark]');
   const apneKnapp = $<HTMLButtonElement>('[data-filter-apne]');
 
   let kategori = rot.dataset.aktiv ?? 'alle';
@@ -122,32 +123,32 @@ export function startProduktliste(): void {
     vis();
   });
 
-  // The filter: an always-open column on desktop, a modal sheet below 1024 px.
-  function tilpassArk(): void {
-    if (!ark) return;
-    if (bred.matches) {
-      if (ark.matches(':modal')) ark.close();
-      if (!ark.open) ark.show();
-    } else if (ark.open && !ark.matches(':modal')) {
-      ark.close();
-    }
+  // The filter: a sticky column on desktop; below 1024 px the same panel moves
+  // into a modal sheet while it is open, and back into the page when it closes.
+  const hjem = panel?.parentElement ?? null;
+  const etter = panel?.nextSibling ?? null;
+  function tilbake(): void {
+    if (panel && hjem && panel.parentElement !== hjem) hjem.insertBefore(panel, etter);
   }
-  tilpassArk();
-  bred.addEventListener('change', tilpassArk);
+  bred.addEventListener('change', () => {
+    if (bred.matches && ark?.open) ark.close();
+  });
   apneKnapp?.addEventListener('click', () => {
-    ark?.showModal();
+    if (!ark || !panel) return;
+    ark.append(panel);
+    ark.showModal();
     apneKnapp.setAttribute('aria-expanded', 'true');
   });
   ark?.addEventListener('close', () => {
+    tilbake();
     apneKnapp?.setAttribute('aria-expanded', 'false');
-    // Desktop keeps the column open even after Escape.
-    if (bred.matches) requestAnimationFrame(tilpassArk);
+    if (!bred.matches) apneKnapp?.focus();
   });
   $('[data-filter-lukk]')?.addEventListener('click', () => ark?.close());
   $('[data-filter-ferdig]')?.addEventListener('click', () => ark?.close());
   ark?.addEventListener('click', (e) => {
     // A click on the backdrop lands on the dialog element, outside its box.
-    if (e.target !== ark || !ark.matches(':modal')) return;
+    if (e.target !== ark) return;
     const r = ark.getBoundingClientRect();
     if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) ark.close();
   });

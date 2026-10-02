@@ -9,10 +9,10 @@ import Side from '@/layouts/Side.astro';
 import Knapp from '@/components/Knapp.astro';
 import Konseptbilde from '@/components/Konseptbilde.astro';
 import { finnBilde } from '@/components/showroom/bilder';
-import { typenavn } from '@/components/showroom/inspirasjon/typer';
+import { erOffentlig, typenavn } from '@/components/showroom/inspirasjon/typer';
 
 export async function getStaticPaths() {
-  const saker = await getCollection('inspirasjon');
+  const saker = await getCollection('inspirasjon', (s) => erOffentlig(s.data));
   return saker.map((sak) => ({ params: { sak: sak.id }, props: { sak } }));
 }
 

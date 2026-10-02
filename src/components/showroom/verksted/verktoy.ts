@@ -34,8 +34,8 @@ export const verktoy: Verktoy[] = [
   {
     id: 'clicker',
     navn: 'Clicker Forge',
-    undertittel: 'Planlagt verktøy',
-    beskrivelse: 'Det neste verktøyet i Skaperverkstedet. Det er ikke klart ennå.',
+    undertittel: 'Klikkergenerator',
+    beskrivelse: 'Klikkere bygget rundt mekaniske tastaturbrytere. Planlagt, ikke klart ennå.',
     status: 'planlagt',
   },
 ];

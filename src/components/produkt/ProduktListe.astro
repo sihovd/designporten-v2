@@ -125,7 +125,7 @@ const data = { grunnlag, tekster };
       </div>
     </div>
 
-    <dialog class="filter" aria-labelledby="filter-tittel" data-filter open>
+    <section class="filter" aria-labelledby="filter-tittel" data-filter>
       <div class="filter__hode">
         <h2 id="filter-tittel" class="etikett">
           Filtrer og sorter
@@ -223,7 +223,9 @@ const data = { grunnlag, tekster };
           </div>
         </div>
       </div>
-    </dialog>
+    </section>
+    <!-- Below 1024 px the filter panel moves into this sheet while it is open. -->
+    <dialog class="filterark" aria-labelledby="filter-tittel" data-filterark></dialog>
 
     <div class="produktliste__hoved">
       <div class="produktliste__status">
@@ -682,7 +684,7 @@ const data = { grunnlag, tekster };
     }
 
     /* The sheet: hidden in the flow when JS runs; a modal from the bottom when open. */
-    :global(.js) .filter:not(:modal) {
+    :global(.js) .produktliste__flate > .filter {
       display: none;
     }
 
@@ -692,7 +694,7 @@ const data = { grunnlag, tekster };
       padding: 0;
     }
 
-    .filter:modal {
+    .filterark {
       position: fixed;
       inset: auto 0 0;
       width: 100%;
@@ -705,12 +707,12 @@ const data = { grunnlag, tekster };
       overflow-y: auto;
     }
 
-    .filter::backdrop {
+    .filterark::backdrop {
       background: rgb(20 19 23 / 0.36);
       backdrop-filter: blur(3px);
     }
 
-    .filter:modal .filter__lukk {
+    .filterark .filter__lukk {
       display: inline-grid;
       place-items: center;
       width: var(--mal-beroring);
@@ -722,11 +724,11 @@ const data = { grunnlag, tekster };
     }
 
     /* In the sheet, categories are already in the row above. */
-    .filter:modal .filter__gruppe--kategori {
+    .filterark .filter__gruppe--kategori {
       display: none;
     }
 
-    .filter:modal .filter__bunn {
+    .filterark .filter__bunn {
       position: sticky;
       bottom: 0;
       justify-content: space-between;
@@ -736,7 +738,7 @@ const data = { grunnlag, tekster };
       border-top: 1px solid var(--kant);
     }
 
-    .filter:modal .filter__vis {
+    .filterark .filter__vis {
       display: inline-flex;
       align-items: center;
       min-height: var(--mal-beroring);
@@ -765,7 +767,7 @@ const data = { grunnlag, tekster };
 
   @media (prefers-reduced-motion: no-preference) {
     @media (max-width: 1023px) {
-      .filter:modal {
+      .filterark[open] {
         animation: ark-opp 280ms var(--ease-ut);
       }
     }
