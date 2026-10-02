@@ -1,9 +1,16 @@
 ---
 /**
- * The Produkter listing: category row, sort, the preserved grid with quick
- * view, and a way on to Spesialdesign. Every card is rendered on every
- * listing page (hidden when outside the category), so switching category
- * animates in place; category links still work as plain pages without JS.
+ * «Vårt utvalg»: the product listing (design revision 2026-10-02, §9–10).
+ *
+ * A short opening, then filters beside the grid. On desktop the filters are a
+ * sticky column to the left, so they stay at hand while the products scroll.
+ * Below 1024 px they move into a sheet opened from a «Filter» button, with the
+ * category row and sorting still visible above the grid.
+ *
+ * Every card is rendered on every listing page (hidden when filtered out), so
+ * changes animate in place. Category links work as plain pages without
+ * JavaScript; colour, material and text filters need it and are hidden
+ * without it.
  */
 import {
   hentProdukter,
@@ -13,6 +20,7 @@ import {
 } from '@/lib/handel/katalog';
 import { finnKategori, spesialbestillinger } from '@/lib/handel/kategorier';
 import { antallTekst, utvalgFor, type Sorteringsgrunnlag } from '@/lib/handel/sortering';
+import Ikon from '@/components/Ikon.astro';
 import ProduktRutenett from './ProduktRutenett.astro';
 
 interface Props {
@@ -33,6 +41,9 @@ const grunnlag: Sorteringsgrunnlag[] = produkter.map((p) => ({
   prisOre: p.prisOre,
   utvalgt: nokler[p.id]?.utvalgt ?? 0,
   nyeste: nokler[p.id]?.nyeste ?? 0,
+  farger: p.farger.map((f) => f.id),
+  materialer: p.materialer.map((m) => m.type),
+  egenTekst: p.egenTekst !== null,
 }));
 const synlige = utvalgFor(grunnlag, aktiv, 'utvalgt');
 const skjulte = new Set(produkter.filter((p) => !synlige.includes(p.id)).map((p) => p.id));
@@ -41,10 +52,18 @@ const rekkefolge = [
   ...produkter.filter((p) => skjulte.has(p.id)),
 ];
 
+// Filter options come from the catalogue itself: only what some product has.
+const fargevalg = [
+  ...new Map(produkter.flatMap((p) => p.farger).map((f) => [f.id, f] as const)).values(),
+].sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
+const materialvalg = [...new Set(produkter.flatMap((p) => p.materialer.map((m) => m.type)))].sort((a, b) =>
+  a.localeCompare(b, 'nb'),
+);
+const harEgenTekst = produkter.some((p) => p.egenTekst !== null);
+
 const alleTekst = {
-  tittel: 'Produkter',
-  ingress:
-    'Ting vi har tegnet og printet. Åpne et produkt for å velge farge, materiale og eventuell egen tekst.',
+  tittel: 'Vårt utvalg',
+  ingress: 'Designet og laget av oss. Kanskje finner du akkurat det du leter etter.',
 };
 const tekster = Object.fromEntries([
   ['alle', { ...alleTekst, href: '/produkter/' }],
@@ -63,74 +82,187 @@ const data = { grunnlag, tekster };
 
 <div class="produktliste" data-produktliste data-aktiv={aktiv}>
   <header class="produktliste__topp ramme">
-    <p class="produktliste__sti mono">
-      {aktiv === 'alle' ? 'Finn noe' : <a href="/produkter/">Produkter</a>}
-    </p>
+    <p class="etikett">{aktiv === 'alle' ? 'Butikk' : <a href="/produkter/">Vårt utvalg</a>}</p>
     <h1 data-liste-tittel>{aktivTekst.tittel}</h1>
     <p class="ingress" data-liste-ingress>
       {aktivTekst.ingress}
     </p>
   </header>
 
-  <div class="produktliste__verktoy ramme">
-    <nav class="kategorirad" aria-label="Kategorier">
-      <ul>
-        <li>
-          <a href="/produkter/" data-kategori="alle" aria-current={aktiv === 'alle' ? 'page' : undefined}>
-            Alle
-          </a>
-        </li>
-        {kategorier.map((k) => (
+  <div class="produktliste__flate ramme">
+    <!-- Mobile and tablet: categories, filter button and sort above the grid. -->
+    <div class="produktliste__verktoy">
+      <nav class="kategorirad" aria-label="Kategorier">
+        <ul>
           <li>
-            <a
-              href={`/produkter/kategori/${k.slug}/`}
-              data-kategori={k.slug}
-              aria-current={aktiv === k.slug ? 'page' : undefined}
-            >
-              {k.navn}
+            <a href="/produkter/" data-kategori="alle" aria-current={aktiv === 'alle' ? 'page' : undefined}>
+              Alle
             </a>
           </li>
-        ))}
-        <li>
-          <a class="kategorirad__spesial" href={spesialbestillinger.href}>
-            {spesialbestillinger.navn}
-          </a>
-        </li>
-      </ul>
-    </nav>
-    <div class="produktliste__hoyre">
-      <p class="produktliste__antall mono" data-liste-antall aria-live="polite">
-        {antallTekst(synlige.length)}
-      </p>
-      <div class="produktliste__sortering" data-kun-js>
-        <label class="mono" for="produktsortering">
-          Sorter
-        </label>
-        <select id="produktsortering" data-liste-sortering>
-          {sorteringer.map((s) => (
-            <option value={s.verdi}>{s.navn}</option>
+          {kategorier.map((k) => (
+            <li>
+              <a
+                href={`/produkter/kategori/${k.slug}/`}
+                data-kategori={k.slug}
+                aria-current={aktiv === k.slug ? 'page' : undefined}
+              >
+                {k.navn}
+              </a>
+            </li>
           ))}
-        </select>
+        </ul>
+      </nav>
+      <div class="produktliste__verktoyrad" data-kun-js>
+        <button class="filterknapp" type="button" data-filter-apne aria-haspopup="dialog">
+          Filter{' '}
+          <span class="filterknapp__antall tall" data-filter-teller hidden>
+            0
+          </span>
+        </button>
+        <p class="produktliste__antall" data-liste-antall-smal>
+          {antallTekst(synlige.length)}
+        </p>
       </div>
+    </div>
+
+    <dialog class="filter" aria-labelledby="filter-tittel" data-filter open>
+      <div class="filter__hode">
+        <h2 id="filter-tittel" class="etikett">
+          Filtrer og sorter
+        </h2>
+        <button class="filter__lukk" type="button" data-filter-lukk aria-label="Lukk filteret">
+          <Ikon navn="lukk" />
+        </button>
+      </div>
+
+      <div class="filter__innhold">
+        <fieldset class="filter__gruppe filter__gruppe--kategori">
+          <legend>Kategori</legend>
+          <ul class="filter__kategorier">
+            <li>
+              <a href="/produkter/" data-kategori="alle" aria-current={aktiv === 'alle' ? 'page' : undefined}>
+                Alle produkter
+              </a>
+            </li>
+            {kategorier.map((k) => (
+              <li>
+                <a
+                  href={`/produkter/kategori/${k.slug}/`}
+                  data-kategori={k.slug}
+                  aria-current={aktiv === k.slug ? 'page' : undefined}
+                >
+                  {k.navn}
+                </a>
+              </li>
+            ))}
+            <li>
+              <a class="filter__spesial" href={spesialbestillinger.href}>
+                {spesialbestillinger.navn}
+                <Ikon navn="pil-hoyre" storrelse={16} />
+              </a>
+            </li>
+          </ul>
+        </fieldset>
+
+        <div class="filter__js" data-kun-js>
+          <div class="filter__gruppe">
+            <label class="filter__legend" for="produktsortering">
+              Sorter etter
+            </label>
+            <select id="produktsortering" class="filter__velger" data-liste-sortering>
+              {sorteringer.map((s) => (
+                <option value={s.verdi}>{s.navn}</option>
+              ))}
+            </select>
+          </div>
+
+          {fargevalg.length > 1 && (
+            <fieldset class="filter__gruppe">
+              <legend>Farge</legend>
+              <div class="filter__farger">
+                {fargevalg.map((f) => (
+                  <label class="fargeprikk" title={f.navn}>
+                    <input type="checkbox" name="farge" value={f.id} data-filter-farge />
+                    <span class="fargeprikk__prikk" style={`--f: ${f.hex}`} aria-hidden="true"></span>
+                    <span class="visuelt-skjult">{f.navn}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          {materialvalg.length > 1 && (
+            <fieldset class="filter__gruppe">
+              <legend>Materiale</legend>
+              {materialvalg.map((m) => (
+                <label class="filter__valg">
+                  <input type="checkbox" name="materiale" value={m} data-filter-materiale />
+                  {m}
+                </label>
+              ))}
+            </fieldset>
+          )}
+
+          {harEgenTekst && (
+            <fieldset class="filter__gruppe">
+              <legend>Tilpasning</legend>
+              <label class="filter__valg">
+                <input type="checkbox" name="egen-tekst" data-filter-tekst />
+                Kan få egen tekst
+              </label>
+            </fieldset>
+          )}
+
+          <div class="filter__bunn">
+            <button class="filter__nullstill" type="button" data-filter-nullstill disabled>
+              Nullstill
+            </button>
+            <button class="filter__vis" type="button" data-filter-ferdig>
+              Vis <span data-liste-antall-knapp>{antallTekst(synlige.length)}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <div class="produktliste__hoved">
+      <div class="produktliste__status">
+        <p class="produktliste__antall" data-liste-antall aria-live="polite">
+          {antallTekst(synlige.length)}
+        </p>
+        {harPlassholdere && (
+          <p class="produktliste__notis">
+            <strong>Under oppbygging.</strong> Produktene er plassholdere med konseptbilder. Navn, mål og
+            priser er ikke fastsatt ennå, men du kan legge dem i handlekurven og sende en uforpliktende
+            forespørsel.
+          </p>
+        )}
+      </div>
+
+      <ProduktRutenett
+        produkter={rekkefolge}
+        skjulte={skjulte}
+        nivaa="h2"
+        etikett="Produkter"
+        class="produktliste__rutenett"
+      />
+      <p class="produktliste__tom" data-liste-tom hidden>
+        Ingen produkter passer filteret.{' '}
+        <button type="button" data-filter-nullstill-tom>
+          Nullstill filteret
+        </button>
+      </p>
     </div>
   </div>
 
-  {harPlassholdere && (
-    <p class="produktliste__notis ramme">
-      <strong>Under oppbygging.</strong> Produktene her er plassholdere med konseptbilder. Navn, mål og priser
-      er ikke fastsatt ennå, men du kan legge dem i handlekurven og sende en uforpliktende forespørsel.
-    </p>
-  )}
-
-  <ProduktRutenett produkter={rekkefolge} skjulte={skjulte} nivaa="h2" etikett="Produkter" />
-
-  <aside class="produktliste__ide ramme">
-    <p class="mono">Finner du ikke det du leter etter?</p>
+  <aside class="produktliste__ide ramme" aria-labelledby="ide-tittel">
+    <p class="etikett">Spesialdesign</p>
+    <h2 id="ide-tittel">Finner du ikke det du leter etter?</h2>
     <p class="produktliste__ide-tekst">
       Vi lager også ting som ikke står her. Start med ideen, en tegning eller et bilde.
     </p>
-    <a class="produktliste__ide-lenke" href={spesialbestillinger.href}>
-      Fortell oss hva du trenger
+    <a class="produktliste__ide-lenke" href="/foresporsel/" data-apne-foresporsel>
+      Fortell oss hva du trenger <Ikon navn="pil-hoyre" storrelse={18} />
     </a>
   </aside>
 </div>
@@ -149,163 +281,499 @@ const data = { grunnlag, tekster };
   .produktliste__topp {
     display: grid;
     gap: var(--r-3);
-    margin-bottom: var(--r-6);
+    margin-bottom: var(--r-7);
   }
 
-  .produktliste__sti {
-    color: var(--dempet);
-  }
-
-  .produktliste__sti a {
+  .produktliste__topp .etikett a {
     color: inherit;
   }
 
-  .produktliste__verktoy {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: var(--r-3) var(--r-5);
-    margin-bottom: var(--r-5);
-    border-bottom: 1px solid var(--kant);
+  .produktliste__flate {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: var(--r-7);
+    align-items: start;
   }
 
-  .kategorirad ul {
+  /* ---------- Desktop: sticky filter column ---------- */
+  .filter {
+    position: sticky;
+    top: calc(var(--header-h) + var(--r-4));
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
+    display: block;
+    width: auto;
+    max-width: none;
+    max-height: calc(100svh - var(--header-h) - var(--r-6));
+    margin: 0;
+    padding: 0 var(--r-2) var(--r-4) 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    border: 0;
+    background: none;
+    color: inherit;
+  }
+
+  .filter__hode {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0 var(--r-5);
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--mal-beroring);
+  }
+
+  .filter__lukk {
+    display: none;
+  }
+
+  .filter__innhold {
+    display: grid;
+    gap: var(--r-4);
+  }
+
+  .filter__js {
+    display: grid;
+    gap: var(--r-4);
+  }
+
+  .filter__gruppe {
+    display: grid;
+    gap: var(--r-2);
+    margin: 0;
+    padding: var(--r-3) 0 0;
+    border: 0;
+    border-top: 1px solid var(--kant);
+    min-width: 0;
+  }
+
+  .filter__gruppe legend,
+  .filter__legend {
+    float: left;
+    width: 100%;
+    margin-bottom: var(--r-2);
+    padding: 0;
+    font-size: var(--fs-liten);
+    font-weight: 650;
+    color: var(--blekk);
+  }
+
+  .filter__gruppe--kategori {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .filter__kategorier {
+    display: grid;
+    gap: 2px;
     margin: 0;
     padding: 0;
     list-style: none;
+    clear: both;
   }
 
-  .kategorirad a {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    min-height: var(--mal-beroring);
-    color: var(--dempet);
-    font-weight: 550;
-    text-decoration: none;
-  }
-
-  .kategorirad a:hover {
-    color: var(--blekk);
-  }
-
-  .kategorirad a[aria-current='page'] {
-    color: var(--blekk);
-  }
-
-  .kategorirad a[aria-current='page']::after {
-    content: '';
-    position: absolute;
-    inset: auto 0 -1px;
-    height: 2px;
-    background: var(--handling);
-  }
-
-  .kategorirad__spesial {
-    color: var(--lenke) !important;
-  }
-
-  .kategorirad__spesial::after {
-    content: ' →';
-    white-space: pre;
-  }
-
-  .produktliste__hoyre {
-    display: flex;
-    align-items: center;
-    gap: var(--r-4);
-    min-height: var(--mal-beroring);
-    margin-left: auto;
-  }
-
-  .produktliste__antall {
-    color: var(--dempet);
-  }
-
-  .produktliste__sortering {
+  .filter__kategorier a {
     display: flex;
     align-items: center;
     gap: var(--r-2);
-  }
-
-  .produktliste__sortering label {
+    min-height: 34px;
+    padding: 0 var(--r-3);
+    margin-inline: calc(-1 * var(--r-3));
+    border-radius: var(--radius-skjema);
     color: var(--dempet);
+    font-weight: 550;
+    text-decoration: none;
+    transition:
+      background-color var(--t-rask) ease,
+      color var(--t-rask) ease;
   }
 
-  .produktliste__sortering select {
-    min-height: 36px;
-    padding: 0 var(--r-6) 0 var(--r-3);
+  .filter__kategorier a:hover {
+    background: var(--kalk);
+    color: var(--blekk);
+  }
+
+  .filter__kategorier a[aria-current='page'] {
+    background: var(--flate);
+    color: var(--blekk);
+    box-shadow: inset 2px 0 0 var(--handling);
+  }
+
+  .filter__spesial {
+    color: var(--lenke) !important;
+  }
+
+  .filter__velger {
+    clear: both;
+    width: 100%;
+    min-height: 40px;
+    padding: 0 var(--r-3);
     border: 1px solid var(--kant-sterk);
-    border-radius: var(--radius-felt);
+    border-radius: var(--radius-skjema);
     background: var(--flate);
     font-size: var(--fs-liten);
   }
 
-  :global(html:not(.js)) [data-kun-js] {
+  .filter__farger {
+    clear: both;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .fargeprikk {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+  }
+
+  .fargeprikk input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .fargeprikk__prikk {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--f);
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.18);
+    transition: box-shadow var(--t-rask) ease;
+  }
+
+  .fargeprikk input:checked + .fargeprikk__prikk {
+    box-shadow:
+      inset 0 0 0 1px rgb(0 0 0 / 0.18),
+      0 0 0 2px var(--papir),
+      0 0 0 4px var(--handling);
+  }
+
+  .fargeprikk input:focus-visible + .fargeprikk__prikk {
+    outline: 2px solid var(--fokus);
+    outline-offset: 4px;
+  }
+
+  .filter__valg {
+    clear: both;
+    display: flex;
+    align-items: center;
+    gap: var(--r-2);
+    min-height: 28px;
+    font-size: var(--fs-liten);
+    cursor: pointer;
+  }
+
+  .filter__valg input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--handling);
+  }
+
+  .filter__bunn {
+    display: flex;
+    gap: var(--r-2);
+  }
+
+  .filter__nullstill {
+    min-height: 36px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--lenke);
+    font-size: var(--fs-liten);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  .filter__nullstill:disabled {
+    color: var(--dempet);
+    text-decoration: none;
+    cursor: default;
+  }
+
+  .filter__vis {
     display: none;
   }
 
+  /* ---------- Grid column ---------- */
+  .produktliste__hoved {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .produktliste__status {
+    display: grid;
+    gap: var(--r-3);
+    margin-bottom: var(--r-4);
+  }
+
+  .produktliste__antall {
+    font-size: var(--fs-liten);
+    color: var(--dempet);
+  }
+
   .produktliste__notis {
-    margin-bottom: var(--r-5);
     padding: var(--r-3) var(--r-4);
     border-left: 3px solid var(--advarsel);
     background: var(--flate);
     font-size: var(--fs-liten);
     color: var(--dempet);
-    max-width: none;
   }
 
   .produktliste__notis strong {
     color: var(--blekk);
   }
 
+  .produktliste__hoved :global(.produktliste__rutenett) {
+    width: 100%;
+    justify-content: start;
+  }
+
+  .produktliste__tom {
+    padding: var(--r-6) 0;
+    color: var(--dempet);
+  }
+
+  .produktliste__tom button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--lenke);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+
+  .produktliste__verktoy {
+    display: none;
+  }
+
+  :global(html:not(.js)) [data-kun-js] {
+    display: none !important;
+  }
+
+  /* ---------- Not finding it ---------- */
   .produktliste__ide {
     display: grid;
     justify-items: center;
-    gap: var(--r-2);
-    margin-top: var(--r-8);
-    padding-top: var(--r-6);
+    gap: var(--r-3);
+    margin-top: var(--r-9);
+    padding-top: var(--r-7);
     border-top: 1px solid var(--kant);
     text-align: center;
   }
 
-  .produktliste__ide .mono {
-    color: var(--dempet);
+  .produktliste__ide h2 {
+    font-size: var(--fs-h2);
   }
 
   .produktliste__ide-tekst {
-    font-size: var(--fs-ingress);
+    color: var(--dempet);
     max-width: 44ch;
   }
 
   .produktliste__ide-lenke {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--r-2);
+    min-height: var(--mal-beroring);
     font-weight: 600;
   }
 
-  @media (max-width: 640px) {
-    .produktliste {
-      padding-top: var(--r-5);
+  /* ---------- Below 1024 px: filter sheet ---------- */
+  @media (max-width: 1023px) {
+    .produktliste__flate {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
+
+    .produktliste__hoved {
+      grid-column: 1;
+      grid-row: auto;
+    }
+
+    .produktliste__verktoy {
+      display: grid;
+      gap: var(--r-3);
+      margin-bottom: var(--r-4);
+    }
+
+    .produktliste__verktoyrad {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--r-3);
+    }
+
+    .produktliste__status .produktliste__antall {
+      display: none;
+    }
+
+    :global(html:not(.js)) .produktliste__status .produktliste__antall {
+      display: block;
     }
 
     .kategorirad {
-      width: 100%;
+      margin-inline: calc(-1 * var(--gutter));
+      padding-inline: var(--gutter);
       overflow-x: auto;
       scrollbar-width: none;
     }
 
     .kategorirad ul {
-      flex-wrap: nowrap;
-      gap: 0 var(--r-4);
+      display: flex;
+      gap: var(--r-2);
+      margin: 0;
+      padding: 0;
+      list-style: none;
       white-space: nowrap;
     }
 
-    .produktliste__hoyre {
+    .kategorirad a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 0 var(--r-4);
+      border: 1px solid var(--kant);
+      border-radius: var(--radius-pille);
+      background: var(--flate);
+      color: var(--blekk);
+      font-size: var(--fs-liten);
+      font-weight: 550;
+      text-decoration: none;
+    }
+
+    .kategorirad a[aria-current='page'] {
+      border-color: var(--blekk);
+      background: var(--blekk);
+      color: var(--flate);
+    }
+
+    .filterknapp {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--r-2);
+      min-height: var(--mal-beroring);
+      padding: 0 var(--r-4);
+      border: 1px solid var(--kant-sterk);
+      border-radius: var(--radius-pille);
+      background: var(--flate);
+      font-size: var(--fs-liten);
+      font-weight: 600;
+    }
+
+    .filterknapp__antall {
+      min-width: 20px;
+      height: 20px;
+      padding: 0 5px;
+      border-radius: var(--radius-pille);
+      background: var(--handling);
+      color: var(--pa-handling);
+      font-size: 0.6875rem;
+      line-height: 20px;
+    }
+
+    /* The sheet: hidden in the flow when JS runs; a modal from the bottom when open. */
+    :global(.js) .filter:not(:modal) {
+      display: none;
+    }
+
+    .filter {
+      position: static;
+      max-height: none;
+      padding: 0;
+    }
+
+    .filter:modal {
+      position: fixed;
+      inset: auto 0 0;
       width: 100%;
+      max-width: 100%;
+      max-height: min(86dvh, 720px);
+      padding: var(--r-3) var(--gutter) 0;
+      border-radius: 18px 18px 0 0;
+      background: var(--papir);
+      box-shadow: 0 -10px 40px -20px rgb(0 0 0 / 0.5);
+      overflow-y: auto;
+    }
+
+    .filter::backdrop {
+      background: rgb(20 19 23 / 0.36);
+      backdrop-filter: blur(3px);
+    }
+
+    .filter:modal .filter__lukk {
+      display: inline-grid;
+      place-items: center;
+      width: var(--mal-beroring);
+      height: var(--mal-beroring);
+      margin-right: calc(-1 * var(--r-2));
+      border: 0;
+      border-radius: 50%;
+      background: none;
+    }
+
+    /* In the sheet, categories are already in the row above. */
+    .filter:modal .filter__gruppe--kategori {
+      display: none;
+    }
+
+    .filter:modal .filter__bunn {
+      position: sticky;
+      bottom: 0;
       justify-content: space-between;
+      align-items: center;
+      padding: var(--r-3) 0 max(var(--r-4), env(safe-area-inset-bottom));
+      background: var(--papir);
+      border-top: 1px solid var(--kant);
+    }
+
+    .filter:modal .filter__vis {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--mal-beroring);
+      padding: 0 var(--r-5);
+      border: 0;
+      border-radius: var(--radius-pille);
+      background: var(--handling);
+      color: var(--pa-handling);
+      font-weight: 600;
+    }
+
+    .fargeprikk {
+      width: 44px;
+      height: 44px;
+    }
+
+    .fargeprikk__prikk {
+      width: 30px;
+      height: 30px;
+    }
+
+    .filter__valg {
+      min-height: var(--mal-beroring);
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    @media (max-width: 1023px) {
+      .filter:modal {
+        animation: ark-opp 280ms var(--ease-ut);
+      }
+    }
+  }
+
+  @keyframes ark-opp {
+    from {
+      transform: translateY(100%);
     }
   }
 </style>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bestillingSkjema } from './bestilling';
 import { lagInnsending } from './foresporsel';
 import { beregnPris, valgTilPoster } from './pris';
-import { antallTekst, sorter, utvalgFor, type Sorteringsgrunnlag } from './sortering';
+import { antallAktiveFilter, antallTekst, sorter, utvalgFor, type Sorteringsgrunnlag } from './sortering';
 import { formaterMal, tilVisning, type ProduktVisning } from './visning';
 
 const data = {
@@ -84,6 +84,51 @@ describe('sortering', () => {
     expect(utvalgFor(liste, 'alle', 'utvalgt')).toHaveLength(3);
     expect(antallTekst(1)).toBe('1 produkt');
   });
+
+  it('filters by colour, material and own text inside the category', () => {
+    const f: Sorteringsgrunnlag[] = [
+      {
+        id: 'a',
+        navn: 'A',
+        kategori: 'x',
+        prisOre: null,
+        utvalgt: 1,
+        nyeste: 0,
+        farger: ['hvit'],
+        materialer: ['PLA'],
+      },
+      {
+        id: 'b',
+        navn: 'B',
+        kategori: 'x',
+        prisOre: null,
+        utvalgt: 2,
+        nyeste: 0,
+        farger: ['svart'],
+        materialer: ['PETG'],
+        egenTekst: true,
+      },
+      {
+        id: 'c',
+        navn: 'C',
+        kategori: 'y',
+        prisOre: null,
+        utvalgt: 3,
+        nyeste: 0,
+        farger: ['hvit', 'svart'],
+        materialer: ['PLA', 'PETG'],
+      },
+    ];
+    expect(utvalgFor(f, 'alle', 'utvalgt', { farger: ['hvit'], materialer: [], egenTekst: false })).toEqual([
+      'a',
+      'c',
+    ]);
+    expect(
+      utvalgFor(f, 'x', 'utvalgt', { farger: ['hvit', 'svart'], materialer: ['PETG'], egenTekst: false }),
+    ).toEqual(['b']);
+    expect(utvalgFor(f, 'alle', 'utvalgt', { farger: [], materialer: [], egenTekst: true })).toEqual(['b']);
+    expect(antallAktiveFilter({ farger: ['a', 'b'], materialer: ['PLA'], egenTekst: true })).toBe(4);
+  });
 });
 
 describe('bestilling', () => {
@@ -140,7 +185,7 @@ describe('bestilling', () => {
 
   const designlinje = {
     produktId: 'skaperverksted-signgen',
-    navn: 'Skilt fra Signgen: Dør',
+    navn: 'Skilt fra Sign Forge: Dør',
     antall: 1,
     valg: { Mål: '160 × 45 × 6 mm', Lag: '2' },
     design: {
@@ -157,7 +202,7 @@ describe('bestilling', () => {
     expect(k.ok).toBe(true);
     if (!k.ok) return;
     const felter = Object.fromEntries(k.innsending.felter);
-    expect(felter.Varer).toContain('Skilt fra Signgen: Dør [Skaperverksted: signgen, pris avtales]');
+    expect(felter.Varer).toContain('Skilt fra Sign Forge: Dør [Skaperverksted: signgen, pris avtales]');
     expect(felter.Varer).toContain('Mål: 160 × 45 × 6 mm');
     expect(felter.Sum).toContain('pris avtales');
     expect(k.innsending.vedlegg?.[0]?.filnavn).toBe('design-design_abc123.json');

@@ -119,7 +119,7 @@ test.describe('Produkter', () => {
           {
             nokkel: 'skaperverksted-signgen|Lag=2',
             produktId: 'skaperverksted-signgen',
-            navn: 'Skilt fra Signgen: Dørskilt',
+            navn: 'Skilt fra Sign Forge: Dørskilt',
             antall: 1,
             enhetspris: null,
             valg: { Lag: '2' },
@@ -129,7 +129,7 @@ test.describe('Produkter', () => {
       );
     });
     await page.reload();
-    await expect(page.getByText('Skilt fra Signgen: Dørskilt').first()).toBeVisible();
+    await expect(page.getByText('Skilt fra Sign Forge: Dørskilt').first()).toBeVisible();
     await expect(page.getByText('Pris avtales', { exact: true })).toBeVisible();
     await expect(page.getByText('Laget i Skaperverksted')).toBeVisible();
     await page.getByLabel('Navn').fill('Test Testesen');

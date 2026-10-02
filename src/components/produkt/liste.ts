@@ -1,12 +1,24 @@
-/** Listing behaviour: category change in place (with history), sorting. */
+/**
+ * Listing behaviour: category change in place (with history), colour /
+ * material / text filters, sorting, and the filter column that becomes a
+ * bottom sheet below 1024 px.
+ */
 import type { Sortering } from '@/lib/handel/katalog';
-import { antallTekst, utvalgFor, type Sorteringsgrunnlag } from '@/lib/handel/sortering';
+import {
+  antallAktiveFilter,
+  antallTekst,
+  utvalgFor,
+  type Filter,
+  type Sorteringsgrunnlag,
+} from '@/lib/handel/sortering';
 import { visUtvalg } from './kategoribytte';
 
 interface Listedata {
   grunnlag: Sorteringsgrunnlag[];
   tekster: Record<string, { tittel: string; ingress: string; href: string }>;
 }
+
+const bred = window.matchMedia('(min-width: 1024px)');
 
 export function startProduktliste(): void {
   const rot = document.querySelector<HTMLElement>('[data-produktliste]');
@@ -16,26 +28,55 @@ export function startProduktliste(): void {
   rot.dataset.klar = '1';
 
   const data = JSON.parse(dataEl.textContent ?? '{}') as Listedata;
-  const tittel = rot.querySelector<HTMLElement>('[data-liste-tittel]');
-  const ingress = rot.querySelector<HTMLElement>('[data-liste-ingress]');
-  const antall = rot.querySelector<HTMLElement>('[data-liste-antall]');
-  const velger = rot.querySelector<HTMLSelectElement>('[data-liste-sortering]');
-  const lenker = [...rot.querySelectorAll<HTMLAnchorElement>('[data-kategori]')];
+  const $ = <T extends Element>(s: string) => rot.querySelector<T>(s);
+  const $$ = <T extends Element>(s: string) => [...rot.querySelectorAll<T>(s)];
+  const tittel = $<HTMLElement>('[data-liste-tittel]');
+  const ingress = $<HTMLElement>('[data-liste-ingress]');
+  const antallEl = $$<HTMLElement>(
+    '[data-liste-antall], [data-liste-antall-smal], [data-liste-antall-knapp]',
+  );
+  const tom = $<HTMLElement>('[data-liste-tom]');
+  const velger = $<HTMLSelectElement>('[data-liste-sortering]');
+  const lenker = $$<HTMLAnchorElement>('[data-kategori]');
+  const farger = $$<HTMLInputElement>('[data-filter-farge]');
+  const materialer = $$<HTMLInputElement>('[data-filter-materiale]');
+  const tekst = $<HTMLInputElement>('[data-filter-tekst]');
+  const teller = $<HTMLElement>('[data-filter-teller]');
+  const nullstill = $<HTMLButtonElement>('[data-filter-nullstill]');
+  const ark = $<HTMLDialogElement>('[data-filter]');
+  const apneKnapp = $<HTMLButtonElement>('[data-filter-apne]');
 
   let kategori = rot.dataset.aktiv ?? 'alle';
-  const fraUrl = new URLSearchParams(location.search).get('sortering');
+  const sok = new URLSearchParams(location.search);
+  const fraUrl = sok.get('sortering');
   if (velger && fraUrl && [...velger.options].some((o) => o.value === fraUrl)) velger.value = fraUrl;
   let sortering = (velger?.value ?? 'utvalgt') as Sortering;
 
+  function filter(): Filter {
+    return {
+      farger: farger.filter((f) => f.checked).map((f) => f.value),
+      materialer: materialer.filter((m) => m.checked).map((m) => m.value),
+      egenTekst: !!tekst?.checked,
+    };
+  }
+
   function vis(): void {
-    const n = visUtvalg(rutenett!, utvalgFor(data.grunnlag, kategori, sortering));
+    const f = filter();
+    const n = visUtvalg(rutenett!, utvalgFor(data.grunnlag, kategori, sortering, f));
     const t = data.tekster[kategori];
     if (t) {
       if (tittel) tittel.textContent = t.tittel;
       if (ingress) ingress.textContent = t.ingress;
-      document.title = kategori === 'alle' ? 'Produkter – Designporten' : `${t.tittel} – Designporten`;
+      document.title = `${t.tittel} – Designporten`;
     }
-    if (antall) antall.textContent = antallTekst(n);
+    antallEl.forEach((el) => (el.textContent = antallTekst(n)));
+    if (tom) tom.hidden = n > 0;
+    const aktive = antallAktiveFilter(f);
+    if (teller) {
+      teller.textContent = String(aktive);
+      teller.hidden = aktive === 0;
+    }
+    if (nullstill) nullstill.disabled = aktive === 0;
     for (const a of lenker) {
       if (a.dataset.kategori === kategori) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
@@ -65,11 +106,50 @@ export function startProduktliste(): void {
     history.replaceState({ kategori }, '', url());
   });
 
+  [...farger, ...materialer, ...(tekst ? [tekst] : [])].forEach((el) => el.addEventListener('change', vis));
+
+  const tilbakestill = () => {
+    [...farger, ...materialer, ...(tekst ? [tekst] : [])].forEach((el) => (el.checked = false));
+    vis();
+  };
+  nullstill?.addEventListener('click', tilbakestill);
+  $('[data-filter-nullstill-tom]')?.addEventListener('click', tilbakestill);
+
   window.addEventListener('popstate', (e) => {
     const k = (e.state as { kategori?: string } | null)?.kategori ?? rot.dataset.aktiv ?? 'alle';
     if (k === kategori) return;
     kategori = k;
     vis();
+  });
+
+  // The filter: an always-open column on desktop, a modal sheet below 1024 px.
+  function tilpassArk(): void {
+    if (!ark) return;
+    if (bred.matches) {
+      if (ark.matches(':modal')) ark.close();
+      if (!ark.open) ark.show();
+    } else if (ark.open && !ark.matches(':modal')) {
+      ark.close();
+    }
+  }
+  tilpassArk();
+  bred.addEventListener('change', tilpassArk);
+  apneKnapp?.addEventListener('click', () => {
+    ark?.showModal();
+    apneKnapp.setAttribute('aria-expanded', 'true');
+  });
+  ark?.addEventListener('close', () => {
+    apneKnapp?.setAttribute('aria-expanded', 'false');
+    // Desktop keeps the column open even after Escape.
+    if (bred.matches) requestAnimationFrame(tilpassArk);
+  });
+  $('[data-filter-lukk]')?.addEventListener('click', () => ark?.close());
+  $('[data-filter-ferdig]')?.addEventListener('click', () => ark?.close());
+  ark?.addEventListener('click', (e) => {
+    // A click on the backdrop lands on the dialog element, outside its box.
+    if (e.target !== ark || !ark.matches(':modal')) return;
+    const r = ark.getBoundingClientRect();
+    if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) ark.close();
   });
 
   history.replaceState({ kategori }, '', location.href);
