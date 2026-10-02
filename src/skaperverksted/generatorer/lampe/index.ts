@@ -60,7 +60,7 @@ const plugin: GeneratorPlugin = {
     }
     return {
       produktId: 'skaperverksted-lampe',
-      navn: `Lampeskjerm fra Lampegeneratoren: ${dok.navn}`,
+      navn: `Lampeskjerm fra Form Forge: ${dok.navn}`,
       valg: {
         Mål: `${tall(v?.maksDiameter ?? Math.max(p.diameterBunn, p.diameterTopp), 0)} × ${tall(p.hoyde, 0)} mm`,
         Mønster: p.monster.type === 'glatt' ? 'Glatt' : `${monsternavn[p.monster.type]}, ${p.monster.antall}`,

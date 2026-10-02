@@ -5,7 +5,7 @@ test.describe('Skaperverksted', () => {
   test('huben viser generatorene', async ({ page }) => {
     await page.goto('/skaperverksted/');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Signgen/ }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: /Sign Forge/ }).first()).toBeVisible();
     const r = await new AxeBuilder({ page }).analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
