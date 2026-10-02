@@ -162,6 +162,19 @@ const { bilde, etikett, tittel, ingress, stor = false, fokus = '70% 45%', id = '
     background: color-mix(in srgb, var(--flate) 70%, transparent);
   }
 
+  /* Tablets: the text column covers more of the picture, so the veil reaches further. */
+  @media (max-width: 1100px) {
+    .bhelt::before {
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--papir) 95%, transparent) 0%,
+        color-mix(in srgb, var(--papir) 88%, transparent) 45%,
+        color-mix(in srgb, var(--papir) 40%, transparent) 68%,
+        transparent 85%
+      );
+    }
+  }
+
   /* ---------- Phones: picture above, text below ---------- */
   @media (max-width: 720px) {
     .bhelt {

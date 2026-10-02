@@ -69,7 +69,7 @@ Creativity must never make these harder to answer.
 
 | Path | Meaning | Destination |
 |---|---|---|
-| **FINN NOE** | Explore existing products and inspiration | Produkter, Inspirasjon |
+| **FINN NOE** | Explore existing products and inspiration | Vårt utvalg, Inspirasjon |
 | **LAG NOE** | Design something yourself | Skaperverksted |
 | **HAR DU EN IDÉ?** | Tell Designporten what you want made | Spesialdesign → idéskjema |
 
@@ -104,23 +104,22 @@ Full rationale is in the detail documents and the decision log.
 - **Surfaces:** warm off-white *papir* `#F6F3EE` for the showroom, graphite *verksted* `#141317` / `#1C1B1F` for Skaperverksted and episodic dark sections.
 - **Action colour:** Lilla `#883DFF` with white text (5.0:1). Text links use `#6E24E6`. Cyan is never text on light surfaces; it is used on graphite, as a technical/measurement accent, and in the logo.
 - **The violet→cyan gradient** is reserved for the logo and the thin brand line. It is not used on buttons, backgrounds or headlines.
-- **Typography:** Archivo (variable, width + weight axes, OFL) for display and body, used expressively at wide/heavy settings for display and at normal width for body. IBM Plex Mono for measurements, specs, coordinates, counters and editor values. This keeps the Aug 28 decision «går for C» (Archivo + IBM Plex Mono) and meets the brief's call for an expressive display face. Inter, Roboto and Arial are not used.
+- **Typography (revised 2026-10-02):** Sora (light, geometric) for headings and Manrope for body and UI, IBM Plex Mono for measurements and editor values. Calm scale, no gigantic headings. See [brand and identity](docs/design/brand-and-identity.md#typography).
 - **Logo:** the existing "dp" two-loop mark. It is not redrawn.
 - **Mascot:** the cute, slightly spiky dragon in purple, dark blue and beige/cream seen in the concepts. It is used sparingly, never as decoration on every page.
 - **Imagery:** real workshop and product photography is the goal. AI concept images are allowed until then and are always labelled «Konseptbilde».
 - **Vector rule (D-3, clarified 2026-09-28):** functional programmatic geometry is allowed: grids, rulers, measurement marks, construction lines, Bézier curves, geometry paths, editor overlays, snapping guides, technical visualisation. Arbitrary decorative vector artwork and invented decorative SVG iconography are not. Transparent images are PNG/WebP with alpha.
 
 ### Information architecture
-- **Main navigation:** Produkter · Skaperverksted · Spesialdesign · For bedrifter · Inspirasjon · Om · Kontakt. The logo is the way home; «Hjem» is not a menu item (decision of 2026-09-03).
+- **Main navigation:** Vårt utvalg (/produkter/) · Skaperverksted · Spesialdesign · For bedrifter · Inspirasjon · Om · Kontakt. The logo is the way home; «Hjem» is not a menu item (decision of 2026-09-03).
 - **Header utilities:** search, cart. Account is added when accounts exist.
-- **Homepage CTA pair:** «START Å SKAPE» (primary, to Skaperverksted) and «FORTELL OSS IDEEN DIN» (secondary, to the idea form). One is visually dominant; they never compete at equal strength.
+- **Homepage CTA pair:** «START Å SKAPE» (primary, to Skaperverksted) and «FORTELL OSS IDEEN DIN» (secondary, opens the enquiry form). One is visually dominant; they never compete at equal strength.
 - **Product categories:** Personlige gaver · Interiør · Figurer · Tilbehør · Bedrift · Spesialbestillinger.
 - **Legacy labels retired:** «Kjøp ferdig», «Lag noe eget», «Butikk», «Designverksted(et)». Their meanings map to the new names; see the decision log.
 
 ### Signature components kept from earlier work
-- **Scroll-driven process slider** («Slik blir en idé til en del»), exactly as specified in [interaction-and-motion.md](docs/design/interaction-and-motion.md#process-slider): full-width image, fade plus quick slide between states, text directly under the image, progress bar exactly as wide as the text with small dots on it, centred.
-- **Top slider** with its control row on top (category, dots, counter, Forrige/Neste) and text directly under the image.
-- **Sticky header** that shrinks into a rounded, translucent bar on scroll; on mobile only the menu button and cart show.
+- **Scroll-driven process timeline** («Slik blir en idé til et ferdig produkt»), revised 2026-10-02 as specified in [interaction-and-motion.md](docs/design/interaction-and-motion.md#process-timeline): the line is the main character and a point lights only when the line reaches it; the background changes per step and the object evolves in front.
+- **Sticky header** that is centred and shrinks into a centred, rounded, floating bar on scroll; on mobile only the menu button and cart show.
 - **Product cards:** square, fixed width, centred grid, at most 6 across; the card does not move on hover; the image may change to another angle; only the cart control reacts.
 - **Product window:** a light modal over a darkened, blurred page, with colour, material and optional custom text.
 - **Category change:** cards that leave fall backwards, rotate slightly and fade out.
@@ -128,7 +127,7 @@ Full rationale is in the detail documents and the decision log.
 ### Skaperverksted
 - A real browser application: large central canvas, floating toolbars, Layers panel, Inspector, contextual controls, selection, snapping, zoom, pan, undo/redo, dimensions in millimetres, 2D and 3D views, export/order flow. It is not "form left, preview right".
 - **Adaptive measurement grid** that switches between cm and mm subdivisions with zoom.
-- **Generators are plug-ins** into a shared workspace shell and shared domain model. The first three are **Signgen**, the **lamp generator** and the **articulated dragon generator**.
+- **Generators are plug-ins** into a shared workspace shell and shared domain model. The tools are named **Sign Forge** (signs, code id `signgen`), **Form Forge** (general parametric form generator, first used for lamp shades; code id `lampe`), **Dragon Forge** (articulated dragons, `drage`) and **Clicker Forge** (planned, not built). Use these names consistently (2026-10-02).
 - **Signgen** builds 3D-printed (never wooden) signs from SVG + text + shapes → layers → heights → profiles → colours → 3D model, with an architecture ready for Bézier side profiles, CSV batch generation and a free/paid split. None of the future features are faked.
 
 ### Technical

@@ -23,73 +23,33 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Covers motion 
 
 ## Homepage hero
 
-**Purpose:** say VI GIR IDEER FORM and let the page appear to start making something in front of the visitor.
+**Revised 2026-10-02 (design revision, §3 and §13).** The scroll-driven print hero (2026-09-29) and the Spesialdesign scroll image are retired: they showed animation before identity, and the picture left the screen before its sequence ended.
 
-**Concept (default):** the portal. A single object is built in front of the visitor through these states:
+- One component, `BildeHelt.astro`, for the homepage, Spesialdesign and For bedrifter: a strong full-width picture, an eyebrow, a calm headline and the page's actions. Nothing in it moves on its own.
+- **Parallax only:** the picture drifts about 10 % slower than the page as it scrolls away (`data-rulle="ut"`). Off under reduced motion.
+- Desktop and tablet: text on the picture's light side over a soft paper-coloured veil. Phones: picture on top (4:3), text below it on the page.
+- Homepage: «Vi gir ideer form», with «Start å skape» (primary) and «Fortell oss ideen din» (secondary, opens the enquiry modal).
+- AI pictures carry the «Konseptbilde» tag until real photos replace them.
 
-> skisse → kontur → geometri → mesh → lag → printet objekt
+## Process timeline
 
-- The statement «VI GIR IDEER FORM» is large display type and part of the composition, not a caption beside a picture. The word FORM can itself take part in the build (for example set on layer lines).
-- The object is a real Designporten product (for example the lamp or the dragon) so the sequence ends in something the visitor can buy or make.
-- The sequence plays once on load (≈1.2–2.4 s), then settles. Scrolling or pointer movement may scrub or gently rotate the object; it never replays on its own in a loop.
-- **Implementation order:** the first version uses layered images/video frames of the same object in each state (as the process slider already does). A real-time WebGL version is an enhancement that loads after first paint and is skipped on low-power devices and reduced motion.
-- **Implemented (2026-09-29, full-width pass):** the hero is one continuous field across the full browser width. Construction lines run from edge to edge; the spiral vase is built from programmatic geometry (axis, profile from 11 measurement points, 7 cross-sections, 14 ribs at 132° twist) and printed in 46 layers. Above the moving print line the object is still the model; below it, the concept photo of the printed vase. A mono readout names each stage. On load the stages draw in (≈1.4 s) and the print runs to about a third (half on narrow screens); from there **normal scrolling advances the print** to the finished object. On ≥1024 px the hero is pinned (sticky) for about 70 % of a screen of scroll so the print can finish; below 1024 px it is not pinned and the print follows the hero leaving the screen. A fine pointer turns the ribs slightly. The word FORM is printed with the same line. «Bygg på nytt» replays the load sequence. Without JavaScript the finished object shows; reduced motion shows one still frame with the model above the line and the object below it, all stages listed.
-- **Primary actions**, visible from the first frame without waiting for the animation:
-  - «START Å SKAPE» → Skaperverksted (primary, filled lilla)
-  - «FORTELL OSS IDEEN DIN» → idea form (secondary, outline)
-- The three paths (FINN NOE / LAG NOE / HAR DU EN IDÉ?) follow directly below the hero; see [information-architecture.md](../content/information-architecture.md#homepage).
-- Earlier hero directions that are **retired**: the galaxy/smoke hero (Aug 2026), the stone-arch portal with a hiker (concept 06), headline-left/product-right splits.
+**Revised 2026-10-02 (§6, §19).** The timeline is the main character. Component: `ProsessSlider.astro`; arithmetic in `src/components/showroom/prosess.ts` (unit-tested).
 
-## Process slider
-
-**Status: preserved existing work.** Built in the test bench (`reference/prototypes/provebenk-2026-09-04.html`), iterated with Sivert 2026-09-03 to 2026-09-04. Re-implement to this spec; do not redesign.
-
-**Section:** «Slik blir en idé til en del». Meta label in mono: «N steg · scroll for å følge dem».
-
-### Scroll mechanics
-- An outer track (`spor`) whose height is `viewport × 0.85 × N + viewport × 0.15` (about one screen drag per step).
-- An inner block (`fest`) is `position: sticky`, pinned just below the header.
-- `progress = (scrollY − trackTop) / (trackHeight − viewportHeight)`, clamped to 0–1. `step = floor(progress × N)`, capped at N−1.
-- Only normal scrolling drives it. No wheel hijacking.
-
-### Image
-- **Full width** of the viewport. Aspect 21:9 on desktop, 4:3 on mobile.
-- **Layered scene:** a background image (cover, oversized by 14 % top and bottom), a light radial veil (white .80 → .34 → 0) and the transparent product image(s) on top, centred, about 34 % wide on desktop and 52 % on mobile, with a soft physical drop shadow.
-- **Background parallax:** the background moves slowly upwards with progress (`translateY(−progress × 11 %)`), «sakte men sikkert … som en optisk illusjon» (Sivert, 2026-09-03). Off under reduced motion.
-- **Step change:** the new state **fades in with a quick slide** (about 340 ms, `--ease-ut`, from 26–30 px to the right). The thin violet/blue stripe effect is removed (Sivert, 2026-09-03).
-- **States:** the same object shown as it moves from sketch → 3D model → prototype → finished product. The test bench simulated this with filters on one photo; production uses real images of each state.
-
-### Text
-- Placed **directly under the image**: 14 px from the image edge to the step counter, 12 px gap between elements (Sivert, 2026-09-04).
-- Centred column, max 52ch.
-- Step counter in mono («Steg 01 / 05»), then the step title, then one or two sentences.
-- Text swaps with a short fade and 14 px upward slide (300 ms).
-
-### Progress bar
-- **Exactly as wide as the text column** and centred with it under the full-width image (Sivert, 2026-09-03).
-- A 3 px track in `--kant`, filled with solid `--dp-lilla` (not a gradient) as progress moves.
-- **Small dots on the bar**, one per step, evenly spaced from 0 to 100 %. Passed dots are filled violet; the current dot is slightly larger with a soft violet ring.
-- Step labels under the bar in mono uppercase (10 px, 9 px on mobile); first left-aligned, last right-aligned; current in violet, passed in muted.
-- Dots and labels are buttons: clicking one scrolls to that step. The whole component is keyboard reachable and announces the current step (`aria-current="step"`, live region for the title).
-
-### Steps
-- The component supports any number of steps (N ≥ 2).
-- **Homepage:** IDÉ → SKISSE → MODELL → 3D-PRINT → FERDIG PRODUKT (5 steps, from the brief).
-- **Spesialdesign:** IDÉ → DIALOG → DESIGN → PROTOTYPE → PRODUKSJON → FERDIG PRODUKT (6 steps, from the brief).
-- The test bench copy for Skisse, 3D-modell, Prototype and Ferdig produkt is kept as the starting text for the matching steps; the "one reprint round included" and "file kept on your account" promises need Sivert's confirmation before publishing.
-
-### Reduced motion and small screens
-- Reduced motion: no parallax, crossfade only, the track is shorter (one step per 60 % of a screen).
-- On mobile the component works the same way; labels shorten if needed, the bar keeps its dots.
+- A sticky scene, full width inside the page gutters with rounded corners, pinned just below the compact header. Track height: `n × takt + scene height`; `takt` is 55 svh per step on the homepage and 38 svh on Spesialdesign (faster, §19).
+- **The line fills with scrolling, and a point lights up only when the line reaches it.** Points sit at `i / (n − 1)`; the active step is the last point the line has reached. A short rest at each end of the track (4 % and 10 %) lets the first and last steps be read. The old `floor(progress × n)` rule, which lit points before the line got there, is gone.
+- **Background slideshow:** each step has its own picture (or part of one), cross-faded (700 ms). A dark gradient from the bottom keeps white text readable. The whole background drifts 6 % upward through the track.
+- **Foreground object:** a light framed card shows the object evolving (sketch sheet, model, print layers, sanding, finished). A step with `scene: ingen` hides the card so the picture carries it.
+- **Over the scene:** step counter (mono), title, one or two sentences, and the timeline with labels. Labels are buttons that scroll to just after the line reaches their point (`aria-current="step"`, live region). Phones: dots only, labels kept for screen readers.
+- **Homepage steps:** Idé → Skisse → Modell → Print → Etterarbeid → Ferdig (6). **Spesialdesign:** Idé → Dialog → Design → Prototype → Produksjon → Ferdig (6).
+- Reduced motion: no drift, fades shortened to 120 ms. Without JavaScript all steps are listed under the scene.
 
 ## Top slider
 
-**Status: preserved existing work** (test bench, 2026-09-03/04). Used where a page needs a sequence of scenes, for example product or inspiration highlights. It is not the homepage hero.
+**Retired 2026-10-02 (§7).** The homepage section before the Skaperverksted portal is removed and the component deleted.
 
-- **Control row on top**, above the image, with a hairline under it: category eyebrow (mono, pushed left) → dots (9 px; active dot stretches to 26 px in lilla) → counter «1 / 3» (mono) → «Forrige» / «Neste» buttons.
-- Full-width scene as in the process slider.
-- Text **directly under the image** (14 px), centred, headline + one line + CTAs.
-- Autoplay at 6 s is allowed only if it pauses on hover, focus and interaction, has a visible pause control (WCAG 2.2.2) and is off under reduced motion.
+## Skaperverksted transition
+
+**Revised 2026-10-02 (§8).** No door or circle. The light page darkens over a long gradient into the graphite portal; the measurement grid and content settle in with scrolling (`data-rulle="inn"`). Reduced motion shows the end state.
 
 ## Header
 

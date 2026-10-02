@@ -82,7 +82,7 @@ const data = { grunnlag, tekster };
 
 <div class="produktliste" data-produktliste data-aktiv={aktiv}>
   <header class="produktliste__topp ramme">
-    <p class="etikett">{aktiv === 'alle' ? 'Butikk' : <a href="/produkter/">Vårt utvalg</a>}</p>
+    <p class="etikett">{aktiv === 'alle' ? 'Produkter' : <a href="/produkter/">Vårt utvalg</a>}</p>
     <h1 data-liste-tittel>{aktivTekst.tittel}</h1>
     <p class="ingress" data-liste-ingress>
       {aktivTekst.ingress}
