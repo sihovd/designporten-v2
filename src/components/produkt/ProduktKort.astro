@@ -57,10 +57,16 @@ const mal = formaterMal(p.mal);
     </span>
   </a>
   <div class="produktkort__kapselflate">
+    <!-- «+» is the anchor and never moves: the count opens above it and «−»
+         below it, so repeated clicks in one place always add. -->
     <div class="kurvkapsel" data-kurvkapsel>
+      <span class="kurvkapsel__flate" aria-hidden="true"></span>
+      <span class="kurvkapsel__antall tall" data-kurv-antall hidden>
+        0
+      </span>
       <button class="kurvkapsel__knapp kurvkapsel__pluss" type="button" data-kurv-pluss>
         <span class="kurvkapsel__kurv">
-          <Ikon navn="handlekurv" storrelse={20} />
+          <Ikon navn="handlekurv" storrelse={18} />
         </span>
         <span class="kurvkapsel__plusstegn">
           <Ikon navn="pluss" storrelse={18} />
@@ -70,9 +76,6 @@ const mal = formaterMal(p.mal);
           0
         </span>
       </button>
-      <span class="kurvkapsel__antall tall" data-kurv-antall hidden>
-        0
-      </span>
       <button class="kurvkapsel__knapp kurvkapsel__minus" type="button" data-kurv-minus hidden>
         <Ikon navn="minus" storrelse={18} />
         <span class="visuelt-skjult">Ta én {p.navn} ut av handlekurven</span>
@@ -172,7 +175,6 @@ const mal = formaterMal(p.mal);
     font-family: var(--font-tekst);
     font-size: 0.9375rem;
     font-weight: 600;
-    font-stretch: 100%;
     letter-spacing: -0.01em;
     line-height: 1.25;
     overflow-wrap: break-word;
@@ -202,51 +204,73 @@ const mal = formaterMal(p.mal);
     font-weight: 600;
   }
 
-  /* The capsule layer covers exactly the square image, so the capsule sits
-     in the image's bottom-right corner and grows upwards. */
+  /* The capsule layer covers exactly the square image. The «+» button sits
+     in its right edge, high enough that the open control (count above, «−»
+     below) always fits inside the image. Only the surface behind the buttons
+     grows; no button ever changes position. */
   .produktkort__kapselflate {
     position: absolute;
     inset: 0 0 auto 0;
     aspect-ratio: 1 / 1;
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
-    padding: var(--r-2);
     pointer-events: none;
   }
 
   .kurvkapsel {
-    --kapsel-mal: 32px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    pointer-events: auto;
-    background: var(--flate);
-    border: 1px solid var(--kant);
-    border-radius: var(--radius-pille);
-    box-shadow: 0 6px 16px -10px rgb(24 23 28 / 0.45);
+    --kapsel-mal: 34px;
+    --kapsel-luft: 10px;
+    position: absolute;
+    right: var(--kapsel-luft);
+    bottom: calc(var(--kapsel-luft) + var(--kapsel-mal));
+    width: var(--kapsel-mal);
+    height: var(--kapsel-mal);
   }
 
   @media (pointer: coarse) {
     .kurvkapsel {
       --kapsel-mal: var(--mal-beroring);
+      --kapsel-luft: 6px;
     }
   }
 
+  .kurvkapsel__flate {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--kant);
+    border-radius: var(--radius-pille);
+    background: var(--flate);
+    box-shadow: 0 6px 16px -10px rgb(24 23 28 / 0.45);
+    transition: inset var(--t-trinn) var(--ease-ut);
+  }
+
+  .kurvkapsel[data-apen] .kurvkapsel__flate {
+    inset: calc(-1 * var(--kapsel-mal)) 0;
+  }
+
   .kurvkapsel__knapp {
-    position: relative;
-    display: grid;
-    place-items: center;
+    position: absolute;
+    left: 0;
     width: var(--kapsel-mal);
     height: var(--kapsel-mal);
+    display: grid;
+    place-items: center;
     padding: 0;
     border: 0;
     border-radius: var(--radius-pille);
     background: transparent;
     color: var(--handling);
+    pointer-events: auto;
     transition:
       background-color var(--t-rask) ease,
-      color var(--t-rask) ease;
+      color var(--t-rask) ease,
+      opacity var(--t-rask) ease;
+  }
+
+  .kurvkapsel__pluss {
+    top: 0;
+  }
+
+  .kurvkapsel__minus {
+    top: var(--kapsel-mal);
   }
 
   .kurvkapsel__knapp:hover {
@@ -264,52 +288,85 @@ const mal = formaterMal(p.mal);
     grid-area: 1 / 1;
     display: grid;
     place-items: center;
-    transition: opacity var(--t-rask) ease;
+    transition:
+      opacity var(--t-rask) ease,
+      transform var(--t-rask) var(--ease-ut);
   }
 
   .kurvkapsel__plusstegn {
     opacity: 0;
-  }
-
-  .kurvkapsel__merke {
-    position: absolute;
-    right: -4px;
-    top: -4px;
-    min-width: 17px;
-    height: 17px;
-    padding: 0 4px;
-    border-radius: var(--radius-pille);
-    background: var(--handling);
-    color: var(--pa-handling);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    line-height: 17px;
-    text-align: center;
+    transform: rotate(-90deg);
   }
 
   .kurvkapsel__antall {
-    font-size: 0.75rem;
-    font-weight: 600;
-    line-height: 1.4;
+    position: absolute;
+    left: 0;
+    top: calc(-1 * var(--kapsel-mal));
+    width: var(--kapsel-mal);
+    height: var(--kapsel-mal);
+    display: grid;
+    place-items: center;
+    color: var(--blekk);
+    font-size: 0.8125rem;
+    font-weight: 700;
   }
 
-  /* Expanded: cart icon becomes «+», count and «−» appear below it.
-     Hover and keyboard focus expand it; on touch it stays expanded while the
-     product is in the cart. The markup is the same in both states. */
+  /* Collapsed with items in the cart: a small purple badge with the count. */
+  .kurvkapsel__merke {
+    position: absolute;
+    right: -5px;
+    top: -5px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border: 2px solid var(--flate);
+    border-radius: var(--radius-pille);
+    background: var(--handling);
+    color: var(--pa-handling);
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+  }
+
+  /* Closed: the count and «−» are out of the way and not focusable. */
   .kurvkapsel:not([data-apen]) .kurvkapsel__antall,
   .kurvkapsel:not([data-apen]) .kurvkapsel__minus {
-    display: none;
+    visibility: hidden;
+    opacity: 0;
+  }
+
+  .kurvkapsel__antall,
+  .kurvkapsel__minus {
+    transition:
+      opacity var(--t-rask) ease var(--t-rask),
+      visibility 0s linear;
+  }
+
+  .kurvkapsel:not([data-apen]) :is(.kurvkapsel__antall, .kurvkapsel__minus) {
+    transition:
+      opacity var(--t-rask) ease,
+      visibility 0s linear var(--t-rask);
   }
 
   .kurvkapsel[data-apen] .kurvkapsel__kurv {
     opacity: 0;
+    transform: rotate(90deg);
   }
 
   .kurvkapsel[data-apen] .kurvkapsel__plusstegn {
     opacity: 1;
+    transform: none;
   }
 
   .kurvkapsel[data-apen] .kurvkapsel__merke {
     display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .kurvkapsel *,
+    .kurvkapsel__flate {
+      transition: none !important;
+    }
   }
 </style>

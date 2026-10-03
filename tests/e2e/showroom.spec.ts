@@ -49,66 +49,85 @@ test.describe('pages', () => {
   }
 });
 
-test('the hero says VI GIR IDEER FORM with both actions usable at once', async ({ page }) => {
+test('the hero says Vi gir ideer form with both actions', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/vi gir ideer\s*form/i);
-  await expect(page.locator('.helt').getByRole('link', { name: 'Start å skape' })).toHaveAttribute(
+  const helt = page.locator('.bhelt');
+  await expect(helt.getByRole('link', { name: 'Start å skape' })).toHaveAttribute('href', '/skaperverksted/');
+  await expect(helt.getByRole('link', { name: 'Fortell oss ideen din' })).toBeVisible();
+});
+
+test('the homepage shows popular products right after the hero', async ({ page }) => {
+  await page.goto('/');
+  const rad = page.getByRole('list', { name: 'Populære produkter' });
+  expect(await rad.getByRole('listitem').filter({ visible: true }).count()).toBeGreaterThanOrEqual(4);
+  await expect(page.getByRole('link', { name: 'Se utvalget' })).toHaveAttribute('href', '/produkter/');
+});
+
+test('the three small cards lead to the three paths', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: 'Ferdige produkter' })).toHaveAttribute('href', '/produkter/');
+  await expect(page.getByRole('link', { name: 'Skaperverksted', exact: true }).last()).toHaveAttribute(
     'href',
     '/skaperverksted/',
   );
-  await expect(page.getByRole('link', { name: 'Fortell oss ideen din' }).first()).toBeVisible();
+  await page.getByRole('link', { name: 'Fortell oss om den' }).click();
+  await expect(page.getByRole('dialog', { name: 'Fortell oss hva du trenger' })).toBeVisible();
 });
 
-test('the three doors lead to the three paths', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByRole('link', { name: /Finn noe/ })).toHaveAttribute('href', '/produkter/');
-  await expect(page.getByRole('link', { name: /Lag noe/ })).toHaveAttribute('href', '/skaperverksted/');
-  await expect(page.getByRole('link', { name: /Har du en idé\?/ })).toHaveAttribute(
-    'href',
-    '/spesialdesign/',
-  );
-});
-
-test('the process slider follows scrolling and its labels jump to a step', async ({ page }) => {
+test('a timeline point lights up only when the line reaches it', async ({ page }) => {
   await page.goto('/');
   const prosess = page.locator('[data-prosess]').first();
-  await expect(prosess.locator('[data-nr]')).toHaveText('Steg 01 / 05');
-  await prosess.getByRole('button', { name: /Steg 4 av 5/ }).click();
-  await expect(prosess.locator('[data-nr]')).toHaveText('Steg 04 / 05');
-  await expect(prosess.getByRole('button', { name: /Steg 4 av 5/ })).toHaveAttribute('aria-current', 'step');
+  const spor = prosess.locator('[data-spor]');
+  // The top of the track: the first step, and the line has not reached the second point.
+  await spor.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 60));
+  await expect(prosess.locator('[data-nr]')).toHaveText('01 / 06');
+  await expect(prosess.locator('[data-punkt="1"]')).not.toHaveClass(/passert/);
+  // A label scrolls to its step: that point and all before it are lit, the next is not.
+  await prosess.getByRole('button', { name: /Steg 4 av 6/ }).click();
+  await expect(prosess.locator('[data-nr]')).toHaveText('04 / 06');
+  await expect(prosess.getByRole('button', { name: /Steg 4 av 6/ })).toHaveAttribute('aria-current', 'step');
   await expect(prosess.locator('[data-tittel]')).toHaveText('3D-print');
+  await expect(prosess.locator('[data-punkt="3"]')).toHaveClass(/passert/);
+  await expect(prosess.locator('[data-punkt="4"]')).not.toHaveClass(/passert/);
 });
 
-test('the top slider moves with Neste and can be paused', async ({ page }) => {
-  await page.goto('/');
-  const slider = page.locator('[data-toppslider]');
-  await slider.scrollIntoViewIfNeeded();
-  await expect(slider.locator('[data-teller]')).toHaveText('1 / 3');
-  await slider.getByRole('button', { name: 'Neste' }).click();
-  await expect(slider.locator('[data-teller]')).toHaveText('2 / 3');
-  await expect(slider.getByRole('button', { name: 'Spill av' })).toHaveAttribute('aria-pressed', 'true');
+test('the enquiry modal opens with business chosen, traps focus and closes with Escape', async ({ page }) => {
+  await page.goto('/bedrift/');
+  const knapp = page.locator('.bhelt').getByRole('link', { name: 'Fortell oss hva dere trenger' });
+  await knapp.click();
+  const modal = page.getByRole('dialog', { name: 'Fortell oss hva du trenger' });
+  await expect(modal).toBeVisible();
+  await expect(modal.getByRole('radio', { name: 'Bedrift' })).toBeChecked();
+  await expect(modal.getByLabel(/Firmanavn/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(modal).toBeHidden();
+  await expect(knapp).toBeFocused();
 });
 
-test('the idea form shows errors, then sends and shows the receipt', async ({ page }) => {
-  await page.goto('/spesialdesign/?start=del#skjema');
-  const skjema = page.locator('form[data-skjema]');
-  await expect(skjema.getByRole('radio', { name: 'Jeg trenger en del' })).toBeChecked();
-  await skjema.getByRole('button', { name: 'Send ideen' }).click();
-  await expect(skjema.getByRole('alert')).toContainText('Noe mangler');
-  await expect(skjema.getByLabel(/Hva vil du lage/)).toHaveAttribute('aria-invalid', 'true');
+test('the enquiry form shows errors, then sends with a file and shows the receipt', async ({ page }) => {
+  await page.goto('/spesialdesign/');
+  await page.getByRole('link', { name: 'Start som privatkunde' }).click();
+  const modal = page.getByRole('dialog', { name: 'Fortell oss hva du trenger' });
+  const skjema = modal.locator('form[data-skjema]');
+  await expect(skjema.getByRole('radio', { name: 'Privatperson' })).toBeChecked();
+  await skjema.getByRole('radio', { name: 'Jeg trenger en del' }).check({ force: true });
+  await skjema.getByRole('button', { name: 'Send forespørselen' }).click();
+  await expect(skjema.getByRole('alert').first()).toContainText('mangler');
+  await expect(skjema.getByLabel(/Hva ser du for deg/)).toHaveAttribute('aria-invalid', 'true');
 
-  await skjema.getByLabel(/Hva vil du lage/).fill('Klipsen på oppvaskkurven har knekt.');
-  await skjema.getByLabel(/Navn/).fill('Test Testesen');
+  await skjema.getByLabel(/Hva ser du for deg/).fill('Klipsen på oppvaskkurven har knekt.');
+  await skjema.getByLabel(/^Navn/).fill('Test Testesen');
   await skjema.getByLabel(/E-post/).fill('test@example.no');
   await skjema.locator('input[type=file]').setInputFiles({
     name: 'klips.stl',
     mimeType: 'model/stl',
     buffer: Buffer.from('solid test\nendsolid test\n'),
   });
-  await expect(page.getByText('klips.stl')).toBeVisible();
-  await skjema.getByRole('button', { name: 'Send ideen' }).click();
-  await expect(page.getByRole('heading', { name: 'Takk, vi har fått ideen din.' })).toBeVisible();
-  await expect(page.locator('[data-ref]')).toHaveText(/^DP-\d{8}-[A-Z0-9]+$/);
+  await expect(skjema.getByText('klips.stl')).toBeVisible();
+  await skjema.getByRole('button', { name: 'Send forespørselen' }).click();
+  await expect(modal.getByRole('heading', { name: /Takk, vi har fått/ })).toBeVisible();
+  await expect(modal.locator('[data-ref]')).toHaveText(/^DP-\d{8}-[A-Z0-9]+$/);
 });
 
 test('the idea form works without JavaScript', async ({ browser }) => {
@@ -124,11 +143,15 @@ test('the idea form works without JavaScript', async ({ browser }) => {
   await ctx.close();
 });
 
-test('search finds pages and inspiration', async ({ page }) => {
+test('search finds products, tools and inspiration in groups', async ({ page }) => {
   await page.goto('/sok/?q=petg');
   await expect(page.getByRole('status')).toContainText('treff');
   const treff = page.locator('[data-soketreff]');
   await expect(treff.getByRole('link', { name: /PLA eller PETG/ })).toBeVisible();
+  await expect(treff.getByRole('heading', { name: /Inspirasjon/ })).toBeVisible();
+  await page.getByRole('searchbox').fill('forge');
+  await expect(treff.getByRole('heading', { name: /Skaperverksted/ })).toBeVisible();
+  await expect(treff.getByRole('link', { name: /Sign Forge/ })).toBeVisible();
   await page.getByRole('searchbox').fill('ødelagt del');
   await expect(treff.getByRole('link', { name: /Spesialdesign/ })).toBeVisible();
 });
@@ -144,21 +167,13 @@ test('unknown pages return 404 with a way on', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Til forsiden', exact: true })).toBeVisible();
 });
 
-test('reduced motion shows the hero build as one still frame', async ({ browser }) => {
+test('reduced motion keeps the hero still and the timeline readable', async ({ browser }) => {
   const ctx = await browser.newContext({ reducedMotion: 'reduce' });
   const page = await ctx.newPage();
   await page.goto('/');
-  // Model above the print line, printed object below it, no animation to wait for.
-  await expect(page.locator('.helt')).toHaveClass(/na-4/);
-  await expect(page.locator('.helt .hb__objekt img')).toBeVisible();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('form');
+  const bilde = page.locator('.bhelt__img');
+  await expect(bilde).toBeVisible();
+  expect(await bilde.evaluate((el) => getComputedStyle(el).transform)).toBe('none');
+  await expect(page.locator('[data-prosess] [data-tittel]').first()).toHaveText('Idé');
   await ctx.close();
-});
-
-test('the homepage shows a featured product and a row from the products', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.locator('#utvalg-fremhevet a')).toHaveAttribute('href', /\/produkter\//);
-  const rad = page.getByRole('list', { name: 'Utvalgte produkter' });
-  expect(await rad.getByRole('listitem').count()).toBeGreaterThanOrEqual(3);
-  await expect(page.getByRole('link', { name: 'Se alle produktene' })).toHaveAttribute('href', '/produkter/');
 });

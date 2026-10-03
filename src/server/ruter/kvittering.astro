@@ -12,7 +12,7 @@ const type = p.get('type') === 'kontakt' ? 'kontakt' : 'ide';
 const ref = p.get('ref') ?? '';
 const referanse = /^DP-\d{8}-[A-Z0-9]{1,8}$/.test(ref) ? ref : undefined;
 const kanal = p.get('kanal') === 'fil' ? 'fil' : 'epost';
-const tilbake = type === 'kontakt' ? '/kontakt/#skjema' : '/spesialdesign/#skjema';
+const tilbake = type === 'kontakt' ? '/kontakt/#skjema' : '/foresporsel/';
 ---
 
 <Side

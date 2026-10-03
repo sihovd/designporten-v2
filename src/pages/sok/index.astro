@@ -1,13 +1,14 @@
 ---
 import Side from '@/layouts/Side.astro';
-import SideHode from '@/components/showroom/SideHode.astro';
 import Ikon from '@/components/Ikon.astro';
 ---
 
 <Side tittel="Søk" beskrivelse="Søk etter produkter, materialer, verktøy og inspirasjon hos Designporten.">
-  <SideHode eyebrow="Søk" tittel="Hva leter du etter?" />
-
-  <section class="ramme sok" aria-label="Søk">
+  <section class="ramme sok" aria-labelledby="sok-tittel">
+    <p class="etikett">Søk</p>
+    <h1 id="sok-tittel" class="sok__overskrift">
+      Hva leter du etter?
+    </h1>
     <form class="sok__skjema" role="search" action="/sok/" method="get" data-sokeskjema>
       <label for="sok-felt" class="visuelt-skjult">
         Søk
@@ -16,7 +17,7 @@ import Ikon from '@/components/Ikon.astro';
         id="sok-felt"
         name="q"
         type="search"
-        placeholder="Søk etter produkt, materiale eller mål"
+        placeholder="Produkter, verktøy, guider …"
         autocomplete="off"
         data-sokefelt
       />
@@ -26,11 +27,11 @@ import Ikon from '@/components/Ikon.astro';
     </form>
 
     <p class="sok__status" role="status" aria-live="polite" data-sokestatus></p>
-    <ol class="sok__treff" data-soketreff></ol>
+    <div class="sok__treff" data-soketreff></div>
 
     <noscript>
       <p class="sok__uten-js">
-        Søket trenger JavaScript. Du finner alt via menyen: <a href="/produkter/">Produkter</a>,
+        Søket trenger JavaScript. Du finner alt via menyen: <a href="/produkter/">Vårt utvalg</a>,
         <a href="/skaperverksted/">Skaperverksted</a>, <a href="/spesialdesign/">Spesialdesign</a>,
         <a href="/inspirasjon/">Inspirasjon</a>.
       </p>
@@ -39,7 +40,7 @@ import Ikon from '@/components/Ikon.astro';
 </Side>
 
 <script>
-  import { sok, type Sokepost } from '@/components/showroom/sok/sok';
+  import { grupper, sok, type Sokepost } from '@/components/showroom/sok/sok';
 
   const skjema = document.querySelector<HTMLFormElement>('[data-sokeskjema]')!;
   const felt = document.querySelector<HTMLInputElement>('[data-sokefelt]')!;
@@ -65,24 +66,40 @@ import Ikon from '@/components/Ikon.astro';
       ? `${treff.length} treff for «${q}»`
       : `Ingen treff for «${q}». Prøv et annet ord, eller fortell oss hva du leter etter via idéskjemaet.`;
     liste.replaceChildren(
-      ...treff.map((t) => {
-        const li = document.createElement('li');
-        const a = document.createElement('a');
-        a.href = t.url;
-        const type = document.createElement('span');
-        type.className = 'mono sok__type';
-        type.textContent = t.type;
-        const tittel = document.createElement('span');
-        tittel.className = 'sok__tittel';
-        tittel.textContent = t.tittel;
-        a.append(type, tittel);
-        li.append(a);
-        if (t.tekst) {
-          const p = document.createElement('p');
-          p.textContent = t.tekst;
-          li.append(p);
-        }
-        return li;
+      ...grupper(treff).map((g) => {
+        const seksjon = document.createElement('section');
+        seksjon.className = 'sok__gruppe';
+        const h = document.createElement('h2');
+        h.className = 'sok__gruppetittel';
+        h.textContent = `${g.navn} `;
+        const n = document.createElement('span');
+        n.className = 'sok__antall';
+        n.textContent = String(g.treff.length);
+        h.append(n);
+        const ol = document.createElement('ol');
+        ol.append(
+          ...g.treff.map((t) => {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = t.url;
+            const type = document.createElement('span');
+            type.className = 'sok__type';
+            type.textContent = t.type;
+            const tittel = document.createElement('span');
+            tittel.className = 'sok__tittel';
+            tittel.textContent = t.tittel;
+            a.append(tittel, type);
+            li.append(a);
+            if (t.tekst) {
+              const p = document.createElement('p');
+              p.textContent = t.tekst;
+              li.append(p);
+            }
+            return li;
+          }),
+        );
+        seksjon.append(h, ol);
+        return seksjon;
       }),
     );
   }
@@ -112,7 +129,12 @@ import Ikon from '@/components/Ikon.astro';
 
 <style>
   .sok {
-    padding-bottom: var(--r-seksjon);
+    padding-block: var(--r-8) var(--r-seksjon);
+  }
+
+  .sok__overskrift {
+    margin: var(--r-2) 0 var(--r-5);
+    font-size: var(--fs-h2);
   }
 
   .sok > * {
@@ -121,7 +143,10 @@ import Ikon from '@/components/Ikon.astro';
 
   .sok__skjema {
     display: flex;
-    border-bottom: 2px solid var(--blekk);
+    border: 1px solid var(--kant-sterk);
+    border-radius: var(--radius-pille);
+    padding-left: var(--r-5);
+    background: var(--flate);
   }
 
   .sok__skjema input {
@@ -131,7 +156,7 @@ import Ikon from '@/components/Ikon.astro';
     padding: 0;
     border: 0;
     background: transparent;
-    font-size: clamp(1.25rem, 1rem + 1vw, 1.75rem);
+    font-size: 1.125rem;
   }
 
   .sok__skjema input:focus-visible {
@@ -139,7 +164,8 @@ import Ikon from '@/components/Ikon.astro';
   }
 
   .sok__skjema:focus-within {
-    border-bottom-color: var(--dp-lilla);
+    border-color: var(--dp-lilla);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--dp-lilla) 20%, transparent);
   }
 
   .sok__skjema input::placeholder {
@@ -158,21 +184,53 @@ import Ikon from '@/components/Ikon.astro';
   }
 
   .sok__treff {
-    margin: var(--r-5) 0 0;
+    display: grid;
+    gap: var(--r-6);
+    margin-top: var(--r-5);
+  }
+
+  .sok__treff :global(.sok__gruppetittel) {
+    display: flex;
+    align-items: center;
+    gap: var(--r-2);
+    padding-bottom: var(--r-2);
+    border-bottom: 1px solid var(--kant);
+    font-family: var(--font-tekst);
+    font-size: var(--fs-etikett);
+    font-weight: 600;
+    letter-spacing: var(--sporing-etikett);
+    text-transform: uppercase;
+    color: var(--dempet);
+  }
+
+  .sok__treff :global(.sok__antall) {
+    min-width: 1.5rem;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--kalk);
+    color: var(--blekk);
+    letter-spacing: 0;
+    text-align: center;
+  }
+
+  .sok__treff :global(ol) {
+    margin: 0;
     padding: 0;
     list-style: none;
   }
 
   .sok__treff :global(li) {
     display: grid;
-    gap: var(--r-1);
-    padding: var(--r-4) 0;
+    gap: 2px;
+    padding: var(--r-3) 0;
     border-bottom: 1px solid var(--kant);
   }
 
   .sok__treff :global(a) {
-    display: grid;
-    gap: 2px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--r-1) var(--r-3);
     color: var(--blekk);
     text-decoration: none;
   }
@@ -184,16 +242,18 @@ import Ikon from '@/components/Ikon.astro';
 
   .sok__treff :global(.sok__type) {
     color: var(--dempet);
-    font-size: var(--fs-mono-liten);
+    font-size: var(--fs-liten);
   }
 
   .sok__treff :global(.sok__tittel) {
-    font-size: 1.25rem;
-    font-weight: 650;
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: var(--vekt-h3);
   }
 
   .sok__treff :global(p) {
     color: var(--dempet);
+    font-size: var(--fs-liten);
   }
 
   .sok__uten-js {

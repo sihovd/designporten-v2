@@ -111,8 +111,7 @@
 
 .produktvindu__tittel {
   font-size: 1.5rem;
-  font-stretch: 108%;
-  font-weight: 700;
+  font-weight: var(--vekt-overskrift);
   letter-spacing: -0.02em;
 }
 

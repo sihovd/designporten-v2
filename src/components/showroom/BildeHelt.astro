@@ -1,0 +1,213 @@
+---
+/**
+ * A full-width image hero (design revision 2026-10-02, §3 and §13): one
+ * strong picture, calm type and the page's actions. Nothing in it moves on
+ * its own; the picture drifts a little slower than the page as it scrolls
+ * away (parallax), which stops with reduced motion.
+ *
+ * Desktop and tablet: the text sits on the picture's light side over a soft
+ * paper-coloured veil. Phones: the picture on top, the text below it on the
+ * page, so it never has to be read over a busy photo.
+ */
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import type { Bilde } from '@/lib/ressurser';
+
+interface Props {
+  bilde: Bilde;
+  etikett: string;
+  tittel: string;
+  ingress?: string;
+  /** Use the large display size (homepage). */
+  stor?: boolean;
+  /** object-position of the picture, e.g. '70% 40%'. */
+  fokus?: string;
+  id?: string;
+}
+
+const { bilde, etikett, tittel, ingress, stor = false, fokus = '70% 45%', id = 'helt-tittel' } = Astro.props;
+---
+
+<section
+  class:list={['bhelt', { 'bhelt--stor': stor }]}
+  aria-labelledby={id}
+  data-rulle="ut"
+  data-rulle-rolig="0"
+  style={`--fokus: ${fokus}`}
+>
+  <div class="bhelt__bilde">
+    <Konseptbilde
+      bilde={bilde}
+      class="bhelt__img"
+      lasting="eager"
+      prioritet="high"
+      sizes="100vw"
+      merke={false}
+    />
+  </div>
+  {bilde.konsept && <span class="bhelt__merke mono">Konseptbilde</span>}
+  <div class="bhelt__innhold">
+    <div class="bhelt__tekst">
+      <p class="etikett bhelt__etikett">{etikett}</p>
+      <h1 id={id} class="bhelt__tittel">
+        {tittel}
+      </h1>
+      {ingress && <p class="bhelt__ingress">{ingress}</p>}
+      {Astro.slots.has('default') && (
+        <div class="bhelt__handlinger">
+          <slot />
+        </div>
+      )}
+    </div>
+  </div>
+</section>
+
+<style>
+  .bhelt {
+    --p: 0;
+    position: relative;
+    display: grid;
+    min-height: clamp(520px, calc(86svh - var(--header-h)), 820px);
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--kalk);
+  }
+
+  .bhelt__bilde {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+  }
+
+  .bhelt__bilde :global(.bhelt__img) {
+    position: absolute;
+    inset: -6% 0;
+    transform: translate3d(0, calc(var(--p) * 10%), 0);
+    will-change: transform;
+  }
+
+  .bhelt__bilde :global(.bhelt__img img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: var(--fokus);
+  }
+
+  /* A soft veil of paper on the text side, so dark type reads on the photo. */
+  .bhelt::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--papir) 94%, transparent) 0%,
+      color-mix(in srgb, var(--papir) 82%, transparent) 30%,
+      color-mix(in srgb, var(--papir) 30%, transparent) 54%,
+      transparent 70%
+    );
+  }
+
+  .bhelt__merke {
+    position: absolute;
+    right: var(--r-4);
+    bottom: var(--r-4);
+    padding: 3px 8px;
+    background: var(--blekk);
+    color: #fff;
+    font-size: var(--fs-mono-liten);
+  }
+
+  .bhelt__innhold {
+    display: grid;
+    align-items: center;
+    padding: var(--r-8) var(--sidekant);
+  }
+
+  .bhelt__tekst {
+    display: grid;
+    gap: var(--r-4);
+    justify-items: start;
+    max-width: 34rem;
+  }
+
+  .bhelt__tittel {
+    font-size: var(--fs-h1);
+    font-weight: var(--vekt-display);
+    line-height: var(--lh-tett);
+  }
+
+  .bhelt--stor .bhelt__tittel {
+    font-size: var(--fs-display);
+  }
+
+  .bhelt__etikett {
+    color: var(--blekk);
+  }
+
+  .bhelt__ingress {
+    max-width: 40ch;
+    color: color-mix(in srgb, var(--blekk) 82%, transparent);
+    font-size: var(--fs-ingress);
+  }
+
+  .bhelt__handlinger {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-3);
+    margin-top: var(--r-3);
+  }
+
+  .bhelt__handlinger :global(.knapp--sekundar) {
+    background: color-mix(in srgb, var(--flate) 70%, transparent);
+  }
+
+  /* Tablets: the text column covers more of the picture, so the veil reaches further. */
+  @media (max-width: 1100px) {
+    .bhelt::before {
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--papir) 95%, transparent) 0%,
+        color-mix(in srgb, var(--papir) 88%, transparent) 45%,
+        color-mix(in srgb, var(--papir) 40%, transparent) 68%,
+        transparent 85%
+      );
+    }
+  }
+
+  /* ---------- Phones: picture above, text below ---------- */
+  @media (max-width: 720px) {
+    .bhelt {
+      min-height: 0;
+      background: var(--papir);
+    }
+
+    .bhelt::before {
+      content: none;
+    }
+
+    .bhelt__bilde {
+      position: relative;
+      inset: auto;
+      z-index: 0;
+      aspect-ratio: 4 / 3;
+    }
+
+    .bhelt__merke {
+      top: var(--r-3);
+      bottom: auto;
+      right: var(--r-3);
+    }
+
+    .bhelt__innhold {
+      padding: var(--r-6) var(--gutter) var(--r-7);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bhelt__bilde :global(.bhelt__img) {
+      transform: none;
+      will-change: auto;
+    }
+  }
+</style>

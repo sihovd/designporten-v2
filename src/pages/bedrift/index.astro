@@ -1,8 +1,7 @@
 ---
 import Side from '@/layouts/Side.astro';
-import SideHode from '@/components/showroom/SideHode.astro';
-import IdeSkjema from '@/components/showroom/skjema/IdeSkjema.astro';
-import Konseptbilde from '@/components/Konseptbilde.astro';
+import BildeHelt from '@/components/showroom/BildeHelt.astro';
+import Knapp from '@/components/Knapp.astro';
 import { kontakt } from '@/lib/kontakt';
 import { bakgrunner } from '@/lib/ressurser';
 
@@ -51,113 +50,88 @@ const tjenester = [
 
 <Side
   tittel="For bedrifter"
-  beskrivelse="Designporten er en idé- og produksjonspartner for bedrifter: prototyper, småserier, produktutvikling, grafisk design og profilering med 3D-print."
+  beskrivelse="Designporten er en partner for prototype og produksjon: prototyper, småserier, produktutvikling, grafisk design og profilering med 3D-print."
 >
-  <SideHode
-    eyebrow="For bedrifter"
-    tittel="En partner for ideer og produksjon, ikke et trykkeri"
+  <link slot="hode" rel="preload" as="image" href={bakgrunner.verksted.src} fetchpriority="high" />
+  <BildeHelt
+    bilde={bakgrunner.verksted}
+    etikett="For bedrifter"
+    tittel="En partner for prototype og produksjon"
     ingress="Prototyper, småserier, profilering og deler som ikke finnes. Vi tegner, printer og følger opp, fra første skisse til ferdig serie."
-  />
-
-  <div class="bedrift__bilde" data-rulle="gjennom" data-rulle-rolig="0.5">
-    <Konseptbilde bilde={bakgrunner.samarbeid} lasting="eager" sizes="100vw" />
-  </div>
+    fokus="62% 45%"
+  >
+    <Knapp href="/foresporsel/?kundetype=bedrift" data-apne-foresporsel data-kundetype="bedrift">
+      Fortell oss hva dere trenger
+    </Knapp>
+  </BildeHelt>
 
   <section class="ramme seksjon" aria-labelledby="tjenester-tittel">
+    <p class="etikett">Tjenester</p>
     <h2 id="tjenester-tittel" class="tjenester__tittel">
       Det vi gjør for bedrifter
     </h2>
-    <ol class="tjenester">
-      {tjenester.map((t, i) => (
-        <li class="tjeneste avslor" style={`--i:${i % 3}`}>
-          <p class="mono tjeneste__nr">{String(i + 1).padStart(2, '0')}</p>
-          <h3>{t.navn}</h3>
+    <ul class="tjenester" role="list">
+      {tjenester.map((t) => (
+        <li class="tjeneste">
+          <h3 class="tjeneste__navn">{t.navn}</h3>
           <p class="tjeneste__tekst">{t.tekst}</p>
           <p class="tjeneste__send">
-            <span class="mono">Send oss</span>
+            <span class="etikett">Send oss</span>
             {t.send}
           </p>
         </li>
       ))}
-    </ol>
+    </ul>
   </section>
 
-  <section class="skjemaseksjon" aria-labelledby="skjema-tittel">
-    <div class="ramme skjemaseksjon__rutenett">
-      <div class="skjemaseksjon__intro">
-        <h2 id="skjema-tittel">Fortell oss hva dere trenger</h2>
-        <p class="ingress">
+  <section class="avslutning" aria-labelledby="avslutning-tittel">
+    <div class="ramme avslutning__innhold">
+      <div>
+        <h2 id="avslutning-tittel">Fortell oss hva dere trenger</h2>
+        <p class="avslutning__tekst">
           En setning holder for å begynne. Legg ved det dere har av skisser, filer og mål.
         </p>
         {(kontakt.epost || kontakt.telefon) && (
-          <p class="skjemaseksjon__direkte">
+          <p class="avslutning__direkte">
             Direkte:
             {kontakt.epost && <a href={`mailto:${kontakt.epost}`}>{kontakt.epost}</a>}
             {kontakt.telefon && <span>{kontakt.telefon}</span>}
           </p>
         )}
       </div>
-      <IdeSkjema id="skjema" kundetype="bedrift" />
+      <Knapp href="/foresporsel/?kundetype=bedrift" data-apne-foresporsel data-kundetype="bedrift">
+        Start forespørselen
+      </Knapp>
     </div>
   </section>
 </Side>
 
 <style>
-  /* Full-bleed photo; the picture drifts slowly inside its frame on scroll. */
-  .bedrift__bilde {
-    aspect-ratio: 21 / 8;
-    overflow: hidden;
-    background: var(--kalk);
-  }
-
-  .bedrift__bilde :global(.konseptbilde),
-  .bedrift__bilde :global(img) {
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .bedrift__bilde :global(img) {
-    transform: scale(1.12) translateY(calc((0.5 - var(--p, 0.5)) * 7%));
-  }
-
-  .bedrift__bilde :global(.konseptbilde__merke) {
-    left: var(--sidekant);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .bedrift__bilde :global(img) {
-      transform: none;
-    }
-  }
-
   .tjenester__tittel {
-    margin-bottom: var(--r-6);
+    margin: var(--r-2) 0 var(--r-6);
   }
 
   .tjenester {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--r-4);
     margin: 0;
     padding: 0;
     list-style: none;
-    border-top: 1px solid var(--kant);
   }
 
   .tjeneste {
     display: grid;
-    grid-template-rows: auto auto 1fr auto;
+    grid-template-rows: auto 1fr auto;
     gap: var(--r-3);
-    padding: var(--r-5) var(--r-5) var(--r-6) 0;
-    border-bottom: 1px solid var(--kant);
+    padding: var(--r-5);
+    border: 1px solid var(--kant);
+    border-radius: var(--radius-kort);
+    background: var(--flate);
   }
 
-  .tjeneste:not(:nth-child(3n + 1)) {
-    padding-left: var(--r-5);
-    border-left: 1px solid var(--kant);
-  }
-
-  .tjeneste__nr {
-    color: var(--dempet);
+  .tjeneste__navn {
+    font-size: var(--fs-h3);
   }
 
   .tjeneste__tekst {
@@ -168,73 +142,44 @@ const tjenester = [
     display: grid;
     gap: var(--r-1);
     padding-top: var(--r-3);
-    border-top: 1px dashed var(--kant);
+    border-top: 1px solid var(--kant);
     font-size: var(--fs-liten);
   }
 
-  .tjeneste__send .mono {
-    color: var(--dempet);
-    font-size: var(--fs-mono-liten);
-  }
-
   @media (max-width: 900px) {
-    .bedrift__bilde {
-      aspect-ratio: 4 / 3;
-    }
-
     .tjenester {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .tjeneste:not(:nth-child(3n + 1)) {
-      padding-left: 0;
-      border-left: 0;
-    }
-
-    .tjeneste:nth-child(even) {
-      padding-left: var(--r-5);
-      border-left: 1px solid var(--kant);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
   @media (max-width: 560px) {
     .tjenester {
-      grid-template-columns: 1fr;
-    }
-
-    .tjeneste:nth-child(even) {
-      padding-left: 0;
-      border-left: 0;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
-  .skjemaseksjon {
-    padding-block: var(--r-8) var(--r-seksjon);
+  .avslutning {
+    padding-block: var(--r-8);
     background: var(--kalk);
   }
 
-  .skjemaseksjon__rutenett {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-    gap: var(--r-7);
-    align-items: start;
+  .avslutning__innhold {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--r-5);
   }
 
-  .skjemaseksjon__intro {
-    display: grid;
-    gap: var(--r-4);
+  .avslutning__tekst {
+    margin-top: var(--r-2);
+    color: var(--dempet);
   }
 
-  .skjemaseksjon__direkte {
+  .avslutning__direkte {
     display: flex;
     flex-wrap: wrap;
     gap: var(--r-3);
-  }
-
-  @media (max-width: 900px) {
-    .skjemaseksjon__rutenett {
-      grid-template-columns: 1fr;
-      gap: var(--r-5);
-    }
+    margin-top: var(--r-3);
   }
 </style>

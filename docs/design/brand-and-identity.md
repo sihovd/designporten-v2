@@ -65,18 +65,19 @@ Filament and material colours are **product data**, not UI tokens. They live wit
 
 ## Typography
 
+**Revised 2026-10-02 (design revision, §1).** Sivert asked for a cleaner, slimmer, slightly rounded geometric face with more air and no gigantic headings. Archivo's wide, heavy display setting is retired.
+
 | Role | Face | Settings |
 |---|---|---|
-| Display | **Archivo** (variable, OFL) | Wide width (`wdth` 112–125), weight 700–800, tight tracking (−0.02 to −0.035em). Large sizes may act as graphic elements. |
-| Body and UI | **Archivo** | Normal width (`wdth` 100), weight 400/500/600, 16–18 px body, line height 1.5–1.6 |
-| Technical | **IBM Plex Mono** (OFL) | Measurements, dimensions, coordinates, counters, step numbers, labels, editor values. Uppercase with 0.06–0.1em tracking for labels. |
+| Display and headings | **Sora** (variable, OFL) | Light: display 300, h2 400, h3/h4 500; slight negative tracking (−0.015 to −0.005em). Sentence case. |
+| Body and UI | **Manrope** (variable, OFL) | 400/500/600, 16 px body, line height 1.6. Buttons 600, sentence case. |
+| Labels (eyebrows) | Manrope | 600, 12 px, uppercase, 0.16em tracking (`.etikett`). |
+| Technical | **IBM Plex Mono** (OFL) | Measurements, coordinates, counters and editor values only. |
 
-- Both families are self-hosted as WOFF2 subsets (Latin + Norwegian æøå), `font-display: swap`, with the display weights preloaded on the homepage only.
-- Archivo keeps Sivert's choice of 2026-08-28 («går for C»: Archivo + IBM Plex Mono). Its width axis gives the display face the character the brief asks for without adding a third family.
-- Not used: Inter, Roboto, Arial, generic system stacks as the brand face. Satoshi and Manrope (earlier trials) are retired.
-- Headlines may break the grid: oversized words, words that build letter by letter or layer by layer, words set against measurement lines. Readability always wins.
-- Numbers in prices and dimensions use tabular figures.
-- **Type scale** (fluid, defined as tokens in Phase 0): display 56–120 px, h1 40–72, h2 28–44, h3 20–28, body 16–18, small 14, mono label 10–12.
+- Self-hosted through `@fontsource-variable/sora` and `@fontsource-variable/manrope`.
+- **Type scale** (fluid tokens in `src/styles/tokens.css`): display 40–68 px, h1 34–52, h2 26–36, h3 19–22, body 16, small 14, label 12.
+- The Skaperverksted editor and Signgen keep their own fonts (the sign fonts are product data, not the brand face).
+- Manrope was an earlier trial (retired 2026-08-28) and returns here as the body face next to Sora, which carries the geometric character.
 
 ## Materiality
 

@@ -9,11 +9,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Arbeidsbenk } from '../core/arbeidsbenk';
 import type { Scene3d } from '../core/generator';
-import { finnMateriale, materialtyper } from '../core/materialer';
+import { finnMateriale, materialtyper, standardPrinter } from '../core/materialer';
 import { avgrensning, type ModellDel } from '../geometri/mesh';
 import { brukUtdrag } from '../shell/bruk-benk';
 import { mm } from '../core/enheter';
 import { cssFarge, reduserBevegelse } from '../shell/tema';
+import { leggTilPrintlag, settPrintlag } from './printlag';
 
 type Vinkel = 'perspektiv' | 'topp' | 'front' | 'side';
 
@@ -49,6 +50,11 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
   const modell = brukUtdrag(benk, (t) => t.modell);
   const valgtLag = brukUtdrag(benk, (t) => t.utvalg.lag);
   const plate = brukUtdrag(benk, (t) => t.dok.plate);
+  const parametre = brukUtdrag(benk, (t) => t.dok.parametre);
+  const lagHoyde = typeof parametre.lagHoyde === 'number' ? parametre.lagHoyde : standardPrinter.lagHoyde;
+  const [printlag, settPrintlagPa] = useState(false);
+  const printlagRef = useRef(printlag);
+  printlagRef.current = printlag;
   const tilpassRef = useRef<(v?: Vinkel) => void>(() => {});
   const forsteTilpasning = useRef(true);
   const plugin = benk.generator;
@@ -287,6 +293,7 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
       geo.setIndex(new THREE.BufferAttribute(del.mesh.indekser, 1));
       geo.computeBoundingSphere();
       const mat = plugin.material3d?.(del, THREE) ?? standardMateriale(del);
+      leggTilPrintlag(mat, lagHoyde, printlagRef.current);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.userData.delId = del.id;
       mesh.name = del.navn;
@@ -297,7 +304,16 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
       tilpassRef.current();
     }
     scene.tegn();
+    // lagHoyde is read when the model is rebuilt; its own effect below updates it.
   }, [scene, modell, plugin]);
+
+  // print layer lines
+  useEffect(() => {
+    if (!scene) return;
+    for (const c of scene.modell.children)
+      settPrintlag((c as THREE.Mesh).material as THREE.Material, printlag, lagHoyde);
+    scene.tegn();
+  }, [scene, modell, printlag, lagHoyde]);
 
   // highlight the selected layer's part
   useEffect(() => {
@@ -342,12 +358,26 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
   return (
     <div class={`visning3d${kompakt ? ' kompakt' : ''}`} ref={vert}>
       {feil && <p class="visning3d-feil">{feil}</p>}
-      <div class="visning3d-vinkler" role="group" aria-label="Kameravinkel">
-        {VINKLER.map((v) => (
-          <button type="button" key={v.id} onClick={() => tilpassRef.current(v.id)}>
-            {v.navn}
-          </button>
-        ))}
+      <div class="visning3d-verktoy">
+        <div class="visning3d-vinkler" role="group" aria-label="Kameravinkel">
+          {VINKLER.map((v) => (
+            <button type="button" key={v.id} onClick={() => tilpassRef.current(v.id)}>
+              {v.navn}
+            </button>
+          ))}
+        </div>
+        {!kompakt && (
+          <div class="visning3d-printlag">
+            <button type="button" aria-pressed={printlag} onClick={() => settPrintlagPa(!printlag)}>
+              Printlag
+            </button>
+            {printlag && (
+              <span class="visning3d-hint">
+                Lag på {String(lagHoyde).replace('.', ',')} mm. Zoom inn for å se dem.
+              </span>
+            )}
+          </div>
+        )}
       </div>
       {scene && Overlegg && <Overlegg benk={benk} scene={scene} />}
     </div>

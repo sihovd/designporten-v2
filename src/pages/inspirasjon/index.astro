@@ -3,11 +3,11 @@ import { getCollection } from 'astro:content';
 import Side from '@/layouts/Side.astro';
 import SideHode from '@/components/showroom/SideHode.astro';
 import InspirasjonKort from '@/components/showroom/inspirasjon/InspirasjonKort.astro';
-import { typenavn } from '@/components/showroom/inspirasjon/typer';
+import { erOffentlig, typenavn } from '@/components/showroom/inspirasjon/typer';
 import { inspirasjonstyper } from '@/content/inspirasjon/samling';
 
 // Confirmed entries first, newest first.
-const saker = (await getCollection('inspirasjon')).sort(
+const saker = (await getCollection('inspirasjon', (s) => erOffentlig(s.data))).sort(
   (a, b) =>
     Number(a.data.status === 'plassholder') - Number(b.data.status === 'plassholder') ||
     b.data.dato.getTime() - a.data.dato.getTime(),
@@ -18,12 +18,12 @@ const harPlassholdere = saker.some((s) => s.data.status === 'plassholder');
 
 <Side
   tittel="Inspirasjon"
-  beskrivelse="Prosjekter, historier og guider fra Designporten: fra idé og skisse til ferdig 3D-printet del."
+  beskrivelse="Prosjekter, historier, guider, tips og nyheter fra Designporten: fra idé til fysisk produkt."
 >
   <SideHode
     eyebrow="Inspirasjon"
-    tittel="Fra idé til noe du kan holde i"
-    ingress="Prosjekter fra verkstedet, historier om hvordan ting ble til, og guider som hjelper deg å velge."
+    tittel="Fra idé til fysisk produkt"
+    ingress="Prosjekter fra verkstedet, historier om hvordan ting blir til, guider, tips og nyheter."
   />
 
   <section class="ramme insp" aria-label="Saker">
@@ -90,7 +90,7 @@ const harPlassholdere = saker.some((s) => s.data.status === 'plassholder');
     border: 1px solid var(--kant-sterk);
     border-radius: var(--radius-pille);
     background: transparent;
-    font-weight: 560;
+    font-weight: 600;
   }
 
   .insp__filter button[aria-pressed='true'] {

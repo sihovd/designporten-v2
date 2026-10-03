@@ -1,0 +1,202 @@
+---
+/**
+ * Three small ways in (design revision 2026-10-02, §5): find something, make
+ * something, or tell us an idea. Separate, compact cards with a picture, one
+ * line and an arrow; hover lifts a card a little and nothing grows. The idea
+ * card opens the enquiry form (a page without JavaScript).
+ */
+import Ikon from '@/components/Ikon.astro';
+import Konseptbilde from '@/components/Konseptbilde.astro';
+import { utklippbilder, type Bilde } from '@/lib/ressurser';
+
+interface Snarvei {
+  etikett: string;
+  tittel: string;
+  tekst: string;
+  href: string;
+  bilde: Bilde;
+  skjema?: boolean;
+}
+
+const snarveier: Snarvei[] = [
+  {
+    etikett: 'Finn noe',
+    tittel: 'Ferdige produkter',
+    tekst: 'Designet og printet hos oss, klare til å bestille.',
+    href: '/produkter/',
+    bilde: utklippbilder.fasettpotte,
+  },
+  {
+    etikett: 'Lag noe',
+    tittel: 'Skaperverksted',
+    tekst: 'Bygg ditt eget skilt, din egen form eller drage.',
+    href: '/skaperverksted/',
+    bilde: utklippbilder.nokkelring,
+  },
+  {
+    etikett: 'Har du en idé?',
+    tittel: 'Fortell oss om den',
+    tekst: 'En skisse eller et par setninger holder.',
+    href: '/foresporsel/',
+    bilde: utklippbilder.kabelholder,
+    skjema: true,
+  },
+];
+---
+
+<section class="snarveier ramme" aria-labelledby="snarveier-tittel">
+  <h2 id="snarveier-tittel" class="visuelt-skjult">
+    Kom i gang
+  </h2>
+  <ul class="snarveier__liste" role="list">
+    {snarveier.map((s) => (
+      <li class="snarvei">
+        <span class="snarvei__bilde">
+          <Konseptbilde bilde={s.bilde} sizes="96px" merke={false} />
+        </span>
+        <span class="snarvei__tekst">
+          <span class="etikett">{s.etikett}</span>
+          <h3 class="snarvei__tittel">
+            <a href={s.href} data-apne-foresporsel={s.skjema ? '' : undefined}>
+              {s.tittel}
+            </a>
+          </h3>
+          <span class="snarvei__linje">{s.tekst}</span>
+        </span>
+        <span class="snarvei__pil" aria-hidden="true">
+          <Ikon navn="pil-hoyre" storrelse={18} />
+        </span>
+      </li>
+    ))}
+  </ul>
+  <p class="snarveier__merknad mono">Produktbildene er konseptbilder.</p>
+</section>
+
+<style>
+  .snarveier {
+    padding-block: var(--r-7) var(--r-4);
+  }
+
+  .snarveier__liste {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--r-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .snarvei {
+    position: relative;
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--r-4);
+    padding: var(--r-3) var(--r-4) var(--r-3) var(--r-3);
+    border: 1px solid var(--kant);
+    border-radius: var(--radius-kort);
+    background: var(--flate);
+    transition:
+      border-color var(--t-rask) ease,
+      box-shadow var(--t-trinn) var(--ease-ut),
+      transform var(--t-trinn) var(--ease-ut);
+  }
+
+  .snarvei:hover {
+    border-color: var(--kant-sterk);
+    box-shadow: var(--skygge-kort);
+    transform: translateY(-2px);
+  }
+
+  .snarvei:has(a:focus-visible) {
+    outline: 2px solid var(--fokus, var(--lenke));
+    outline-offset: 3px;
+  }
+
+  .snarvei__bilde {
+    display: block;
+    aspect-ratio: 1;
+    border-radius: calc(var(--radius-kort) - 4px);
+    background: var(--kalk);
+    overflow: hidden;
+  }
+
+  .snarvei__bilde :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 6px;
+  }
+
+  .snarvei__tekst {
+    display: grid;
+    gap: 2px;
+  }
+
+  .snarvei__tittel {
+    margin-top: 2px;
+    font-size: var(--fs-h3);
+  }
+
+  .snarvei__tittel a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .snarvei__tittel a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+
+  .snarvei__tittel a:focus-visible {
+    outline: none;
+  }
+
+  .snarvei__linje {
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+
+  .snarvei__pil {
+    color: var(--dempet);
+    transition:
+      transform var(--t-rask) ease,
+      color var(--t-rask) ease;
+  }
+
+  .snarvei:hover .snarvei__pil {
+    color: var(--blekk);
+    transform: translateX(3px);
+  }
+
+  .snarveier__merknad {
+    margin-top: var(--r-3);
+    color: var(--dempet);
+    font-size: var(--fs-mono-liten);
+  }
+
+  @media (max-width: 960px) {
+    .snarveier__liste {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--r-3);
+    }
+
+    .snarvei {
+      grid-template-columns: 64px minmax(0, 1fr) auto;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .snarvei,
+    .snarvei__pil {
+      transition: none;
+    }
+
+    .snarvei:hover,
+    .snarvei:hover .snarvei__pil {
+      transform: none;
+    }
+  }
+</style>

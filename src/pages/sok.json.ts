@@ -2,13 +2,14 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 import type { Sokepost } from '@/components/showroom/sok/sok';
-import { typenavn } from '@/components/showroom/inspirasjon/typer';
+import { erOffentlig, typenavn } from '@/components/showroom/inspirasjon/typer';
+import { verktoy } from '@/components/showroom/verksted/verktoy';
 
 export const prerender = true;
 
 const sider: Sokepost[] = [
   {
-    tittel: 'Produkter',
+    tittel: 'Vårt utvalg',
     tekst: 'Ferdige produkter fra verkstedet.',
     url: '/produkter/',
     type: 'Side',
@@ -19,7 +20,8 @@ const sider: Sokepost[] = [
     tekst: 'Design skilt, navn og former selv, i nettleseren, i millimeter.',
     url: '/skaperverksted/',
     type: 'Verktøy',
-    ord: 'lag noe signgen skilt navneskilt lampe drage generator 3d stl 3mf',
+    kategori: 'verktoy',
+    ord: 'lag noe forge signgen skilt navneskilt lampe form drage generator 3d stl 3mf',
   },
   {
     tittel: 'Spesialdesign',
@@ -35,10 +37,16 @@ const sider: Sokepost[] = [
     type: 'Side',
     ord: 'bedrift firma logo profil skilt',
   },
-  { tittel: 'Inspirasjon', tekst: 'Prosjekter, historier og guider.', url: '/inspirasjon/', type: 'Side' },
+  {
+    tittel: 'Inspirasjon',
+    tekst: 'Prosjekter, historier, guider, tips og nyheter.',
+    url: '/inspirasjon/',
+    type: 'Side',
+    kategori: 'inspirasjon',
+  },
   {
     tittel: 'Om Designporten',
-    tekst: 'Et verksted som både tegner og produserer.',
+    tekst: 'Skaperglede, og personen bak verkstedet.',
     url: '/om/',
     type: 'Side',
   },
@@ -57,14 +65,30 @@ const sider: Sokepost[] = [
 export const GET: APIRoute = async () => {
   const produkter = (await getCollection('produkter')).map<Sokepost>((p) => {
     const data = p.data as { navn: string; beskrivelse?: string };
-    return { tittel: data.navn, tekst: data.beskrivelse ?? '', url: `/produkter/${p.id}/`, type: 'Produkt' };
+    return {
+      tittel: data.navn,
+      tekst: data.beskrivelse ?? '',
+      url: `/produkter/${p.id}/`,
+      type: 'Produkt',
+      kategori: 'produkter',
+    };
   });
-  const inspirasjon = (await getCollection('inspirasjon')).map<Sokepost>((s) => ({
+  // The four Forge tools; a planned tool points to the Skaperverksted hub.
+  const verktoyposter = verktoy.map<Sokepost>((v) => ({
+    tittel: v.navn,
+    tekst: v.beskrivelse,
+    url: v.href ?? '/skaperverksted/',
+    type: v.status === 'planlagt' ? 'Planlagt verktøy' : 'Verktøy',
+    kategori: 'verktoy',
+    ord: `${v.undertittel} ${v.id}`,
+  }));
+  const inspirasjon = (await getCollection('inspirasjon', (s) => erOffentlig(s.data))).map<Sokepost>((s) => ({
     tittel: s.data.tittel,
     tekst: s.data.ingress,
     url: `/inspirasjon/${s.id}/`,
     type: typenavn[s.data.type].en,
+    kategori: 'inspirasjon',
     ord: [...s.data.materialer, s.data.mal ?? ''].join(' '),
   }));
-  return Response.json([...sider, ...produkter, ...inspirasjon]);
+  return Response.json([...sider, ...produkter, ...verktoyposter, ...inspirasjon]);
 };

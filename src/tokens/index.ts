@@ -20,7 +20,8 @@ export const farger = {
 
 export const skrift = {
   mono: '"IBM Plex Mono", ui-monospace, monospace',
-  tekst: '"Archivo Variable", Archivo, Arial, sans-serif',
+  tekst: '"Manrope Variable", Manrope, Arial, sans-serif',
+  display: '"Sora Variable", Sora, Arial, sans-serif',
 } as const;
 
 export const bevegelse = {

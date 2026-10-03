@@ -53,27 +53,38 @@
   --pa-handling: #ffffff;
   --fokus: var(--dp-lilla);
 
-  /* Typography */
-  --font-display: 'Archivo Variable', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
-  --font-tekst: 'Archivo Variable', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  /* Typography (revised 2026-10-02, Sivert's design revision §1):
+     Sora for headings, a clean geometric face used light; Manrope for text and
+     UI, slim and slightly rounded; IBM Plex Mono only for measurements, specs
+     and counters. Headings are set light with a little air, never heavy or
+     extra wide. */
+  --font-display: 'Sora Variable', 'Sora', 'Helvetica Neue', Arial, sans-serif;
+  --font-tekst: 'Manrope Variable', 'Manrope', 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
-  --display-bredde: 118%;
-  --display-vekt: 760;
 
-  --fs-display: clamp(3.25rem, 1.6rem + 7.2vw, 7.5rem);
-  --fs-h1: clamp(2.5rem, 1.6rem + 3.6vw, 4.5rem);
-  --fs-h2: clamp(1.75rem, 1.3rem + 1.8vw, 2.75rem);
-  --fs-h3: clamp(1.25rem, 1.1rem + 0.6vw, 1.75rem);
-  --fs-ingress: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  /* One scale for the whole site. Display is used once per page at most. */
+  --fs-display: clamp(2.5rem, 1.75rem + 3.2vw, 4.25rem);
+  --fs-h1: clamp(2.125rem, 1.7rem + 1.8vw, 3.25rem);
+  --fs-h2: clamp(1.625rem, 1.4rem + 0.9vw, 2.25rem);
+  --fs-h3: clamp(1.1875rem, 1.12rem + 0.3vw, 1.375rem);
+  --fs-ingress: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
   --fs-tekst: 1rem;
   --fs-liten: 0.875rem;
+  --fs-etikett: 0.75rem;
   --fs-mono: 0.75rem;
-  --fs-mono-liten: 0.625rem;
+  --fs-mono-liten: 0.6875rem;
 
-  --lh-tett: 1.02;
-  --lh-overskrift: 1.1;
-  --lh-tekst: 1.55;
-  --sporing-display: -0.03em;
+  --vekt-display: 300;
+  --vekt-overskrift: 400;
+  --vekt-h3: 500;
+  --vekt-sterk: 650;
+
+  --lh-tett: 1.08;
+  --lh-overskrift: 1.16;
+  --lh-tekst: 1.6;
+  --sporing-display: -0.015em;
+  --sporing-overskrift: -0.005em;
+  --sporing-etikett: 0.16em;
   --sporing-mono: 0.08em;
 
   /* Space (4 px base) */
@@ -95,16 +106,20 @@
   /* Side padding for full-bleed sections: aligns their content with .ramme.
      Use as padding-inline on an element that spans the page width. */
   --sidekant: max(var(--gutter), (100% - var(--innhold-maks)) / 2);
-  --header-h: 62px;
-  --header-h-krympet: 48px;
+  --header-h: 66px;
+  --header-h-krympet: 52px;
 
   /* Shape */
   --radius-0: 0;
   --radius-panel: 4px;
+  --radius-kort: 14px;
   --radius-felt: 3px;
+  --radius-skjema: 10px;
   --radius-pille: 999px;
   --skygge-objekt: 0 26px 34px -18px rgb(24 23 28 / 0.35);
   --skygge-flyt: 0 12px 32px -16px rgb(0 0 0 / 0.45);
+  --skygge-kort: 0 1px 2px rgb(24 23 28 / 0.05), 0 8px 24px -14px rgb(24 23 28 / 0.18);
+  --skygge-meny: 0 1px 2px rgb(24 23 28 / 0.06), 0 14px 34px -18px rgb(24 23 28 / 0.35);
 
   /* Product grid (preserved: fixed card width, max 6 across) */
   --kort-b: 208px;

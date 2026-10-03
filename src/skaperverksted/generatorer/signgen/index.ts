@@ -84,7 +84,7 @@ const plugin: GeneratorPlugin = {
     const farger = [...new Set(modell.deler.map((d) => finnMateriale(d.materialId).navn))];
     return {
       produktId: 'skaperverksted-signgen',
-      navn: `Skilt fra Signgen: ${dok.navn}`,
+      navn: `Skilt fra Sign Forge: ${dok.navn}`,
       valg: {
         Mål: m ? `${tall(m.bredde)} × ${tall(m.dybde)} × ${tall(m.hoyde)} mm` : 'ukjent',
         Lag: String(dok.lag.filter((l) => l.synlig).length),

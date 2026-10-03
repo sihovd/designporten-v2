@@ -92,18 +92,4 @@ export async function lever(inn: Innsending): Promise<Leveringsresultat> {
   return { ok: true, kanal: 'fil', referanse: ref };
 }
 
-/** Upload limits shared by all forms. */
-export const opplasting = {
-  maksFiler: 8,
-  maksBytePerFil: 15 * 1024 * 1024,
-  tillatteEndelser: ['jpg', 'jpeg', 'png', 'heic', 'webp', 'pdf', 'stl', '3mf', 'step', 'stp', 'obj', 'svg'],
-} as const;
-
-export function sjekkFil(f: File): string | null {
-  const endelse = f.name.split('.').pop()?.toLowerCase() ?? '';
-  if (!(opplasting.tillatteEndelser as readonly string[]).includes(endelse)) {
-    return `«${f.name}» har et filformat vi ikke tar imot.`;
-  }
-  if (f.size > opplasting.maksBytePerFil) return `«${f.name}» er større enn 15 MB.`;
-  return null;
-}
+export { opplasting, sjekkFil, sjekkTotal } from './grenser';

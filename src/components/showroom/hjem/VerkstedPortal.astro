@@ -1,103 +1,105 @@
 ---
 /**
- * The way into Skaperverksted from the homepage (information-architecture.md
- * #homepage, «Skaperverksted preview»; interaction-and-motion.md, the portal).
- * Scrolling in opens the graphite workshop surface from a door-sized panel
- * to the full width, and the measurement grid comes in from the centre:
- * the warm showroom gives way to the workshop. Inside, each generator shows
- * its real starting design on the grid.
+ * The way into Skaperverksted from the homepage (design revision 2026-10-02,
+ * §8 and §11). The light page darkens softly into the graphite workshop: a
+ * long gradient, no shapes or doors, and the content settles in as it
+ * arrives. Inside, the four Forge tools as compact cards.
  *
- * Mobile: the same opening over a shorter distance. Reduced motion: open.
+ * Reduced motion: the same gradient, content shown at once.
  */
 import Knapp from '@/components/Knapp.astro';
-import GeneratorForhandsvisning from '@/components/showroom/verksted/GeneratorForhandsvisning.astro';
-import { katalog } from '@/skaperverksted/generatorer';
-
-const forhandsvisbare = new Set(['signgen', 'lampe', 'drage']);
-const verktoy = katalog.filter((g) => g.status === 'tilgjengelig');
+import VerktoyKort from '@/components/showroom/verksted/VerktoyKort.astro';
+import { verktoy } from '@/components/showroom/verksted/verktoy';
 ---
 
-<section class="portal" aria-labelledby="portal-tittel" data-rulle="inn" data-mork>
-  <div class="portal__flate" aria-hidden="true">
-    <div class="portal__rutenett"></div>
-  </div>
-  <div class="portal__innhold verksted-flate">
-    <div class="portal__hode">
-      <p class="mono portal__etikett">Skaperverksted</p>
-      <h2 id="portal-tittel" class="portal__tittel">
-        Lag det selv, i ekte millimeter
-      </h2>
-      <p class="portal__ingress">
-        Bygg skilt, lamper og figurer i nettleseren. Du ser modellen i 3D mens du jobber, og kan laste ned
-        filen eller bestille den printet fra oss.
-      </p>
-      <Knapp href="/skaperverksted/">Start å skape</Knapp>
+<section class="portal" aria-labelledby="portal-tittel" data-rulle="inn" data-rulle-rolig="1">
+  <div class="portal__overgang" aria-hidden="true"></div>
+  <div class="portal__flate" data-mork>
+    <div class="portal__rutenett" aria-hidden="true"></div>
+    <div class="portal__innhold">
+      <div class="portal__hode">
+        <div class="portal__tekst">
+          <p class="etikett portal__etikett">Skaperverksted</p>
+          <h2 id="portal-tittel" class="portal__tittel">
+            Lag det selv, i ekte millimeter
+          </h2>
+          <p class="portal__ingress">
+            Bygg i nettleseren, se modellen i 3D mens du jobber, og last ned filen eller bestill den printet
+            fra oss.
+          </p>
+        </div>
+        <Knapp href="/skaperverksted/">Start å skape</Knapp>
+      </div>
+      <ul class="portal__verktoy" role="list">
+        {verktoy.map((v) => (
+          <li>
+            <VerktoyKort verktoy={v} />
+          </li>
+        ))}
+      </ul>
     </div>
-    <ul class="portal__verktoy" role="list">
-      {verktoy.map((g, i) => (
-        <li style={`--i:${i}`}>
-          <a class="portal__kort" href={`/skaperverksted/${g.id}/`}>
-            <span class="portal__bilde">
-              {forhandsvisbare.has(g.id) && (
-                <GeneratorForhandsvisning id={g.id as 'signgen' | 'lampe' | 'drage'} />
-              )}
-            </span>
-            <span class="mono portal__under">{g.undertittel}</span>
-            <span class="portal__navn">{g.navn}</span>
-            <span class="portal__tekst">{g.beskrivelse}</span>
-          </a>
-        </li>
-      ))}
-    </ul>
-    <p class="mono portal__fotnote">Startmodellene i verktøyene, tegnet på et rutenett med ruter på 10 mm.</p>
   </div>
 </section>
 
 <style>
   .portal {
+    --p: 1;
     position: relative;
-    isolation: isolate;
-    padding-block: var(--r-seksjon) var(--r-6);
     color: var(--tekst-mork);
   }
 
-  /* The graphite surface opens from a door to the full width. */
+  /* The light page darkens over a long distance, without a hard edge. */
+  .portal__overgang {
+    height: clamp(120px, 22vh, 240px);
+    background: linear-gradient(
+      180deg,
+      var(--papir) 0%,
+      color-mix(in srgb, var(--papir) 72%, var(--verksted)) 34%,
+      color-mix(in srgb, var(--papir) 30%, var(--verksted)) 68%,
+      var(--verksted) 100%
+    );
+  }
+
   .portal__flate {
-    position: absolute;
-    inset: 0;
-    z-index: -1;
+    position: relative;
+    isolation: isolate;
+    padding-block: var(--r-6) var(--r-seksjon);
     background: var(--verksted);
-    transform-origin: 50% 0;
-    transform: scale(calc(0.56 + 0.44 * var(--p, 1)), calc(0.9 + 0.1 * var(--p, 1)));
-    will-change: transform;
   }
 
   .portal__rutenett {
     position: absolute;
     inset: 0;
+    z-index: -1;
     background-image:
       linear-gradient(var(--linje-mork) 1px, transparent 1px),
       linear-gradient(90deg, var(--linje-mork) 1px, transparent 1px);
     background-size: 80px 80px;
     background-position: 50% 0;
-    mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 20%, transparent 75%);
-    opacity: calc(var(--p, 1) * 0.55);
-    transform: scale(calc(0.6 + 0.4 * var(--p, 1)));
-    transform-origin: 50% 20%;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 20%, #000 10%, transparent 75%);
+    opacity: calc(0.15 + var(--p) * 0.35);
   }
 
   .portal__innhold {
     display: grid;
-    gap: var(--r-7);
-    padding-inline: var(--sidekant);
-    background: transparent;
-    opacity: clamp(0, calc(var(--p, 1) * 2.2 - 1), 1);
+    gap: var(--r-6);
+    width: min(var(--innhold-maks), 100% - 2 * var(--gutter));
+    margin-inline: auto;
+    opacity: clamp(0, calc(var(--p) * 1.6 - 0.2), 1);
+    transform: translate3d(0, calc((1 - var(--p)) * 24px), 0);
   }
 
   .portal__hode {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
     gap: var(--r-5);
-    justify-items: start;
+  }
+
+  .portal__tekst {
+    display: grid;
+    gap: var(--r-3);
   }
 
   .portal__etikett {
@@ -105,111 +107,41 @@ const verktoy = katalog.filter((g) => g.status === 'tilgjengelig');
   }
 
   .portal__tittel {
-    font-size: min(var(--fs-h1), 10.4vw);
-    font-stretch: 122%;
-    font-weight: 800;
-    line-height: 0.98;
-    letter-spacing: -0.035em;
-    text-transform: uppercase;
-    max-width: 14ch;
+    color: var(--tekst-mork);
+    font-size: var(--fs-h2);
+    max-width: 20ch;
   }
 
   .portal__ingress {
-    max-width: 52ch;
+    max-width: 50ch;
     color: var(--dempet-mork);
-    font-size: var(--fs-ingress);
   }
 
   .portal__verktoy {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--r-4);
     margin: 0;
     padding: 0;
     list-style: none;
-    border-top: 1px solid var(--linje-mork);
   }
 
-  .portal__verktoy li + li {
-    border-left: 1px solid var(--linje-mork);
-  }
-
-  .portal__kort {
-    display: grid;
-    grid-template-rows: auto auto auto 1fr;
-    gap: var(--r-2);
-    height: 100%;
-    padding: var(--r-5) var(--r-5) var(--r-6);
-    color: var(--tekst-mork);
-    text-decoration: none;
-    transition: background-color var(--t-trinn) var(--ease-ut);
-  }
-
-  .portal__verktoy li:first-child .portal__kort {
-    padding-left: 0;
-  }
-
-  .portal__kort:hover {
-    background: color-mix(in srgb, var(--grafitt) 70%, transparent);
-  }
-
-  .portal__kort:focus-visible {
-    outline-offset: -2px;
-  }
-
-  .portal__bilde {
-    display: block;
-    height: clamp(180px, 22vw, 280px);
-    margin-bottom: var(--r-4);
-  }
-
-  .portal__under {
-    color: var(--dp-cyan);
-    font-size: var(--fs-mono-liten);
-  }
-
-  .portal__navn {
-    font-family: var(--font-display);
-    font-size: var(--fs-h3);
-    font-stretch: 112%;
-    font-weight: 700;
-    letter-spacing: -0.015em;
-  }
-
-  .portal__kort:hover .portal__navn {
-    color: var(--dp-lilla-lys);
-  }
-
-  .portal__tekst {
-    color: var(--dempet-mork);
-    max-width: 38ch;
-  }
-
-  .portal__fotnote {
-    color: var(--dempet-mork);
-    font-size: var(--fs-mono-liten);
-  }
-
-  @media (max-width: 880px) {
-    .portal__verktoy li + li {
-      border-left: 0;
-      border-top: 1px solid var(--linje-mork);
+  @media (max-width: 1100px) {
+    .portal__verktoy {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+  }
 
-    .portal__kort,
-    .portal__verktoy li:first-child .portal__kort {
-      padding-inline: 0;
+  @media (max-width: 560px) {
+    .portal__verktoy {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .portal__flate,
-    .portal__rutenett {
-      transform: none;
-      will-change: auto;
-    }
-
     .portal__innhold {
       opacity: 1;
+      transform: none;
     }
   }
 </style>

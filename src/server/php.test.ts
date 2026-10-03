@@ -23,6 +23,9 @@ describe('PHP routes', () => {
       `const DP_MAKS_BYTE_PER_FIL = ${opplasting.maksBytePerFil / 1024 / 1024} * 1024 * 1024;`,
     );
     expect(felles).toContain(
+      `const DP_MAKS_BYTE_TOTALT = ${opplasting.maksByteTotalt / 1024 / 1024} * 1024 * 1024;`,
+    );
+    expect(felles).toContain(
       `const DP_ENDELSER = [${opplasting.tillatteEndelser.map((e) => `'${e}'`).join(', ')}];`,
     );
   });

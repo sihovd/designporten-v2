@@ -1,0 +1,876 @@
+---
+/**
+ * The one form engine (design revision 2026-10-02, §15–18).
+ *
+ * `full`: the enquiry. First private or business, then what the customer has
+ * to start with; the fields follow from both. Business adds company,
+ * organisation number, quantity, material wishes and technical requirements.
+ * Used inline on /foresporsel/ and in the modal every enquiry button opens
+ * (ForesporselModal.astro). `kort`: the plain contact form on Kontakt.
+ *
+ * Posts to /api/foresporsel/ (tolk.ts on Node, the PHP twin on one.com).
+ * Works without JavaScript: both customer types' fields are then shown and
+ * the server ignores what does not apply. With JavaScript the form sends in
+ * place, shows errors by the fields and the receipt inline.
+ */
+import Knapp from '@/components/Knapp.astro';
+import Ikon from '@/components/Ikon.astro';
+import Kvittering from './Kvittering.astro';
+import { startpunkter, type Startpunkt } from '../startpunkter';
+import { antallValg, type Kundetype } from './tolk';
+import { MB, opplasting } from '@/lib/skjema/grenser';
+
+interface Props {
+  variant?: 'full' | 'kort';
+  kundetype?: Kundetype;
+  start?: Startpunkt;
+  id?: string;
+}
+
+const { variant = 'full', kundetype = 'privat', start = 'ide', id = 'skjema' } = Astro.props;
+const full = variant === 'full';
+const f = (navn: string) => `${id}-${navn}`;
+const startvalg = startpunkter.find((s) => s.id === start) ?? startpunkter[0]!;
+const endelser = opplasting.tillatteEndelser.map((e) => `.${e}`).join(',');
+---
+
+<div class="skjema-ramme" data-skjema-ramme>
+  <form
+    class="skjema"
+    id={id}
+    method="post"
+    action="/api/foresporsel/"
+    enctype="multipart/form-data"
+    data-skjema
+    data-kunde={kundetype}
+    data-start={startvalg.id}
+    novalidate
+  >
+    <input type="hidden" name="skjema" value={full ? 'ide' : 'kontakt'} />
+
+    <div class="skjema__oppsummering" role="alert" tabindex="-1" data-oppsummering hidden>
+      <p>
+        <strong>Noe mangler før vi kan sende:</strong>
+      </p>
+      <ul data-oppsummering-liste></ul>
+    </div>
+
+    {full && (
+      <fieldset class="skjema__gruppe">
+        <legend class="visuelt-skjult">Hvem er du?</legend>
+        <div class="segment">
+          <label class="segment__valg">
+            <input
+              type="radio"
+              name="kundetype"
+              value="privat"
+              checked={kundetype === 'privat'}
+              data-kundetype
+            />
+            <span>Privatperson</span>
+          </label>
+          <label class="segment__valg">
+            <input
+              type="radio"
+              name="kundetype"
+              value="bedrift"
+              checked={kundetype === 'bedrift'}
+              data-kundetype
+            />
+            <span>Bedrift</span>
+          </label>
+        </div>
+        <p class="skjema__intro" data-kun="privat">
+          Du trenger ikke vite hvordan produktet skal lages. Fortell oss hva du ser for deg.
+        </p>
+        <p class="skjema__intro" data-kun="bedrift">
+          Prototype, småserie eller noe helt nytt. Jo mer vi vet om prosjektet, jo bedre kan vi svare.
+        </p>
+      </fieldset>
+    )}
+
+    {full && (
+      <fieldset class="skjema__gruppe">
+        <legend>Hva har du å starte med?</legend>
+        <div class="skjema__startvalg">
+          {startpunkter.map((s) => (
+            <label class="brikke">
+              <input
+                type="radio"
+                name="start"
+                value={s.id}
+                checked={s.id === startvalg.id}
+                data-eksempel={s.eksempel}
+              />
+              <span>{s.tittel}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    )}
+
+    {full && (
+      <div class="skjema__rad" data-kun="bedrift">
+        <div class="skjema__felt" data-felt="firma">
+          <label for={f('firma')}>
+            Firmanavn <span class="skjema__krav">Må fylles ut</span>
+          </label>
+          <input
+            id={f('firma')}
+            name="firma"
+            type="text"
+            maxlength="200"
+            autocomplete="organization"
+            aria-describedby={f('firma-feil')}
+            data-krevd-bedrift
+          />
+          <p class="skjema__feil" id={f('firma-feil')} data-feil-for="firma" />
+        </div>
+        <div class="skjema__felt" data-felt="orgnr">
+          <label for={f('orgnr')}>Organisasjonsnummer</label>
+          <input
+            id={f('orgnr')}
+            name="orgnr"
+            type="text"
+            inputmode="numeric"
+            maxlength="20"
+            placeholder="9 siffer"
+            aria-describedby={f('orgnr-feil')}
+          />
+          <p class="skjema__feil" id={f('orgnr-feil')} data-feil-for="orgnr" />
+        </div>
+      </div>
+    )}
+
+    <div class="skjema__felt" data-felt="beskrivelse">
+      <label for={f('beskrivelse')}>
+        {full ? (
+          <>
+            <span data-kun="privat">Hva ser du for deg?</span>
+            <span data-kun="bedrift">Prosjektbeskrivelse</span>
+          </>
+        ) : (
+          'Hva gjelder det?'
+        )}{' '}
+        <span class="skjema__krav">Må fylles ut</span>
+      </label>
+      <textarea
+        id={f('beskrivelse')}
+        name="beskrivelse"
+        rows={full ? 5 : 6}
+        required
+        maxlength="8000"
+        placeholder={full ? startvalg.eksempel : 'For eksempel: jeg lurer på om dere kan printe noe i PETG.'}
+        aria-describedby={f('beskrivelse-feil')}
+        data-beskrivelse
+      ></textarea>
+      <p class="skjema__feil" id={f('beskrivelse-feil')} data-feil-for="beskrivelse"></p>
+    </div>
+
+    {full && (
+      <div class="skjema__felt" data-felt="filer">
+        <span class="skjema__etikett" id={f('filer-etikett')}>
+          <span data-kun-start="ide">Bilder eller skisser</span>
+          <span data-kun-start="tegning">Tegningen eller bildet</span>
+          <span data-kun-start="modell">3D-modellen</span>
+          <span data-kun-start="del">Bilder av delen, gjerne med mål</span>
+        </span>
+        <div class="slipp" data-slipp>
+          <input
+            id={f('filer')}
+            class="slipp__input"
+            name="filer[]"
+            type="file"
+            multiple
+            accept={endelser}
+            aria-labelledby={`${f('filer-etikett')} ${f('filer-velg')}`}
+            aria-describedby={`${f('filer-hjelp')} ${f('filer-feil')}`}
+            data-filer
+          />
+          <Ikon navn="last-opp" storrelse={22} />
+          <span class="slipp__tekst">
+            <span id={f('filer-velg')} class="slipp__velg">
+              Velg filer
+            </span>{' '}
+            eller dra dem hit
+          </span>
+          <span class="slipp__hjelp" id={f('filer-hjelp')}>
+            JPG, PNG, HEIC, PDF, STL, 3MF eller STEP. Opptil {opplasting.maksFiler} filer, til sammen{' '}
+            {MB(opplasting.maksByteTotalt)} MB.
+          </span>
+        </div>
+        <ul class="filer" data-filliste aria-label="Valgte filer" />
+        <p class="skjema__status-filer" aria-live="polite" data-filstatus />
+        <p class="skjema__feil" id={f('filer-feil')} data-feil-for="filer" />
+      </div>
+    )}
+
+    {full && (
+      <div class="skjema__felt" data-felt="fillenke">
+        <label for={f('fillenke')}>Lenke til store filer</label>
+        <p class="skjema__hjelp" id={f('fillenke-hjelp')}>
+          Er modellen større enn {MB(opplasting.maksByteTotalt)} MB? Legg den i for eksempel Google Drive,
+          Dropbox eller WeTransfer og lim inn lenken.
+        </p>
+        <input
+          id={f('fillenke')}
+          name="fillenke"
+          type="url"
+          inputmode="url"
+          maxlength="1000"
+          placeholder="https://"
+          aria-describedby={`${f('fillenke-hjelp')} ${f('fillenke-feil')}`}
+        />
+        <p class="skjema__feil" id={f('fillenke-feil')} data-feil-for="fillenke" />
+      </div>
+    )}
+
+    {full && (
+      <div class="skjema__rad">
+        <div class="skjema__felt">
+          <label for={f('mal')}>Omtrentlige mål</label>
+          <input
+            id={f('mal')}
+            name="mal"
+            type="text"
+            maxlength="400"
+            placeholder="B × H × D i mm, eller fritekst"
+            autocomplete="off"
+          />
+        </div>
+        <div class="skjema__felt" data-kun="bedrift">
+          <label for={f('antall')}>Antall</label>
+          <select id={f('antall')} name="antall">
+            <option value="">Velg</option>
+            {antallValg.map((a) => (
+              <option value={a}>{a}</option>
+            ))}
+          </select>
+        </div>
+        <div class="skjema__felt" data-kun="bedrift">
+          <label for={f('materiale')}>Materialønske</label>
+          <input
+            id={f('materiale')}
+            name="materiale"
+            type="text"
+            maxlength="400"
+            placeholder="For eksempel PETG, eller «vet ikke»"
+          />
+        </div>
+      </div>
+    )}
+
+    {full && (
+      <div class="skjema__felt" data-kun="bedrift">
+        <label for={f('krav')}>Tekniske krav</label>
+        <textarea
+          id={f('krav')}
+          name="krav"
+          rows="3"
+          maxlength="4000"
+          placeholder="Toleranser, temperatur, styrke, standarder eller annet vi må vite."
+        />
+      </div>
+    )}
+
+    {full && (
+      <div class="skjema__felt skjema__frist">
+        <label for={f('frist')}>
+          <span data-kun="privat">Når trenger du det?</span>
+          <span data-kun="bedrift">Ønsket leveringsfrist</span>
+        </label>
+        <div class="skjema__fristrad">
+          <input id={f('frist')} name="frist" type="date" data-frist />
+          <label class="avkryss">
+            <input type="checkbox" name="ingenHast" value="ja" data-ingen-hast /> Ingen hast
+          </label>
+        </div>
+      </div>
+    )}
+
+    <div class="skjema__rad">
+      <div class="skjema__felt" data-felt="navn">
+        <label for={f('navn')}>
+          {full ? (
+            <>
+              <span data-kun="privat">Navn</span>
+              <span data-kun="bedrift">Kontaktperson</span>
+            </>
+          ) : (
+            'Navn'
+          )}{' '}
+          <span class="skjema__krav">Må fylles ut</span>
+        </label>
+        <input
+          id={f('navn')}
+          name="navn"
+          type="text"
+          required
+          maxlength="200"
+          autocomplete="name"
+          aria-describedby={f('navn-feil')}
+        />
+        <p class="skjema__feil" id={f('navn-feil')} data-feil-for="navn"></p>
+      </div>
+      <div class="skjema__felt" data-felt="epost">
+        <label for={f('epost')}>
+          E-post <span class="skjema__krav">Må fylles ut</span>
+        </label>
+        <input
+          id={f('epost')}
+          name="epost"
+          type="email"
+          required
+          maxlength="200"
+          autocomplete="email"
+          aria-describedby={f('epost-feil')}
+        />
+        <p class="skjema__feil" id={f('epost-feil')} data-feil-for="epost"></p>
+      </div>
+      <div class="skjema__felt">
+        <label for={f('telefon')}>Telefon</label>
+        <input id={f('telefon')} name="telefon" type="tel" maxlength="40" autocomplete="tel" />
+      </div>
+    </div>
+
+    <!-- Left empty by people; bots fill it in. -->
+    <div class="skjema__krukke" aria-hidden="true">
+      <label for={f('nettside')}>Nettside</label>
+      <input id={f('nettside')} name="nettside" type="text" tabindex="-1" autocomplete="off" />
+    </div>
+
+    <div class="skjema__send">
+      <Knapp type="submit" data-send>
+        {full ? 'Send forespørselen' : 'Send meldingen'}
+      </Knapp>
+      <p class="skjema__personvern">
+        Vi bruker det du sender bare til å svare deg. Les mer om <a href="/personvern/">personvern</a>.
+      </p>
+    </div>
+    <p class="skjema__status" role="status" data-status></p>
+  </form>
+
+  <template data-kvittering-mal>
+    <Kvittering type={full ? 'ide' : 'kontakt'} referanse="DP-00000000-X" kanal="fil" />
+  </template>
+</div>
+
+<script>
+  import { startSkjemaer } from './klient';
+  startSkjemaer();
+</script>
+
+<style>
+  .skjema {
+    display: grid;
+    gap: var(--r-5);
+  }
+
+  .skjema__gruppe {
+    display: grid;
+    gap: var(--r-3);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  .skjema legend,
+  .skjema label:not(.avkryss, .brikke, .segment__valg),
+  .skjema__etikett {
+    display: block;
+    margin-bottom: var(--r-2);
+    padding: 0;
+    font-size: var(--fs-liten);
+    font-weight: 650;
+  }
+
+  .skjema__krav {
+    margin-left: var(--r-2);
+    color: var(--dempet);
+    font-size: 0.8125rem;
+    font-weight: 450;
+  }
+
+  .skjema__intro {
+    color: var(--dempet);
+    max-width: 52ch;
+  }
+
+  /* Without JS both customer types show; with it only the chosen one. */
+  :global(.js) .skjema[data-kunde='privat'] [data-kun='bedrift'],
+  :global(.js) .skjema[data-kunde='bedrift'] [data-kun='privat'] {
+    display: none;
+  }
+
+  :global(.js) .skjema:not([data-start='ide']) [data-kun-start='ide'],
+  :global(.js) .skjema:not([data-start='tegning']) [data-kun-start='tegning'],
+  :global(.js) .skjema:not([data-start='modell']) [data-kun-start='modell'],
+  :global(.js) .skjema:not([data-start='del']) [data-kun-start='del'] {
+    display: none;
+  }
+
+  :global(html:not(.js)) .skjema [data-kun-start]:not(:first-child)::before {
+    content: ' / ';
+  }
+
+  /* ---------- Private / business: a segmented switch ---------- */
+  .segment {
+    display: inline-grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    justify-self: start;
+    padding: 4px;
+    border: 1px solid var(--kant);
+    border-radius: var(--radius-pille);
+    background: var(--kalk);
+  }
+
+  .segment__valg {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 40px;
+    padding: 0 var(--r-5);
+    border-radius: var(--radius-pille);
+    font-size: var(--fs-liten);
+    font-weight: 600;
+    color: var(--dempet);
+    cursor: pointer;
+    transition:
+      background-color var(--t-rask) ease,
+      color var(--t-rask) ease,
+      box-shadow var(--t-rask) ease;
+  }
+
+  .segment__valg input,
+  .brikke input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .segment__valg:has(input:checked) {
+    background: var(--flate);
+    color: var(--blekk);
+    box-shadow: 0 1px 3px rgb(24 23 28 / 0.12);
+  }
+
+  .segment__valg:has(input:focus-visible),
+  .brikke:has(input:focus-visible) {
+    outline: 2px solid var(--fokus);
+    outline-offset: 2px;
+  }
+
+  /* ---------- Starting point: chips ---------- */
+  .skjema__startvalg {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-2);
+  }
+
+  .brikke {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 var(--r-4);
+    border: 1px solid var(--kant-sterk);
+    border-radius: var(--radius-pille);
+    background: var(--flate);
+    font-size: var(--fs-liten);
+    font-weight: 550;
+    cursor: pointer;
+    transition:
+      border-color var(--t-rask) ease,
+      background-color var(--t-rask) ease,
+      color var(--t-rask) ease;
+  }
+
+  .brikke:hover {
+    border-color: var(--blekk);
+  }
+
+  .brikke:has(input:checked) {
+    border-color: var(--blekk);
+    background: var(--blekk);
+    color: var(--flate);
+  }
+
+  /* ---------- Fields ---------- */
+  .skjema__felt {
+    min-width: 0;
+  }
+
+  .skjema__rad {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: var(--r-4);
+  }
+
+  .skjema input:is([type='text'], [type='email'], [type='tel'], [type='date'], [type='url']),
+  .skjema select,
+  .skjema textarea {
+    width: 100%;
+    min-height: var(--mal-beroring);
+    padding: 10px 14px;
+    border: 1px solid var(--kant-sterk);
+    border-radius: var(--radius-skjema);
+    background: var(--flate);
+    transition:
+      border-color var(--t-rask) ease,
+      box-shadow var(--t-rask) ease;
+  }
+
+  .skjema input:is([type='text'], [type='email'], [type='tel'], [type='date'], [type='url']):focus-visible,
+  .skjema select:focus-visible,
+  .skjema textarea:focus-visible {
+    outline: none;
+    border-color: var(--handling);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--handling) 22%, transparent);
+  }
+
+  .skjema textarea {
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  .skjema ::placeholder {
+    color: var(--dempet);
+    opacity: 1;
+  }
+
+  .skjema [aria-invalid='true'] {
+    border-color: var(--feil) !important;
+    box-shadow: inset 0 0 0 1px var(--feil);
+  }
+
+  .skjema__feil {
+    margin-top: var(--r-1);
+    color: var(--feil);
+    font-size: var(--fs-liten);
+    font-weight: 560;
+  }
+
+  .skjema__feil:empty,
+  .skjema__status-filer:empty {
+    display: none;
+  }
+
+  .skjema__hjelp {
+    margin: calc(-1 * var(--r-1)) 0 var(--r-2);
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+
+  .skjema__fristrad {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--r-2) var(--r-5);
+  }
+
+  .skjema__fristrad input[type='date'] {
+    width: auto;
+    min-width: 200px;
+  }
+
+  .avkryss {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--r-2);
+    min-height: var(--mal-beroring);
+    font-size: var(--fs-liten);
+    cursor: pointer;
+  }
+
+  .avkryss input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--handling);
+  }
+
+  /* ---------- Upload: a drop zone and preview tiles ---------- */
+  .slipp {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: var(--r-1);
+    padding: var(--r-5) var(--r-4);
+    border: 1.5px dashed var(--kant-sterk);
+    border-radius: var(--radius-kort);
+    background: var(--flate);
+    color: var(--dempet);
+    text-align: center;
+    transition:
+      border-color var(--t-rask) ease,
+      background-color var(--t-rask) ease;
+  }
+
+  .slipp__input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .slipp:hover,
+  .slipp:global(.over) {
+    border-color: var(--handling);
+    background: color-mix(in srgb, var(--handling) 5%, var(--flate));
+  }
+
+  .slipp:has(.slipp__input:focus-visible) {
+    outline: 2px solid var(--fokus);
+    outline-offset: 2px;
+  }
+
+  .slipp__tekst {
+    color: var(--blekk);
+    font-weight: 550;
+  }
+
+  .slipp__velg {
+    color: var(--lenke);
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  .slipp__hjelp {
+    font-size: 0.8125rem;
+  }
+
+  :global(html:not(.js)) .slipp__input {
+    position: static;
+    opacity: 1;
+  }
+
+  .filer {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: var(--r-3);
+    margin: var(--r-3) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .filer:empty {
+    display: none;
+  }
+
+  .filer :global(.fil) {
+    position: relative;
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .filer :global(.fil__bilde) {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: 1px solid var(--kant);
+    border-radius: var(--radius-skjema);
+    background: var(--kalk);
+  }
+
+  .filer :global(.fil__bilde img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .filer :global(.fil__bilde--3d img) {
+    object-fit: contain;
+    padding: 6px;
+  }
+
+  .filer :global(.fil__type) {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: var(--sporing-mono);
+    color: var(--blekk);
+  }
+
+  .filer :global(.fil__laster) {
+    font-size: 0.75rem;
+    color: var(--dempet);
+  }
+
+  .filer :global(.fil__merke) {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgb(24 23 28 / 0.78);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.06em;
+  }
+
+  .filer :global(.fil__navn) {
+    overflow: hidden;
+    font-size: 0.8125rem;
+    font-weight: 550;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .filer :global(.fil__storrelse) {
+    margin-top: -4px;
+    color: var(--dempet);
+    font-size: 0.75rem;
+  }
+
+  .filer :global(.fil__fjern) {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 253 249 / 0.92);
+    color: var(--blekk);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  }
+
+  .filer :global(.fil__fjern:hover) {
+    background: var(--blekk);
+    color: var(--flate);
+  }
+
+  .skjema__status-filer {
+    margin-top: var(--r-2);
+    color: var(--dempet);
+    font-size: var(--fs-liten);
+  }
+
+  .skjema__krukke {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .skjema__send {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--r-3) var(--r-5);
+    padding-top: var(--r-2);
+  }
+
+  .skjema__personvern {
+    color: var(--dempet);
+    font-size: 0.8125rem;
+    max-width: 44ch;
+  }
+
+  .skjema__status {
+    font-weight: 560;
+  }
+
+  .skjema__status:empty {
+    display: none;
+  }
+
+  /* Sending: a print line runs along the bottom of the button. */
+  .skjema__send :global([data-send]) {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skjema__send :global([data-send][aria-busy='true']) {
+    cursor: progress;
+    opacity: 0.85;
+  }
+
+  .skjema__send :global([data-send][aria-busy='true'])::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: repeating-linear-gradient(90deg, #fff 0 10px, transparent 10px 20px);
+    opacity: 0.8;
+  }
+
+  .skjema__oppsummering {
+    padding: var(--r-4) var(--r-5);
+    border: 1px solid var(--feil);
+    border-left-width: 3px;
+    border-radius: var(--radius-skjema);
+    background: var(--flate);
+    color: var(--feil);
+  }
+
+  .skjema__oppsummering ul {
+    margin: var(--r-2) 0 0;
+    padding-left: var(--r-5);
+  }
+
+  .skjema__oppsummering :global(a) {
+    color: var(--feil);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .skjema__send :global([data-send][aria-busy='true'])::after {
+      animation: skjema-sender 700ms linear infinite;
+    }
+
+    .skjema__status:not(:empty),
+    .skjema__oppsummering,
+    .skjema__feil:not(:empty) {
+      animation: skjema-inn var(--t-trinn) var(--ease-ut) both;
+    }
+
+    .filer :global(.fil) {
+      animation: skjema-inn var(--t-trinn) var(--ease-ut) both;
+    }
+
+    :global(.kvittering) {
+      animation: skjema-kvittering 520ms var(--ease-ut) both;
+    }
+  }
+
+  @keyframes skjema-sender {
+    from {
+      background-position: 0 0;
+    }
+
+    to {
+      background-position: 20px 0;
+    }
+  }
+
+  @keyframes skjema-inn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  @keyframes skjema-kvittering {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+</style>

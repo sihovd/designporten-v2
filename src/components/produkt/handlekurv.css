@@ -205,7 +205,7 @@
   min-height: var(--mal-beroring);
   padding: var(--r-2) var(--r-3);
   border: 1px solid var(--kant-sterk);
-  border-radius: var(--radius-felt);
+  border-radius: var(--radius-skjema);
   background: var(--flate);
   font-size: var(--fs-tekst);
   font-weight: 400;
@@ -253,7 +253,6 @@
   color: var(--pa-handling);
   font-size: 0.9375rem;
   font-weight: 650;
-  font-stretch: 108%;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   transition: background-color var(--t-rask) ease;

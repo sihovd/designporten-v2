@@ -8,7 +8,7 @@ export interface NavPunkt {
 }
 
 export const hovedmeny: readonly NavPunkt[] = [
-  { navn: 'Produkter', href: '/produkter/', sti: true },
+  { navn: 'Vårt utvalg', href: '/produkter/', sti: true },
   { navn: 'Skaperverksted', href: '/skaperverksted/', sti: true },
   { navn: 'Spesialdesign', href: '/spesialdesign/', sti: true },
   { navn: 'For bedrifter', href: '/bedrift/' },

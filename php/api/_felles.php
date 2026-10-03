@@ -14,7 +14,8 @@ declare(strict_types=1);
 
 const DP_EPOST = '/^[^\s@]+@[^\s@]+\.[^\s@]+$/';
 const DP_MAKS_FILER = 8;
-const DP_MAKS_BYTE_PER_FIL = 15 * 1024 * 1024;
+const DP_MAKS_BYTE_PER_FIL = 18 * 1024 * 1024;
+const DP_MAKS_BYTE_TOTALT = 18 * 1024 * 1024;
 const DP_ENDELSER = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'pdf', 'stl', '3mf', 'step', 'stp', 'obj', 'svg'];
 
 function dp_oppsett(): ?array

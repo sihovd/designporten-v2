@@ -37,33 +37,22 @@ URL slugs are Norwegian, lowercase, without æøå (`vilkar`, not `vilkår`). Fi
 
 ## Homepage
 
-The homepage must communicate VI GIR IDEER FORM and let a first-time visitor see within seconds that Designporten can (1) make something for them, (2) help develop their idea and (3) let them design certain products themselves.
+**Section order (design revision 2026-10-02):**
 
-**Section order (implemented 2026-09-29):**
+1. **Hero** — full-width picture, «Vi gir ideer form», «Start å skape» + «Fortell oss ideen din». See [interaction-and-motion.md](../design/interaction-and-motion.md#homepage-hero).
+2. **Populære produkter** — five product cards (four on tablets and phones) and «Se utvalget». Confirmed products first; placeholders are marked.
+3. **Three small cards** — Finn noe (Ferdige produkter) / Lag noe (Skaperverksted) / Har du en idé? (opens the enquiry modal). Separate, compact cards with a picture, one line and an arrow; hover lifts 2 px, nothing grows.
+4. **Process timeline** — «Slik blir en idé til et ferdig produkt», 6 steps.
+5. **Proof** — real projects only (renders nothing until one is confirmed).
+6. **Skaperverksted portal** — soft transition into graphite and the four Forge tools as compact cards.
+7. Footer.
 
-1. **Hero** — VI GIR IDEER FORM, the build sequence, «START Å SKAPE» + «FORTELL OSS IDEEN DIN». See [interaction-and-motion.md](../design/interaction-and-motion.md#homepage-hero).
-2. **The three paths** — FINN NOE / LAG NOE / HAR DU EN IDÉ?, as a full-width band.
-3. **Process slider** — «Slik blir en idé til en del», 5 steps.
-4. **Selected products** — one featured product large across the full width with its real specifications, then a horizontal row of the preserved product cards. The featured product is the vase the hero printed. Real products only; placeholders are marked.
-5. **Top slider** — «Fra verkstedet».
-6. **Proof** — real projects from Inspirasjon. Reviews and references only when they are real.
-7. **Skaperverksted portal** — the page turns graphite and shows the available generators with previews drawn from their real defaults, and «START Å SKAPE». A live embedded generator remains an option once it genuinely works in that space.
-8. **Idea band** — DU TRENGER IKKE HA EN FERDIG MODELL. START MED IDEEN. Dark band, leading into the footer.
-9. Footer.
+Removed in this revision: the print-animation hero, the three-doors band, the featured-product composition, the top slider and the idea band.
 
-The products moved up to follow the process (the object you just saw made, then objects you can order), and the portal moved next to the idea band so the page ends in the two ways to make something: yourself, or with us.
+## Vårt utvalg (Produkter)
 
-### The three paths: not three generic cards
+**Revised 2026-10-02 (§9, §10, §25).** Menu and heading «Vårt utvalg», short hero («Designet og laget av oss. Kanskje finner du akkurat det du leter etter.»). Desktop (≥1024 px): a sticky left column with category, sorting, colours, materials and «Kan få egen tekst». Below 1024 px: a category pill row and a «Filter» button that opens the same panel in a bottom sheet. «Finner du ikke det du leter etter?» stays at the bottom and opens the enquiry modal. The card's cart control keeps «+» in one place; it opens upwards and downwards into a vertical pill (count above, «−» below) and collapses to a small purple count badge.
 
-The paths are presented as **three doors into the same workshop**, spatially:
-
-- A single wide band divided into three unequal zones, each with its own material state: FINN NOE shows finished objects (colour, photo), LAG NOE shows the same kind of object on the measurement grid with a selection box (the editor), HAR DU EN IDÉ? shows a pencil sketch on paper.
-- Hovering or focusing a zone widens it and advances its object one step in the transformation; the other two recede. On touch, the zones stack vertically and each shows its end state.
-- Each zone has one clear label and one action. Keyboard: each zone is one link with a descriptive name.
-
-This is the default; any replacement must be at least as clear in a 5-second test.
-
-## Produkter
 
 **Purpose:** explore existing products and feel their material, detail and scale. Not a generic dropshipping store.
 
@@ -80,7 +69,12 @@ This is the default; any replacement must be at least as clear in a 5-second tes
 - Each generator card states honestly whether it is available or coming later. No fake «Kommer snart» tiles for tools that are not planned.
 - The editors themselves are specified in [skaperverksted.md](../design/skaperverksted.md).
 
-## Spesialdesign and the idea form
+## Spesialdesign and the enquiry form
+
+**Revised 2026-10-02 (§13–§18).** Full-width picture hero, two entries (Privatkunde / Bedriftskunde) and the process timeline; the page ends there. **One enquiry form** (`Foresporsel.astro` + `klient.ts`) for every place: first Privatperson / Bedrift, then «Hva har du å starte med?» (4 options), with fields shown for the chosen type (private: navn, e-post, telefon, beskrivelse, filer, mål, frist; business adds firmanavn, organisasjonsnummer, kontaktperson, antall, materialønske, tekniske krav). It opens as a modal (`ForesporselModal.astro`) from any `data-apne-foresporsel` link (`data-kundetype`, `data-start` preselect); `/foresporsel/` is the same form as a page without JavaScript. Uploads: JPG, PNG, HEIC, WebP, PDF, STL, 3MF, STEP/STP, OBJ, SVG; up to 8 files and 18 MB in total (the limit of e-mail delivery), with previews (image thumbnails, PDF tile, STL/3MF rendered in 3D) and a field for a link to larger files. Kontakt keeps a short message form.
+
+The text below describes the earlier version and is kept for history.
+
 
 **Mental model:** DU TRENGER IKKE HA EN FERDIG MODELL. START MED IDEEN.
 
