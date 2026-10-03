@@ -51,7 +51,7 @@ Removed in this revision: the print-animation hero, the three-doors band, the fe
 
 ## Vårt utvalg (Produkter)
 
-**Revised 2026-10-02 (§9, §10, §25).** Menu and heading «Vårt utvalg», short hero («Designet og laget av oss. Kanskje finner du akkurat det du leter etter.»). Desktop (≥1024 px): a sticky left column with category, sorting, colours, materials and «Kan få egen tekst». Below 1024 px: a category pill row and a «Filter» button that opens the same panel in a bottom sheet. «Finner du ikke det du leter etter?» stays at the bottom and opens the enquiry modal. The card's cart control keeps «+» in one place; it opens upwards and downwards into a vertical pill (count above, «−» below) and collapses to a small purple count badge.
+**Revised 2026-10-02 (§9, §10, §25).** Menu and heading «Vårt utvalg», short hero («Designet og laget av oss. Kanskje finner du akkurat det du leter etter.»). Desktop (≥1024 px): a compact left column with category, colours, materials and «Kan få egen tekst», with no heading and no scroll of its own; it sticks while the products scroll only when it fits the window, otherwise it scrolls with the page (revised 2026-10-03). Sorting sits right of the product count above the grid at every width. Below 1024 px: a category pill row, then «Filter», the count and sorting in one row; «Filter» opens the same panel in a bottom sheet. «Finner du ikke det du leter etter?» stays at the bottom and opens the enquiry modal. The card's cart control keeps «+» in one place; it opens upwards and downwards into a vertical pill (count above, «−» below) and collapses to a small purple count badge.
 
 
 **Purpose:** explore existing products and feel their material, detail and scale. Not a generic dropshipping store.
