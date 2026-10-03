@@ -49,9 +49,24 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
     );
     benk.melde('3MF-filen er lastet ned.');
   };
+  const regler = modell && plugin.eksport ? plugin.eksport(t.dok, modell) : {};
   const stl = () => {
     lastNed(tilStl(deler, t.dok.navn), filnavn(t.dok.navn, 'stl'), STL_TYPE);
     benk.melde('STL-filen er lastet ned.');
+  };
+  const stlDel = (del: (typeof deler)[number]) => {
+    lastNed(
+      tilStl([del], `${t.dok.navn} ${del.navn}`),
+      filnavn(`${t.dok.navn}-${del.navn}`, 'stl'),
+      STL_TYPE,
+    );
+    benk.melde(`STL-filen for ${del.navn.toLowerCase()} er lastet ned.`);
+  };
+  const vedlegg = () => {
+    const v = regler.vedlegg;
+    if (!v) return;
+    lastNed(v.innhold, v.filnavn, v.type);
+    benk.melde(`${v.navn} er lastet ned.`);
   };
   const bestill = () => {
     if (!modell || !plugin.bestilling || !m) return;
@@ -144,15 +159,43 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                 </>
               )}
               <h3>Last ned</h3>
-              <p class="dempet">3MF holder fargene som egne deler. STL er én samlet form uten farger.</p>
-              <div class="knapperad">
-                <button type="button" class="primar" onClick={tremf}>
-                  Last ned 3MF
-                </button>
-                <button type="button" class="sekundar" onClick={stl}>
-                  Last ned STL
-                </button>
-              </div>
+              {regler.merknad && <p class="merknad">{regler.merknad}</p>}
+              {regler.sperret ? (
+                <p class="advarsel" role="status">
+                  {regler.sperret}
+                </p>
+              ) : (
+                <>
+                  <p class="dempet">
+                    {regler.stlPerDel
+                      ? '3MF holder delene og fargene hver for seg. STL lastes ned som én fil per del.'
+                      : '3MF holder fargene som egne deler. STL er én samlet form uten farger.'}
+                  </p>
+                  <div class="knapperad">
+                    <button type="button" class="primar" onClick={tremf}>
+                      Last ned 3MF
+                    </button>
+                    {regler.stlPerDel ? (
+                      deler.map((d) => (
+                        <button key={d.id} type="button" class="sekundar" onClick={() => stlDel(d)}>
+                          STL: {d.navn}
+                        </button>
+                      ))
+                    ) : (
+                      <button type="button" class="sekundar" onClick={stl}>
+                        Last ned STL
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+              {regler.vedlegg && (
+                <div class="knapperad">
+                  <button type="button" class="sekundar" onClick={vedlegg}>
+                    Last ned {regler.vedlegg.navn.charAt(0).toLowerCase() + regler.vedlegg.navn.slice(1)}
+                  </button>
+                </div>
+              )}
               {plugin.bestilling && (
                 <>
                   <h3>Bestill utskrift</h3>

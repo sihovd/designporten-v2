@@ -312,7 +312,10 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
         )}
         {visning === '2d' && Lerret2d ? <Lerret2d benk={benk} /> : <Visning3d benk={benk} />}
         {bred && venstre && (
-          <section class={`flytpanel venstre${panelApent ? '' : ' lukket'}`} aria-label="Lag og deler">
+          <section
+            class={`flytpanel venstre${panelApent ? '' : ' lukket'}`}
+            aria-label={plugin.venstrepanelNavn ?? 'Lag og deler'}
+          >
             <button
               type="button"
               class="panelbryter"
@@ -344,7 +347,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
                   benk.settInnstillinger({ ark: t.innstillinger.ark === 'lag' ? 'ingen' : 'lag' })
                 }
               >
-                Lag
+                {plugin.venstrepanelNavn ?? 'Lag'}
               </button>
             )}
             <button
@@ -358,7 +361,10 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             </button>
           </nav>
           {t.innstillinger.ark === 'lag' && venstre && (
-            <Ark tittel="Lag" lukk={() => benk.settInnstillinger({ ark: 'ingen' })}>
+            <Ark
+              tittel={plugin.venstrepanelNavn ?? 'Lag'}
+              lukk={() => benk.settInnstillinger({ ark: 'ingen' })}
+            >
               {venstre}
             </Ark>
           )}
