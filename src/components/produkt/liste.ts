@@ -32,9 +32,7 @@ export function startProduktliste(): void {
   const $$ = <T extends Element>(s: string) => [...rot.querySelectorAll<T>(s)];
   const tittel = $<HTMLElement>('[data-liste-tittel]');
   const ingress = $<HTMLElement>('[data-liste-ingress]');
-  const antallEl = $$<HTMLElement>(
-    '[data-liste-antall], [data-liste-antall-smal], [data-liste-antall-knapp]',
-  );
+  const antallEl = $$<HTMLElement>('[data-liste-antall], [data-liste-antall-knapp]');
   const tom = $<HTMLElement>('[data-liste-tom]');
   const velger = $<HTMLSelectElement>('[data-liste-sortering]');
   const lenker = $$<HTMLAnchorElement>('[data-kategori]');
@@ -152,6 +150,19 @@ export function startProduktliste(): void {
     const r = ark.getBoundingClientRect();
     if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) ark.close();
   });
+
+  // Sticky only when the whole column fits below the header. A taller column
+  // scrolls with the page instead of getting a scrollbar of its own.
+  function fest(): void {
+    if (!panel || panel.parentElement !== hjem) return;
+    const topp = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-h')) || 0;
+    const passer = bred.matches && panel.offsetHeight + topp + 32 <= window.innerHeight;
+    panel.toggleAttribute('data-festet', passer);
+  }
+  if (panel) new ResizeObserver(fest).observe(panel);
+  window.addEventListener('resize', fest);
+  bred.addEventListener('change', fest);
+  fest();
 
   history.replaceState({ kategori }, '', location.href);
   if (sortering !== 'utvalgt') vis();

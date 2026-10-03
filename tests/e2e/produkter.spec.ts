@@ -67,6 +67,21 @@ test.describe('Produkter', () => {
     await expect(page.locator(synligeKort)).toHaveCount(12);
   });
 
+  test('the desktop filter has no heading and no scroll of its own', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Below 1024 px the filter is a sheet.');
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.goto('/produkter/');
+    const filter = page.locator('[data-filter]');
+    await expect(filter.getByRole('heading')).toHaveCount(0);
+    expect(await filter.evaluate((el) => getComputedStyle(el).overflowY)).toBe('visible');
+    // Too tall for this window, so it scrolls with the page instead of sticking.
+    await expect(filter).not.toHaveAttribute('data-festet');
+    const boks = await filter.boundingBox();
+    await page.mouse.move(boks!.x + 40, boks!.y + 40);
+    await page.mouse.wheel(0, 600);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+  });
+
   test('the product window opens, adds with choices, closes with Esc and returns focus', async ({ page }) => {
     await page.goto('/produkter/');
     await page.waitForFunction(() => document.documentElement.dataset.produktvindu === 'klar');
