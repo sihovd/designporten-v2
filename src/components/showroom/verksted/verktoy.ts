@@ -1,12 +1,13 @@
 /**
- * The four Forge tools as the showroom presents them (design revision
- * 2026-10-02, §11): the registered generators in their order, followed by
- * Clicker Forge, which is planned and has no tool yet. A planned tool has no
- * link and no preview; it is shown as planned, never as working.
+ * The Forge tools as the showroom presents them (design revision
+ * 2026-10-02, §11): the registered generators in their order. Clicker Forge,
+ * shown as planned until 2026-10-03, became BuildForge's first product family
+ * (decision log 2026-10-03). A planned tool has no link and no preview; it is
+ * shown as planned, never as working.
  */
 import { katalog } from '@/skaperverksted/generatorer';
 
-export type Forhandsvisning = 'signgen' | 'lampe' | 'drage';
+export type Forhandsvisning = 'signgen' | 'lampe' | 'drage' | 'buildforge';
 
 export interface Verktoy {
   id: string;
@@ -19,7 +20,7 @@ export interface Verktoy {
   forhandsvisning?: Forhandsvisning;
 }
 
-const forhandsvisbare = new Set<string>(['signgen', 'lampe', 'drage']);
+const forhandsvisbare = new Set<string>(['signgen', 'lampe', 'drage', 'buildforge']);
 
 export const verktoy: Verktoy[] = [
   ...katalog.map((g) => ({
@@ -31,11 +32,4 @@ export const verktoy: Verktoy[] = [
     href: `/skaperverksted/${g.id}/`,
     forhandsvisning: forhandsvisbare.has(g.id) ? (g.id as Forhandsvisning) : undefined,
   })),
-  {
-    id: 'clicker',
-    navn: 'Clicker Forge',
-    undertittel: 'Klikkergenerator',
-    beskrivelse: 'Klikkere bygget rundt mekaniske tastaturbrytere. Planlagt, ikke klart ennå.',
-    status: 'planlagt',
-  },
 ];

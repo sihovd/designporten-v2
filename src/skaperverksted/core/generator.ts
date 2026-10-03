@@ -92,6 +92,8 @@ export interface GeneratorPlugin {
    */
   byggModell(dok: Dokument): Promise<Modellresultat>;
   ui: GeneratorUi;
+  /** Name of the left panel on small screens and for screen readers (default «Lag»). */
+  venstrepanelNavn?: string;
   /** Development-geometry notice (e.g. dragon parts not final). */
   utviklingsgeometri?: string;
   /**
@@ -120,4 +122,20 @@ export interface GeneratorPlugin {
     dok: Dokument,
     modell: Modellresultat,
   ) => { produktId: string; navn: string; valg: Record<string, string> };
+  /**
+   * Generator rules for the export review (optional). Without it every
+   * model can be downloaded as one 3MF and one combined STL.
+   */
+  eksport?: (dok: Dokument, modell: Modellresultat) => Eksportregler;
+}
+
+export interface Eksportregler {
+  /** File export is blocked; says why. Saving the project stays possible. */
+  sperret?: string;
+  /** Shown above the downloads (for example a prototype notice). */
+  merknad?: string;
+  /** Offer one STL per part instead of one combined STL. */
+  stlPerDel?: boolean;
+  /** A file that belongs with the export, built from the same model (for example a control report). */
+  vedlegg?: { navn: string; filnavn: string; innhold: string; type: string };
 }

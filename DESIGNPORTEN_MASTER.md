@@ -32,7 +32,8 @@ This file is the **single entry point**. It holds the decisions every contributo
 | Brand, colour, typography, materiality, imagery, copy voice | [docs/design/brand-and-identity.md](docs/design/brand-and-identity.md) |
 | Interaction, motion, hero, process slider, header, product cards | [docs/design/interaction-and-motion.md](docs/design/interaction-and-motion.md) |
 | Information architecture, navigation, every page, special orders, business, contact | [docs/content/information-architecture.md](docs/content/information-architecture.md) |
-| Skaperverksted: workspace, canvas, Signgen, lamp generator, dragon generator, ecosystem | [docs/design/skaperverksted.md](docs/design/skaperverksted.md) |
+| Skaperverksted: workspace, canvas, Signgen, lamp generator, dragon generator, BuildForge, ecosystem | [docs/design/skaperverksted.md](docs/design/skaperverksted.md) |
+| BuildForge product brief (Sivert's handoff, 2026-10-03) | [docs/design/buildforge-handoff.md](docs/design/buildforge-handoff.md) |
 | Technical architecture, domain model, responsive, accessibility, performance | [docs/architecture/technical-architecture.md](docs/architecture/technical-architecture.md) |
 | Decisions, preserved work, conflicts resolved, open decisions | [docs/decisions/decision-log.md](docs/decisions/decision-log.md) |
 | Reference material and what to take from it | [reference/README.md](reference/README.md) |
@@ -127,7 +128,7 @@ Full rationale is in the detail documents and the decision log.
 ### Skaperverksted
 - A real browser application: large central canvas, floating toolbars, Layers panel, Inspector, contextual controls, selection, snapping, zoom, pan, undo/redo, dimensions in millimetres, 2D and 3D views, export/order flow. It is not "form left, preview right".
 - **Adaptive measurement grid** that switches between cm and mm subdivisions with zoom.
-- **Generators are plug-ins** into a shared workspace shell and shared domain model. The tools are named **Sign Forge** (signs, code id `signgen`), **Form Forge** (general parametric form generator, first used for lamp shades; code id `lampe`), **Dragon Forge** (articulated dragons, `drage`) and **Clicker Forge** (planned, not built). Use these names consistently (2026-10-02).
+- **Generators are plug-ins** into a shared workspace shell and shared domain model. The tools are named **Sign Forge** (signs, code id `signgen`), **Form Forge** (general parametric form generator, first used for lamp shades; code id `lampe`), **Dragon Forge** (articulated dragons, `drage`) and **BuildForge** (a shared build engine where the user forms the expression and the engine protects the mechanics; first family clickers around a keyboard switch, code id `buildforge`, a digital prototype until a profile is physically tested). Use these names consistently (2026-10-02; BuildForge replaced the planned Clicker Forge on 2026-10-03).
 - **Signgen** builds 3D-printed (never wooden) signs from SVG + text + shapes → layers → heights → profiles → colours → 3D model, with an architecture ready for Bézier side profiles, CSV batch generation and a free/paid split. None of the future features are faked.
 
 ### Technical
@@ -152,6 +153,7 @@ Each phase ends with its own definition of done (section 5). Phases 1 and 2 may 
 | **5 — Signgen advanced** | Profiles (preset → Bézier), outline/offset, layer influence, multi-select, fonts library, project saving. CSV batch and plate organisation (built without limits; plan limits stay a config switch until the paid model is decided). | After 3 |
 | **6 — Lamp generator** | Parametric lamp in the shared shell with direct manipulation. | After 2 |
 | **7 — Articulated dragon generator** | Part-based configurable dragon with live 3D. | After 2 |
+| **8 — BuildForge** | Build engine from Sivert's handoff (2026-10-03): clicker MVP as a digital prototype with a trial switch profile, SDF shapes, attachment points, Enkel/Avansert, collision through the travel, checks and export with a report. Physical profile tests, articulated joints, letters, stacking and import follow the handoff's later phases. | After 2 |
 
 ## 5. Definition of done
 

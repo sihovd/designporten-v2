@@ -446,6 +446,13 @@
   text-align: center;
 }
 
+/* the open floating panel covers the bottom left; the notice moves to the bottom right */
+.arbeidsomrade:has(.flytpanel.venstre:not(.lukket)) .utviklingsmerke {
+  left: auto;
+  right: 10px;
+  max-width: calc(100% - 352px);
+}
+
 .visning3d {
   position: absolute;
   inset: 0;
