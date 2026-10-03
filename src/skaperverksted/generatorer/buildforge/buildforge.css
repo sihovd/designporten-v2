@@ -1,0 +1,447 @@
+/* BuildForge UI. Tokens only; layout classes come from shell/verksted.css. */
+
+.bf-maler {
+  display: grid;
+  gap: 6px;
+}
+
+.bf-mal,
+.bf-del,
+.bf-objekt {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bf-mal span {
+  color: var(--fg-dempet);
+  font-size: 12px;
+}
+
+.bf-mal:hover,
+.bf-del:hover,
+.bf-objekt:hover {
+  border-color: var(--linje-sterk);
+}
+
+.bf-mal[aria-pressed='true'],
+.bf-del[aria-pressed='true'],
+.bf-objekt[aria-pressed='true'] {
+  border-color: var(--dp-lilla);
+  box-shadow: inset 3px 0 0 var(--dp-lilla);
+}
+
+.bf-objekt.merket {
+  border-color: var(--feil-mork);
+}
+
+.bf-bibliotek {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bf-del {
+  place-items: center;
+  text-align: center;
+  cursor: grab;
+}
+
+.bf-plassering {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed var(--dp-lilla);
+  border-radius: var(--radius-felt);
+}
+
+.bf-plassering-tekst {
+  margin: 0;
+  font-size: 13px;
+}
+
+.bf-punkter {
+  display: grid;
+  gap: 4px;
+}
+
+.bf-punkter .kontroll-knapp {
+  text-align: left;
+  white-space: normal;
+}
+
+.bf-kropp + .bf-kropp {
+  margin-top: 12px;
+}
+
+.bf-kropp-tittel,
+.bf-underoverskrift {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bf-underoverskrift {
+  margin-top: 12px;
+}
+
+.bf-objekter {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bf-objekt span:last-child {
+  font-size: 12px;
+}
+
+.bf-laast {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px dashed var(--linje);
+  border-radius: var(--radius-felt);
+  color: var(--fg-dempet);
+  font-size: 13px;
+}
+
+.bf-laast .mono {
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.bf-status {
+  display: grid;
+  gap: 4px;
+}
+
+.bf-status p {
+  margin: 0;
+}
+
+.bf-status-linje {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bf-status-symbol {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.bf-status[data-status='gronn'] .bf-status-linje:first-child,
+.bf-kontroll-oppsummering[data-status='gronn'] .bf-status-symbol {
+  color: var(--ok-mork);
+}
+
+.bf-status[data-status='gul'] .bf-status-linje:first-child,
+.bf-kontroll-oppsummering[data-status='gul'] .bf-status-symbol {
+  color: var(--advarsel-mork);
+}
+
+.bf-status[data-status='rod'] .bf-status-linje:first-child,
+.bf-kontroll-oppsummering[data-status='rod'] .bf-status-symbol {
+  color: var(--feil-mork);
+}
+
+.bf-status[data-status='beregner'] .bf-status-linje:first-child,
+.bf-kontroll-oppsummering[data-status='beregner'] .bf-status-symbol {
+  color: var(--fg-dempet);
+}
+
+.bf-status-linje.fysisk {
+  margin-top: 6px;
+  color: var(--fg-dempet);
+}
+
+.bf-status-forklaring {
+  padding-left: 30px;
+  color: var(--fg-dempet);
+  font-size: 12px;
+}
+
+.bf-status .kontroll-knapp {
+  justify-self: start;
+  margin-top: 8px;
+}
+
+.bf-tilhorighet {
+  margin: 0 0 10px;
+  color: var(--fg-dempet);
+  font-size: 13px;
+}
+
+.bf-flytt {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.bf-flytt .kontroll-knapp {
+  padding: 0 4px;
+  font-size: 12px;
+}
+
+.feltpar.tre {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.tekstknapp {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--fg-dempet);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--sporing-mono);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tekstknapp:hover {
+  color: var(--fg);
+}
+
+.bf-profilnavn {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.bf-maal,
+.bf-fakta {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.bf-maal div,
+.bf-fakta div {
+  display: grid;
+  gap: 1px;
+}
+
+.bf-maal dt,
+.bf-fakta dt {
+  color: var(--fg-dempet);
+  font-size: 12px;
+}
+
+.bf-maal dd,
+.bf-fakta dd {
+  margin: 0;
+}
+
+.bf-sikkerhet {
+  font-size: 11px;
+  color: var(--advarsel-mork);
+}
+
+.bf-sikkerhet.designstandard {
+  color: var(--fg-dempet);
+}
+
+.bf-sikkerhet.fysisk-verifisert {
+  color: var(--ok-mork);
+}
+
+/* bottom tray */
+
+.bf-brett {
+  display: grid;
+  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+  gap: 8px 20px;
+  align-items: start;
+  padding: 8px 12px;
+}
+
+.smal .bf-brett {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.bf-klikk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bf-trykk {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-height: var(--kontroll-h);
+  font-size: 13px;
+}
+
+.bf-trykk-verdi {
+  color: var(--fg-dempet);
+  min-width: 6.5em;
+  text-align: right;
+}
+
+.bf-kontroll {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bf-kontroll-oppsummering {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--kontroll-h);
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bf-funnliste {
+  display: grid;
+  gap: 4px;
+  max-height: min(30vh, 220px);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.bf-funn {
+  border-left: 3px solid var(--linje-sterk);
+  background: var(--panel-2);
+  font-size: 13px;
+}
+
+.bf-funn.feil {
+  border-color: var(--feil-mork);
+}
+
+.bf-funn.advarsel {
+  border-color: var(--advarsel-mork);
+}
+
+li.bf-funn:not(:has(button)) {
+  padding: 8px 10px;
+}
+
+.bf-funn button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bf-funn-symbol {
+  flex: none;
+  width: 1em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.bf-funn.feil .bf-funn-symbol {
+  color: var(--feil-mork);
+}
+
+.bf-funn.advarsel .bf-funn-symbol {
+  color: var(--advarsel-mork);
+}
+
+.bf-funn-detalj {
+  padding: 0 10px 8px 34px;
+}
+
+.bf-funn-detalj p {
+  margin: 0 0 4px;
+}
+
+/* attachment points on the 3D view */
+
+.bf-overlegg {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.bf-festepunkt {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  translate: -50% -50%;
+  border: 2px solid var(--dp-lilla);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--dp-lilla) 35%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bg) 70%, transparent);
+  pointer-events: auto;
+  cursor: copy;
+}
+
+.bf-festepunkt::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+}
+
+.bf-festepunkt.sikter,
+.bf-festepunkt:hover,
+.bf-festepunkt:focus-visible {
+  background: var(--dp-lilla);
+  scale: 1.15;
+}
+
+.bf-overlegg-hjelp {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  translate: -50% 0;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-pille);
+  background: var(--panel);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bf-festepunkt.sikter,
+  .bf-festepunkt:hover,
+  .bf-festepunkt:focus-visible {
+    scale: none;
+  }
+}
