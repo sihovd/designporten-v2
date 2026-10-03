@@ -3,9 +3,13 @@
  * «Vårt utvalg»: the product listing (design revision 2026-10-02, §9–10).
  *
  * A short opening, then filters beside the grid. On desktop the filters are a
- * sticky column to the left, so they stay at hand while the products scroll.
+ * compact column to the left without a heading or a scroll of its own. It
+ * stays in view while the products scroll when it fits the window; when it
+ * does not, it scrolls with the page (liste.ts decides), so nothing is ever
+ * hidden behind an inner scrollbar (Sivert, 2026-10-03).
  * Below 1024 px they move into a sheet opened from a «Filter» button, with the
- * category row and sorting still visible above the grid.
+ * category row above the grid. Sorting sits in the row above the grid at
+ * every width.
  *
  * Every card is rendered on every listing page (hidden when filtered out), so
  * changes animate in place. Category links work as plain pages without
@@ -90,7 +94,7 @@ const data = { grunnlag, tekster };
   </header>
 
   <div class="produktliste__flate ramme">
-    <!-- Mobile and tablet: categories, filter button and sort above the grid. -->
+    <!-- Mobile and tablet: the category row above the grid. -->
     <div class="produktliste__verktoy">
       <nav class="kategorirad" aria-label="Kategorier">
         <ul>
@@ -112,28 +116,13 @@ const data = { grunnlag, tekster };
           ))}
         </ul>
       </nav>
-      <div class="produktliste__verktoyrad" data-kun-js>
-        <button class="filterknapp" type="button" data-filter-apne aria-haspopup="dialog">
-          Filter{' '}
-          <span class="filterknapp__antall tall" data-filter-teller hidden>
-            0
-          </span>
-        </button>
-        <p class="produktliste__antall" data-liste-antall-smal>
-          {antallTekst(synlige.length)}
-        </p>
-      </div>
     </div>
 
-    <section class="filter" aria-labelledby="filter-tittel" data-filter>
-      <div class="filter__hode">
-        <h2 id="filter-tittel" class="etikett">
-          Filtrer og sorter
-        </h2>
-        <button class="filter__lukk" type="button" data-filter-lukk aria-label="Lukk filteret">
-          <Ikon navn="lukk" />
-        </button>
-      </div>
+    <section class="filter" aria-label="Filtrer og sorter" data-filter>
+      <!-- Only shown in the mobile sheet. -->
+      <button class="filter__lukk" type="button" data-filter-lukk aria-label="Lukk filteret">
+        <Ikon navn="lukk" />
+      </button>
 
       <div class="filter__innhold">
         <fieldset class="filter__gruppe filter__gruppe--kategori">
@@ -165,17 +154,6 @@ const data = { grunnlag, tekster };
         </fieldset>
 
         <div class="filter__js" data-kun-js>
-          <div class="filter__gruppe">
-            <label class="filter__legend" for="produktsortering">
-              Sorter etter
-            </label>
-            <select id="produktsortering" class="filter__velger" data-liste-sortering>
-              {sorteringer.map((s) => (
-                <option value={s.verdi}>{s.navn}</option>
-              ))}
-            </select>
-          </div>
-
           {fargevalg.length > 1 && (
             <fieldset class="filter__gruppe">
               <legend>Farge</legend>
@@ -194,12 +172,14 @@ const data = { grunnlag, tekster };
           {materialvalg.length > 1 && (
             <fieldset class="filter__gruppe">
               <legend>Materiale</legend>
-              {materialvalg.map((m) => (
-                <label class="filter__valg">
-                  <input type="checkbox" name="materiale" value={m} data-filter-materiale />
-                  {m}
-                </label>
-              ))}
+              <div class="filter__valgliste">
+                {materialvalg.map((m) => (
+                  <label class="filter__valg">
+                    <input type="checkbox" name="materiale" value={m} data-filter-materiale />
+                    {m}
+                  </label>
+                ))}
+              </div>
             </fieldset>
           )}
 
@@ -225,13 +205,29 @@ const data = { grunnlag, tekster };
       </div>
     </section>
     <!-- Below 1024 px the filter panel moves into this sheet while it is open. -->
-    <dialog class="filterark" aria-labelledby="filter-tittel" data-filterark></dialog>
+    <dialog class="filterark" aria-label="Filtrer og sorter" data-filterark></dialog>
 
     <div class="produktliste__hoved">
       <div class="produktliste__status">
-        <p class="produktliste__antall" data-liste-antall aria-live="polite">
-          {antallTekst(synlige.length)}
-        </p>
+        <div class="produktliste__statusrad">
+          <button class="filterknapp" type="button" data-filter-apne data-kun-js aria-haspopup="dialog">
+            Filter{' '}
+            <span class="filterknapp__antall tall" data-filter-teller hidden>
+              0
+            </span>
+          </button>
+          <p class="produktliste__antall" data-liste-antall aria-live="polite">
+            {antallTekst(synlige.length)}
+          </p>
+          <div class="sortering" data-kun-js>
+            <label for="produktsortering">Sorter</label>
+            <select id="produktsortering" class="sortering__velger" data-liste-sortering>
+              {sorteringer.map((s) => (
+                <option value={s.verdi}>{s.navn}</option>
+              ))}
+            </select>
+          </div>
+        </div>
         {harPlassholdere && (
           <p class="produktliste__notis">
             <strong>Under oppbygging.</strong> Produktene er plassholdere med konseptbilder. Navn, mål og
@@ -297,51 +293,41 @@ const data = { grunnlag, tekster };
     align-items: start;
   }
 
-  /* ---------- Desktop: sticky filter column ---------- */
+  /* ---------- Desktop: compact filter column ---------- */
   .filter {
-    position: sticky;
-    top: calc(var(--header-h) + var(--r-4));
+    position: static;
     grid-column: 1;
     grid-row: 1;
     align-self: start;
     display: block;
     width: auto;
     max-width: none;
-    max-height: calc(100svh - var(--header-h) - var(--r-6));
     margin: 0;
-    padding: 0 var(--r-2) var(--r-4) 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
+    padding: 0;
     border: 0;
     background: none;
     color: inherit;
   }
 
-  .filter__hode {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: var(--mal-beroring);
+  /* Sticky only when the whole column fits the window (set in liste.ts). */
+  .filter[data-festet] {
+    position: sticky;
+    top: calc(var(--header-h) + var(--r-4));
   }
 
   .filter__lukk {
     display: none;
   }
 
-  .filter__innhold {
-    display: grid;
-    gap: var(--r-4);
-  }
-
+  .filter__innhold,
   .filter__js {
     display: grid;
-    gap: var(--r-4);
+    gap: var(--r-3);
   }
 
   .filter__gruppe {
     display: grid;
-    gap: var(--r-2);
+    gap: 6px;
     margin: 0;
     padding: var(--r-3) 0 0;
     border: 0;
@@ -353,11 +339,13 @@ const data = { grunnlag, tekster };
   .filter__legend {
     float: left;
     width: 100%;
-    margin-bottom: var(--r-2);
+    margin-bottom: 6px;
     padding: 0;
-    font-size: var(--fs-liten);
+    font-size: var(--fs-mono-liten);
     font-weight: 650;
-    color: var(--blekk);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dempet);
   }
 
   .filter__gruppe--kategori {
@@ -367,7 +355,7 @@ const data = { grunnlag, tekster };
 
   .filter__kategorier {
     display: grid;
-    gap: 2px;
+    gap: 1px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -378,11 +366,12 @@ const data = { grunnlag, tekster };
     display: flex;
     align-items: center;
     gap: var(--r-2);
-    min-height: 34px;
+    min-height: 30px;
     padding: 0 var(--r-3);
     margin-inline: calc(-1 * var(--r-3));
     border-radius: var(--radius-skjema);
     color: var(--dempet);
+    font-size: var(--fs-liten);
     font-weight: 550;
     text-decoration: none;
     transition:
@@ -405,30 +394,19 @@ const data = { grunnlag, tekster };
     color: var(--lenke) !important;
   }
 
-  .filter__velger {
-    clear: both;
-    width: 100%;
-    min-height: 40px;
-    padding: 0 var(--r-3);
-    border: 1px solid var(--kant-sterk);
-    border-radius: var(--radius-skjema);
-    background: var(--flate);
-    font-size: var(--fs-liten);
-  }
-
   .filter__farger {
     clear: both;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px;
   }
 
   .fargeprikk {
     position: relative;
     display: grid;
     place-items: center;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     cursor: pointer;
   }
 
@@ -441,8 +419,8 @@ const data = { grunnlag, tekster };
   }
 
   .fargeprikk__prikk {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     background: var(--f);
     box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.18);
@@ -459,6 +437,13 @@ const data = { grunnlag, tekster };
   .fargeprikk input:focus-visible + .fargeprikk__prikk {
     outline: 2px solid var(--fokus);
     outline-offset: 4px;
+  }
+
+  .filter__valgliste {
+    clear: both;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--r-3);
   }
 
   .filter__valg {
@@ -484,7 +469,7 @@ const data = { grunnlag, tekster };
   }
 
   .filter__nullstill {
-    min-height: 36px;
+    min-height: 28px;
     padding: 0;
     border: 0;
     background: none;
@@ -518,9 +503,40 @@ const data = { grunnlag, tekster };
     margin-bottom: var(--r-4);
   }
 
+  .produktliste__statusrad {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--r-2) var(--r-4);
+  }
+
   .produktliste__antall {
     font-size: var(--fs-liten);
     color: var(--dempet);
+  }
+
+  .sortering {
+    display: flex;
+    align-items: center;
+    gap: var(--r-2);
+    margin-left: auto;
+    font-size: var(--fs-liten);
+  }
+
+  .sortering label {
+    color: var(--dempet);
+    font-weight: 600;
+  }
+
+  .sortering__velger {
+    min-height: 36px;
+    padding: 0 var(--r-3);
+    border: 1px solid var(--kant-sterk);
+    border-radius: var(--radius-skjema);
+    background: var(--flate);
+    color: var(--blekk);
+    font-size: var(--fs-liten);
   }
 
   .produktliste__notis {
@@ -554,7 +570,8 @@ const data = { grunnlag, tekster };
     text-decoration: underline;
   }
 
-  .produktliste__verktoy {
+  .produktliste__verktoy,
+  .filterknapp {
     display: none;
   }
 
@@ -606,21 +623,6 @@ const data = { grunnlag, tekster };
       display: grid;
       gap: var(--r-3);
       margin-bottom: var(--r-4);
-    }
-
-    .produktliste__verktoyrad {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--r-3);
-    }
-
-    .produktliste__status .produktliste__antall {
-      display: none;
-    }
-
-    :global(html:not(.js)) .produktliste__status .produktliste__antall {
-      display: block;
     }
 
     .kategorirad {
@@ -688,10 +690,8 @@ const data = { grunnlag, tekster };
       display: none;
     }
 
-    .filter {
+    .filter[data-festet] {
       position: static;
-      max-height: none;
-      padding: 0;
     }
 
     .filterark {
@@ -713,14 +713,19 @@ const data = { grunnlag, tekster };
     }
 
     .filterark .filter__lukk {
-      display: inline-grid;
+      display: grid;
       place-items: center;
       width: var(--mal-beroring);
       height: var(--mal-beroring);
-      margin-right: calc(-1 * var(--r-2));
+      margin: 0 calc(-1 * var(--r-2)) 0 auto;
       border: 0;
       border-radius: 50%;
       background: none;
+    }
+
+    .filterark .filter__js > .filter__gruppe:first-child {
+      padding-top: 0;
+      border-top: 0;
     }
 
     /* In the sheet, categories are already in the row above. */
@@ -741,6 +746,7 @@ const data = { grunnlag, tekster };
     .filterark .filter__vis {
       display: inline-flex;
       align-items: center;
+      gap: 0.3em;
       min-height: var(--mal-beroring);
       padding: 0 var(--r-5);
       border: 0;
