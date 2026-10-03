@@ -8,13 +8,14 @@
  *   signgen  the sign's layers separate, each with its print slices
  *   lampe    the ribs turn further and the light comes on
  *   drage    the parts turn at their joints
+ *   buildforge  the top is pressed through the switch's travel
  * Grid cells are 10 mm; the dimension is the generator's real default size.
  * Reduced motion shows the resting state only.
  */
-import { drage, lampe, skilt } from './forhandsvisning';
+import { drage, klikker, lampe, skilt } from './forhandsvisning';
 
 interface Props {
-  id: 'signgen' | 'lampe' | 'drage';
+  id: 'signgen' | 'lampe' | 'drage' | 'buildforge';
   class?: string;
 }
 
@@ -35,6 +36,7 @@ function rutenett(b: { x: number; y: number; b: number; h: number }, x0 = 0, y0 
 const s = id === 'signgen' ? skilt() : null;
 const l = id === 'lampe' ? lampe() : null;
 const dr = id === 'drage' ? drage() : null;
+const kl = id === 'buildforge' ? klikker() : null;
 
 // The dragon is a chain: each part's group holds the next one, so turning a
 // joint carries the rest of the tail with it.
@@ -168,6 +170,28 @@ if (dr) {
       </g>
     </svg>
   )}
+  {kl && (
+    <svg viewBox={vb(kl.visning)} preserveAspectRatio="xMidYMid meet" style={`--vandring:${kl.vandring}px`}>
+      <path class="gf__rutenett" d={rutenett(kl.visning)} />
+      <path class="gf__bryter" d={kl.bryter} />
+      <path class="gf__snitt" d={kl.underdel} style={`--farge:${kl.underdelFarge}`} />
+      <g class="gf__klikktopp">
+        <path class="gf__snitt" d={kl.topp} style={`--farge:${kl.toppFarge}`} />
+      </g>
+      <g class="gf__mal" style={`font-size:${(kl.visning.h * 0.075).toFixed(2)}px`}>
+        <path
+          d={`M${-kl.bredde / 2 - 6} 0V${-kl.hoyde}M${-kl.bredde / 2 - 7.5} 0h3M${-kl.bredde / 2 - 7.5} ${-kl.hoyde}h3`}
+        />
+        <text
+          x={-kl.bredde / 2 - 8.5}
+          y={-kl.hoyde / 2}
+          transform={`rotate(-90 ${-kl.bredde / 2 - 8.5} ${-kl.hoyde / 2})`}
+        >
+          {String(kl.hoyde).replace('.', ',')} mm
+        </text>
+      </g>
+    </svg>
+  )}
 </div>
 
 <style>
@@ -287,6 +311,34 @@ if (dr) {
     stroke: var(--dp-cyan);
     stroke-width: 1.2;
     vector-effect: non-scaling-stroke;
+  }
+
+  /* ---------- BuildForge ---------- */
+  .gf__snitt {
+    fill: none;
+    stroke: color-mix(in srgb, var(--farge) 70%, #fff);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .gf__bryter {
+    fill: none;
+    stroke: var(--dempet-mork);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .gf__klikktopp {
+    transition: transform 420ms var(--ease-ut);
+    transform: translateY(calc(var(--eksplodert) * var(--vandring)));
+  }
+
+  .gf--buildforge .gf__mal text {
+    font-size: inherit;
+    text-anchor: middle;
+    dominant-baseline: text-after-edge;
   }
 
   /* ---------- Active: hover or focus on the card, or touch at rest ---------- */

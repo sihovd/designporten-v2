@@ -1,5 +1,5 @@
 /**
- * Previews of the three generators for the showroom (the homepage portal
+ * Previews of the generators for the showroom (the homepage portal
  * section and the Skaperverksted hub). Each preview is drawn from the
  * generator's own starting design, in millimetres, so what the visitor sees
  * is the kind of object the tool actually makes, at its real default size.
@@ -12,6 +12,7 @@ import { finnMateriale, standardPrinter } from '@/skaperverksted/core/materialer
 import { omrissPunkt } from '@/skaperverksted/generatorer/drage/former';
 import { standardParametre as drageStandard } from '@/skaperverksted/generatorer/drage/parametre';
 import { lagSkjelett } from '@/skaperverksted/generatorer/drage/skjelett';
+import { klikkersnitt } from '@/skaperverksted/generatorer/buildforge/snitt';
 import { lagForm } from '@/skaperverksted/generatorer/lampe/form';
 import { standardParametre as lampeStandard } from '@/skaperverksted/generatorer/lampe/parametre';
 
@@ -242,5 +243,49 @@ export function drage(): Drage {
       b: maksX - minX + 2 * luft,
       h: 2 * maksY + 2 * luft + 30,
     },
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* BuildForge: a section through the starting clicker.                */
+/* ------------------------------------------------------------------ */
+
+export interface Klikker {
+  /** Outlines as SVG paths (x right, z up → SVG y down). */
+  underdel: string;
+  topp: string;
+  bryter: string;
+  toppFarge: string;
+  underdelFarge: string;
+  vandring: number;
+  bredde: number;
+  hoyde: number;
+  visning: Boks;
+}
+
+/** BuildForge's starting clicker («Enkel knapp»), cut through the middle. */
+export function klikker(): Klikker {
+  const s = klikkersnitt('knapp');
+  const vei = (seg: [number, number, number, number][]) =>
+    seg.map(([a, b, c, d]) => `M${f(a)} ${f(-b)}L${f(c)} ${f(-d)}`).join('');
+  // the real outline's extent, not the shapes' bounding boxes
+  const alle = [...s.underdel, ...s.topp];
+  const xs = alle.flatMap(([a, , c]) => [a, c]);
+  const zs = alle.flatMap(([, b, , d]) => [b, d]);
+  const x0 = Math.min(...xs),
+    x1 = Math.max(...xs),
+    z1 = Math.max(...zs);
+  const bredde = x1 - x0;
+  const luft = 0.3 * z1;
+  return {
+    underdel: vei(s.underdel),
+    topp: vei(s.topp),
+    bryter: vei(s.bryter),
+    toppFarge: finnMateriale(s.farger.topp).hex,
+    underdelFarge: finnMateriale(s.farger.underdel).hex,
+    vandring: s.vandring,
+    bredde: Math.round(bredde),
+    hoyde: Math.round(z1 * 10) / 10,
+    visning: { x: x0 - luft - 0.6 * bredde, y: -z1 - luft, b: bredde * 2.2 + 2 * luft, h: z1 + 2 * luft },
   };
 }
