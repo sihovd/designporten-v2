@@ -63,6 +63,7 @@ Parallel work stays inside its own folders. Shared foundations change only in sm
 | `src/skaperverksted/generatorer/signgen/` | Signgen | Foundation (Skaperverksted) |
 | `src/skaperverksted/generatorer/lampe/` | Lamp generator | Lamp workstream |
 | `src/skaperverksted/generatorer/drage/` | Dragon generator | Dragon workstream |
+| `src/skaperverksted/generatorer/buildforge/` | BuildForge (clicker build engine) | BuildForge workstream |
 | `src/pages/skaperverksted/` | Hub and editor routes | Foundation (Skaperverksted) |
 | `public/midlertidig/` | Temporary placeholder assets | Anyone adds; all referenced via `src/lib/ressurser.ts` |
 | `tests/e2e/` | Browser tests, one file per area | Each workstream its own file |
@@ -83,7 +84,7 @@ Parallel work stays inside its own folders. Shared foundations change only in sm
 - `core/dokument.ts` — the document: `lag` (bottom to top), `objekter`, `rekkefolge`, `parametre`, `plate`. Millimetres; X right, Y back, Z up; origin at the plate centre. Plain JSON.
 - `core/historikk.ts` — undo/redo over immutable snapshots; `slaSammen` merges drags into one step.
 - `core/arbeidsbenk.ts` — runtime state for one open editor: history, selection (`utvalg`), viewport (`utsnitt`), settings, the latest built model (debounced rebuild).
-- `core/generator.ts` — the plug-in contract: `nyttDokument`, `byggModell` (pure; returns `ModellDel[]` + warnings) and UI contributions to the shell (`Lerret2d`, `Venstrepanel`, `Inspektor`, `Bunnbrett`, …).
+- `core/generator.ts` — the plug-in contract: `nyttDokument`, `byggModell` (pure; returns `ModellDel[]` + warnings) and UI contributions to the shell (`Lerret2d`, `Venstrepanel`, `Inspektor`, `Bunnbrett`, …). Optional `eksport` rules let a generator block export with a reason, show a notice, offer one STL per part and attach a report.
 - `core/profil.ts` — side profiles as Bézier chains in normalised space; presets rett, avrundet, konveks, konkav, s-kurve, trapp, fas; `profilOverheng` for printability warnings.
 - `core/rutenett.ts` — adaptive 1-2-5 grid, cm/mm switching.
 - `core/materialer.ts` — material and printer catalogue (unconfirmed data flagged).
