@@ -4,7 +4,7 @@
  * zones so decoration can never fill the switch seat or the space under
  * the top.
  */
-import type { Form, Kropp } from './parametre';
+import type { Form, KlikkerKropp } from './parametre';
 import {
   avrundetBoks,
   kjegle,
@@ -51,7 +51,7 @@ export function formBoks(f: Form): Boks {
   return { min, maks };
 }
 
-export function formerI(former: Form[], kropp: Kropp): Form[] {
+export function formerI(former: Form[], kropp: string): Form[] {
   return former.filter((f) => f.kropp === kropp);
 }
 
@@ -72,7 +72,7 @@ export function dekorFelt(former: Form[]): Felt {
 }
 
 /** Decoration after the protected zone is cut out (and, for the base, everything below the plate). */
-export function beskyttetDekor(dekor: Felt, sperre: Felt, kropp: Kropp): Felt {
+export function beskyttetDekor(dekor: Felt, sperre: Felt, kropp: KlikkerKropp): Felt {
   if (kropp === 'underdel') return (x, y, z) => Math.max(dekor(x, y, z), -sperre(x, y, z), -z);
   return (x, y, z) => Math.max(dekor(x, y, z), -sperre(x, y, z));
 }

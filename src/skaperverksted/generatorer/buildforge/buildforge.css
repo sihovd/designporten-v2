@@ -489,19 +489,305 @@ li.bf-funn:not(:has(button)) {
   display: none;
 }
 
-.bf-malgruppe + .bf-malgruppe {
-  margin-top: 12px;
-}
-
-.bf-grunnmodell + .bf-grunnmodell {
-  margin-top: 10px;
-}
-
-.bf-grunnmodell .segment {
-  flex-wrap: wrap;
-}
-
-/* keep the tool row in the part of the view the floating parts panel leaves free */
+/* keep the tool row and hints in the part of the view the floating parts panel leaves free */
+.arbeidsomrade:has(.flytpanel.venstre:not(.lukket)) .bf-smulestripe,
+.arbeidsomrade:has(.flytpanel.venstre:not(.lukket)) .bf-drahint,
 .arbeidsomrade:has(.flytpanel.venstre:not(.lukket)) .bf-handtak {
   left: calc(50% + 170px);
+}
+
+/* ---------- modular builder ---------- */
+
+.bf-nystart {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.bf-kroppsdel {
+  touch-action: manipulation;
+}
+
+/* the model tree: the Main Body with what hangs on it */
+.bf-tre {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--linje);
+  list-style: none;
+}
+
+.bf-tre--rot {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.bf-node {
+  min-height: 40px;
+  padding-block: 6px;
+}
+
+.bf-node span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.bf-koblinger {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.bf-koblinger li {
+  display: grid;
+  gap: 1px;
+}
+
+.bf-koblinger .dempet {
+  font-size: 12px;
+}
+
+/* where you are: breadcrumb in the panel and over the view */
+.bf-smuler ol,
+.bf-smulestripe ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.bf-smulestripe ol {
+  margin: 0;
+}
+
+.bf-smuler li + li::before,
+.bf-smulestripe li + li::before {
+  content: '›';
+  margin-right: 4px;
+  color: var(--fg-dempet);
+}
+
+.bf-smule-knapp {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.bf-smulestripe {
+  position: absolute;
+  z-index: 5;
+  top: 10px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 24px);
+  padding: 4px 4px 4px 14px;
+  border: 1px solid var(--dp-lilla);
+  border-radius: var(--radius-pille);
+  background: var(--panel);
+  font-size: 13px;
+  pointer-events: auto;
+}
+
+.bf-smulestripe .kontroll-knapp,
+.bf-drahint .kontroll-knapp {
+  min-height: 32px;
+  border-radius: var(--radius-pille);
+  white-space: nowrap;
+}
+
+.bf-smulestripe kbd,
+.bf-drahint kbd,
+.bf-meny kbd {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* what letting go will do */
+.bf-drahint {
+  position: absolute;
+  z-index: 6;
+  bottom: 58px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 10px;
+  max-width: calc(100% - 24px);
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--panel);
+  font-size: 13px;
+  pointer-events: auto;
+}
+
+.bf-drahint--koble {
+  border-color: var(--ok-mork);
+}
+
+.bf-drahint--erstatt {
+  border-color: var(--dp-lilla);
+}
+
+.bf-drahint--ugyldig {
+  border-color: var(--feil-mork);
+}
+
+/* on small screens the panel shows where you are; the view keeps only the way out */
+.smal .bf-smulestripe nav {
+  display: none;
+}
+
+.smal .bf-smulestripe:not(.bf-smulestripe--bunn) {
+  left: 10px;
+  translate: none;
+  padding-left: 4px;
+}
+
+.smal .bf-drahint {
+  bottom: 82px;
+}
+
+/* context menu on a part */
+.bf-meny {
+  position: absolute;
+  z-index: 7;
+  display: grid;
+  min-width: 11rem;
+  padding: 4px;
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--panel);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--bg) 40%, transparent);
+  pointer-events: auto;
+}
+
+.bf-meny-tittel {
+  margin: 2px 8px 4px;
+  color: var(--fg-dempet);
+  font-size: 12px;
+}
+
+.bf-meny button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: calc(var(--radius-felt) - 2px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bf-meny button:hover:not(:disabled),
+.bf-meny button:focus-visible {
+  background: var(--panel-2);
+}
+
+.bf-meny button:disabled {
+  color: var(--fg-dempet);
+  cursor: not-allowed;
+}
+
+.bf-koblingspunkt {
+  border-color: var(--ok-mork);
+  background: color-mix(in srgb, var(--ok-mork) 35%, transparent);
+}
+
+.bf-koblingspunkt:hover,
+.bf-koblingspunkt:focus-visible {
+  background: var(--ok-mork);
+}
+
+/* «La oss bygge en …» */
+.verksted-dialog.bf-startvelger {
+  width: min(46rem, calc(100vw - 24px));
+}
+
+.bf-start-innhold {
+  min-height: 0;
+  padding: 14px 18px 18px;
+  overflow: auto;
+}
+
+.bf-start-ingress {
+  margin: 0 0 12px;
+}
+
+.bf-starter {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.bf-start {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bf-start strong {
+  font-size: 16px;
+}
+
+.bf-start span {
+  font-size: 13px;
+}
+
+.bf-start:hover,
+.bf-start:focus-visible {
+  border-color: var(--dp-lilla);
+}
+
+.bf-starter--sma .bf-start {
+  min-height: 64px;
+}
+
+.bf-smulestripe--bunn {
+  top: auto;
+  bottom: 58px;
+  left: 50%;
+  translate: -50% 0;
+  width: max-content;
+}
+
+.smal .bf-smulestripe--bunn {
+  bottom: 82px;
+  padding-left: 14px;
 }

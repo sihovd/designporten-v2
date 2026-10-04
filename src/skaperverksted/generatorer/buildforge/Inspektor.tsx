@@ -11,21 +11,39 @@ import { finnMateriale, materialer, materialtyper, type Materialtype } from '../
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { erBuildforgeResultat, type Digitalstatus } from './bygg';
-import { dupliserForm, endre, endreForm, flyttForm, settFarge, skalerForm, slettForm } from './handlinger';
+import { finnKropp, forbindelseTilForelder, forbindelseVed, koblingsnavn } from './graf';
 import {
-  erPar,
+  dupliserForm,
+  dupliserKropp,
+  endre,
+  endreForm,
+  flyttForm,
+  gaInn,
+  giKroppNavn,
+  koblFraKropp,
+  settFarge,
+  settVri,
+  skalerForm,
+  slettForm,
+  slettKropp,
+  speilKropp,
+} from './handlinger';
+import {
   familieFor,
   formnavn,
   GRENSER,
+  kategorinavn,
+  kjonnnavn,
+  klikkerKropper,
   kroppBestemt,
-  kropperFor,
   kroppnavn,
   operasjonnavn,
   revisjon,
   tolkParametre,
   type BuildforgeParametre,
   type Form,
-  type Kropp,
+  type KlikkerKropp,
+  type Modulkropp,
   type Operasjon,
 } from './parametre';
 import { sikkerhetTekst, type Maal } from './profil';
@@ -160,7 +178,7 @@ function Flyttknapper({ benk, f, steg }: { benk: Arbeidsbenk; f: Form; steg: num
   );
 }
 
-const kroppForklaring: Partial<Record<Kropp, string>> = {
+const kroppForklaring: Record<KlikkerKropp, string> = {
   topp: 'Topp (beveger seg)',
   underdel: 'Underdel (står stille)',
 };
@@ -176,7 +194,9 @@ function Formpanel({
   p: BuildforgeParametre;
   avansert: boolean;
 }) {
-  const familie = familieFor(p);
+  const modul = familieFor(p) === 'modul';
+  const del = modul ? finnKropp(p, f.kropp) : undefined;
+  const klikkerKropp = f.kropp as KlikkerKropp;
   const navnId = useId();
   const sett = (navn: string, g: (x: Form) => Form, slaSammen?: string) =>
     endreForm(benk, f.id, navn, g, slaSammen);
@@ -207,21 +227,30 @@ function Formpanel({
           }}
         />
       </label>
-      <p class="bf-tilhorighet">
-        Hører til <strong>{kroppBestemt[f.kropp]}</strong>
-        {f.kropp === 'topp'
-          ? ' og beveger seg med klikket.'
-          : f.kropp === 'underdel'
-            ? ' og står stille.'
-            : erPar(f.kropp)
-              ? '. Den kommer likt på begge sider.'
-              : '.'}
-      </p>
-      <Materialvalg
-        etikett={`Farge på ${kroppBestemt[f.kropp]}`}
-        verdi={p.farger[f.kropp] ?? ''}
-        endre={(id) => settFarge(benk, f.kropp, id)}
-      />
+      {del ? (
+        <>
+          <p class="bf-tilhorighet">
+            Hører til <strong>{del.navn.toLowerCase()}</strong> og følger delen når den flyttes.
+          </p>
+          <Materialvalg
+            etikett={`Farge på ${del.navn.toLowerCase()}`}
+            verdi={del.farge}
+            endre={(id) => settFarge(benk, del.id, id)}
+          />
+        </>
+      ) : (
+        <>
+          <p class="bf-tilhorighet">
+            Hører til <strong>{kroppBestemt[klikkerKropp]}</strong>
+            {f.kropp === 'topp' ? ' og beveger seg med klikket.' : ' og står stille.'}
+          </p>
+          <Materialvalg
+            etikett={`Farge på ${kroppBestemt[klikkerKropp]}`}
+            verdi={p.farger[klikkerKropp] ?? ''}
+            endre={(id) => settFarge(benk, f.kropp, id)}
+          />
+        </>
+      )}
 
       {!avansert && (
         <>
@@ -391,22 +420,24 @@ function Formpanel({
               endre={(v, k) => sett('Endre smelting', (x) => ({ ...x, smelting: v }), kilde(k, 'smelt'))}
             />
           )}
-          <label class="felt">
-            <span>Hører til</span>
-            <select
-              value={f.kropp}
-              onChange={(e) => {
-                const kropp = (e.target as HTMLSelectElement).value as Kropp;
-                sett(`Flytt til ${kroppBestemt[kropp]}`, (x) => ({ ...x, kropp }));
-              }}
-            >
-              {kropperFor[familie].map((k) => (
-                <option key={k} value={k}>
-                  {kroppForklaring[k] ?? kroppnavn[k]}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!modul && (
+            <label class="felt">
+              <span>Hører til</span>
+              <select
+                value={f.kropp}
+                onChange={(e) => {
+                  const kropp = (e.target as HTMLSelectElement).value as KlikkerKropp;
+                  sett(`Flytt til ${kroppBestemt[kropp]}`, (x) => ({ ...x, kropp }));
+                }}
+              >
+                {klikkerKropper.map((k) => (
+                  <option key={k} value={k}>
+                    {kroppForklaring[k]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div class="knapperad">
             <button
               type="button"
@@ -454,6 +485,109 @@ function Formpanel({
   );
 }
 
+/** The selected part of a modular model: name, colour, connectors, turn at the joint and actions. */
+function Kroppspanel({ benk, k, p }: { benk: Arbeidsbenk; k: Modulkropp; p: BuildforgeParametre }) {
+  const navnId = useId();
+  const forelder = forbindelseTilForelder(p, k.id);
+  const rot = k.id === p.rot;
+  return (
+    <Panel
+      tittel={rot ? 'Hovedkropp' : kategorinavn[k.kategori]}
+      handling={
+        <button type="button" class="tekstknapp" onClick={() => editor.sett({ kropp: null })}>
+          Lukk
+        </button>
+      }
+    >
+      <label class="felt" for={navnId}>
+        <span>Navn</span>
+        <input
+          id={navnId}
+          type="text"
+          value={k.navn}
+          maxLength={60}
+          onChange={(e) => {
+            const navn = (e.target as HTMLInputElement).value.trim();
+            if (navn) giKroppNavn(benk, k.id, navn);
+          }}
+        />
+      </label>
+      <Materialvalg etikett="Farge" verdi={k.farge} endre={(id) => settFarge(benk, k.id, id)} />
+      {forelder && (
+        <TallFelt
+          etikett="Vri ved leddet"
+          enhet="°"
+          desimaler={0}
+          steg={15}
+          verdi={forelder.b.kropp === k.id ? forelder.vri : -forelder.vri}
+          min={-180}
+          maks={180}
+          endre={(v, kilde) =>
+            settVri(
+              benk,
+              forelder.id,
+              forelder.b.kropp === k.id ? v : -v,
+              kilde === 'pil' ? `vri-${forelder.id}` : undefined,
+            )
+          }
+        />
+      )}
+      <h3 class="bf-underoverskrift">Koblinger</h3>
+      <ul class="bf-koblinger" role="list">
+        {k.koblinger.map((kb) => {
+          const f = forbindelseVed(p, { kropp: k.id, kobling: kb.id });
+          const annen = f ? (f.a.kropp === k.id ? f.b : f.a) : null;
+          return (
+            <li key={kb.id}>
+              <span>{kb.navn}</span>
+              <span class="dempet">
+                {kjonnnavn[kb.kjonn]} ·{' '}
+                {annen ? `koblet til ${koblingsnavn(p, annen).toLowerCase()}` : 'ledig'}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p class="merknad">
+        Koblingene er låst. Plugg og hull lages bare der to deler er koblet sammen, og målene er prøveverdier
+        som ikke er testprintet.
+      </p>
+      <div class="knapperad">
+        <button type="button" class="kontroll-knapp" onClick={() => gaInn(benk, k.id)}>
+          Gå inn
+        </button>
+        <button type="button" class="kontroll-knapp" onClick={() => editor.sett({ erstatter: k.id })}>
+          Bytt ut
+        </button>
+        <button type="button" class="kontroll-knapp" onClick={() => speilKropp(benk, k.id)}>
+          Speil
+        </button>
+        <button
+          type="button"
+          class="kontroll-knapp"
+          disabled={!forelder}
+          onClick={() => koblFraKropp(benk, k.id)}
+        >
+          Koble fra
+        </button>
+        <button type="button" class="kontroll-knapp" onClick={() => dupliserKropp(benk, k.id)}>
+          Dupliser
+        </button>
+        <button
+          type="button"
+          class="kontroll-knapp"
+          disabled={rot}
+          title={rot ? 'Hovedkroppen kan ikke slettes, bare byttes ut' : undefined}
+          onClick={() => slettKropp(benk, k.id)}
+        >
+          Slett
+        </button>
+      </div>
+      <p class="merknad">Speil, flytt og drei tar med alt som henger på delen.</p>
+    </Panel>
+  );
+}
+
 function Maalrad({ m }: { m: Maal }) {
   const enhet = m.navn.includes('mm³') ? '' : ' mm';
   return (
@@ -475,6 +609,7 @@ export function BuildforgeInspektor({ benk }: { benk: Arbeidsbenk }) {
   const tolk = tolkParametre(t.dok.parametre);
   const p = tolk.ok ? tolk.p : null;
   const valgt = p?.former.find((f) => f.id === e.valgt);
+  const kropp = p && e.kropp && !e.inne ? finnKropp(p, e.kropp) : undefined;
   const avansert = e.modus === 'avansert';
   const m = erBuildforgeResultat(t.modell) ? t.modell : null;
   const profil = m?.kontroll.profil;
@@ -501,9 +636,20 @@ export function BuildforgeInspektor({ benk }: { benk: Arbeidsbenk }) {
 
       {valgt && p && <Formpanel benk={benk} f={valgt} p={p} avansert={avansert} />}
 
-      {!valgt && p && (
+      {!valgt && kropp && p && <Kroppspanel benk={benk} k={kropp} p={p} />}
+
+      {!valgt && !kropp && p && familieFor(p) === 'modul' && (
         <Panel tittel="Farger">
-          {kropperFor[familieFor(p)].map((k) => (
+          <p class="merknad">
+            Hver del printes i én farge. Velg en del i modellen eller på platen for å endre fargen, vri den
+            ved leddet eller bytte den ut.
+          </p>
+        </Panel>
+      )}
+
+      {!valgt && p && familieFor(p) === 'klikker' && (
+        <Panel tittel="Farger">
+          {klikkerKropper.map((k) => (
             <Materialvalg
               key={k}
               etikett={kroppnavn[k]}

@@ -6,7 +6,7 @@
 import { finnStartmal } from './bibliotek';
 import { beskyttetDekor, dekorBoks, dekorFelt, formerI } from './felt';
 import { byggMekanikk, type Mekanikk } from './mekanikk';
-import type { BuildforgeParametre, Kropp } from './parametre';
+import type { BuildforgeParametre, KlikkerKropp as Kropp } from './parametre';
 import { finnProfil } from './profil';
 import { boksUnion, type Felt } from './sdf';
 

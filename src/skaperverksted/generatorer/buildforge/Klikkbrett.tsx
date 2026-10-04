@@ -76,7 +76,7 @@ export function Klikkbrett({ benk }: { benk: Arbeidsbenk }) {
   const [vis, settVis] = useState(false);
   const stopp = useRef<(() => void) | null>(null);
   const antallFeil = funn.filter((f) => f.niva === 'feil').length;
-  const p = t.dok.parametre as { familie?: 'klikker' | 'figur' };
+  const p = t.dok.parametre as { familie?: 'klikker' | 'modul' };
   const klikker = familieFor(p) === 'klikker';
 
   useEffect(() => () => stopp.current?.(), []);

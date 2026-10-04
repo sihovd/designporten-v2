@@ -13,7 +13,7 @@ import { kontrollsum } from './parametre';
 import { sikkerhetTekst, type Maal } from './profil';
 import { meta } from './meta';
 
-export const MOTORVERSJON = '0.2.0';
+export const MOTORVERSJON = '0.3.0';
 
 const rund = (v: number) => Math.round(v * 100) / 100;
 
@@ -34,12 +34,12 @@ export function lagRapport(dok: Dokument, r: BuildforgeResultat, laget = new Dat
     prosjekt: { id: dok.id, navn: dok.navn, revisjon: k.revisjon },
     enhet: 'mm',
     eksporttype: 'Digital prototype',
-    familie: k.leddprofil ? 'figur' : 'klikker',
+    familie: k.leddprofil ? 'modul' : 'klikker',
     forbehold: k.leddprofil
       ? [
           'Leddene er ikke fysisk testet. Filene er ikke godkjent for produksjon eller salg.',
           'En grønn digital kontroll betyr ikke at produktet er trygt leketøy eller garantert printbart.',
-          'Leddene er kontrollert i stående stilling. Om armer og bein treffer andre deler når de dreies, er ikke kontrollert.',
+          'Hvert ledd har klaring så de to delene det binder sammen, ikke treffer hverandre når det dreies. Om en del treffer andre deler når den dreies, er ikke kontrollert.',
           'Delene ligger i samlet stilling. Snu og plasser dem i sliceren.',
           'Hver del består av flere lukkede skall som overlapper. Slicere slår dem sammen ved utskrift.',
         ]
