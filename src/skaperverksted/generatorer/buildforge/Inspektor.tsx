@@ -11,14 +11,19 @@ import { finnMateriale, materialer, materialtyper, type Materialtype } from '../
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { erBuildforgeResultat, type Digitalstatus } from './bygg';
-import { dupliserForm, endre, endreForm, flyttForm, skalerForm, slettForm } from './handlinger';
+import { dupliserForm, endre, endreForm, flyttForm, settFarge, skalerForm, slettForm } from './handlinger';
 import {
+  erPar,
+  familieFor,
   formnavn,
   GRENSER,
+  kroppBestemt,
+  kropperFor,
   kroppnavn,
   operasjonnavn,
   revisjon,
   tolkParametre,
+  type BuildforgeParametre,
   type Form,
   type Kropp,
   type Operasjon,
@@ -155,7 +160,23 @@ function Flyttknapper({ benk, f, steg }: { benk: Arbeidsbenk; f: Form; steg: num
   );
 }
 
-function Formpanel({ benk, f, avansert }: { benk: Arbeidsbenk; f: Form; avansert: boolean }) {
+const kroppForklaring: Partial<Record<Kropp, string>> = {
+  topp: 'Topp (beveger seg)',
+  underdel: 'Underdel (står stille)',
+};
+
+function Formpanel({
+  benk,
+  f,
+  p,
+  avansert,
+}: {
+  benk: Arbeidsbenk;
+  f: Form;
+  p: BuildforgeParametre;
+  avansert: boolean;
+}) {
+  const familie = familieFor(p);
   const navnId = useId();
   const sett = (navn: string, g: (x: Form) => Form, slaSammen?: string) =>
     endreForm(benk, f.id, navn, g, slaSammen);
@@ -187,9 +208,20 @@ function Formpanel({ benk, f, avansert }: { benk: Arbeidsbenk; f: Form; avansert
         />
       </label>
       <p class="bf-tilhorighet">
-        Hører til <strong>{kroppnavn[f.kropp].toLowerCase()}en</strong>
-        {f.kropp === 'topp' ? ' og beveger seg med klikket.' : ' og står stille.'}
+        Hører til <strong>{kroppBestemt[f.kropp]}</strong>
+        {f.kropp === 'topp'
+          ? ' og beveger seg med klikket.'
+          : f.kropp === 'underdel'
+            ? ' og står stille.'
+            : erPar(f.kropp)
+              ? '. Den kommer likt på begge sider.'
+              : '.'}
       </p>
+      <Materialvalg
+        etikett={`Farge på ${kroppBestemt[f.kropp]}`}
+        verdi={p.farger[f.kropp] ?? ''}
+        endre={(id) => settFarge(benk, f.kropp, id)}
+      />
 
       {!avansert && (
         <>
@@ -219,6 +251,7 @@ function Formpanel({ benk, f, avansert }: { benk: Arbeidsbenk; f: Form; avansert
         endre={(v) => sett(v ? 'Slå på speiling' : 'Slå av speiling', (x) => ({ ...x, speilet: v }))}
       />
 
+      <p class="merknad">Du kan også dra i håndtakene på modellen: G flytter, R roterer og S skalerer.</p>
       {skjultIEnkel && <p class="merknad">Flere innstillinger i Avansert.</p>}
 
       {avansert && (
@@ -305,10 +338,10 @@ function Formpanel({ benk, f, avansert }: { benk: Arbeidsbenk; f: Form; avansert
                 }
               />
             ))}
-          {f.type === 'sylinder' && (
+          {(f.type === 'sylinder' || f.type === 'kjegle') && (
             <>
               <TallFelt
-                etikett="Diameter"
+                etikett={f.type === 'kjegle' ? 'Diameter nederst' : 'Diameter'}
                 verdi={f.mal[0]}
                 min={GRENSER.mal.min}
                 maks={GRENSER.mal.maks}
@@ -329,7 +362,7 @@ function Formpanel({ benk, f, avansert }: { benk: Arbeidsbenk; f: Form; avansert
           )}
           {f.type !== 'kule' && (
             <TallFelt
-              etikett="Avrunding"
+              etikett={f.type === 'kjegle' ? 'Avrunding av spissen' : 'Avrunding'}
               verdi={f.avrunding}
               min={GRENSER.avrunding.min}
               maks={GRENSER.avrunding.maks}
@@ -364,11 +397,14 @@ function Formpanel({ benk, f, avansert }: { benk: Arbeidsbenk; f: Form; avansert
               value={f.kropp}
               onChange={(e) => {
                 const kropp = (e.target as HTMLSelectElement).value as Kropp;
-                sett(`Flytt til ${kroppnavn[kropp].toLowerCase()}en`, (x) => ({ ...x, kropp }));
+                sett(`Flytt til ${kroppBestemt[kropp]}`, (x) => ({ ...x, kropp }));
               }}
             >
-              <option value="topp">Topp (beveger seg)</option>
-              <option value="underdel">Underdel (står stille)</option>
+              {kropperFor[familie].map((k) => (
+                <option key={k} value={k}>
+                  {kroppForklaring[k] ?? kroppnavn[k]}
+                </option>
+              ))}
             </select>
           </label>
           <div class="knapperad">
@@ -442,6 +478,7 @@ export function BuildforgeInspektor({ benk }: { benk: Arbeidsbenk }) {
   const avansert = e.modus === 'avansert';
   const m = erBuildforgeResultat(t.modell) ? t.modell : null;
   const profil = m?.kontroll.profil;
+  const leddprofil = m?.kontroll.leddprofil;
   const topp = m?.kontroll.kropper.find((k) => k.kropp === 'topp');
 
   return (
@@ -462,32 +499,25 @@ export function BuildforgeInspektor({ benk }: { benk: Arbeidsbenk }) {
         <Statuskort benk={benk} />
       </Panel>
 
-      {valgt && <Formpanel benk={benk} f={valgt} avansert={avansert} />}
+      {valgt && p && <Formpanel benk={benk} f={valgt} p={p} avansert={avansert} />}
 
       {!valgt && p && (
         <Panel tittel="Farger">
-          <Materialvalg
-            etikett="Topp"
-            verdi={p.farger.topp}
-            endre={(id) =>
-              endre(benk, 'Endre farge på toppen', (q) => ({ ...q, farger: { ...q.farger, topp: id } }))
-            }
-          />
-          <Materialvalg
-            etikett="Underdel"
-            verdi={p.farger.underdel}
-            endre={(id) =>
-              endre(benk, 'Endre farge på underdelen', (q) => ({
-                ...q,
-                farger: { ...q.farger, underdel: id },
-              }))
-            }
-          />
-          <p class="merknad">Velg en form i listen eller på modellen for å endre den.</p>
+          {kropperFor[familieFor(p)].map((k) => (
+            <Materialvalg
+              key={k}
+              etikett={kroppnavn[k]}
+              verdi={p.farger[k] ?? ''}
+              endre={(id) => settFarge(benk, k, id)}
+            />
+          ))}
+          <p class="merknad">
+            Hver del printes i én farge. Velg en form i listen eller på modellen for å endre den.
+          </p>
         </Panel>
       )}
 
-      {avansert && (
+      {avansert && p && familieFor(p) === 'klikker' && (
         <Panel tittel="Hjelpelag">
           <Avkryssing
             etikett="Vis bryteren"
@@ -515,6 +545,24 @@ export function BuildforgeInspektor({ benk }: { benk: Arbeidsbenk }) {
                 <dd class="mono">{mm(Math.hypot(topp.tyngdepunkt[0], topp.tyngdepunkt[1]))} fra midten</dd>
               </div>
             </dl>
+          )}
+        </Panel>
+      )}
+
+      {leddprofil && (
+        <Panel tittel="Leddprofil">
+          <p class="bf-profilnavn">
+            {leddprofil.navn} <span class="mono">v{leddprofil.versjon}</span>
+          </p>
+          <p class="merknad">{leddprofil.merknad}</p>
+          {avansert ? (
+            <dl class="fakta bf-maal">
+              {Object.values(leddprofil.maal).map((x) => (
+                <Maalrad key={x.navn} m={x} />
+              ))}
+            </dl>
+          ) : (
+            <p class="merknad">Se alle målene og hvor sikre de er i Avansert.</p>
           )}
         </Panel>
       )}

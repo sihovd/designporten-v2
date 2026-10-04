@@ -13,7 +13,7 @@ import { kontrollsum } from './parametre';
 import { sikkerhetTekst, type Maal } from './profil';
 import { meta } from './meta';
 
-export const MOTORVERSJON = '0.1.0';
+export const MOTORVERSJON = '0.2.0';
 
 const rund = (v: number) => Math.round(v * 100) / 100;
 
@@ -34,13 +34,22 @@ export function lagRapport(dok: Dokument, r: BuildforgeResultat, laget = new Dat
     prosjekt: { id: dok.id, navn: dok.navn, revisjon: k.revisjon },
     enhet: 'mm',
     eksporttype: 'Digital prototype',
-    forbehold: [
-      'Mekanikken er ikke fysisk testet. Filene er ikke godkjent for produksjon eller salg.',
-      'En grønn digital kontroll betyr ikke at produktet er trygt leketøy eller garantert printbart.',
-      'Bryteren er en innkjøpt del. Den vises bare som referanse i verktøyet og er ikke med i filene.',
-      'Delene ligger i samlet stilling. Snu og plasser dem i sliceren.',
-      'Hver del består av flere lukkede skall som overlapper. Slicere slår dem sammen ved utskrift.',
-    ],
+    familie: k.leddprofil ? 'figur' : 'klikker',
+    forbehold: k.leddprofil
+      ? [
+          'Leddene er ikke fysisk testet. Filene er ikke godkjent for produksjon eller salg.',
+          'En grønn digital kontroll betyr ikke at produktet er trygt leketøy eller garantert printbart.',
+          'Leddene er kontrollert i stående stilling. Om armer og bein treffer andre deler når de dreies, er ikke kontrollert.',
+          'Delene ligger i samlet stilling. Snu og plasser dem i sliceren.',
+          'Hver del består av flere lukkede skall som overlapper. Slicere slår dem sammen ved utskrift.',
+        ]
+      : [
+          'Mekanikken er ikke fysisk testet. Filene er ikke godkjent for produksjon eller salg.',
+          'En grønn digital kontroll betyr ikke at produktet er trygt leketøy eller garantert printbart.',
+          'Bryteren er en innkjøpt del. Den vises bare som referanse i verktøyet og er ikke med i filene.',
+          'Delene ligger i samlet stilling. Snu og plasser dem i sliceren.',
+          'Hver del består av flere lukkede skall som overlapper. Slicere slår dem sammen ved utskrift.',
+        ],
     profil: p
       ? {
           id: p.id,
@@ -55,6 +64,16 @@ export function lagRapport(dok: Dokument, r: BuildforgeResultat, laget = new Dat
             ...maal({ klaring: p.klaring }),
             ...maal(p.grenser),
           ],
+        }
+      : null,
+    leddprofil: k.leddprofil
+      ? {
+          id: k.leddprofil.id,
+          versjon: k.leddprofil.versjon,
+          navn: k.leddprofil.navn,
+          fysiskStatus: k.leddprofil.fysiskStatus === 'testet' ? 'Testet' : 'Ikke testet',
+          merknad: k.leddprofil.merknad,
+          mal: maal(k.leddprofil.maal),
         }
       : null,
     deler: r.deler.map((d) => {
@@ -83,7 +102,9 @@ export function lagRapport(dok: Dokument, r: BuildforgeResultat, laget = new Dat
             feilgrenseMm: rund(k.sveip.feilgrense),
             vedVandringMm: k.sveip.vedVandring ?? null,
           }
-        : { resultat: 'ingen pynt å kontrollere; festene er kontrollert i profilen' },
+        : k.leddprofil
+          ? null
+          : { resultat: 'ingen pynt å kontrollere; festene er kontrollert i profilen' },
       funn: k.funn.map((f) => ({
         regel: f.regel,
         niva: f.niva,

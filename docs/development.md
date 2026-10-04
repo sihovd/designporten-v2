@@ -63,7 +63,7 @@ Parallel work stays inside its own folders. Shared foundations change only in sm
 | `src/skaperverksted/generatorer/signgen/` | Signgen | Foundation (Skaperverksted) |
 | `src/skaperverksted/generatorer/lampe/` | Lamp generator | Lamp workstream |
 | `src/skaperverksted/generatorer/drage/` | Dragon generator | Dragon workstream |
-| `src/skaperverksted/generatorer/buildforge/` | BuildForge (clicker build engine) | BuildForge workstream |
+| `src/skaperverksted/generatorer/buildforge/` | BuildForge (build engine: clickers, figures) | BuildForge workstream |
 | `src/pages/skaperverksted/` | Hub and editor routes | Foundation (Skaperverksted) |
 | `public/midlertidig/` | Temporary placeholder assets | Anyone adds; all referenced via `src/lib/ressurser.ts` |
 | `tests/e2e/` | Browser tests, one file per area | Each workstream its own file |

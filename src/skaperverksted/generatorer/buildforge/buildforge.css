@@ -445,3 +445,63 @@ li.bf-funn:not(:has(button)) {
     scale: none;
   }
 }
+
+/* Handles: the tool row for the selected shape, bottom centre above the prototype notice
+   (camera presets are top right) */
+.bf-handtak {
+  position: absolute;
+  z-index: 4;
+  bottom: 58px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-pille);
+  background: var(--panel);
+  white-space: nowrap;
+}
+
+.bf-handtak .kontroll-knapp {
+  min-height: 32px;
+  padding-inline: 12px;
+  border-radius: var(--radius-pille);
+}
+
+.bf-handtak .kontroll-knapp[aria-pressed='true'] {
+  border-color: var(--dp-lilla);
+  background: color-mix(in srgb, var(--dp-lilla) 22%, transparent);
+}
+
+.bf-handtak kbd {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.smal .bf-handtak {
+  bottom: 82px;
+}
+
+.smal .bf-handtak kbd {
+  display: none;
+}
+
+.bf-malgruppe + .bf-malgruppe {
+  margin-top: 12px;
+}
+
+.bf-grunnmodell + .bf-grunnmodell {
+  margin-top: 10px;
+}
+
+.bf-grunnmodell .segment {
+  flex-wrap: wrap;
+}
+
+/* keep the tool row in the part of the view the floating parts panel leaves free */
+.arbeidsomrade:has(.flytpanel.venstre:not(.lukket)) .bf-handtak {
+  left: calc(50% + 170px);
+}

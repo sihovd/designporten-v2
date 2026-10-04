@@ -12,15 +12,51 @@ import { materialer } from '../../core/materialer';
 
 export const SKJEMA = 1;
 
-export type Kropp = 'topp' | 'underdel';
-export type Formtype = 'kule' | 'boks' | 'sylinder';
+/**
+ * Product families. A project without `familie` is a clicker (projects from
+ * BuildForge 0.1 have no such field).
+ */
+export type Familie = 'klikker' | 'figur';
+export type KlikkerKropp = 'topp' | 'underdel';
+/** Figure segments: the parts between the joints. Arms, legs, hands and feet are pairs. */
+export type FigurKropp = 'hode' | 'kropp' | 'armer' | 'bein' | 'hender' | 'fotter';
+export type Kropp = KlikkerKropp | FigurKropp;
+export type Formtype = 'kule' | 'boks' | 'sylinder' | 'kjegle';
 export type Operasjon = 'smelt' | 'legg-til' | 'trekk-fra';
 
-export const kroppnavn: Record<Kropp, string> = { topp: 'Topp', underdel: 'Underdel' };
+export const klikkerKropper: KlikkerKropp[] = ['topp', 'underdel'];
+export const figurKropper: FigurKropp[] = ['hode', 'kropp', 'armer', 'bein', 'hender', 'fotter'];
+export const kropperFor: Record<Familie, Kropp[]> = { klikker: klikkerKropper, figur: figurKropper };
+
+export const kroppnavn: Record<Kropp, string> = {
+  topp: 'Topp',
+  underdel: 'Underdel',
+  hode: 'Hode',
+  kropp: 'Kropp',
+  armer: 'Armer',
+  bein: 'Bein',
+  hender: 'Hender',
+  fotter: 'Føtter',
+};
+/** Definite singular, for sentences («Fest øyne på hodet»). */
+export const kroppBestemt: Record<Kropp, string> = {
+  topp: 'toppen',
+  underdel: 'underdelen',
+  hode: 'hodet',
+  kropp: 'kroppen',
+  armer: 'armen',
+  bein: 'beinet',
+  hender: 'hånden',
+  fotter: 'foten',
+};
+/** Bodies that exist twice, mirrored across the figure's middle. */
+export const erPar = (k: Kropp): boolean => k === 'armer' || k === 'bein' || k === 'hender' || k === 'fotter';
+
 export const formnavn: Record<Formtype, string> = {
   kule: 'Kule',
   boks: 'Avrundet boks',
   sylinder: 'Sylinder',
+  kjegle: 'Kjegle',
 };
 export const operasjonnavn: Record<Operasjon, string> = {
   smelt: 'Smelt sammen',
@@ -39,10 +75,10 @@ export interface Form {
   rotasjon: [number, number, number];
   /**
    * Size in mm. Kule: diameter in [0]. Boks: width, depth, height.
-   * Sylinder: diameter in [0], height in [2].
+   * Sylinder and kjegle: (base) diameter in [0], height in [2].
    */
   mal: [number, number, number];
-  /** Edge rounding for boks and sylinder (mm). */
+  /** Edge rounding for boks and sylinder, tip rounding for kjegle (mm). */
   avrunding: number;
   operasjon: Operasjon;
   /** Blend radius for `smelt` (mm). A design value, not a tolerance. */
@@ -55,11 +91,25 @@ export interface Form {
 
 export interface BuildforgeParametre {
   skjema: number;
+  /** Missing = klikker. */
+  familie?: Familie;
+  /** Clicker: the switch profile. Figure: the joint profile. */
   profil: { id: string; versjon: string };
   mal: string;
-  farger: Record<Kropp, string>;
-  /** Evaluation order matters for `trekk-fra`. */
+  /** Material per body of the family (every body has one). */
+  farger: Partial<Record<Kropp, string>>;
+  /** Figure only: the chosen base model per segment. Joint positions come from these. */
+  grunnmodeller?: Partial<Record<FigurKropp, string>>;
+  /**
+   * Evaluation order matters for `trekk-fra`. Clicker shapes are in model
+   * coordinates; figure shapes are relative to their segment's joint (the
+   * left side of a pair is a mirror of the right).
+   */
   former: Form[];
+}
+
+export function familieFor(p: Pick<BuildforgeParametre, 'familie'>): Familie {
+  return p.familie ?? 'klikker';
 }
 
 export const GRENSER = {
@@ -74,27 +124,52 @@ const materialIder = materialer.map((x) => x.id) as [string, ...string[]];
 const tall = (min: number, maks: number) => z.number().min(min).max(maks);
 const v3 = (min: number, maks: number) => z.tuple([tall(min, maks), tall(min, maks), tall(min, maks)]);
 
-const formSkjema = z.object({
-  id: z.string().min(1).max(64),
-  navn: z.string().max(60),
-  kropp: z.enum(['topp', 'underdel']),
-  type: z.enum(['kule', 'boks', 'sylinder']),
-  posisjon: v3(GRENSER.posisjon.min, GRENSER.posisjon.maks),
-  rotasjon: v3(-360, 360),
-  mal: v3(GRENSER.mal.min, GRENSER.mal.maks),
-  avrunding: tall(GRENSER.avrunding.min, GRENSER.avrunding.maks),
-  operasjon: z.enum(['smelt', 'legg-til', 'trekk-fra']),
-  smelting: tall(GRENSER.smelting.min, GRENSER.smelting.maks),
-  speilet: z.boolean(),
-  komponent: z.object({ id: z.string().max(40), versjon: z.string().max(20) }).optional(),
+const formSkjema = (kropper: [string, ...string[]]) =>
+  z.object({
+    id: z.string().min(1).max(64),
+    navn: z.string().max(60),
+    kropp: z.enum(kropper),
+    type: z.enum(['kule', 'boks', 'sylinder', 'kjegle']),
+    posisjon: v3(GRENSER.posisjon.min, GRENSER.posisjon.maks),
+    rotasjon: v3(-360, 360),
+    mal: v3(GRENSER.mal.min, GRENSER.mal.maks),
+    avrunding: tall(GRENSER.avrunding.min, GRENSER.avrunding.maks),
+    operasjon: z.enum(['smelt', 'legg-til', 'trekk-fra']),
+    smelting: tall(GRENSER.smelting.min, GRENSER.smelting.maks),
+    speilet: z.boolean(),
+    komponent: z.object({ id: z.string().max(40), versjon: z.string().max(20) }).optional(),
+  });
+
+const profilSkjema = z.object({ id: z.string().max(60), versjon: z.string().max(20) });
+const materialSkjema = z.enum(materialIder);
+
+const klikkerSkjema = z.object({
+  skjema: z.literal(SKJEMA),
+  familie: z.literal('klikker').optional(),
+  profil: profilSkjema,
+  mal: z.string().max(40),
+  farger: z.object({ topp: materialSkjema, underdel: materialSkjema }),
+  former: z.array(formSkjema(['topp', 'underdel'])).max(GRENSER.maksFormer),
 });
 
-const parameterSkjema = z.object({
+const figurSkjema = z.object({
   skjema: z.literal(SKJEMA),
-  profil: z.object({ id: z.string().max(60), versjon: z.string().max(20) }),
+  familie: z.literal('figur'),
+  profil: profilSkjema,
   mal: z.string().max(40),
-  farger: z.object({ topp: z.enum(materialIder), underdel: z.enum(materialIder) }),
-  former: z.array(formSkjema).max(GRENSER.maksFormer),
+  farger: z.object(
+    Object.fromEntries(figurKropper.map((k) => [k, materialSkjema])) as Record<
+      FigurKropp,
+      typeof materialSkjema
+    >,
+  ),
+  grunnmodeller: z.object(
+    Object.fromEntries(figurKropper.map((k) => [k, z.string().min(1).max(40)])) as Record<
+      FigurKropp,
+      z.ZodString
+    >,
+  ),
+  former: z.array(formSkjema(figurKropper as [string, ...string[]])).max(GRENSER.maksFormer),
 });
 
 export type Tolkning = { ok: true; p: BuildforgeParametre } | { ok: false; feil: string[] };
@@ -105,7 +180,8 @@ export type Tolkning = { ok: true; p: BuildforgeParametre } | { ok: false; feil:
  * silently.
  */
 export function tolkParametre(raw: unknown): Tolkning {
-  const r = parameterSkjema.safeParse(raw);
+  const erFigur = !!raw && typeof raw === 'object' && (raw as { familie?: unknown }).familie === 'figur';
+  const r = (erFigur ? figurSkjema : klikkerSkjema).safeParse(raw);
   if (!r.success) {
     return {
       ok: false,

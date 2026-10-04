@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Scene3d } from '../../core/generator';
 import { brukUtdrag } from '../../shell/bruk-benk';
-import { festenavn, finnDel } from './bibliotek';
+import { festenavn, finnDel, passer } from './bibliotek';
 import { DRA_TYPE } from './Bibliotekpanel';
 import { festepunkter } from './feste';
 import { festDel } from './handlinger';
@@ -43,7 +43,7 @@ export function Festeoverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene
   const del = e.plasserer ? finnDel(e.plasserer) : undefined;
   const punkter = useMemo(() => {
     const t = tolkParametre(raw);
-    return t.ok && del ? festepunkter(t.p).filter((f) => del.passer.includes(f.id)) : [];
+    return t.ok && del ? festepunkter(t.p).filter((f) => passer(del, f.id)) : [];
   }, [raw, del]);
   brukKamera(scene);
 
@@ -61,7 +61,7 @@ export function Festeoverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene
     <div class="bf-overlegg" role="group" aria-label={`Festepunkter for ${del.navn.toLowerCase()}`}>
       {punkter.map((f) => {
         // the top is drawn pressed during «Prøv klikk», so its points follow
-        const z = f.id.startsWith('topp') ? f.punkt[2] - e.trykk : f.punkt[2];
+        const z = f.id.startsWith('topp-') ? f.punkt[2] - e.trykk : f.punkt[2];
         const p = scene.prosjiser(f.punkt[0], f.punkt[1], z);
         if (!p.synlig) return null;
         return (
@@ -70,8 +70,8 @@ export function Festeoverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene
             type="button"
             class={`bf-festepunkt${e.sikter === f.id ? ' sikter' : ''}`}
             style={{ left: `${p.x}px`, top: `${p.y}px` }}
-            aria-label={`Fest ${del.navn.toLowerCase()} på ${festenavn[f.id].toLowerCase()}`}
-            title={festenavn[f.id]}
+            aria-label={`Fest ${del.navn.toLowerCase()} på ${festenavn(f.id).toLowerCase()}`}
+            title={festenavn(f.id)}
             onMouseEnter={() => editor.sett({ sikter: f.id })}
             onMouseLeave={() => editor.sett({ sikter: null })}
             onFocus={() => editor.sett({ sikter: f.id })}

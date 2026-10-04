@@ -48,6 +48,32 @@ export function sylinder(R: number, h: number, r: number): Felt {
   };
 }
 
+/**
+ * Upright cone (axis Z, centred): base radius R at z = −h/2, tip at
+ * z = +h/2, every edge rounded by r. Exact distance (capped cone, then
+ * offset by r).
+ */
+export function kjegle(R: number, h: number, r: number): Felt {
+  const rr = Math.max(0, Math.min(r, R / 2, h / 4));
+  const hh = h / 2 - rr;
+  const r1 = R - rr;
+  // capped cone from z = −hh (radius r1) to z = +hh (radius 0)
+  const k2x = -r1,
+    k2y = 2 * hh;
+  const k2k2 = k2x * k2x + k2y * k2y;
+  return (x, y, z) => {
+    const qx = Math.hypot(x, y),
+      qy = z;
+    const cax = qx - Math.min(qx, qy < 0 ? r1 : 0),
+      cay = Math.abs(qy) - hh;
+    const t = Math.min(1, Math.max(0, ((0 - qx) * k2x + (hh - qy) * k2y) / k2k2));
+    const cbx = qx + k2x * t,
+      cby = qy - hh + k2y * t;
+    const s = cbx < 0 && cay < 0 ? -1 : 1;
+    return s * Math.sqrt(Math.min(cax * cax + cay * cay, cbx * cbx + cby * cby)) - rr;
+  };
+}
+
 /** Upright prism of a 2D rounded rectangle (half sizes hx, hy, corner radius r) between z0 and z1. */
 export function avrundetPrisme(hx: number, hy: number, r: number, z0: number, z1: number): Felt {
   const rr = Math.max(0, Math.min(r, hx, hy));

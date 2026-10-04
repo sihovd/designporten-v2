@@ -20,7 +20,12 @@ export interface Editortilstand {
   visBryter: boolean;
   /** Shapes pointed out by a selected finding. */
   merket: string[];
+  /** What the handles on the selected shape do. */
+  verktoy: Verktoy;
 }
+
+export type Verktoy = 'flytt' | 'roter' | 'skaler';
+export const verktoynavn: Record<Verktoy, string> = { flytt: 'Flytt', roter: 'Roter', skaler: 'Skaler' };
 
 const START: Editortilstand = {
   valgt: null,
@@ -32,6 +37,7 @@ const START: Editortilstand = {
   visVolum: false,
   visBryter: true,
   merket: [],
+  verktoy: 'flytt',
 };
 
 class Editorlager {
@@ -42,7 +48,7 @@ class Editorlager {
     for (const f of this.lyttere) f(this.t);
   }
   nullstill(): void {
-    this.sett({ ...START, modus: this.t.modus });
+    this.sett({ ...START, modus: this.t.modus, verktoy: this.t.verktoy });
   }
   lytt(f: (t: Editortilstand) => void): () => void {
     this.lyttere.add(f);

@@ -13,11 +13,11 @@
  * Pure and deterministic. The switch reference is never part of the parts.
  */
 import { slaSammenMesh, type Mesh, type ModellDel } from '../../geometri/mesh';
-import type { Advarsel, Modellresultat } from '../../core/generator';
 import { mm, tall } from '../../core/enheter';
 import { beskyttetDekor, dekorBoks, dekorFelt, formBoks, formFelt, formerI } from './felt';
 import { byggMekanikk, type Mekanikk } from './mekanikk';
 import {
+  familieFor,
   kroppnavn,
   revisjon,
   tolkParametre,
@@ -25,57 +25,23 @@ import {
   type Form,
   type Kropp,
 } from './parametre';
-import { finnProfil, sjekkProfil, type Mekanikkprofil } from './profil';
+import { finnProfil, sjekkProfil } from './profil';
 import { lagRutenett, maal, marsjer, nodePosisjon, sample } from './rutenett';
 import { boksUnion, type Boks, type Felt } from './sdf';
 import { sjekkSveip, type Sveipresultat } from './sveip';
+import { byggFigur } from './figurbygg';
+import {
+  indeksomrade,
+  statusFra,
+  stopp,
+  tilAdvarsler,
+  type BuildforgeResultat,
+  type Digitalstatus,
+  type Funn,
+  type Kroppsdata,
+} from './funn';
 
-export type Evidens = 'beregnet' | 'estimert' | 'ikke-testet';
-
-export const evidensTekst: Record<Evidens, string> = {
-  beregnet: 'Beregnet på modellen',
-  estimert: 'Anslag',
-  'ikke-testet': 'Ikke fysisk testet',
-};
-
-export interface Funn {
-  regel: string;
-  niva: 'feil' | 'advarsel' | 'info';
-  tittel: string;
-  arsak: string;
-  konsekvens: string;
-  forslag: string;
-  objekter: string[];
-  evidens: Evidens;
-}
-
-export type Digitalstatus = 'gronn' | 'gul' | 'rod';
-
-export interface Kroppsdata {
-  kropp: Kropp;
-  /** Solid volume of the body (mm³), from the grid. */
-  volum: number;
-  tyngdepunkt: [number, number, number];
-  /** Grid cell used for the decoration mesh (mm). */
-  celle: number;
-}
-
-export interface Kontroll {
-  revisjon: string;
-  status: Digitalstatus;
-  funn: Funn[];
-  profil: Mekanikkprofil | null;
-  sveip: Sveipresultat | null;
-  kropper: Kroppsdata[];
-}
-
-export interface BuildforgeResultat extends Modellresultat {
-  kontroll: Kontroll;
-}
-
-export function erBuildforgeResultat(m: Modellresultat | null): m is BuildforgeResultat {
-  return !!m && 'kontroll' in m;
-}
+export * from './funn';
 
 const MAKS_NODER = 160_000;
 const MIN_CELLE = 0.3;
@@ -87,20 +53,6 @@ interface Kroppbygg {
   felt: Felt;
   boks: Boks | null;
   funn: Funn[];
-}
-
-/** Grid index range of a box inside a grid. */
-function indeksomrade(r: { min: number[]; g: number; nx: number; ny: number; nz: number }, b: Boks) {
-  const lo = (v: number, k: number) => Math.max(0, Math.floor((v - r.min[k]!) / r.g));
-  const hi = (v: number, k: number, n: number) => Math.min(n - 1, Math.ceil((v - r.min[k]!) / r.g));
-  return [
-    lo(b.min[0], 0),
-    hi(b.maks[0], 0, r.nx),
-    lo(b.min[1], 1),
-    hi(b.maks[1], 1, r.ny),
-    lo(b.min[2], 2),
-    hi(b.maks[2], 2, r.nz),
-  ] as const;
 }
 
 function byggKropp(kropp: Kropp, former: Form[], mek: Mekanikk): Kroppbygg {
@@ -247,22 +199,6 @@ function sveipFunn(s: Sveipresultat, former: Form[], mek: Mekanikk): Funn | null
   };
 }
 
-function stopp(rev: string, funn: Funn[], profil: Mekanikkprofil | null): BuildforgeResultat {
-  return {
-    deler: [],
-    advarsler: tilAdvarsler(funn),
-    kontroll: { revisjon: rev, status: 'rod', funn, profil, sveip: null, kropper: [] },
-  };
-}
-
-export function tilAdvarsler(funn: Funn[]): Advarsel[] {
-  return funn.map((f) => ({
-    niva: f.niva,
-    tekst: `${f.tittel}. ${f.forslag}`,
-    objektId: f.objekter[0],
-  }));
-}
-
 export function byggBuildforge(raw: unknown): BuildforgeResultat {
   const rev = revisjon(raw);
   const t = tolkParametre(raw);
@@ -284,6 +220,7 @@ export function byggBuildforge(raw: unknown): BuildforgeResultat {
       null,
     );
   const p: BuildforgeParametre = t.p;
+  if (familieFor(p) === 'figur') return byggFigur(p, rev);
   const profil = finnProfil(p.profil.id, p.profil.versjon);
   if (!profil)
     return stopp(
@@ -393,22 +330,18 @@ export function byggBuildforge(raw: unknown): BuildforgeResultat {
     {
       id: 'underdel',
       navn: 'Underdel',
-      materialId: p.farger.underdel,
+      materialId: p.farger.underdel!,
       mesh: underdel.dekorMesh ? slaSammenMesh([mek.underdelMesh, underdel.dekorMesh]) : mek.underdelMesh,
     },
     {
       id: 'topp',
       navn: 'Topp',
-      materialId: p.farger.topp,
+      materialId: p.farger.topp!,
       mesh: topp.dekorMesh ? slaSammenMesh([mek.toppMesh, topp.dekorMesh]) : mek.toppMesh,
     },
   ];
 
-  const status: Digitalstatus = funn.some((f) => f.niva === 'feil')
-    ? 'rod'
-    : funn.some((f) => f.niva === 'advarsel')
-      ? 'gul'
-      : 'gronn';
+  const status: Digitalstatus = statusFra(funn);
   return {
     deler,
     advarsler: tilAdvarsler(funn),

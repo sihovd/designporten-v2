@@ -4,12 +4,12 @@ import AxeBuilder from '@axe-core/playwright';
 async function apneDeler(page: Page) {
   // below 1024 px the parts panel is a sheet
   const knapp = page.locator('.arkvelger').getByRole('button', { name: 'Deler' });
-  if (await knapp.isVisible()) await knapp.click();
+  if ((await knapp.isVisible()) && (await knapp.getAttribute('aria-pressed')) !== 'true') await knapp.click();
 }
 
 async function apneEgenskaper(page: Page) {
   const knapp = page.locator('.arkvelger').getByRole('button', { name: 'Egenskaper' });
-  if (await knapp.isVisible()) await knapp.click();
+  if ((await knapp.isVisible()) && (await knapp.getAttribute('aria-pressed')) !== 'true') await knapp.click();
 }
 
 test.describe('BuildForge', () => {
@@ -86,6 +86,51 @@ test.describe('BuildForge', () => {
       .include(isMobile ? '.bunnbrett' : '.flytpanel')
       .include('.bunnbrett')
       .include(isMobile ? '.bunnbrett' : '.inspektor')
+      .analyze();
+    expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
+
+  test('bygger en figur med grunnmodeller, håndtak og farge per del', async ({ page }) => {
+    await apneDeler(page);
+    await page.getByRole('button', { name: /^Liten venn/ }).click();
+    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
+    await expect(page.locator('.statuslinje')).toContainText('10 deler', { ignoreCase: true });
+
+    await apneDeler(page);
+    await page
+      .getByRole('radiogroup', { name: 'Grunnmodell for bein' })
+      .getByRole('radio', { name: 'Lange' })
+      .click();
+    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
+
+    // select a shape: the handle tools appear, and R switches to turning
+    await apneDeler(page);
+    await page.getByRole('button', { name: /^Hode Kule/ }).click();
+    const handtak = page.getByRole('group', { name: 'Håndtak på valgt form' });
+    await expect(handtak.getByRole('button', { name: /Flytt/ })).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('body').press('r');
+    await expect(handtak.getByRole('button', { name: /Roter/ })).toHaveAttribute('aria-pressed', 'true');
+
+    // colour of the selected shape's part
+    await apneEgenskaper(page);
+    const farge = page.getByLabel('Farge på hodet');
+    await farge.selectOption('pla-rosa');
+    await expect(farge).toHaveValue('pla-rosa');
+
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
+    await expect(dialog.getByText('Leddene er ikke fysisk testet')).toBeVisible({ timeout: 20_000 });
+    await expect(dialog.getByRole('button', { name: 'STL: Arm (høyre)' })).toBeVisible();
+    await expect(dialog.getByText('Hode: Rosa')).toBeVisible();
+  });
+
+  test('figuren har ingen tilgjengelighetsfeil', async ({ page, isMobile }) => {
+    await apneDeler(page);
+    await page.getByRole('button', { name: /^Lite monster/ }).click();
+    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
+    const r = await new AxeBuilder({ page })
+      .include(isMobile ? '.ark' : '.flytpanel')
+      .include('.bunnbrett')
       .analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });

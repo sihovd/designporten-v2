@@ -11,6 +11,7 @@ import { reduserBevegelse } from '../../shell/tema';
 import { brukBenk } from '../../shell/bruk-benk';
 import { erBuildforgeResultat, evidensTekst, type Funn } from './bygg';
 import { brukStatus, statusTekst } from './Inspektor';
+import { familieFor } from './parametre';
 import { MX_PROVE } from './profil';
 import { brukEditor, editor } from './tilstand';
 
@@ -75,6 +76,8 @@ export function Klikkbrett({ benk }: { benk: Arbeidsbenk }) {
   const [vis, settVis] = useState(false);
   const stopp = useRef<(() => void) | null>(null);
   const antallFeil = funn.filter((f) => f.niva === 'feil').length;
+  const p = t.dok.parametre as { familie?: 'klikker' | 'figur' };
+  const klikker = familieFor(p) === 'klikker';
 
   useEffect(() => () => stopp.current?.(), []);
   // open the list by itself when something must be fixed
@@ -86,33 +89,35 @@ export function Klikkbrett({ benk }: { benk: Arbeidsbenk }) {
   const st = statusTekst[status];
   return (
     <div class="bf-brett">
-      <div class="bf-klikk" role="group" aria-label="Prøv klikk">
-        <label class="bf-trykk">
-          <span>Prøv klikk</span>
-          <input
-            type="range"
-            min={0}
-            max={VANDRING}
-            step={0.1}
-            value={e.trykk}
-            aria-valuetext={`${tall(e.trykk)} av ${tall(VANDRING)} millimeter nede`}
-            onInput={(ev) => editor.sett({ trykk: Number((ev.target as HTMLInputElement).value) })}
-          />
-          <span class="mono bf-trykk-verdi" aria-hidden="true">
-            {tall(e.trykk)} / {tall(VANDRING)} mm
-          </span>
-        </label>
-        <button
-          type="button"
-          class="kontroll-knapp"
-          onClick={() => {
-            stopp.current?.();
-            stopp.current = spillKlikk();
-          }}
-        >
-          Klikk
-        </button>
-      </div>
+      {klikker && (
+        <div class="bf-klikk" role="group" aria-label="Prøv klikk">
+          <label class="bf-trykk">
+            <span>Prøv klikk</span>
+            <input
+              type="range"
+              min={0}
+              max={VANDRING}
+              step={0.1}
+              value={e.trykk}
+              aria-valuetext={`${tall(e.trykk)} av ${tall(VANDRING)} millimeter nede`}
+              onInput={(ev) => editor.sett({ trykk: Number((ev.target as HTMLInputElement).value) })}
+            />
+            <span class="mono bf-trykk-verdi" aria-hidden="true">
+              {tall(e.trykk)} / {tall(VANDRING)} mm
+            </span>
+          </label>
+          <button
+            type="button"
+            class="kontroll-knapp"
+            onClick={() => {
+              stopp.current?.();
+              stopp.current = spillKlikk();
+            }}
+          >
+            Klikk
+          </button>
+        </div>
+      )}
       <div class="bf-kontroll">
         <button
           type="button"
@@ -137,7 +142,9 @@ export function Klikkbrett({ benk }: { benk: Arbeidsbenk }) {
           <ul id="bf-funnliste" class="bf-funnliste" role="list" aria-live="polite">
             {status === 'beregner' && <li class="bf-funn">Kontrollerer modellen …</li>}
             {status !== 'beregner' && !funn.length && (
-              <li class="bf-funn info">Ingen problemer funnet for prøveprofilen.</li>
+              <li class="bf-funn info">
+                Ingen problemer funnet for {klikker ? 'prøveprofilen' : 'leddprofilen'}.
+              </li>
             )}
             {status !== 'beregner' &&
               funn.map((f, i) => (
