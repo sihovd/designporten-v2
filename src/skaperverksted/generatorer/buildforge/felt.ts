@@ -5,13 +5,25 @@
  * the top.
  */
 import type { Form, Kropp } from './parametre';
-import { avrundetBoks, kule, plasser, smin, sylinder, TOM, type Boks, type Felt, type V3 } from './sdf';
+import {
+  avrundetBoks,
+  kjegle,
+  kule,
+  plasser,
+  smin,
+  sylinder,
+  TOM,
+  type Boks,
+  type Felt,
+  type V3,
+} from './sdf';
 
 /** The field of one shape, including its mirror copy when it is symmetric. */
 export function formFelt(f: Form): Felt {
   let lokal: Felt;
   if (f.type === 'kule') lokal = kule(f.mal[0] / 2);
   else if (f.type === 'boks') lokal = avrundetBoks(f.mal[0] / 2, f.mal[1] / 2, f.mal[2] / 2, f.avrunding);
+  else if (f.type === 'kjegle') lokal = kjegle(f.mal[0] / 2, f.mal[2], f.avrunding);
   else lokal = sylinder(f.mal[0] / 2, f.mal[2], f.avrunding);
   const felt = plasser(lokal, f.posisjon, f.rotasjon);
   if (!f.speilet) return felt;
@@ -25,7 +37,7 @@ export function formBoks(f: Form): Boks {
       ? f.mal[0] / 2
       : f.type === 'boks'
         ? Math.hypot(f.mal[0], f.mal[1], f.mal[2]) / 2
-        : Math.hypot(f.mal[0] / 2, f.mal[2] / 2);
+        : Math.hypot(f.mal[0] / 2, f.mal[2] / 2); // sylinder and kjegle
   // a smooth union can bulge by up to k/4 beyond the shapes
   const ekstra = f.operasjon === 'smelt' ? f.smelting / 4 : 0;
   const p = f.posisjon;

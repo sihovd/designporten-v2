@@ -1,13 +1,16 @@
-/** BuildForge plug-in: library, attachment points, Enkel/Avansert, «Prøv klikk» and live checks. */
+/** BuildForge plug-in: library, attachment points, handles, Enkel/Avansert, «Prøv klikk» and live checks. */
+import { Fragment, h } from 'preact';
 import type { GeneratorPlugin } from '../../core/generator';
 import { finnMateriale, materialtyper } from '../../core/materialer';
 import { Bibliotekpanel } from './Bibliotekpanel';
 import { Festeoverlegg } from './Festeoverlegg';
+import { Handtaksverktoy } from './Handtaksverktoy';
 import { dupliserForm, flyttForm, slettForm } from './handlinger';
 import { BuildforgeInspektor } from './Inspektor';
 import { Klikkbrett, spillKlikk } from './Klikkbrett';
 import { buildforgeKjerne } from './kjerne';
-import { editor } from './tilstand';
+import { familieFor } from './parametre';
+import { editor, type Verktoy } from './tilstand';
 import { tilpassBuildforge3d } from './tre';
 import './buildforge.css';
 
@@ -17,7 +20,7 @@ const plugin: GeneratorPlugin = {
     Venstrepanel: Bibliotekpanel,
     Inspektor: BuildforgeInspektor,
     Bunnbrett: Klikkbrett,
-    Overlegg3d: Festeoverlegg,
+    Overlegg3d: (props) => h(Fragment, null, h(Festeoverlegg, props), h(Handtaksverktoy, null)),
   },
   tilpass3d: tilpassBuildforge3d,
   // smooth shading: the formed surfaces are meshed from fields; tre.ts adds the normals
@@ -33,7 +36,8 @@ const plugin: GeneratorPlugin = {
   hurtigtaster(e, benk) {
     const mod = e.ctrlKey || e.metaKey;
     const valgt = editor.t.valgt;
-    if (!mod && !e.altKey && e.key.toLowerCase() === 'k') {
+    const klikker = familieFor(benk.dok.parametre as { familie?: 'klikker' | 'figur' }) === 'klikker';
+    if (klikker && !mod && !e.altKey && e.key.toLowerCase() === 'k') {
       spillKlikk();
       return true;
     }
@@ -44,6 +48,11 @@ const plugin: GeneratorPlugin = {
     if (!valgt) return false;
     if (e.key === 'Delete' || e.key === 'Backspace') {
       slettForm(benk, valgt);
+      return true;
+    }
+    const verktoy: Record<string, Verktoy> = { g: 'flytt', r: 'roter', s: 'skaler' };
+    if (!mod && !e.altKey && verktoy[e.key.toLowerCase()]) {
+      editor.sett({ verktoy: verktoy[e.key.toLowerCase()] });
       return true;
     }
     if (mod && e.key.toLowerCase() === 'd') {
@@ -70,11 +79,12 @@ const plugin: GeneratorPlugin = {
     ['Dra en del til et lilla punkt', 'Fest delen på modellen'],
     ['Velg en del, så et punkt i listen', 'Fest uten å dra'],
     ['Klikk på modellen', 'Velg formen der'],
+    ['G / R / S', 'Håndtak for å flytte, rotere eller skalere valgt form'],
     ['Piltaster', 'Flytt valgt form 1 mm (Shift: 10 mm)'],
     ['Page Up / Page Down', 'Flytt valgt form opp eller ned'],
     ['Delete', 'Slett valgt form'],
     ['Ctrl/Cmd + D', 'Dupliser valgt form'],
-    ['K', 'Prøv klikk'],
+    ['K', 'Prøv klikk (klikkere)'],
     ['Esc', 'Avbryt plassering eller fjern valget'],
   ],
 };

@@ -58,7 +58,7 @@ export interface Klikkersnitt {
   min: [number, number];
   maks: [number, number];
   vandring: number;
-  farger: Record<Kropp, string>;
+  farger: Record<'topp' | 'underdel', string>;
 }
 
 function kroppsfelt(p: BuildforgeParametre, mek: Mekanikk, kropp: Kropp): Felt {
@@ -100,6 +100,6 @@ export function klikkersnitt(malId = 'knapp', g = 0.4): Klikkersnitt {
     min: [x0, z0],
     maks: [x1, z1],
     vandring: mek.mal.vandring,
-    farger: p.farger,
+    farger: { topp: p.farger.topp!, underdel: p.farger.underdel! },
   };
 }

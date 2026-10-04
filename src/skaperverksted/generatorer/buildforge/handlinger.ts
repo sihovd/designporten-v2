@@ -5,9 +5,20 @@
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { nyId } from '../../core/dokument';
 import { klem } from '../../core/enheter';
-import { finnDel, finnStartmal, plasserDel, startmaler, type FestepunktId } from './bibliotek';
+import { finnDel, finnStartmal, passer, plasserDel, startmaler, type FestepunktId } from './bibliotek';
 import { festepunkter } from './feste';
-import { GRENSER, tolkParametre, type BuildforgeParametre, type Form } from './parametre';
+import { erGrunnform, finnGrunnmodell, grunnformer } from './figur';
+import { erBuildforgeResultat } from './funn';
+import {
+  GRENSER,
+  kroppBestemt,
+  revisjon,
+  tolkParametre,
+  type BuildforgeParametre,
+  type FigurKropp,
+  type Form,
+  type Kropp,
+} from './parametre';
 import { editor } from './tilstand';
 
 /** The current project, or null when the stored data is invalid (the build reports why). */
@@ -48,7 +59,7 @@ export function endreForm(
 
 export function velgMal(benk: Arbeidsbenk, malId: string): void {
   const mal = finnStartmal(malId);
-  editor.sett({ valgt: null, merket: [], plasserer: null });
+  editor.sett({ valgt: null, merket: [], plasserer: null, trykk: 0 });
   const malnavn = new Set(startmaler.map((m) => m.navn));
   benk.endre({
     navn: `Start fra «${mal.navn}»`,
@@ -60,6 +71,13 @@ export function velgMal(benk: Arbeidsbenk, malId: string): void {
     }),
   });
   benk.melde(`Startet fra «${mal.navn}».`);
+  // frame the new model once it is built (a figure is taller than a clicker)
+  const rev = revisjon(benk.dok.parametre);
+  const av = benk.lytt((t) => {
+    if (t.bygger || !erBuildforgeResultat(t.modell) || t.modell.kontroll.revisjon !== rev) return;
+    av();
+    requestAnimationFrame(() => requestAnimationFrame(() => benk.kommando('tilpass')));
+  });
 }
 
 /** Attach a library part at an attachment point. Returns false when it does not fit there. */
@@ -67,7 +85,7 @@ export function festDel(benk: Arbeidsbenk, delId: string, punktId: FestepunktId)
   const del = finnDel(delId);
   const p = parametre(benk);
   if (!del || !p) return false;
-  if (!del.passer.includes(punktId)) {
+  if (!passer(del, punktId)) {
     benk.melde(`${del.navn} passer ikke der.`);
     return false;
   }
@@ -154,4 +172,52 @@ export function skalerForm(benk: Arbeidsbenk, id: string, faktor: number, slaSam
     },
     slaSammen,
   );
+}
+
+/** Figure: swap a segment's base model. Shapes the user added stay where they are on the segment. */
+export function velgGrunnmodell(benk: Arbeidsbenk, kropp: FigurKropp, id: string): void {
+  const m = finnGrunnmodell(kropp, id);
+  const p = parametre(benk);
+  if (!m || !p || p.grunnmodeller?.[kropp] === id) return;
+  const nye = grunnformer(kropp, m);
+  endre(benk, `Bytt grunnmodell for ${kroppBestemt[kropp]}`, (q) => {
+    const gamle = (f: Form) => f.kropp === kropp && erGrunnform(f);
+    const i = q.former.findIndex(gamle);
+    const resten = q.former.filter((f) => !gamle(f));
+    const plass =
+      i < 0
+        ? resten.findIndex((f) => f.kropp === kropp)
+        : q.former.slice(0, i).filter((f) => !gamle(f)).length;
+    const former = [...resten];
+    former.splice(plass < 0 ? former.length : plass, 0, ...nye);
+    return { ...q, grunnmodeller: { ...q.grunnmodeller, [kropp]: id }, former };
+  });
+  if (editor.t.valgt && !parametre(benk)?.former.some((f) => f.id === editor.t.valgt))
+    editor.sett({ valgt: null, merket: [] });
+  benk.melde(`${m.navn} ${kroppBestemt[kropp]} er valgt.`);
+}
+
+export function settFarge(benk: Arbeidsbenk, kropp: Kropp, materialId: string): void {
+  endre(benk, `Endre farge på ${kroppBestemt[kropp]}`, (q) => ({
+    ...q,
+    farger: { ...q.farger, [kropp]: materialId },
+  }));
+}
+
+/** Set position, rotation and size in one step (the handles in the 3D view). */
+export function transformerForm(
+  benk: Arbeidsbenk,
+  id: string,
+  navn: string,
+  endring: Pick<Form, 'posisjon' | 'rotasjon' | 'mal'>,
+): void {
+  const r = (v: number) => Math.round(v * 10) / 10;
+  endreForm(benk, id, navn, (f) => ({
+    ...f,
+    posisjon: endring.posisjon.map((v) =>
+      r(klem(v, GRENSER.posisjon.min, GRENSER.posisjon.maks)),
+    ) as Form['posisjon'],
+    rotasjon: endring.rotasjon.map((v) => r(klem(v, -360, 360))) as Form['rotasjon'],
+    mal: endring.mal.map((v) => r(klem(v, GRENSER.mal.min, GRENSER.mal.maks))) as Form['mal'],
+  }));
 }

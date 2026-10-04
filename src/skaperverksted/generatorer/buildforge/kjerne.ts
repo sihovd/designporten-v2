@@ -11,6 +11,7 @@ import { beregn } from './beregning';
 import { meta } from './meta';
 import { filnavn } from '../../eksport/tremf';
 import { lagRapport } from './rapport';
+import { familieFor } from './parametre';
 
 export const PROTOTYPEMERKE = 'Digital prototype: mekanikken er ikke fysisk testet';
 
@@ -52,9 +53,11 @@ export const buildforgeKjerne: Omit<GeneratorPlugin, 'ui'> = {
           'Kontrollen fant feil som må rettes før filene kan lastes ned. Prosjektet kan fortsatt lagres. Se merknadene over.',
         vedlegg: rapport,
       };
+    const figur = familieFor(dok.parametre as { familie?: 'klikker' | 'figur' }) === 'figur';
     return {
-      merknad:
-        'Dette er en prototype. Mekanikken er ikke fysisk testet, så passform, klikk og retur er ikke bekreftet. Filene er ikke godkjent for produksjon eller salg. Bryteren kjøper du selv; den er ikke med i filene.',
+      merknad: figur
+        ? 'Dette er en prototype. Leddene er ikke fysisk testet, så det er ikke kjent om pluggene sitter for stramt eller for løst. Hver del er en egen fil; sett figuren sammen etter utskrift. Filene er ikke godkjent for produksjon eller salg, og figuren er ikke testet som leketøy.'
+        : 'Dette er en prototype. Mekanikken er ikke fysisk testet, så passform, klikk og retur er ikke bekreftet. Filene er ikke godkjent for produksjon eller salg. Bryteren kjøper du selv; den er ikke med i filene.',
       stlPerDel: true,
       vedlegg: rapport,
     };

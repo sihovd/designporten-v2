@@ -8,41 +8,74 @@
  * festepunkter»).
  */
 import { nyId } from '../../core/dokument';
-import type { BuildforgeParametre, Form, Formtype } from './parametre';
+import { FIGURLEDD_PROVE, finnGrunnmodell, grunnformer } from './figur';
+import {
+  erPar,
+  figurKropper,
+  kroppBestemt,
+  type BuildforgeParametre,
+  type Familie,
+  type FigurKropp,
+  type Form,
+  type Formtype,
+  type Kropp,
+} from './parametre';
 import { MX_PROVE } from './profil';
 
-export type FestepunktId =
-  | 'topp-midt'
-  | 'topp-front'
-  | 'topp-venstre'
-  | 'topp-hoyre'
-  | 'topp-bak'
-  | 'underdel-front'
-  | 'underdel-venstre'
-  | 'underdel-hoyre'
-  | 'underdel-bak';
+/** Which face of a body an attachment point is on, seen from the front (−Y). `utside` = the outer side of a pair. */
+export type Retning = 'midt' | 'front' | 'venstre' | 'hoyre' | 'bak' | 'utside';
+export type FestepunktId = `${Kropp}-${Retning}`;
 
-export const festenavn: Record<FestepunktId, string> = {
-  'topp-midt': 'Toppen, øverst',
-  'topp-front': 'Toppen, foran',
-  'topp-venstre': 'Toppen, venstre side',
-  'topp-hoyre': 'Toppen, høyre side',
-  'topp-bak': 'Toppen, bak',
-  'underdel-front': 'Underdelen, foran',
-  'underdel-venstre': 'Underdelen, venstre side',
-  'underdel-hoyre': 'Underdelen, høyre side',
-  'underdel-bak': 'Underdelen, bak',
+export const retningnavn: Record<Retning, string> = {
+  midt: 'øverst',
+  front: 'foran',
+  venstre: 'venstre side',
+  hoyre: 'høyre side',
+  bak: 'bak',
+  utside: 'utsiden',
 };
 
-export const alleFestepunkter = Object.keys(festenavn) as FestepunktId[];
+/** The faces each body offers. Faces that meet another part (the neck, the shoulders) are left out. */
+export const festeretninger: Record<Kropp, Retning[]> = {
+  topp: ['midt', 'front', 'venstre', 'hoyre', 'bak'],
+  underdel: ['front', 'venstre', 'hoyre', 'bak'],
+  hode: ['midt', 'front', 'venstre', 'hoyre', 'bak'],
+  kropp: ['front', 'bak'],
+  armer: ['front', 'bak', 'utside'],
+  hender: ['front', 'utside'],
+  bein: ['front', 'bak', 'utside'],
+  fotter: ['front', 'utside'],
+};
 
-/** A shape inside a library part, positioned relative to the attachment point (local frame: +Z = out of the surface). */
+export function delAv(id: FestepunktId): { kropp: Kropp; retning: Retning } {
+  const i = id.lastIndexOf('-');
+  return { kropp: id.slice(0, i) as Kropp, retning: id.slice(i + 1) as Retning };
+}
+
+export function festenavn(id: FestepunktId): string {
+  const { kropp, retning } = delAv(id);
+  const b = kroppBestemt[kropp];
+  return `${b.charAt(0).toUpperCase()}${b.slice(1)}, ${retningnavn[retning]}`;
+}
+
+export function festepunkterFor(familie: Familie): FestepunktId[] {
+  const kropper: Kropp[] = familie === 'figur' ? figurKropper : ['topp', 'underdel'];
+  return kropper.flatMap((k) => festeretninger[k].map((r) => `${k}-${r}` as FestepunktId));
+}
+
+/** The clicker's attachment points. */
+export const alleFestepunkter = festepunkterFor('klikker');
+
+/** A shape inside a library part, positioned relative to the attachment point. */
 interface Delform {
   type: Formtype;
   mal: [number, number, number];
   avrunding?: number;
-  /** Offset in the attachment frame: [sideways, up, out]. */
+  /** Offset in the attachment frame: [sideways, up, out of the surface]. */
   forskyvning: [number, number, number];
+  /** Fixed rotation (degrees), or pointing straight out of the surface. */
+  rotasjon?: [number, number, number];
+  langsNormal?: boolean;
   speilet?: boolean;
   smelting?: number;
 }
@@ -52,9 +85,13 @@ export interface Bibliotekdel {
   versjon: string;
   navn: string;
   beskrivelse: string;
+  gruppe: 'Grunnformer' | 'Detaljer';
   former: Delform[];
-  passer: FestepunktId[];
+  /** Where the part fits: faces, and optionally only some bodies. */
+  passer: { retninger: Retning[] | 'alle'; kropper?: Kropp[] };
 }
+
+const hoder: Kropp[] = ['topp', 'hode'];
 
 export const bibliotek: Bibliotekdel[] = [
   {
@@ -62,40 +99,107 @@ export const bibliotek: Bibliotekdel[] = [
     versjon: '1',
     navn: 'Kule',
     beskrivelse: 'En rund form som smelter mykt inn.',
+    gruppe: 'Grunnformer',
     former: [{ type: 'kule', mal: [12, 12, 12], forskyvning: [0, 0, 2.4] }],
-    passer: alleFestepunkter,
+    passer: { retninger: 'alle' },
   },
   {
     id: 'boks',
     versjon: '1',
     navn: 'Avrundet boks',
     beskrivelse: 'En kloss med myke kanter.',
+    gruppe: 'Grunnformer',
     former: [{ type: 'boks', mal: [12, 12, 8], avrunding: 2, forskyvning: [0, 0, 1.6] }],
-    passer: alleFestepunkter,
+    passer: { retninger: 'alle' },
   },
   {
     id: 'sylinder',
     versjon: '1',
     navn: 'Sylinder',
     beskrivelse: 'En rund søyle eller skive.',
+    gruppe: 'Grunnformer',
     former: [{ type: 'sylinder', mal: [10, 10, 8], avrunding: 1, forskyvning: [0, 0, 1.6] }],
-    passer: alleFestepunkter,
+    passer: { retninger: 'alle' },
+  },
+  {
+    id: 'kjegle',
+    versjon: '1',
+    navn: 'Kjegle',
+    beskrivelse: 'En spiss form som peker rett ut.',
+    gruppe: 'Grunnformer',
+    former: [{ type: 'kjegle', mal: [10, 10, 12], avrunding: 1, forskyvning: [0, 0, 4], langsNormal: true }],
+    passer: { retninger: 'alle' },
   },
   {
     id: 'oyne',
     versjon: '1',
     navn: 'Øyne',
-    beskrivelse: 'To like øyne, speilet. Passer foran på toppen.',
+    beskrivelse: 'To like øyne, speilet. Passer foran på hodet eller toppen.',
+    gruppe: 'Detaljer',
     former: [{ type: 'kule', mal: [5, 5, 5], forskyvning: [4, 1.5, 0.8], speilet: true, smelting: 1 }],
-    passer: ['topp-front'],
+    passer: { retninger: ['front'], kropper: hoder },
+  },
+  {
+    id: 'horn',
+    versjon: '1',
+    navn: 'Horn',
+    beskrivelse: 'To horn som peker litt utover, speilet. Passer øverst på hodet eller toppen.',
+    gruppe: 'Detaljer',
+    former: [
+      {
+        type: 'kjegle',
+        mal: [6, 6, 12],
+        avrunding: 0.8,
+        forskyvning: [5, 0, 4.5],
+        rotasjon: [0, 20, 0],
+        speilet: true,
+        smelting: 2,
+      },
+    ],
+    passer: { retninger: ['midt'], kropper: hoder },
+  },
+  {
+    id: 'pigger',
+    versjon: '1',
+    navn: 'Pigger',
+    beskrivelse: 'Tre pigger på rad. Passer øverst eller bak.',
+    gruppe: 'Detaljer',
+    former: [
+      {
+        type: 'kjegle',
+        mal: [5, 5, 7],
+        avrunding: 0.3,
+        forskyvning: [0, -5, 2.5],
+        langsNormal: true,
+        smelting: 1.5,
+      },
+      {
+        type: 'kjegle',
+        mal: [5, 5, 7],
+        avrunding: 0.3,
+        forskyvning: [0, 0, 3],
+        langsNormal: true,
+        smelting: 1.5,
+      },
+      {
+        type: 'kjegle',
+        mal: [5, 5, 7],
+        avrunding: 0.3,
+        forskyvning: [0, 5, 2.5],
+        langsNormal: true,
+        smelting: 1.5,
+      },
+    ],
+    passer: { retninger: ['midt', 'bak'] },
   },
   {
     id: 'orer',
     versjon: '1',
     navn: 'Ører',
-    beskrivelse: 'To runde ører, speilet. Passer øverst på toppen.',
+    beskrivelse: 'To runde ører, speilet. Passer øverst på hodet eller toppen.',
+    gruppe: 'Detaljer',
     former: [{ type: 'kule', mal: [8, 8, 8], forskyvning: [7, 0, 1.6], speilet: true, smelting: 2 }],
-    passer: ['topp-midt'],
+    passer: { retninger: ['midt'], kropper: hoder },
   },
 ];
 
@@ -103,21 +207,31 @@ export function finnDel(id: string): Bibliotekdel | undefined {
   return bibliotek.find((d) => d.id === id);
 }
 
-export function kroppFor(punkt: FestepunktId): 'topp' | 'underdel' {
-  return punkt.startsWith('topp') ? 'topp' : 'underdel';
+export function passer(del: Bibliotekdel, id: FestepunktId): boolean {
+  const { kropp, retning } = delAv(id);
+  if (del.passer.kropper && !del.passer.kropper.includes(kropp)) return false;
+  return del.passer.retninger === 'alle' || del.passer.retninger.includes(retning);
+}
+
+export function kroppFor(punkt: FestepunktId): Kropp {
+  return delAv(punkt).kropp;
 }
 
 export interface Festepunkt {
   id: FestepunktId;
-  /** Point on the current surface (mm). */
+  /** Point on the current surface (mm, model coordinates). */
   punkt: [number, number, number];
   /** Outward direction. */
   normal: [number, number, number];
+  /** Origin of the body's frame: shapes are stored relative to it. */
+  origo: [number, number, number];
 }
 
+const grader = (r: number) => Math.round(((r * 180) / Math.PI) * 10) / 10;
+
 /**
- * Shapes for a library part placed at an attachment point. Pure; the
- * caller applies them as one undoable change.
+ * Shapes for a library part placed at an attachment point, in the body's
+ * frame. Pure; the caller applies them as one undoable change.
  */
 export function plasserDel(del: Bibliotekdel, feste: Festepunkt): Form[] {
   const n = feste.normal;
@@ -129,12 +243,20 @@ export function plasserDel(del: Bibliotekdel, feste: Festepunkt): Form[] {
     opp[0] * n[1] - opp[1] * n[0],
   ];
   const kropp = kroppFor(feste.id);
+  // shapes in a pair are mirrored with the whole segment, not inside it
+  const kanSpeiles = !erPar(kropp);
+  // pointing out of the surface: R = Ry(b)·Rx(a) maps +Z to n
+  const ut: [number, number, number] = [
+    grader(-Math.asin(Math.max(-1, Math.min(1, n[1])))),
+    grader(Math.atan2(n[0], n[2])),
+    0,
+  ];
   return del.former.map((d, i) => {
     const [a, b, c] = d.forskyvning;
     const pos: [number, number, number] = [0, 1, 2].map(
-      (k) => feste.punkt[k]! + side[k]! * a + opp[k]! * b + n[k]! * c,
+      (k) => feste.punkt[k]! + side[k]! * a + opp[k]! * b + n[k]! * c - feste.origo[k]!,
     ) as [number, number, number];
-    const speilet = !!d.speilet;
+    const speilet = kanSpeiles && !!d.speilet;
     // a mirrored part sits on the +X side; its copy is on −X
     if (speilet) pos[0] = Math.abs(pos[0]);
     return {
@@ -143,7 +265,7 @@ export function plasserDel(del: Bibliotekdel, feste: Festepunkt): Form[] {
       kropp,
       type: d.type,
       posisjon: pos.map((v) => Math.round(v * 10) / 10) as [number, number, number],
-      rotasjon: [0, 0, 0],
+      rotasjon: d.langsNormal ? ut : (d.rotasjon ?? [0, 0, 0]),
       mal: d.mal,
       avrunding: d.avrunding ?? 0,
       operasjon: 'smelt',
@@ -156,6 +278,7 @@ export function plasserDel(del: Bibliotekdel, feste: Festepunkt): Form[] {
 
 export interface Startmal {
   id: string;
+  familie: Familie;
   navn: string;
   beskrivelse: string;
   parametre: () => BuildforgeParametre;
@@ -163,7 +286,7 @@ export interface Startmal {
 
 function form(
   navn: string,
-  kropp: 'topp' | 'underdel',
+  kropp: Kropp,
   type: Formtype,
   posisjon: [number, number, number],
   mal: [number, number, number],
@@ -190,6 +313,7 @@ const profil = { id: MX_PROVE.id, versjon: MX_PROVE.versjon };
 export const startmaler: Startmal[] = [
   {
     id: 'knapp',
+    familie: 'klikker',
     navn: 'Enkel knapp',
     beskrivelse: 'En myk kloss på toppen. Godt sted å begynne.',
     parametre: () => ({
@@ -202,6 +326,7 @@ export const startmaler: Startmal[] = [
   },
   {
     id: 'sopp',
+    familie: 'klikker',
     navn: 'Sopp',
     beskrivelse: 'En bred hatt på toppen og en rund fot.',
     parametre: () => ({
@@ -218,8 +343,9 @@ export const startmaler: Startmal[] = [
   },
   {
     id: 'figur',
-    navn: 'Liten figur',
-    beskrivelse: 'Et rundt hode med øyne og ører.',
+    familie: 'klikker',
+    navn: 'Hode med ører',
+    beskrivelse: 'Et rundt hode med øyne og ører på knappen.',
     parametre: () => ({
       skjema: 1,
       profil,
@@ -241,6 +367,94 @@ export const startmaler: Startmal[] = [
     }),
   },
 ];
+
+function figurMal(
+  id: string,
+  navn: string,
+  beskrivelse: string,
+  valg: Record<FigurKropp, string>,
+  farger: Record<FigurKropp, string>,
+  pynt: Form[],
+): Startmal {
+  return {
+    id,
+    familie: 'figur',
+    navn,
+    beskrivelse,
+    parametre: () => ({
+      skjema: 1,
+      familie: 'figur',
+      profil: { id: FIGURLEDD_PROVE.id, versjon: FIGURLEDD_PROVE.versjon },
+      mal: id,
+      farger: { ...farger },
+      grunnmodeller: { ...valg },
+      former: [
+        ...figurKropper.flatMap((k) => grunnformer(k, finnGrunnmodell(k, valg[k])!)),
+        ...pynt.map((f) => ({ ...structuredClone(f), id: nyId('f') })),
+      ],
+    }),
+  };
+}
+
+startmaler.push(
+  figurMal(
+    'venn',
+    'Liten venn',
+    'En rund figur med votter og støvler. Hodet, armene og beina kan dreies.',
+    { hode: 'rund', kropp: 'rund', armer: 'tynne', hender: 'votter', bein: 'korte', fotter: 'stovler' },
+    {
+      hode: 'pla-cyan',
+      kropp: 'pla-cyan',
+      armer: 'pla-cyan',
+      hender: 'matt-sand',
+      bein: 'pla-grafitt',
+      fotter: 'pla-rust',
+    },
+    [
+      form('Øyne', 'hode', 'kule', [4, -11.4, 14], [5, 5, 5], {
+        smelting: 1,
+        speilet: true,
+        komponent: { id: 'oyne', versjon: '1' },
+      }),
+    ],
+  ),
+  figurMal(
+    'monster',
+    'Lite monster',
+    'Kantete hode med horn, pigger på ryggen og klør.',
+    { hode: 'kantet', kropp: 'kloss', armer: 'kraftige', hender: 'kloer', bein: 'korte', fotter: 'runde' },
+    {
+      hode: 'pla-skog',
+      kropp: 'pla-skog',
+      armer: 'pla-skog',
+      hender: 'pla-signal',
+      bein: 'pla-skog',
+      fotter: 'pla-signal',
+    },
+    [
+      form('Øyne', 'hode', 'kule', [4.5, -10.6, 13], [5, 5, 5], {
+        smelting: 1,
+        speilet: true,
+        komponent: { id: 'oyne', versjon: '1' },
+      }),
+      form('Horn', 'hode', 'kjegle', [6, 0, 25], [6, 6, 12], {
+        rotasjon: [0, 20, 0],
+        avrunding: 0.8,
+        smelting: 2,
+        speilet: true,
+        komponent: { id: 'horn', versjon: '1' },
+      }),
+      ...[-7, 1, 9].map((z, i) =>
+        form(`Pigg ${i + 1}`, 'kropp', 'kjegle', [0, 10.5, z], [5, 5, 7], {
+          rotasjon: [-90, 0, 0],
+          avrunding: 0.3,
+          smelting: 1.5,
+          komponent: { id: 'pigger', versjon: '1' },
+        }),
+      ),
+    ],
+  ),
+);
 
 export function finnStartmal(id: string): Startmal {
   return startmaler.find((m) => m.id === id) ?? startmaler[0]!;
