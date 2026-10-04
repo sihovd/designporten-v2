@@ -12,12 +12,25 @@ async function apneEgenskaper(page: Page) {
   if ((await knapp.isVisible()) && (await knapp.getAttribute('aria-pressed')) !== 'true') await knapp.click();
 }
 
-test.describe('BuildForge', () => {
+async function apneNy(page: Page) {
+  await page.goto('/skaperverksted/buildforge/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+}
+
+/** A new document opens «La oss bygge en …»; choose a start in it. */
+async function velgStart(page: Page, navn: RegExp) {
+  const dialog = page.getByRole('dialog', { name: 'La oss bygge en …' });
+  await expect(dialog).toBeVisible({ timeout: 20_000 });
+  await dialog.getByRole('button', { name: navn }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
+}
+
+test.describe('BuildForge-klikker', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/skaperverksted/buildforge/');
-    await page.evaluate(() => localStorage.clear());
-    await page.reload();
-    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 20_000 });
+    await apneNy(page);
+    await velgStart(page, /^Enkel knapp/);
   });
 
   test('viser prototypen ærlig og grønn startmodell', async ({ page }) => {
@@ -89,45 +102,97 @@ test.describe('BuildForge', () => {
       .analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
+});
 
-  test('bygger en figur med grunnmodeller, håndtak og farge per del', async ({ page }) => {
-    await apneDeler(page);
-    await page.getByRole('button', { name: /^Liten venn/ }).click();
-    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
-    await expect(page.locator('.statuslinje')).toContainText('10 deler', { ignoreCase: true });
+test.describe('BuildForge-modulbygger', () => {
+  test.beforeEach(async ({ page }) => {
+    await apneNy(page);
+  });
 
+  test('startvelgeren har ingen tilgjengelighetsfeil', async ({ page }) => {
+    const dialog = page.getByRole('dialog', { name: 'La oss bygge en …' });
+    await expect(dialog).toBeVisible({ timeout: 20_000 });
+    const r = await new AxeBuilder({ page }).include('.bf-startvelger').analyze();
+    expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
+
+  test('bygger et menneske uten å dra, bytter ut en del og går inn i den', async ({ page }) => {
+    await velgStart(page, /^Menneske/);
     await apneDeler(page);
+    const tre = page.getByRole('region', { name: 'Modellen' });
+    await expect(tre.getByRole('button', { name: /Smal kropp/ })).toBeVisible();
+
+    // choose a part, then a connector from the list
+    await page.getByRole('button', { name: 'Rundt hode', exact: true }).click();
     await page
-      .getByRole('radiogroup', { name: 'Grunnmodell for bein' })
-      .getByRole('radio', { name: 'Lange' })
+      .getByRole('group', { name: 'Plasser rundt hode' })
+      .getByRole('button', { name: 'Smal kropp · hals' })
       .click();
     await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
-
-    // select a shape: the handle tools appear, and R switches to turning
     await apneDeler(page);
-    await page.getByRole('button', { name: /^Hode Kule/ }).click();
-    const handtak = page.getByRole('group', { name: 'Håndtak på valgt form' });
-    await expect(handtak.getByRole('button', { name: /Flytt/ })).toHaveAttribute('aria-pressed', 'true');
-    await page.locator('body').press('r');
-    await expect(handtak.getByRole('button', { name: /Roter/ })).toHaveAttribute('aria-pressed', 'true');
+    await expect(tre.getByRole('button', { name: /Rundt hode/ })).toBeVisible();
 
-    // colour of the selected shape's part
+    await page.getByRole('button', { name: 'Tynn arm', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'Plasser tynn arm' })
+      .getByRole('button', { name: 'Smal kropp · høyre skulder' })
+      .click();
+    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
+    await expect(page.locator('.statuslinje')).toContainText('3 deler', { ignoreCase: true });
+
+    // replace the head: select it, «Bytt ut», choose the new one
+    await apneDeler(page);
+    await tre.getByRole('button', { name: /Rundt hode/ }).click();
     await apneEgenskaper(page);
-    const farge = page.getByLabel('Farge på hodet');
-    await farge.selectOption('pla-rosa');
-    await expect(farge).toHaveValue('pla-rosa');
+    await page.getByRole('button', { name: 'Bytt ut', exact: true }).click();
+    await apneDeler(page);
+    await page.getByRole('button', { name: 'Dragehode', exact: true }).click();
+    await expect(tre.getByRole('button', { name: /Dragehode/ })).toBeVisible();
+    await expect(tre.getByRole('button', { name: /Rundt hode/ })).toHaveCount(0);
+    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
+
+    // work inside the part, then Esc out
+    await tre.getByRole('button', { name: /Dragehode/ }).dblclick();
+    await expect(page.getByRole('navigation', { name: 'Hvor du er', exact: true })).toContainText(
+      'Dragehode',
+    );
+    await page.getByRole('button', { name: 'Horn', exact: true }).click();
+    await page.getByRole('group', { name: 'Fest horn på' }).getByRole('button').first().click();
+    await expect(page.locator('#bf-kontroll')).toContainText(/Grønn|Gul/, { timeout: 30_000 });
+    await page.locator('body').press('Escape');
+    await page.locator('body').press('Escape');
+    await expect(page.getByRole('navigation', { name: 'Hvor du er', exact: true })).toHaveCount(0);
 
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
     await expect(dialog.getByText('Leddene er ikke fysisk testet')).toBeVisible({ timeout: 20_000 });
-    await expect(dialog.getByRole('button', { name: 'STL: Arm (høyre)' })).toBeVisible();
-    await expect(dialog.getByText('Hode: Rosa')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'STL: Dragehode' })).toBeVisible();
   });
 
-  test('figuren har ingen tilgjengelighetsfeil', async ({ page, isMobile }) => {
+  test('drar en kroppsdel ut på platen som en løs del', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Dra med mus; på berøring brukes valg og liste');
+    await velgStart(page, /^Skapning/);
+    const knapp = page.getByRole('button', { name: 'Vinge', exact: true });
+    await knapp.scrollIntoViewIfNeeded();
+    const lerret = page.locator('.visning3d canvas').first();
+    const b = (await knapp.boundingBox())!;
+    const l = (await lerret.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(l.x + l.width * 0.85, l.y + l.height * 0.8, { steps: 12 });
+    await expect(page.locator('.bf-drahint')).toBeVisible();
+    await page.mouse.up();
+    const tre = page.getByRole('region', { name: 'Modellen' });
+    await expect(tre.getByRole('heading', { name: 'Løse deler' })).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#bf-kontroll')).toContainText(/Gul|Rød/, { timeout: 30_000 });
+    await page.getByRole('button', { name: 'Angre' }).first().click();
+    await expect(tre.getByRole('heading', { name: 'Løse deler' })).toHaveCount(0);
+  });
+
+  test('modulbyggeren har ingen tilgjengelighetsfeil', async ({ page, isMobile }) => {
+    await velgStart(page, /^Drage/);
     await apneDeler(page);
-    await page.getByRole('button', { name: /^Lite monster/ }).click();
-    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
+    await page.getByRole('button', { name: 'Vinge', exact: true }).click();
     const r = await new AxeBuilder({ page })
       .include(isMobile ? '.ark' : '.flytpanel')
       .include('.bunnbrett')

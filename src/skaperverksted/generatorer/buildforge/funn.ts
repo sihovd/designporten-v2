@@ -3,8 +3,7 @@
  * the build result type the editor, the export and the report read.
  */
 import type { Advarsel, Modellresultat } from '../../core/generator';
-import type { Leddprofil } from './figur';
-import type { Kropp } from './parametre';
+import type { Leddprofil } from './ledd';
 import type { Mekanikkprofil } from './profil';
 import type { Boks } from './sdf';
 import type { Sveipresultat } from './sveip';
@@ -31,7 +30,8 @@ export interface Funn {
 export type Digitalstatus = 'gronn' | 'gul' | 'rod';
 
 export interface Kroppsdata {
-  kropp: Kropp;
+  /** Clicker: `topp` or `underdel`. Modular builder: the part's id. */
+  kropp: string;
   /** Solid volume of the body (mm³), from the grid. */
   volum: number;
   tyngdepunkt: [number, number, number];
@@ -45,7 +45,7 @@ export interface Kontroll {
   funn: Funn[];
   /** The clicker's switch profile. */
   profil: Mekanikkprofil | null;
-  /** The figure's joint profile. */
+  /** The modular builder's joint profile. */
   leddprofil?: Leddprofil | null;
   /** Collision through the click (clicker only). */
   sveip: Sveipresultat | null;

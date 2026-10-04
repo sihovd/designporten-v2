@@ -3,9 +3,9 @@ import type { GeneratorMeta } from '../../core/generator';
 export const meta: GeneratorMeta = {
   id: 'buildforge',
   navn: 'BuildForge',
-  undertittel: 'Byggemotor for klikkere og figurer',
+  undertittel: 'Modulær byggemotor for 3D-print',
   beskrivelse:
-    'Bygg en klikker rundt en tastaturbryter, eller en figur med ledd, av former som smelter sammen. Digital prototype.',
+    'Bygg drager, slanger og figurer av kroppsdeler som kobles sammen med ledd, eller en klikker rundt en tastaturbryter. Digital prototype.',
   status: 'under-utvikling',
   rekkefolge: 4,
 };

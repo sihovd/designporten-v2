@@ -23,13 +23,13 @@ import {
   tolkParametre,
   type BuildforgeParametre,
   type Form,
-  type Kropp,
+  type KlikkerKropp,
 } from './parametre';
 import { finnProfil, sjekkProfil } from './profil';
 import { lagRutenett, maal, marsjer, nodePosisjon, sample } from './rutenett';
 import { boksUnion, type Boks, type Felt } from './sdf';
 import { sjekkSveip, type Sveipresultat } from './sveip';
-import { byggFigur } from './figurbygg';
+import { byggModul } from './modulbygg';
 import {
   indeksomrade,
   statusFra,
@@ -55,7 +55,7 @@ interface Kroppbygg {
   funn: Funn[];
 }
 
-function byggKropp(kropp: Kropp, former: Form[], mek: Mekanikk): Kroppbygg {
+function byggKropp(kropp: KlikkerKropp, former: Form[], mek: Mekanikk): Kroppbygg {
   const egne = formerI(former, kropp);
   const sperre = kropp === 'topp' ? mek.sperreTopp : mek.sperreUnderdel;
   const kjerne = kropp === 'topp' ? mek.toppFelt : mek.underdelFelt;
@@ -220,7 +220,7 @@ export function byggBuildforge(raw: unknown): BuildforgeResultat {
       null,
     );
   const p: BuildforgeParametre = t.p;
-  if (familieFor(p) === 'figur') return byggFigur(p, rev);
+  if (familieFor(p) === 'modul') return byggModul(p, rev);
   const profil = finnProfil(p.profil.id, p.profil.versjon);
   if (!profil)
     return stopp(

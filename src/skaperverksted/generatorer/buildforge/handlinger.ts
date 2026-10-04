@@ -7,17 +7,37 @@ import { nyId } from '../../core/dokument';
 import { klem } from '../../core/enheter';
 import { finnDel, finnStartmal, passer, plasserDel, startmaler, type FestepunktId } from './bibliotek';
 import { festepunkter } from './feste';
-import { erGrunnform, finnGrunnmodell, grunnformer } from './figur';
 import { erBuildforgeResultat } from './funn';
 import {
+  dupliserKropp as dupliser,
+  erstatt,
+  finnKropp,
+  flyttGruppe as flytt,
+  forbindelseTilForelder,
+  koble,
+  koblFra,
+  leggTilLos,
+  leggTilOgKoble,
+  settVri as vri,
+  slettKropp as slett,
+  speilKropp as speil,
+  type Plassering,
+  type Resultat,
+} from './graf';
+import { finnKroppsmal, lagKropp, modulprosjekt, starter } from './kroppsbibliotek';
+
+export { modulprosjekt };
+import {
+  familieFor,
   GRENSER,
   kroppBestemt,
   revisjon,
   tolkParametre,
   type BuildforgeParametre,
-  type FigurKropp,
+  type Ende,
   type Form,
-  type Kropp,
+  type KlikkerKropp,
+  type V3,
 } from './parametre';
 import { editor } from './tilstand';
 
@@ -71,7 +91,11 @@ export function velgMal(benk: Arbeidsbenk, malId: string): void {
     }),
   });
   benk.melde(`Startet fra «${mal.navn}».`);
-  // frame the new model once it is built (a figure is taller than a clicker)
+  tilpassEtterBygg(benk);
+}
+
+/** Frame the model once the current project is built. */
+function tilpassEtterBygg(benk: Arbeidsbenk): void {
   const rev = revisjon(benk.dok.parametre);
   const av = benk.lytt((t) => {
     if (t.bygger || !erBuildforgeResultat(t.modell) || t.modell.kontroll.revisjon !== rev) return;
@@ -80,20 +104,50 @@ export function velgMal(benk: Arbeidsbenk, malId: string): void {
   });
 }
 
+/** «La oss bygge …»: start over with one part, the Main Body (handoff §3). */
+export function velgStart(benk: Arbeidsbenk, startId: string): void {
+  const start = starter.find((s) => s.id === startId);
+  if (!start) return;
+  editor.sett({
+    valgt: null,
+    merket: [],
+    plasserer: null,
+    trykk: 0,
+    kropp: null,
+    inne: null,
+    startvelger: false,
+  });
+  const navn = new Set([...startmaler.map((m) => m.navn), ...starter.map((s) => s.navn)]);
+  benk.endre({
+    navn: `Start en ${start.navn.toLowerCase()}`,
+    anvend: (d) => ({
+      ...d,
+      navn: navn.has(d.navn) || d.navn === 'Uten navn' ? start.navn : d.navn,
+      parametre: { ...modulprosjekt(start.id) },
+    }),
+  });
+  benk.melde(`${start.navn}: hovedkroppen står på platen. Dra kroppsdeler fra biblioteket til den.`);
+  tilpassEtterBygg(benk);
+}
+
+/** The most shapes a project of this family may hold. */
+export const maksFormer = (p: BuildforgeParametre): number =>
+  familieFor(p) === 'modul' ? GRENSER.maksFormerModul : GRENSER.maksFormer;
+
 /** Attach a library part at an attachment point. Returns false when it does not fit there. */
 export function festDel(benk: Arbeidsbenk, delId: string, punktId: FestepunktId): boolean {
   const del = finnDel(delId);
   const p = parametre(benk);
   if (!del || !p) return false;
-  if (!passer(del, punktId)) {
+  const punkt = festepunkter(p).find((f) => f.id === punktId);
+  if (!punkt) return false;
+  if (!passer(del, punkt)) {
     benk.melde(`${del.navn} passer ikke der.`);
     return false;
   }
-  const punkt = festepunkter(p).find((f) => f.id === punktId);
-  if (!punkt) return false;
   const nye = plasserDel(del, punkt);
-  if (p.former.length + nye.length > GRENSER.maksFormer) {
-    benk.melde(`Modellen kan ha opptil ${GRENSER.maksFormer} former.`);
+  if (p.former.length + nye.length > maksFormer(p)) {
+    benk.melde(`Modellen kan ha opptil ${maksFormer(p)} former.`);
     return false;
   }
   endre(benk, `Fest ${del.navn.toLowerCase()}`, (q) => ({ ...q, former: [...q.former, ...nye] }));
@@ -118,7 +172,7 @@ export function dupliserForm(benk: Arbeidsbenk, id: string): void {
   const p = parametre(benk);
   const f = p?.former.find((x) => x.id === id);
   if (!f || !p) return;
-  if (p.former.length >= GRENSER.maksFormer) return;
+  if (p.former.length >= maksFormer(p)) return;
   const ny: Form = {
     ...structuredClone(f),
     id: nyId('f'),
@@ -174,33 +228,21 @@ export function skalerForm(benk: Arbeidsbenk, id: string, faktor: number, slaSam
   );
 }
 
-/** Figure: swap a segment's base model. Shapes the user added stay where they are on the segment. */
-export function velgGrunnmodell(benk: Arbeidsbenk, kropp: FigurKropp, id: string): void {
-  const m = finnGrunnmodell(kropp, id);
+export function settFarge(benk: Arbeidsbenk, kropp: string, materialId: string): void {
   const p = parametre(benk);
-  if (!m || !p || p.grunnmodeller?.[kropp] === id) return;
-  const nye = grunnformer(kropp, m);
-  endre(benk, `Bytt grunnmodell for ${kroppBestemt[kropp]}`, (q) => {
-    const gamle = (f: Form) => f.kropp === kropp && erGrunnform(f);
-    const i = q.former.findIndex(gamle);
-    const resten = q.former.filter((f) => !gamle(f));
-    const plass =
-      i < 0
-        ? resten.findIndex((f) => f.kropp === kropp)
-        : q.former.slice(0, i).filter((f) => !gamle(f)).length;
-    const former = [...resten];
-    former.splice(plass < 0 ? former.length : plass, 0, ...nye);
-    return { ...q, grunnmodeller: { ...q.grunnmodeller, [kropp]: id }, former };
-  });
-  if (editor.t.valgt && !parametre(benk)?.former.some((f) => f.id === editor.t.valgt))
-    editor.sett({ valgt: null, merket: [] });
-  benk.melde(`${m.navn} ${kroppBestemt[kropp]} er valgt.`);
-}
-
-export function settFarge(benk: Arbeidsbenk, kropp: Kropp, materialId: string): void {
-  endre(benk, `Endre farge på ${kroppBestemt[kropp]}`, (q) => ({
+  if (!p) return;
+  if (familieFor(p) === 'klikker') {
+    endre(benk, `Endre farge på ${kroppBestemt[kropp as KlikkerKropp]}`, (q) => ({
+      ...q,
+      farger: { ...q.farger, [kropp]: materialId },
+    }));
+    return;
+  }
+  const k = finnKropp(p, kropp);
+  if (!k) return;
+  endre(benk, `Endre farge på ${k.navn.toLowerCase()}`, (q) => ({
     ...q,
-    farger: { ...q.farger, [kropp]: materialId },
+    kropper: q.kropper!.map((x) => (x.id === kropp ? { ...x, farge: materialId } : x)),
   }));
 }
 
@@ -220,4 +262,207 @@ export function transformerForm(
     rotasjon: endring.rotasjon.map((v) => r(klem(v, -360, 360))) as Form['rotasjon'],
     mal: endring.mal.map((v) => r(klem(v, GRENSER.mal.min, GRENSER.mal.maks))) as Form['mal'],
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Body parts (modular builder)
+
+/** Apply a graph operation as one undoable step; says why when it cannot be done. */
+function graf(benk: Arbeidsbenk, navn: string, op: (p: BuildforgeParametre) => Resultat): boolean {
+  const p = parametre(benk);
+  if (!p) return false;
+  const r = op(p);
+  if (!r.ok) {
+    benk.melde(r.grunn);
+    return false;
+  }
+  if (!tolkParametre(r.p).ok) {
+    benk.melde('Det ville gjort prosjektet ugyldig, så det ble ikke gjort.');
+    return false;
+  }
+  endre(benk, navn, () => r.p);
+  if (r.melding) benk.melde(r.melding);
+  return true;
+}
+
+const forMange = (p: BuildforgeParametre, kropper: number, former: number): string | null =>
+  p.kropper!.length + kropper > GRENSER.maksKropper
+    ? `Modellen kan ha opptil ${GRENSER.maksKropper} deler.`
+    : p.former.length + former > maksFormer(p)
+      ? `Modellen kan ha opptil ${maksFormer(p)} former.`
+      : null;
+
+/** Attach a library part: its connector `egen` meets the free connector `mal` (handoff §8). */
+export function kobleNyKropp(benk: Arbeidsbenk, malId: string, egen: string, mal: Ende): boolean {
+  const km = finnKroppsmal(malId);
+  if (!km) return false;
+  let ny = '';
+  const ok = graf(benk, `Fest ${km.navn.toLowerCase()}`, (p) => {
+    const grense = forMange(p, 1, km.former.length);
+    if (grense) return { ok: false, grunn: grense };
+    // a new part takes the colour of the part it goes on
+    const del = lagKropp(km, finnKropp(p, mal.kropp)?.farge);
+    ny = del.kropp.id;
+    return leggTilOgKoble(p, del, egen, mal);
+  });
+  if (ok) {
+    editor.sett({ kropp: ny, valgt: null, merket: [] });
+    benk.melde(`${km.navn} er festet.`);
+  }
+  return ok;
+}
+
+/** Attach from the list or a connector button (no drag): the model grew, so frame it again. */
+export function kobleNyKroppOgVis(benk: Arbeidsbenk, malId: string, egen: string, mal: Ende): boolean {
+  const ok = kobleNyKropp(benk, malId, egen, mal);
+  if (ok) tilpassEtterBygg(benk);
+  return ok;
+}
+
+/** Put a library part loose on the plate (handoff §13). */
+export function leggNyKroppLost(benk: Arbeidsbenk, malId: string, punkt: V3): boolean {
+  const km = finnKroppsmal(malId);
+  if (!km) return false;
+  let ny = '';
+  const ok = graf(benk, `Legg ${km.navn.toLowerCase()} på platen`, (p) => {
+    const grense = forMange(p, 1, km.former.length);
+    if (grense) return { ok: false, grunn: grense };
+    const del = lagKropp(km);
+    ny = del.kropp.id;
+    return { ok: true, p: leggTilLos(p, del, punkt) };
+  });
+  if (ok) {
+    editor.sett({ kropp: ny, valgt: null, merket: [] });
+    benk.melde(`${km.navn} ligger løst på platen. Dra den til en kobling når du vil feste den.`);
+  }
+  return ok;
+}
+
+/** Connect a loose group: the connector `egen` on one of its parts meets `mal` (handoff §13). */
+export function kobleGruppe(benk: Arbeidsbenk, egen: Ende, mal: Ende): boolean {
+  const ok = graf(benk, 'Koble sammen', (p) => koble(p, egen, mal));
+  if (ok) benk.melde('Delene er koblet sammen.');
+  return ok;
+}
+
+/** Replace a part with a library part (handoff §11–12). */
+export function erstattKropp(benk: Arbeidsbenk, gammelId: string, malId: string): boolean {
+  const km = finnKroppsmal(malId);
+  const p = parametre(benk);
+  const gammel = p ? finnKropp(p, gammelId) : undefined;
+  if (!km || !p || !gammel) return false;
+  const grense = forMange(p, 0, km.former.length);
+  if (grense) {
+    benk.melde(grense);
+    return false;
+  }
+  const r = erstatt(p, gammelId, km);
+  if (!r.ok) {
+    benk.melde(r.grunn);
+    return false;
+  }
+  if (!tolkParametre(r.p).ok) {
+    benk.melde('Det ville gjort prosjektet ugyldig, så det ble ikke gjort.');
+    return false;
+  }
+  endre(benk, `Bytt ut ${gammel.navn.toLowerCase()}`, () => r.p);
+  editor.sett({ kropp: r.ny, valgt: null, merket: [], erstatter: null });
+  benk.melde(
+    r.frakoblet
+      ? `${gammel.navn} er byttet ut med ${km.navn.toLowerCase()}. ${r.frakoblet === 1 ? 'Én del' : `${r.frakoblet} deler`} ble frakoblet fordi den nye delen mangler passende koblinger. De ligger der de var.`
+      : `${gammel.navn} er byttet ut med ${km.navn.toLowerCase()}.`,
+  );
+  return true;
+}
+
+/** Disconnect a part from the part it hangs on (handoff §14). */
+export function koblFraKropp(benk: Arbeidsbenk, id: string): boolean {
+  const p = parametre(benk);
+  const f = p ? forbindelseTilForelder(p, id) : undefined;
+  const k = p ? finnKropp(p, id) : undefined;
+  if (!f || !k) {
+    benk.melde('Delen henger ikke fast i noe.');
+    return false;
+  }
+  const ok = graf(benk, `Koble fra ${k.navn.toLowerCase()}`, (q) => koblFra(q, f.id));
+  if (ok) benk.melde(`${k.navn} er koblet fra og ligger løst der den var.`);
+  return ok;
+}
+
+export function slettKropp(benk: Arbeidsbenk, id: string): boolean {
+  const k = parametre(benk) && finnKropp(parametre(benk)!, id);
+  if (!k) return false;
+  const ok = graf(benk, `Slett ${k.navn.toLowerCase()}`, (p) => slett(p, id));
+  if (ok) {
+    editor.sett({ kropp: null, valgt: null, merket: [], inne: editor.t.inne === id ? null : editor.t.inne });
+    benk.melde(`${k.navn} er slettet. Delene som hang på den, ligger løst der de var.`);
+  }
+  return ok;
+}
+
+export function speilKropp(benk: Arbeidsbenk, id: string): boolean {
+  const k = parametre(benk) && finnKropp(parametre(benk)!, id);
+  if (!k) return false;
+  const ok = graf(benk, `Speil ${k.navn.toLowerCase()}`, (p) => speil(p, id));
+  if (ok) benk.melde(`${k.navn} er speilet.`);
+  return ok;
+}
+
+export function dupliserKropp(benk: Arbeidsbenk, id: string): boolean {
+  const p = parametre(benk);
+  const k = p && finnKropp(p, id);
+  if (!p || !k) return false;
+  const grense = forMange(p, 1, p.former.filter((f) => f.kropp === id).length);
+  if (grense) {
+    benk.melde(grense);
+    return false;
+  }
+  const r = dupliser(p, id);
+  if (!r || !tolkParametre(r.p).ok) return false;
+  endre(benk, `Dupliser ${k.navn.toLowerCase()}`, () => r.p);
+  editor.sett({ kropp: r.ny, valgt: null });
+  benk.melde(`${k.navn} er duplisert. Kopien ligger løst ved siden av.`);
+  return true;
+}
+
+/** Turn a connected part about its joint. */
+export function settVri(benk: Arbeidsbenk, forbindelseId: string, grader: number, slaSammen?: string): void {
+  endre(benk, 'Vri ved leddet', (p) => vri(p, forbindelseId, grader), slaSammen);
+}
+
+/** Move or turn a whole group (handles, dragging a part on the plate). */
+export function flyttGruppe(benk: Arbeidsbenk, kroppId: string, delta: Plassering, navn = 'Flytt'): void {
+  endre(benk, navn, (p) => flytt(p, kroppId, delta));
+}
+
+/** Rename a part. */
+export function giKroppNavn(benk: Arbeidsbenk, id: string, navn: string): void {
+  endre(benk, 'Gi nytt navn', (p) => ({
+    ...p,
+    kropper: p.kropper!.map((k) => (k.id === id ? { ...k, navn: navn.slice(0, 60) } : k)),
+  }));
+}
+
+/** Double-click: work inside a part (handoff §25). Esc goes back out. */
+export function gaInn(benk: Arbeidsbenk, id: string): void {
+  const p = parametre(benk);
+  const k = p && finnKropp(p, id);
+  if (!k) return;
+  editor.sett({
+    inne: id,
+    kropp: null,
+    valgt: null,
+    merket: [],
+    plasserer: null,
+    sikter: null,
+    erstatter: null,
+  });
+  benk.melde(`Inne i ${k.navn.toLowerCase()}. Esc går ut igjen.`);
+}
+
+export function gaUt(benk: Arbeidsbenk): void {
+  const inne = editor.t.inne;
+  if (!inne) return;
+  editor.sett({ inne: null, kropp: inne, valgt: null, merket: [], plasserer: null, sikter: null });
+  benk.melde('Tilbake i hele modellen.');
 }
