@@ -143,6 +143,9 @@ export function unionAlle(regioner: Region[]): Region {
 
 export type Hjorne = 'rund' | 'skarp' | 'faset';
 
+/** Offsets at least this wide (mm) thin the input first; see `forskyv`. */
+const FORENKLE_FRA = 0.2;
+
 /**
  * Offset a region by `avstand` mm (positive grows, negative shrinks).
  * Returns [] when shrinking removes everything.
@@ -150,8 +153,14 @@ export type Hjorne = 'rund' | 'skarp' | 'faset';
 export function forskyv(region: Region, avstand: number, hjorne: Hjorne = 'rund'): Region {
   if (Math.abs(avstand) < 1e-6) return region;
   const join = hjorne === 'rund' ? JoinType.Round : hjorne === 'faset' ? JoinType.Bevel : JoinType.Miter;
+  let inn = tilPaths(ringerI(region));
+  // Finely flattened curves (text) make a wide offset overlap itself many
+  // times, which is where Clipper spends its time. Thinning them to the
+  // same 0.01 mm the arcs use first makes wide offsets several times faster
+  // with no visible change. Tiny offsets (the hidden gap) are left exact.
+  if (Math.abs(avstand) >= FORENKLE_FRA) inn = simplifyPaths(inn, 0.01 * SKALA, true);
   // ~0.01 mm arc tolerance: smooth enough for printing, cheap enough for preview
-  const ut = inflatePaths(tilPaths(ringerI(region)), avstand * SKALA, join, EndType.Polygon, 2, 0.01 * SKALA);
+  const ut = inflatePaths(inn, avstand * SKALA, join, EndType.Polygon, 2, 0.01 * SKALA);
   return tilRegion(ClipType.Union, ut, null, FillRule.NonZero);
 }
 
@@ -188,6 +197,18 @@ export function regionBoks(region: Region): { minX: number; minY: number; maksX:
       maksY = Math.max(maksY, p.y);
     }
   return { minX, minY, maksX, maksY };
+}
+
+/**
+ * Move a region by whole Clipper units (dx, dy in 1/SKALA mm). Points
+ * that came out of Clipper stay exactly on its grid, so moving a result
+ * gives the same numbers as computing it in place.
+ */
+export function flyttRegion(region: Region, dx: number, dy: number): Region {
+  if (!dx && !dy) return region;
+  const t = (r: Ring): Ring =>
+    r.map((v) => ({ x: (Math.round(v.x * SKALA) + dx) / SKALA, y: (Math.round(v.y * SKALA) + dy) / SKALA }));
+  return region.map((f) => ({ ytre: t(f.ytre), hull: f.hull.map(t) }));
 }
 
 export function transformerRegion(region: Region, fn: (p: Vec2) => Vec2): Region {

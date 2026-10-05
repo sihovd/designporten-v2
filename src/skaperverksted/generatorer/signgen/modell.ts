@@ -29,12 +29,14 @@ import { profilOverheng } from '../../core/profil';
 import {
   areal,
   differanse,
+  flyttRegion,
   forskyv,
   regionBoks,
   regionFraRinger,
   transformerRegion,
   unionAlle,
   union,
+  SKALA,
   type Region,
 } from '../../geometri/polygon';
 import { stiTilRinger } from '../../geometri/stidata';
@@ -99,6 +101,7 @@ export interface LokalGeometri {
 
 const TOM: LokalGeometri = { region: [], boks: { minX: -5, minY: -5, maksX: 5, maksY: 5 }, mangler: [] };
 const lokalBuffer = new Map<string, LokalGeometri>();
+const lokalEtterKilde = new WeakMap<ObjektKilde, LokalGeometri>();
 
 function nokkel(k: ObjektKilde): string {
   return JSON.stringify(k.type === 'tekst' ? { ...k, felt: undefined } : k);
@@ -106,9 +109,16 @@ function nokkel(k: ObjektKilde): string {
 
 /** Local outline of a source, or null while its font is loading. */
 export function lokalGeometri(k: ObjektKilde): LokalGeometri | null {
+  // by object first: the key below stringifies the source, which for an
+  // imported SVG is its whole path data
+  const direkte = lokalEtterKilde.get(k);
+  if (direkte) return direkte;
   const n = nokkel(k);
   const b = lokalBuffer.get(n);
-  if (b) return b;
+  if (b) {
+    lokalEtterKilde.set(k, b);
+    return b;
+  }
   let g: LokalGeometri;
   if (k.type === 'tekst') {
     const font = fontKlar(k.fontId);
@@ -152,6 +162,7 @@ export function lokalGeometri(k: ObjektKilde): LokalGeometri | null {
   }
   if (lokalBuffer.size > 400) lokalBuffer.delete(lokalBuffer.keys().next().value!);
   lokalBuffer.set(n, g);
+  lokalEtterKilde.set(k, g);
   return g;
 }
 
@@ -189,6 +200,53 @@ export function objektStorrelse(o: Objekt): { bredde: number; hoyde: number } {
   };
 }
 
+// ---------- caches ----------
+
+/*
+ * Every edit makes a new document, so a cache per document alone redoes
+ * every offset on every frame of a drag (Sivert, 2026-10-05: the hole tool
+ * and several layers were slow). Each step below is remembered per layer
+ * against exactly what it reads: the objects, the outline settings and the
+ * regions it starts from. Documents are immutable, so comparing those by
+ * reference is enough.
+ *
+ * A layer's shapes are also worked out where they are relative to its
+ * first object, then moved into place. Dragging a layer's only object,
+ * or all of them, then moves the finished text and outlines instead of
+ * offsetting them again.
+ */
+
+function sammeListe(a: readonly unknown[], b: readonly unknown[]): boolean {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
+/** One remembered result per slot, reused while its inputs are the same. */
+const minne = new Map<string, { inn: unknown[]; verdi: unknown }>();
+
+/** `lag()` returns null while fonts load; that is not remembered. */
+function husk<T>(slot: string, inn: unknown[], lag: () => T | null): T | null {
+  const b = minne.get(slot);
+  if (b && sammeListe(b.inn, inn)) return b.verdi as T;
+  const verdi = lag();
+  if (verdi !== null) {
+    if (minne.size > 2000) minne.clear();
+    minne.set(slot, { inn, verdi });
+  }
+  return verdi;
+}
+
+/** A region worked out around the origin, and how far (in Clipper units) it is moved into place. */
+interface Plassert {
+  lokal: Region;
+  dx: number;
+  dy: number;
+}
+
+/** The region in place; the same object while nothing changes. */
+function iVerden(slot: string, p: Plassert): Region {
+  return husk(`${slot}@`, [p.lokal, p.dx, p.dy], () => flyttRegion(p.lokal, p.dx, p.dy))!;
+}
+
 // ---------- layers ----------
 
 const lagBuffer = new WeakMap<Dokument, Map<string, Region | null>>();
@@ -197,26 +255,114 @@ function erGjennomgaende(o: Objekt): boolean {
   return o.kilde.type === 'form' && o.kilde.form === 'hull';
 }
 
+/** A layer's objects and Kontur, around its first object. Null while fonts load. */
+function egenLokal(dok: Dokument, lag: Lag): Plassert | null {
+  const objekter = objekterILag(dok, lag.id).filter((o) => o.synlig && !erGjennomgaende(o));
+  const forste = objekter[0]?.transform;
+  const dx = forste ? Math.round(forste.x * SKALA) : 0;
+  const dy = forste ? Math.round(forste.y * SKALA) : 0;
+  // each object relative to the first, on Clipper's grid
+  const relativ = objekter.map((o) => ({
+    ...o.transform,
+    x: (Math.round(o.transform.x * SKALA) - dx) / SKALA,
+    y: (Math.round(o.transform.y * SKALA) - dy) / SKALA,
+  }));
+  const inn: unknown[] = [lag.kontur];
+  objekter.forEach((o, i) => inn.push(o.kilde, o.operasjon, JSON.stringify(relativ[i])));
+  const lokal = husk(`egen:${lag.id}`, inn, () => {
+    const pluss: Region[] = [];
+    const minus: Region[] = [];
+    for (const [i, o] of objekter.entries()) {
+      const r = verdensRegion({ ...o, transform: relativ[i]! });
+      if (!r) return null;
+      (o.operasjon === 'trekk-fra' ? minus : pluss).push(r);
+    }
+    let region = unionAlle(pluss);
+    if (minus.length) region = differanse(region, unionAlle(minus));
+    const k = lag.kontur;
+    if (k.avstand !== 0 || k.kunRing) {
+      const ytre = k.avstand !== 0 ? forskyv(region, k.avstand, k.hjorne) : region;
+      region = k.kunRing
+        ? differanse(ytre, forskyv(ytre, -Math.max(MIN_OMRISSBREDDE, k.ringBredde), k.hjorne))
+        : ytre;
+    }
+    return region;
+  });
+  return lokal && { lokal, dx, dy };
+}
+
 /** Outline of a layer before influences (objects + Kontur). Null while fonts load. */
 function egenRegion(dok: Dokument, lag: Lag): Region | null {
-  const pluss: Region[] = [];
-  const minus: Region[] = [];
-  for (const o of objekterILag(dok, lag.id)) {
-    if (!o.synlig || erGjennomgaende(o)) continue;
-    const r = verdensRegion(o);
+  const p = egenLokal(dok, lag);
+  return p && iVerden(`egen:${lag.id}`, p);
+}
+
+/** The layers that influence this one (not itself, not missing ones). */
+function pavirkningerAv(dok: Dokument, lag: Lag) {
+  return lag.pavirkninger.flatMap((p) => {
+    const kilde = finnLag(dok, p.kildeLagId);
+    return kilde && kilde.id !== lag.id ? [{ p, kilde }] : [];
+  });
+}
+
+/** A layer with its influences, before hanging holes. Null while fonts load. */
+function lagForHull(dok: Dokument, lag: Lag): Region | null {
+  const egen = egenRegion(dok, lag);
+  if (!egen) return null;
+  const pavirkninger = pavirkningerAv(dok, lag);
+  if (!pavirkninger.length) return egen;
+  const kilder: Region[] = [];
+  for (const [i, { p, kilde }] of pavirkninger.entries()) {
+    // a text layer acts with everything it prints: text and outlines
+    const r = kilde.tekstlag ? fotavtrykk(dok, kilde) : egenLokal(dok, kilde);
     if (!r) return null;
-    (o.operasjon === 'trekk-fra' ? minus : pluss).push(r);
+    const slot = `pavirkning:${lag.id}:${i}`;
+    const lokal =
+      p.avstand !== 0
+        ? husk(slot, [r.lokal, p.avstand], () => forskyv(r.lokal, p.avstand, 'rund'))!
+        : r.lokal;
+    kilder.push(iVerden(slot, { ...r, lokal }));
   }
-  let region = unionAlle(pluss);
-  if (minus.length) region = differanse(region, unionAlle(minus));
-  const k = lag.kontur;
-  if (k.avstand !== 0 || k.kunRing) {
-    const ytre = k.avstand !== 0 ? forskyv(region, k.avstand, k.hjorne) : region;
-    region = k.kunRing
-      ? differanse(ytre, forskyv(ytre, -Math.max(MIN_OMRISSBREDDE, k.ringBredde), k.hjorne))
-      : ytre;
-  }
-  return region;
+  return husk(`pavirket:${lag.id}`, [egen, lag.pavirkninger, ...kilder], () => {
+    let region = egen;
+    for (const [i, { p }] of pavirkninger.entries()) {
+      region = p.handling === 'legg-til' ? union(region, kilder[i]!) : differanse(region, kilder[i]!);
+    }
+    return region;
+  });
+}
+
+/** Every hanging hole in the sign, as one region. */
+function hullGjennom(dok: Dokument): Region {
+  const objekter = Object.values(dok.objekter).filter((o) => o.synlig && erGjennomgaende(o));
+  return (
+    husk('hull', objekter, () => {
+      const hull: Region[] = [];
+      for (const o of objekter) {
+        const r = verdensRegion(o);
+        if (r) hull.push(r);
+      }
+      return unionAlle(hull);
+    }) ?? []
+  );
+}
+
+function overlapper(a: Boks, b: Boks): boolean {
+  return a.minX <= b.maksX && b.minX <= a.maksX && a.minY <= b.maksY && b.minY <= a.maksY;
+}
+
+/**
+ * The region with the holes cut out. Only the parts a hole touches go
+ * through Clipper; the rest are kept as they are (they stay disjoint).
+ */
+function utenHullGjennom(region: Region, hull: Region): Region {
+  if (!hull.length || !region.length) return region;
+  const hb = regionBoks(hull);
+  const rorte: Region = [];
+  const urort: Region = [];
+  for (const f of region) (overlapper(regionBoks([f]), hb) ? rorte : urort).push(f);
+  if (!rorte.length) return region;
+  return [...urort, ...differanse(rorte, hull)];
 }
 
 /** Final outline of a layer (mm, Y up). Null while fonts load. */
@@ -229,30 +375,9 @@ export function lagRegion(dok: Dokument, lagId: string): Region | null {
   if (buffer.has(lagId)) return buffer.get(lagId)!;
   const lag = finnLag(dok, lagId);
   if (!lag) return [];
-  let region = egenRegion(dok, lag);
-  if (region) {
-    for (const p of lag.pavirkninger) {
-      const kilde = finnLag(dok, p.kildeLagId);
-      if (!kilde || kilde.id === lag.id) continue;
-      // a text layer acts with everything it prints: text and outlines
-      const r = kilde.tekstlag ? fotavtrykk(dok, kilde) : egenRegion(dok, kilde);
-      if (!r) {
-        region = null;
-        break;
-      }
-      const f = p.avstand !== 0 ? forskyv(r, p.avstand, 'rund') : r;
-      region = p.handling === 'legg-til' ? union(region, f) : differanse(region, f);
-    }
-  }
-  if (region) {
-    const hull: Region[] = [];
-    for (const o of Object.values(dok.objekter)) {
-      if (!o.synlig || !erGjennomgaende(o)) continue;
-      const r = verdensRegion(o);
-      if (r) hull.push(r);
-    }
-    if (hull.length) region = differanse(region, unionAlle(hull));
-  }
+  const for_ = lagForHull(dok, lag);
+  const hull = hullGjennom(dok);
+  const region = for_ && husk(`kuttet:${lagId}`, [for_, hull], () => utenHullGjennom(for_, hull));
   // null means «fonts still loading»: do not cache it
   if (region) buffer.set(lagId, region);
   return region;
@@ -276,15 +401,15 @@ function utenHull(region: Region): Region {
   return unionAlle(region.map((f) => [{ ytre: f.ytre, hull: [] }]));
 }
 
-function hullGjennom(dok: Dokument): Region {
-  const hull: Region[] = [];
-  for (const o of Object.values(dok.objekter)) {
-    if (!o.synlig || !erGjennomgaende(o)) continue;
-    const r = verdensRegion(o);
-    if (r) hull.push(r);
-  }
-  return unionAlle(hull);
+/** What an outline's shape depends on (not its height, colour or name). */
+function omrissNokkel(lag: Lag): string {
+  return (lag.omriss ?? [])
+    .filter((o) => o.synlig)
+    .map((o) => `${o.id}|${o.type}|${o.avstand}|${o.bredde}|${o.hjorne}`)
+    .join(';');
 }
+
+type Omrissliste = { id: string; region: Region }[];
 
 /**
  * Outlines of a text layer, from a base outline (the text). Each outline
@@ -292,47 +417,111 @@ function hullGjennom(dok: Dokument): Region {
  * is a ring of its width; «fyll» fills out to its width and closes holes
  * such as the inside of «o» and the space between letters.
  */
-function omrissFra(lag: Lag, tekst: Region): { id: string; region: Region }[] {
-  const ut: { id: string; region: Region }[] = [];
-  let inne = tekst;
-  for (const o of lag.omriss ?? []) {
-    if (!o.synlig) continue;
-    const avstand = Math.max(SKJULT_GLIPE, o.avstand);
-    const start = forskyv(inne, avstand, o.hjorne);
-    const ytre = forskyv(inne, avstand + Math.max(MIN_OMRISSBREDDE, o.bredde), o.hjorne);
-    const kant = o.type === 'fyll' ? utenHull(ytre) : ytre;
-    ut.push({ id: o.id, region: differanse(kant, start) });
-    inne = union(inne, kant);
-  }
-  return ut;
+function omrissFra(lag: Lag, tekst: Region, slot: string): Omrissliste {
+  return husk(`omriss-${slot}:${lag.id}`, [tekst, omrissNokkel(lag)], () => {
+    const ut: Omrissliste = [];
+    let inne = tekst;
+    for (const o of lag.omriss ?? []) {
+      if (!o.synlig) continue;
+      const avstand = Math.max(SKJULT_GLIPE, o.avstand);
+      const start = forskyv(inne, avstand, o.hjorne);
+      const ytre = forskyv(inne, avstand + Math.max(MIN_OMRISSBREDDE, o.bredde), o.hjorne);
+      const kant = o.type === 'fyll' ? utenHull(ytre) : ytre;
+      ut.push({ id: o.id, region: differanse(kant, start) });
+      inne = union(inne, kant);
+    }
+    return ut;
+  })!;
 }
 
 /** Everything a text layer prints (text and outlines), before influences. Null while fonts load. */
-function fotavtrykk(dok: Dokument, lag: Lag): Region | null {
-  const tekst = egenRegion(dok, lag);
+function fotavtrykk(dok: Dokument, lag: Lag): Plassert | null {
+  const tekst = egenLokal(dok, lag);
   if (!tekst) return null;
-  return unionAlle([tekst, ...omrissFra(lag, tekst).map((o) => o.region)]);
+  const omriss = omrissFra(lag, tekst.lokal, 'egen');
+  if (!omriss.length) return tekst;
+  const lokal = husk(`fotavtrykk:${lag.id}`, [tekst.lokal, omriss], () =>
+    unionAlle([tekst.lokal, ...omriss.map((o) => o.region)]),
+  )!;
+  return { ...tekst, lokal };
 }
 
 /** Outline regions of a text layer by outline id, holes cut. Null while fonts load. */
 export function omrissRegioner(dok: Dokument, lagId: string): Map<string, Region> | null {
   const lag = finnLag(dok, lagId);
-  const tekst = lagRegion(dok, lagId);
-  if (!lag || !tekst) return null;
+  if (!lag) return null;
+  let omriss: Omrissliste;
+  if (pavirkningerAv(dok, lag).length) {
+    // around the text with its influences
+    const tekst = lagForHull(dok, lag);
+    if (!tekst) return null;
+    omriss = omrissFra(lag, tekst, 'pavirket');
+  } else {
+    // the footprint's outlines, moved into place
+    const tekst = egenLokal(dok, lag);
+    if (!tekst) return null;
+    const lokal = omrissFra(lag, tekst.lokal, 'egen');
+    omriss = husk(`omriss-egen:${lagId}@`, [lokal, tekst.dx, tekst.dy], () =>
+      lokal.map((o) => ({ id: o.id, region: flyttRegion(o.region, tekst.dx, tekst.dy) })),
+    )!;
+  }
+  // the holes are cut from text and outlines alike
   const hull = hullGjennom(dok);
-  return new Map(
-    omrissFra(lag, tekst).map((o) => [o.id, hull.length ? differanse(o.region, hull) : o.region]),
+  return husk(
+    `omrisskuttet:${lagId}`,
+    [omriss, hull],
+    () => new Map(omriss.map((o) => [o.id, utenHullGjennom(o.region, hull)])),
   );
 }
 
 // ---------- model ----------
 
+const tynneBuffer = new WeakMap<Region, Map<number, number>>();
+
 function tynneDetaljer(region: Region, minVegg: number): number {
+  let b = tynneBuffer.get(region);
+  if (!b) tynneBuffer.set(region, (b = new Map()));
+  let a = b.get(minVegg);
+  if (a === undefined) b.set(minVegg, (a = tynneAreal(region, minVegg)));
+  return a;
+}
+
+function tynneAreal(region: Region, minVegg: number): number {
   // Morphological opening removes features thinner than minVegg. It also
   // shaves sharp corners; those slivers are at most ~0.17 mm thick, so a
   // 0.1 mm erosion of the removed part leaves only genuinely thin features.
   const apnet = forskyv(forskyv(region, -minVegg / 2, 'rund'), minVegg / 2, 'rund');
   return areal(forskyv(differanse(region, apnet), -0.1, 'rund'));
+}
+
+/** Extruded slabs by region: an unchanged layer keeps its mesh between builds. */
+const ekstruderBuffer = new WeakMap<Region, Map<string, ReturnType<typeof ekstruder>>>();
+
+function ekstruderHusket(
+  region: Region,
+  zBunn: number,
+  hoyde: number,
+  profil: Lag['profil'],
+  lagHoyde: number,
+  hjorne: Lag['kontur']['hjorne'],
+): ReturnType<typeof ekstruder> {
+  let b = ekstruderBuffer.get(region);
+  if (!b) ekstruderBuffer.set(region, (b = new Map()));
+  const n = JSON.stringify([zBunn, hoyde, profil, lagHoyde, hjorne]);
+  let e = b.get(n);
+  if (!e) b.set(n, (e = ekstruder(region, zBunn, hoyde, profil, lagHoyde, hjorne)));
+  return e;
+}
+
+/** Area of a slab with nothing under it, by slab region and the regions under it. */
+const flyterBuffer = new WeakMap<Region, { under: Region[]; areal: number }>();
+
+function flytendeAreal(region: Region, under: Region[]): number {
+  const b = flyterBuffer.get(region);
+  if (b && sammeListe(b.under, under)) return b.areal;
+  const a = areal(differanse(region, unionAlle(under)));
+  flyterBuffer.set(region, { under, areal: a });
+  return a;
 }
 
 export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
@@ -407,7 +596,7 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     }
 
     if (region.length && !tekstSkjult) {
-      const e = ekstruder(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne);
+      const e = ekstruderHusket(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne);
       if (e.forbrukt) {
         advarsler.push({
           niva: 'advarsel',
@@ -441,7 +630,7 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
       const r = omriss.get(o.id);
       if (!o.synlig || !r?.length) continue;
       const navn = `${lag.navn}: ${o.navn}`;
-      const e = ekstruder(r, lag.zBunn, o.hoyde, rettProfil(), lagHoyde, o.hjorne);
+      const e = ekstruderHusket(r, lag.zBunn, o.hoyde, rettProfil(), lagHoyde, o.hjorne);
       deler.push({ id: o.id, lagId: lag.id, navn, materialId: o.materialId, mesh: e.mesh });
       skiver.push({
         navn,
@@ -470,8 +659,10 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     const under = skiver.filter(
       (u) => u !== s && u.zBunn < s.zBunn - 1e-6 && u.zBunn + u.hoyde >= s.zBunn - 0.01,
     );
-    const stotte = unionAlle(under.map((u) => u.region));
-    const flyter = areal(differanse(s.region, stotte));
+    const flyter = flytendeAreal(
+      s.region,
+      under.map((u) => u.region),
+    );
     if (flyter > 1) {
       advarsler.push({
         niva: 'advarsel',
