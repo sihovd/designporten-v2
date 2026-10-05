@@ -55,6 +55,24 @@ test.describe('Produkter', () => {
     await expect(page.locator('[data-kurvantall]')).toHaveText('3');
   });
 
+  test('hover shows only the plus; the pill opens on add and closes at zero', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Hover only exists with a mouse.');
+    await page.goto('/produkter/');
+    const kort = page.locator('[data-produktkort][data-produkt-id="spiralvase"]');
+    const kapsel = kort.locator('[data-kurvkapsel]');
+    const minus = kort.getByRole('button', { name: 'Ta én Spiralvase ut av handlekurven' });
+    await kort.hover();
+    await expect(kapsel).toHaveAttribute('data-aktiv', '');
+    await expect(kapsel).not.toHaveAttribute('data-apen', '');
+    await expect(minus).toBeHidden();
+    await kort.getByRole('button', { name: 'Legg Spiralvase i handlekurven' }).click();
+    await expect(kapsel).toHaveAttribute('data-apen', '');
+    await expect(kort.locator('[data-kurv-antall]')).toHaveText('1');
+    await minus.click();
+    await expect(kapsel).not.toHaveAttribute('data-apen', '');
+    await expect(minus).toBeHidden();
+  });
+
   test('filters narrow the list and can be reset', async ({ page }) => {
     await page.goto('/produkter/');
     const apne = page.getByRole('button', { name: /^Filter/ });
