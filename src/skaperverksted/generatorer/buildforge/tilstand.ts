@@ -21,8 +21,18 @@ export interface Editortilstand {
   erstatter: string | null;
   /** A drag in progress, for the hint over the canvas. */
   dra: Drastatus | null;
-  /** The context menu, in CSS px inside the 3D view. */
-  meny: { x: number; y: number; kropp: string } | null;
+  /** The radial menu (handoff §37), centred at CSS px inside the 3D view. */
+  meny: { x: number; y: number; mal: Menymal } | null;
+  /** Shift+click: several parts selected on the whole model (handoff §7). */
+  flere: string[];
+  /** Inside a part: the selected connector. */
+  kobling: string | null;
+  /** Inside a part: the next click on the part's surface adds a connector there. */
+  nyKobling: boolean;
+  /** Left panel tab. */
+  fane: 'bibliotek' | 'modell';
+  /** Inside a part: hide the other parts instead of fading them (handoff §26). */
+  skjulAndre: boolean;
   modus: 'enkel' | 'avansert';
   /** Library part waiting for an attachment point. */
   plasserer: string | null;
@@ -38,6 +48,14 @@ export interface Editortilstand {
   /** What the handles on the selected shape do. */
   verktoy: Verktoy;
 }
+
+/** What the radial menu is for. */
+export type Menymal =
+  | { type: 'kropp'; id: string }
+  | { type: 'form'; id: string }
+  | { type: 'kobling'; kropp: string; kobling: string }
+  | { type: 'flere'; ider: string[] }
+  | { type: 'tom' };
 
 export interface Drastatus {
   type: 'koble' | 'erstatt' | 'los' | 'ugyldig';
@@ -59,6 +77,11 @@ const START: Editortilstand = {
   erstatter: null,
   dra: null,
   meny: null,
+  flere: [],
+  kobling: null,
+  nyKobling: false,
+  skjulAndre: false,
+  fane: 'bibliotek',
   modus: 'enkel',
   plasserer: null,
   sikter: null,
@@ -78,7 +101,7 @@ class Editorlager {
     for (const f of this.lyttere) f(this.t);
   }
   nullstill(): void {
-    this.sett({ ...START, modus: this.t.modus, verktoy: this.t.verktoy });
+    this.sett({ ...START, modus: this.t.modus, verktoy: this.t.verktoy, skjulAndre: this.t.skjulAndre });
   }
   lytt(f: (t: Editortilstand) => void): () => void {
     this.lyttere.add(f);

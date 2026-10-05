@@ -38,7 +38,7 @@ export function spillKlikk(): () => void {
   return () => cancelAnimationFrame(id);
 }
 
-function Funnrad({ f, valgt, velg }: { f: Funn; valgt: boolean; velg: () => void }) {
+export function Funnrad({ f, valgt, velg }: { f: Funn; valgt: boolean; velg: () => void }) {
   return (
     <li class={`bf-funn ${f.niva}`}>
       <button type="button" aria-expanded={valgt} onClick={velg}>
@@ -87,6 +87,8 @@ export function Klikkbrett({ benk }: { benk: Arbeidsbenk }) {
   useEffect(() => settApen(null), [m]);
 
   const st = statusTekst[status];
+  // the modular builder shows its check as a compact status on the canvas (Statusbrikke)
+  if (!klikker) return null;
   return (
     <div class="bf-brett">
       {klikker && (

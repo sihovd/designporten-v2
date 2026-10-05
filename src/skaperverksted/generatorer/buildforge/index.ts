@@ -1,4 +1,8 @@
-/** BuildForge plug-in: start picker, body-part library and connectors, handles, Enkel/Avansert, «Prøv klikk» and live checks. */
+/**
+ * BuildForge plug-in: start picker, body-part library and connectors, the
+ * radial menu, handles, Enkel/Avansert, «Prøv klikk» and live checks. The
+ * canvas comes first: properties open on demand (handoff §39–41).
+ */
 import { Fragment, h } from 'preact';
 import type { GeneratorPlugin } from '../../core/generator';
 import { finnMateriale, materialtyper } from '../../core/materialer';
@@ -13,16 +17,19 @@ import {
   flyttGruppe,
   gaInn,
   gaUt,
+  slettFlere,
   slettForm,
   slettKropp,
 } from './handlinger';
 import { Lerretsoverlegg } from './Lerretsoverlegg';
 import { Startvelger } from './Startvelger';
+import { Statusbrikke } from './Statusbrikke';
+import { Koblingsmerker } from './Koblingsmerker';
 import { BuildforgeInspektor } from './Inspektor';
 import { Klikkbrett, spillKlikk } from './Klikkbrett';
 import { buildforgeKjerne } from './kjerne';
 import { familieFor } from './parametre';
-import { editor, type Verktoy } from './tilstand';
+import { editor, type Menymal, type Verktoy } from './tilstand';
 import { tilpassBuildforge3d } from './tre';
 import './buildforge.css';
 
@@ -38,11 +45,14 @@ const plugin: GeneratorPlugin = {
         null,
         h(Festeoverlegg, props),
         h(Koblingsoverlegg, props),
+        h(Koblingsmerker, props),
         h(Lerretsoverlegg, props),
         h(Handtaksverktoy, null),
+        h(Statusbrikke, props),
         h(Startvelger, props),
       ),
   },
+  lerretForst: true,
   tilpass3d: tilpassBuildforge3d,
   // smooth shading: the formed surfaces are meshed from fields; tre.ts adds the normals
   material3d(del, three) {
@@ -63,9 +73,38 @@ const plugin: GeneratorPlugin = {
       spillKlikk();
       return true;
     }
+    // the menu key or Shift+F10 opens the radial menu for the selection (keyboard users, handoff §37)
+    if (!klikker && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
+      const lerret = document.querySelector<HTMLCanvasElement>('.visning3d canvas');
+      const r = lerret?.getBoundingClientRect();
+      const x = r ? r.width / 2 : 200,
+        y = r ? r.height / 2 : 200;
+      const mal: Menymal = t.inne
+        ? valgt
+          ? { type: 'form', id: valgt }
+          : t.kobling
+            ? { type: 'kobling', kropp: t.inne, kobling: t.kobling }
+            : { type: 'tom' }
+        : t.flere.length > 1
+          ? { type: 'flere', ider: [...t.flere] }
+          : t.kropp
+            ? { type: 'kropp', id: t.kropp }
+            : { type: 'tom' };
+      editor.sett({ meny: { x, y, mal } });
+      return true;
+    }
     if (e.key === 'Escape') {
       // one step out at a time: placing, the selection, then out of the part
-      if (valgt || t.plasserer || t.plassererKropp || t.erstatter || t.meny) {
+      if (
+        valgt ||
+        t.plasserer ||
+        t.plassererKropp ||
+        t.erstatter ||
+        t.meny ||
+        t.flere.length ||
+        t.kobling ||
+        t.nyKobling
+      ) {
         editor.sett({
           valgt: null,
           plasserer: null,
@@ -74,6 +113,9 @@ const plugin: GeneratorPlugin = {
           plassererKropp: null,
           erstatter: null,
           meny: null,
+          flere: [],
+          kobling: null,
+          nyKobling: false,
         });
         return true;
       }
@@ -86,6 +128,16 @@ const plugin: GeneratorPlugin = {
         return true;
       }
       return false;
+    }
+    if (
+      !klikker &&
+      !valgt &&
+      !t.inne &&
+      t.flere.length > 1 &&
+      (e.key === 'Delete' || e.key === 'Backspace')
+    ) {
+      slettFlere(benk, t.flere);
+      return true;
     }
     const kropp = !klikker && !valgt && !t.inne ? t.kropp : null;
     if (kropp) {
@@ -158,8 +210,11 @@ const plugin: GeneratorPlugin = {
       'Bytt ut delen; deler som ikke passer, blir liggende løst',
     ],
     ['Velg en del, så en kobling i listen', 'Fest uten å dra'],
-    ['Klikk på en del', 'Velg delen (høyreklikk: flere valg)'],
-    ['Dobbeltklikk eller Enter', 'Gå inn i delen og jobb med formene'],
+    ['Klikk på en del', 'Velg delen'],
+    ['Shift + klikk', 'Velg flere deler'],
+    ['Høyreklikk (langt trykk på berøringsskjerm)', 'Valg for det du peker på, i en ring'],
+    ['Menytasten eller Shift + F10', 'Valg for det som er valgt'],
+    ['Dobbeltklikk, dobbelttrykk eller Enter', 'Gå inn i delen og jobb med formene og koblingene'],
     ['G / R / S', 'Håndtak for å flytte, rotere eller skalere'],
     ['Piltaster', 'Flytt valgt form eller gruppe 1 mm (Shift: 10 mm)'],
     ['Page Up / Page Down', 'Flytt valgt form opp eller ned'],

@@ -3,7 +3,7 @@
  * the build result type the editor, the export and the report read.
  */
 import type { Advarsel, Modellresultat } from '../../core/generator';
-import type { Leddprofil } from './ledd';
+import type { Kuleprofil, Leddprofil } from './ledd';
 import type { Mekanikkprofil } from './profil';
 import type { Boks } from './sdf';
 import type { Sveipresultat } from './sveip';
@@ -47,6 +47,8 @@ export interface Kontroll {
   profil: Mekanikkprofil | null;
   /** The modular builder's joint profile. */
   leddprofil?: Leddprofil | null;
+  /** The ball joint profile, when the model has a ball joint. */
+  kuleprofil?: Kuleprofil | null;
   /** Collision through the click (clicker only). */
   sveip: Sveipresultat | null;
   kropper: Kroppsdata[];

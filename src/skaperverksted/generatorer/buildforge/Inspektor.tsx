@@ -11,8 +11,22 @@ import { finnMateriale, materialer, materialtyper, type Materialtype } from '../
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { erBuildforgeResultat, type Digitalstatus } from './bygg';
-import { finnKropp, forbindelseTilForelder, forbindelseVed, koblingsnavn } from './graf';
 import {
+  finnKobling,
+  finnKropp,
+  forbindelseTilForelder,
+  forbindelseVed,
+  koblingsnavn,
+  kuleMaksBoy,
+} from './graf';
+import {
+  byttKjonn,
+  giKoblingNavn,
+  koblFraKobling,
+  settBoy,
+  settKoblingsfamilie,
+  settLeddtype,
+  slettKobling,
   dupliserForm,
   dupliserKropp,
   endre,
@@ -29,8 +43,10 @@ import {
   speilKropp,
 } from './handlinger';
 import {
+  familienavn,
   familieFor,
   formnavn,
+  koblingsfamilier,
   GRENSER,
   kategorinavn,
   kjonnnavn,
@@ -42,7 +58,9 @@ import {
   tolkParametre,
   type BuildforgeParametre,
   type Form,
+  type Kjonn,
   type KlikkerKropp,
+  type Koblingsfamilie,
   type Modulkropp,
   type Operasjon,
 } from './parametre';
@@ -485,6 +503,187 @@ function Formpanel({
   );
 }
 
+/** A slider with its value, for turning and bending joints; dragging is one undo step per joint. */
+function Skyver({
+  etikett,
+  verdi,
+  min,
+  maks,
+  steg = 1,
+  enhet = '°',
+  endre: sett,
+}: {
+  etikett: string;
+  verdi: number;
+  min: number;
+  maks: number;
+  steg?: number;
+  enhet?: string;
+  endre: (v: number) => void;
+}) {
+  const id = useId();
+  return (
+    <div class="bf-skyver">
+      <label for={id}>
+        <span>{etikett}</span>
+        <span class="mono">
+          {tall(verdi, 0)}
+          {enhet}
+        </span>
+      </label>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={maks}
+        step={steg}
+        value={verdi}
+        aria-valuetext={`${tall(verdi, 0)} grader`}
+        onInput={(e) => sett(Number((e.target as HTMLInputElement).value))}
+      />
+    </div>
+  );
+}
+
+/** The joint a part hangs on: its type, and how it is turned and bent (handoff §32–36). */
+function Leddpanel({ benk, k, p }: { benk: Arbeidsbenk; k: Modulkropp; p: BuildforgeParametre }) {
+  const f = forbindelseTilForelder(p, k.id);
+  if (!f) return null;
+  const egen = f.a.kropp === k.id ? f.a : f.b;
+  const kb = finnKobling(p, egen);
+  const forelder = finnKropp(p, f.a.kropp === k.id ? f.b.kropp : f.a.kropp);
+  const fam = kb?.familie ?? 'svivel';
+  const fortegn = f.b.kropp === k.id ? 1 : -1;
+  const maks = kuleMaksBoy(p);
+  return (
+    <Panel tittel="Ledd">
+      <p class="bf-tilhorighet">
+        Henger på <strong>{forelder?.navn.toLowerCase()}</strong>.
+      </p>
+      <Segment<Koblingsfamilie>
+        etikett="Leddtype"
+        valg={koblingsfamilier.map((id) => ({ id, navn: familienavn[id] }))}
+        verdi={fam}
+        endre={(v) => settLeddtype(benk, f.id, v)}
+      />
+      <p class="merknad">
+        {fam === 'kule'
+          ? 'Kule i sokkel: kan vris og bøyes. Kula klikkes inn i sokkelen.'
+          : 'Plugg i hull: kan vris om aksen.'}
+      </p>
+      <Skyver
+        etikett="Vri"
+        verdi={fortegn * f.vri}
+        min={-180}
+        maks={180}
+        endre={(v) => settVri(benk, f.id, fortegn * v, `vri-${f.id}`)}
+      />
+      {fam === 'kule' && (
+        <>
+          <Skyver
+            etikett="Bøy"
+            verdi={f.boy ?? 0}
+            min={0}
+            maks={maks}
+            endre={(v) => settBoy(benk, f.id, v, f.boyRetning ?? 0, `boy-${f.id}`)}
+          />
+          <Skyver
+            etikett="Bøyeretning"
+            verdi={f.boyRetning ?? 0}
+            min={-180}
+            maks={180}
+            steg={5}
+            endre={(v) => settBoy(benk, f.id, f.boy ?? 0, v, `boy-${f.id}`)}
+          />
+          <p class="merknad">Leddet er tegnet for opptil {maks}° bøy. Målene er prøveverdier.</p>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+/** A connector selected inside a part (handoff §34–36). */
+function Koblingspanel({
+  benk,
+  k,
+  p,
+  id,
+}: {
+  benk: Arbeidsbenk;
+  k: Modulkropp;
+  p: BuildforgeParametre;
+  id: string;
+}) {
+  const navnId = useId();
+  const kb = k.koblinger.find((x) => x.id === id);
+  if (!kb) return null;
+  const ende = { kropp: k.id, kobling: kb.id };
+  const f = forbindelseVed(p, ende);
+  const annen = f ? (f.a.kropp === k.id ? f.b : f.a) : null;
+  return (
+    <Panel
+      tittel="Kobling"
+      handling={
+        <button type="button" class="tekstknapp" onClick={() => editor.sett({ kobling: null })}>
+          Lukk
+        </button>
+      }
+    >
+      <label class="felt" for={navnId}>
+        <span>Navn</span>
+        <input
+          id={navnId}
+          type="text"
+          value={kb.navn}
+          maxLength={40}
+          onChange={(e) => {
+            const navn = (e.target as HTMLInputElement).value.trim();
+            if (navn) giKoblingNavn(benk, ende, navn);
+          }}
+        />
+      </label>
+      <p class="bf-tilhorighet">
+        {annen ? (
+          <>
+            Koblet til <strong>{koblingsnavn(p, annen).toLowerCase()}</strong>.
+          </>
+        ) : (
+          'Ledig. Dra en del hit for å koble den på.'
+        )}
+      </p>
+      <Segment<Kjonn>
+        etikett="Hann eller hunn"
+        valg={[
+          { id: 'hann', navn: 'Hann' },
+          { id: 'hunn', navn: 'Hunn' },
+        ]}
+        verdi={kb.kjonn}
+        endre={(v) => v !== kb.kjonn && byttKjonn(benk, ende)}
+      />
+      <p class="merknad">
+        {kb.kjonn === 'hann' ? 'Hann blir plugg eller kule.' : 'Hunn blir hull eller sokkel.'} Å bytte bryter
+        en forbindelse, men den andre delen endres aldri.
+      </p>
+      <Segment<Koblingsfamilie>
+        etikett="Leddtype"
+        valg={koblingsfamilier.map((x) => ({ id: x, navn: familienavn[x] }))}
+        verdi={kb.familie}
+        endre={(v) => (f ? settLeddtype(benk, f.id, v) : settKoblingsfamilie(benk, ende, v))}
+      />
+      <div class="knapperad">
+        {annen && (
+          <button type="button" class="kontroll-knapp" onClick={() => koblFraKobling(benk, ende)}>
+            Koble fra
+          </button>
+        )}
+        <button type="button" class="kontroll-knapp farlig" onClick={() => slettKobling(benk, ende)}>
+          Slett kobling
+        </button>
+      </div>
+    </Panel>
+  );
+}
+
 /** The selected part of a modular model: name, colour, connectors, turn at the joint and actions. */
 function Kroppspanel({ benk, k, p }: { benk: Arbeidsbenk; k: Modulkropp; p: BuildforgeParametre }) {
   const navnId = useId();
@@ -513,25 +712,6 @@ function Kroppspanel({ benk, k, p }: { benk: Arbeidsbenk; k: Modulkropp; p: Buil
         />
       </label>
       <Materialvalg etikett="Farge" verdi={k.farge} endre={(id) => settFarge(benk, k.id, id)} />
-      {forelder && (
-        <TallFelt
-          etikett="Vri ved leddet"
-          enhet="°"
-          desimaler={0}
-          steg={15}
-          verdi={forelder.b.kropp === k.id ? forelder.vri : -forelder.vri}
-          min={-180}
-          maks={180}
-          endre={(v, kilde) =>
-            settVri(
-              benk,
-              forelder.id,
-              forelder.b.kropp === k.id ? v : -v,
-              kilde === 'pil' ? `vri-${forelder.id}` : undefined,
-            )
-          }
-        />
-      )}
       <h3 class="bf-underoverskrift">Koblinger</h3>
       <ul class="bf-koblinger" role="list">
         {k.koblinger.map((kb) => {
@@ -541,7 +721,7 @@ function Kroppspanel({ benk, k, p }: { benk: Arbeidsbenk; k: Modulkropp; p: Buil
             <li key={kb.id}>
               <span>{kb.navn}</span>
               <span class="dempet">
-                {kjonnnavn[kb.kjonn]} ·{' '}
+                {kjonnnavn[kb.kjonn]} · {familienavn[kb.familie]} ·{' '}
                 {annen ? `koblet til ${koblingsnavn(p, annen).toLowerCase()}` : 'ledig'}
               </span>
             </li>
@@ -549,12 +729,12 @@ function Kroppspanel({ benk, k, p }: { benk: Arbeidsbenk; k: Modulkropp; p: Buil
         })}
       </ul>
       <p class="merknad">
-        Koblingene er låst. Plugg og hull lages bare der to deler er koblet sammen, og målene er prøveverdier
-        som ikke er testprintet.
+        Plugg, hull, kule og sokkel lages bare der to deler er koblet sammen. Målene er prøveverdier som ikke
+        er testprintet. Gå inn i delen for å endre koblingene.
       </p>
       <div class="knapperad">
         <button type="button" class="kontroll-knapp" onClick={() => gaInn(benk, k.id)}>
-          Gå inn
+          Rediger
         </button>
         <button type="button" class="kontroll-knapp" onClick={() => editor.sett({ erstatter: k.id })}>
           Bytt ut
@@ -589,7 +769,7 @@ function Kroppspanel({ benk, k, p }: { benk: Arbeidsbenk; k: Modulkropp; p: Buil
 }
 
 function Maalrad({ m }: { m: Maal }) {
-  const enhet = m.navn.includes('mm³') ? '' : ' mm';
+  const enhet = m.navn.includes('mm³') ? '' : m.navn.includes('grader') ? '°' : ' mm';
   return (
     <div>
       <dt>{m.navn.replace(' (mm³)', '')}</dt>
@@ -610,10 +790,13 @@ export function BuildforgeInspektor({ benk }: { benk: Arbeidsbenk }) {
   const p = tolk.ok ? tolk.p : null;
   const valgt = p?.former.find((f) => f.id === e.valgt);
   const kropp = p && e.kropp && !e.inne ? finnKropp(p, e.kropp) : undefined;
+  const inne = p && e.inne ? finnKropp(p, e.inne) : undefined;
+  const modul = !!p && familieFor(p) === 'modul';
   const avansert = e.modus === 'avansert';
   const m = erBuildforgeResultat(t.modell) ? t.modell : null;
   const profil = m?.kontroll.profil;
   const leddprofil = m?.kontroll.leddprofil;
+  const kuleprofil = m?.kontroll.kuleprofil;
   const topp = m?.kontroll.kropper.find((k) => k.kropp === 'topp');
 
   return (
@@ -630,20 +813,41 @@ export function BuildforgeInspektor({ benk }: { benk: Arbeidsbenk }) {
         />
         <p class="merknad">Begge viser samme modell. Ingenting går tapt når du bytter.</p>
       </Panel>
-      <Panel tittel="Kontroll">
-        <Statuskort benk={benk} />
-      </Panel>
+      {!modul && (
+        <Panel tittel="Kontroll">
+          <Statuskort benk={benk} />
+        </Panel>
+      )}
 
       {valgt && p && <Formpanel benk={benk} f={valgt} p={p} avansert={avansert} />}
 
       {!valgt && kropp && p && <Kroppspanel benk={benk} k={kropp} p={p} />}
+      {!valgt && kropp && p && <Leddpanel benk={benk} k={kropp} p={p} />}
 
-      {!valgt && !kropp && p && familieFor(p) === 'modul' && (
-        <Panel tittel="Farger">
+      {!valgt && inne && p && e.kobling && <Koblingspanel benk={benk} k={inne} p={p} id={e.kobling} />}
+
+      {!valgt && !kropp && !inne && p && modul && (
+        <Panel tittel={e.flere.length > 1 ? `${e.flere.length} deler valgt` : 'Modellen'}>
           <p class="merknad">
-            Hver del printes i én farge. Velg en del i modellen eller på platen for å endre fargen, vri den
-            ved leddet eller bytte den ut.
+            {e.flere.length > 1
+              ? 'Høyreklikk en av dem for å speile eller slette alle. Esc fjerner valget.'
+              : `${p.kropper!.length} ${p.kropper!.length === 1 ? 'del' : 'deler'}. Hver del printes i én farge. Velg en del for å endre fargen, leddet eller bytte den ut.`}
           </p>
+        </Panel>
+      )}
+
+      {!valgt && inne && p && !e.kobling && (
+        <Panel tittel={inne.navn}>
+          <p class="merknad">
+            Velg en form for å endre den, eller et punkt på delen for å endre en kobling. Høyreklikk for flere
+            valg.
+          </p>
+          <Materialvalg etikett="Farge" verdi={inne.farge} endre={(id) => settFarge(benk, inne.id, id)} />
+          <Avkryssing
+            etikett="Skjul resten av modellen"
+            verdi={e.skjulAndre}
+            endre={(v) => editor.sett({ skjulAndre: v })}
+          />
         </Panel>
       )}
 
@@ -704,6 +908,24 @@ export function BuildforgeInspektor({ benk }: { benk: Arbeidsbenk }) {
           {avansert ? (
             <dl class="fakta bf-maal">
               {Object.values(leddprofil.maal).map((x) => (
+                <Maalrad key={x.navn} m={x} />
+              ))}
+            </dl>
+          ) : (
+            <p class="merknad">Se alle målene og hvor sikre de er i Avansert.</p>
+          )}
+        </Panel>
+      )}
+
+      {kuleprofil && (
+        <Panel tittel="Kuleleddprofil">
+          <p class="bf-profilnavn">
+            {kuleprofil.navn} <span class="mono">v{kuleprofil.versjon}</span>
+          </p>
+          <p class="merknad">{kuleprofil.merknad}</p>
+          {avansert ? (
+            <dl class="fakta bf-maal">
+              {Object.values(kuleprofil.maal).map((x) => (
                 <Maalrad key={x.navn} m={x} />
               ))}
             </dl>

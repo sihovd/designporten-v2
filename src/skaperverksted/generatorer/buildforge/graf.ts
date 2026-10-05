@@ -19,6 +19,7 @@
 import { nyId } from '../../core/dokument';
 import { dekorBoks, formerI } from './felt';
 import { finnKroppsmal, grunnformer, erGrunnform, type Kroppsmal } from './kroppsbibliotek';
+import { basis, finnKuleprofil, KULELEDD_PROVE, kulemal } from './ledd';
 import type { BuildforgeParametre, Ende, Forbindelse, Form, Kobling, Modulkropp, V3 } from './parametre';
 import { rotasjon as eulerMatrise } from './sdf';
 
@@ -125,6 +126,12 @@ export const finnKobling = (p: BuildforgeParametre, e: Ende): Kobling | undefine
 
 /** A connector fits another: same family, opposite gender (handoff §34). */
 export const kompatible = (a: Kobling, b: Kobling): boolean => a.familie === b.familie && a.kjonn !== b.kjonn;
+/**
+ * A connector on a part that is not in the model yet (straight from the
+ * library) fits any family: it takes the family of the connector it meets.
+ */
+export const passerNy = (a: Pick<Kobling, 'kjonn'>, b: Pick<Kobling, 'kjonn'>): boolean =>
+  a.kjonn !== b.kjonn;
 
 export function forbindelseVed(p: BuildforgeParametre, e: Ende): Forbindelse | undefined {
   return forbindelserAv(p).find(
@@ -252,6 +259,41 @@ export function parring(
 }
 
 /**
+ * Bend a part placed on a ball joint: it turns `boy` degrees about the
+ * ball's centre, towards `boyRetning` measured about the axis in side a's
+ * connector frame. When the part being placed is side a, the bend is
+ * applied the other way round, so the picture is the same whichever part
+ * the group hangs from.
+ */
+function boyd(
+  pl: Plassering,
+  forelder: Plassering,
+  mal: Kobling,
+  egen: Kobling,
+  f: Forbindelse,
+  barnErB: boolean,
+  senter: number,
+): Plassering {
+  const P = pluss(anvend(forelder.m, mal.posisjon), forelder.t);
+  const A = normal(anvend(forelder.m, mal.akse));
+  // the ball sits on the male side's outward axis
+  const Q = pluss(P, skaler(A, mal.kjonn === 'hann' ? senter : -senter));
+  // side a's connector frame, in world
+  const [ram, kb] = barnErB ? [forelder, mal] : [pl, egen];
+  const { u, v } = basis(normal(kb.akse));
+  const r = ((f.boyRetning ?? 0) * Math.PI) / 180;
+  const lokal: V3 = [
+    u[0] * Math.cos(r) + v[0] * Math.sin(r),
+    u[1] * Math.cos(r) + v[1] * Math.sin(r),
+    u[2] * Math.cos(r) + v[2] * Math.sin(r),
+  ];
+  const retning = normal(anvend(ram.m, lokal));
+  const aksA = normal(anvend(ram.m, kb.akse));
+  const R = omAkse(kryss(aksA, retning), barnErB ? f.boy! : -f.boy!);
+  return { m: gange(R, pl.m), t: pluss(Q, anvend(R, minus(pl.t, Q))) };
+}
+
+/**
  * The lowest point of a part's shapes in world coordinates, or null. A sphere
  * is exact; other shapes use the corners of their own turned box, so a part
  * stands on the plate instead of floating above it.
@@ -284,6 +326,9 @@ function lavesteZ(former: Form[], pl: Plassering): number | null {
 /** World placement of every part (handoff §13: connected parts follow their group). */
 export function plasser(p: BuildforgeParametre): Map<string, Plassering> {
   const ut = new Map<string, Plassering>();
+  const senter = kulemal(
+    (p.kuleprofil && finnKuleprofil(p.kuleprofil.id, p.kuleprofil.versjon)) || KULELEDD_PROVE,
+  ).senter;
   const t = tre(p);
   for (const komp of komponenter(p)) {
     const anker = finnKropp(p, ankerFor(p, komp))!;
@@ -296,8 +341,12 @@ export function plasser(p: BuildforgeParametre): Map<string, Plassering> {
       const mal = fk.koblinger.find((x) => x.id === f.annen.kobling)!;
       const egen = k.koblinger.find((x) => x.id === f.egen.kobling)!;
       // vri turns side b; seen from side a it turns the other way
-      const vri = f.f.b.kropp === id ? f.f.vri : -f.f.vri;
-      ut.set(id, parring(ut.get(f.kropp)!, fk, mal, k, egen, vri));
+      const barnErB = f.f.b.kropp === id;
+      const vri = barnErB ? f.f.vri : -f.f.vri;
+      let pl = parring(ut.get(f.kropp)!, fk, mal, k, egen, vri);
+      if (mal.familie === 'kule' && egen.familie === 'kule' && f.f.boy)
+        pl = boyd(pl, ut.get(f.kropp)!, mal, egen, f.f, barnErB, senter);
+      ut.set(id, pl);
     }
     // the group stands on the plate
     let z = Infinity;
@@ -383,7 +432,7 @@ export function koble(p: BuildforgeParametre, egen: Ende, mal: Ende): Resultat {
   const onsket = skalSpeiles(p, barn, mal) ?? forelder.speilet;
   if (onsket !== barn.speilet) q = speilDeler(q, new Set(komp));
   const f: Forbindelse = { id: nyId('c'), a: { ...mal }, b: { ...egen }, vri: 0 };
-  return { ok: true, p: { ...q, forbindelser: [...forbindelserAv(q), f] } };
+  return { ok: true, p: medKuleprofil({ ...q, forbindelser: [...forbindelserAv(q), f] }) };
 }
 
 /**
@@ -451,7 +500,7 @@ export function erstatt(
     const gammelKb = gammel.koblinger.find((k) => k.id === n.egen.kobling)!;
     const partner = finnKobling(q, n.annen)!;
     const kandidater = nyKropp.koblinger
-      .filter((k) => !brukt.has(k.id) && kompatible(k, partner))
+      .filter((k) => !brukt.has(k.id) && passerNy(k, partner))
       .map((k, i) => ({
         k,
         i,
@@ -465,6 +514,8 @@ export function erstatt(
       continue;
     }
     brukt.add(valgt.id);
+    // the new part takes the joint type it meets
+    valgt.familie = partner.familie;
     const ende = { kropp: nyId_, kobling: valgt.id };
     beholdt.push({
       ...n.f,
@@ -488,13 +539,13 @@ export function erstatt(
     ok: true,
     ny: nyId_,
     frakoblet,
-    p: {
+    p: medKuleprofil({
       ...q,
       rot: q.rot === gammelId ? nyId_ : q.rot,
       kropper: kropperAv(q).map((k) => (k.id === gammelId ? nyKropp : k)),
       forbindelser: [...andre, ...beholdt],
       former,
-    },
+    }),
   };
 }
 
@@ -609,7 +660,12 @@ export function leggTilOgKoble(
   egenKobling: string,
   mal: Ende,
 ): Resultat {
-  const q = leggTilLos(p, ny, [0, 0, 0]);
+  const familie = finnKobling(p, mal)?.familie;
+  const kropp: Modulkropp = {
+    ...ny.kropp,
+    koblinger: ny.kropp.koblinger.map((x) => (x.id === egenKobling && familie ? { ...x, familie } : x)),
+  };
+  const q = leggTilLos(p, { ...ny, kropp }, [0, 0, 0]);
   return koble(q, { kropp: ny.kropp.id, kobling: egenKobling }, mal);
 }
 
@@ -633,7 +689,7 @@ export function koblingsvalg(
   for (const k of kropperAv(p))
     for (const kb of ledige(p, k.id)) {
       const passende = egne
-        .filter((e) => kompatible({ ...e, familie: kb.familie } as Kobling, kb))
+        .filter((e) => passerNy(e, kb))
         .sort((a, b) => Number(b.rolle === kb.rolle) - Number(a.rolle === kb.rolle))
         .map((e) => e.id);
       if (passende.length) ut.push({ mal: { kropp: k.id, kobling: kb.id }, egne: passende });
@@ -653,4 +709,158 @@ export function ledigPlass(p: BuildforgeParametre): V3 {
   }
   // the new part stands with its middle 30 mm beyond the rightmost point
   return [Math.min(x + 30, 260), 0, 0];
+}
+
+// ---------------------------------------------------------------------------
+// Joint types and connectors (handoff §32–36)
+
+/**
+ * Change the joint type of a connection: both connectors change family
+ * together, so the connection stays whole. The user chose the connection,
+ * so both parts are named in the editor before this runs.
+ */
+export function settLeddtype(
+  p: BuildforgeParametre,
+  forbindelseId: string,
+  familie: Kobling['familie'],
+): BuildforgeParametre {
+  const f = forbindelserAv(p).find((x) => x.id === forbindelseId);
+  if (!f) return p;
+  const ender = new Set([`${f.a.kropp}/${f.a.kobling}`, `${f.b.kropp}/${f.b.kobling}`]);
+  return medKuleprofil({
+    ...p,
+    kropper: kropperAv(p).map((k) => ({
+      ...k,
+      koblinger: k.koblinger.map((kb) => (ender.has(`${k.id}/${kb.id}`) ? { ...kb, familie } : kb)),
+    })),
+    forbindelser: forbindelserAv(p).map((x) =>
+      x.id === forbindelseId && familie !== 'kule' ? { id: x.id, a: x.a, b: x.b, vri: x.vri } : x,
+    ),
+  });
+}
+
+/** The ball joint profile is recorded the first time the project gets a ball joint connector. */
+function medKuleprofil(p: BuildforgeParametre): BuildforgeParametre {
+  if (p.kuleprofil || !kropperAv(p).some((k) => k.koblinger.some((kb) => kb.familie === 'kule'))) return p;
+  return { ...p, kuleprofil: { id: KULELEDD_PROVE.id, versjon: KULELEDD_PROVE.versjon } };
+}
+
+/** Bend a ball joint (degrees, 0 to the profile's largest bend) towards a direction about the axis. */
+export function settBoy(
+  p: BuildforgeParametre,
+  forbindelseId: string,
+  boy: number,
+  retning: number,
+): BuildforgeParametre {
+  const maks = kulemal(
+    (p.kuleprofil && finnKuleprofil(p.kuleprofil.id, p.kuleprofil.versjon)) || KULELEDD_PROVE,
+  ).maksBoy;
+  const r = ((((retning + 180) % 360) + 360) % 360) - 180;
+  return {
+    ...p,
+    forbindelser: forbindelserAv(p).map((f) =>
+      f.id === forbindelseId
+        ? {
+            ...f,
+            boy: Math.round(Math.max(0, Math.min(maks, boy)) * 10) / 10,
+            boyRetning: Math.round(r * 10) / 10,
+          }
+        : f,
+    ),
+  };
+}
+
+export const kuleMaksBoy = (p: BuildforgeParametre): number =>
+  kulemal((p.kuleprofil && finnKuleprofil(p.kuleprofil.id, p.kuleprofil.versjon)) || KULELEDD_PROVE).maksBoy;
+
+/** Change a connector of a part. A connector in use may change gender only after it is disconnected. */
+export function endreKobling(
+  p: BuildforgeParametre,
+  e: Ende,
+  endring: Partial<Pick<Kobling, 'kjonn' | 'familie' | 'navn' | 'posisjon' | 'akse'>>,
+): Resultat {
+  const kb = finnKobling(p, e);
+  if (!kb) return { ok: false, grunn: 'Koblingen finnes ikke.' };
+  const i_bruk = forbindelseVed(p, e);
+  if (i_bruk && (endring.kjonn || endring.familie))
+    return { ok: false, grunn: 'Koble fra først. En kobling i bruk kan ikke bytte type.' };
+  return {
+    ok: true,
+    p: medKuleprofil({
+      ...p,
+      kropper: kropperAv(p).map((k) =>
+        k.id === e.kropp
+          ? { ...k, koblinger: k.koblinger.map((x) => (x.id === e.kobling ? { ...x, ...endring } : x)) }
+          : k,
+      ),
+    }),
+  };
+}
+
+/** Change a connector's gender; a connection on it is broken first (handoff §36: the other part is never changed). */
+export function byttKjonn(p: BuildforgeParametre, e: Ende): Resultat {
+  const kb = finnKobling(p, e);
+  if (!kb) return { ok: false, grunn: 'Koblingen finnes ikke.' };
+  const f = forbindelseVed(p, e);
+  let q = p;
+  if (f) {
+    const r = koblFra(p, f.id);
+    if (!r.ok) return r;
+    q = r.p;
+  }
+  return endreKobling(q, e, { kjonn: kb.kjonn === 'hann' ? 'hunn' : 'hann' });
+}
+
+/** Add a connector to a part at a point on its surface, pointing out along the surface normal. */
+export function leggTilKobling(
+  p: BuildforgeParametre,
+  kroppId: string,
+  ny: Pick<Kobling, 'kjonn' | 'familie' | 'posisjon' | 'akse'>,
+): { ok: true; p: BuildforgeParametre; id: string } | { ok: false; grunn: string } {
+  const k = finnKropp(p, kroppId);
+  if (!k) return { ok: false, grunn: 'Delen finnes ikke.' };
+  if (k.koblinger.length >= 12) return { ok: false, grunn: 'En del kan ha høyst 12 koblinger.' };
+  const id = nyId('kb');
+  const nr = k.koblinger.filter((x) => x.rolle === 'generisk').length + 1;
+  const kobling: Kobling = {
+    id,
+    navn: `Kobling ${nr}`,
+    rolle: 'generisk',
+    ...ny,
+    posisjon: ny.posisjon.map((v) => Math.round(v * 100) / 100) as V3,
+    akse: normal(ny.akse).map((v) => Math.round(v * 10000) / 10000) as V3,
+  };
+  // keep the axis exactly unit length after rounding
+  kobling.akse = normal(kobling.akse);
+  return {
+    ok: true,
+    id,
+    p: medKuleprofil({
+      ...p,
+      kropper: kropperAv(p).map((x) =>
+        x.id === kroppId ? { ...x, koblinger: [...x.koblinger, kobling] } : x,
+      ),
+    }),
+  };
+}
+
+/** Remove a connector; a connection on it is broken first and the part behind stays where it is. */
+export function slettKobling(p: BuildforgeParametre, e: Ende): Resultat {
+  if (!finnKobling(p, e)) return { ok: false, grunn: 'Koblingen finnes ikke.' };
+  const f = forbindelseVed(p, e);
+  let q = p;
+  if (f) {
+    const r = koblFra(p, f.id);
+    if (!r.ok) return r;
+    q = r.p;
+  }
+  return {
+    ok: true,
+    p: {
+      ...q,
+      kropper: kropperAv(q).map((k) =>
+        k.id === e.kropp ? { ...k, koblinger: k.koblinger.filter((x) => x.id !== e.kobling) } : k,
+      ),
+    },
+  };
 }

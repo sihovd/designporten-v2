@@ -7,9 +7,19 @@ async function apneDeler(page: Page) {
   if ((await knapp.isVisible()) && (await knapp.getAttribute('aria-pressed')) !== 'true') await knapp.click();
 }
 
+/** Properties open on demand: the sheet below 1024 px, the floating panel from the top bar above. */
 async function apneEgenskaper(page: Page) {
-  const knapp = page.locator('.arkvelger').getByRole('button', { name: 'Egenskaper' });
-  if ((await knapp.isVisible()) && (await knapp.getAttribute('aria-pressed')) !== 'true') await knapp.click();
+  const ark = page.locator('.arkvelger').getByRole('button', { name: 'Egenskaper' });
+  const linje = page.locator('.verkstedlinje').getByRole('button', { name: 'Egenskaper' });
+  const knapp = (await ark.isVisible()) ? ark : linje;
+  if ((await knapp.getAttribute('aria-pressed')) !== 'true') await knapp.click();
+}
+
+/** The left panel's tabs (modular builder). */
+async function fane(page: Page, navn: 'Bibliotek' | 'Modell') {
+  await apneDeler(page);
+  const f = page.getByRole('tab', { name: navn });
+  if ((await f.getAttribute('aria-selected')) !== 'true') await f.click();
 }
 
 async function apneNy(page: Page) {
@@ -18,12 +28,12 @@ async function apneNy(page: Page) {
   await page.reload();
 }
 
-/** A new document opens «La oss bygge en …»; choose a start in it. */
+/** A new document opens «La oss bygge en …» over the canvas; choose a start in it. */
 async function velgStart(page: Page, navn: RegExp) {
-  const dialog = page.getByRole('dialog', { name: 'La oss bygge en …' });
-  await expect(dialog).toBeVisible({ timeout: 20_000 });
-  await dialog.getByRole('button', { name: navn }).click();
-  await expect(dialog).toHaveCount(0);
+  const velger = page.getByRole('region', { name: 'La oss bygge en …' });
+  await expect(velger).toBeVisible({ timeout: 20_000 });
+  await velger.getByRole('button', { name: navn }).click();
+  await expect(velger).toHaveCount(0);
   await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
 }
 
@@ -95,10 +105,10 @@ test.describe('BuildForge-klikker', () => {
   });
 
   test('har ingen tilgjengelighetsfeil', async ({ page, isMobile }) => {
+    if (!isMobile) await apneEgenskaper(page);
     const r = await new AxeBuilder({ page })
       .include(isMobile ? '.bunnbrett' : '.flytpanel')
       .include('.bunnbrett')
-      .include(isMobile ? '.bunnbrett' : '.inspektor')
       .analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
@@ -109,29 +119,34 @@ test.describe('BuildForge-modulbygger', () => {
     await apneNy(page);
   });
 
-  test('startvelgeren har ingen tilgjengelighetsfeil', async ({ page }) => {
-    const dialog = page.getByRole('dialog', { name: 'La oss bygge en …' });
-    await expect(dialog).toBeVisible({ timeout: 20_000 });
+  test('startvelgeren ligger over lerretet og har ingen tilgjengelighetsfeil', async ({ page }) => {
+    const velger = page.getByRole('region', { name: 'La oss bygge en …' });
+    await expect(velger).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     const r = await new AxeBuilder({ page }).include('.bf-startvelger').analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(velger).toHaveCount(0);
   });
 
   test('bygger et menneske uten å dra, bytter ut en del og går inn i den', async ({ page }) => {
     await velgStart(page, /^Menneske/);
-    await apneDeler(page);
+    await fane(page, 'Modell');
     const tre = page.getByRole('region', { name: 'Modellen' });
     await expect(tre.getByRole('button', { name: /Smal kropp/ })).toBeVisible();
 
-    // choose a part, then a connector from the list
+    // choose a part card, then a connector from the list
+    await fane(page, 'Bibliotek');
     await page.getByRole('button', { name: 'Rundt hode', exact: true }).click();
     await page
       .getByRole('group', { name: 'Plasser rundt hode' })
       .getByRole('button', { name: 'Smal kropp · hals' })
       .click();
     await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
-    await apneDeler(page);
+    await fane(page, 'Modell');
     await expect(tre.getByRole('button', { name: /Rundt hode/ })).toBeVisible();
 
+    await fane(page, 'Bibliotek');
     await page.getByRole('button', { name: 'Tynn arm', exact: true }).click();
     await page
       .getByRole('group', { name: 'Plasser tynn arm' })
@@ -140,13 +155,14 @@ test.describe('BuildForge-modulbygger', () => {
     await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
     await expect(page.locator('.statuslinje')).toContainText('3 deler', { ignoreCase: true });
 
-    // replace the head: select it, «Bytt ut», choose the new one
-    await apneDeler(page);
+    // replace the head: select it, «Bytt ut» in the properties, choose the new one
+    await fane(page, 'Modell');
     await tre.getByRole('button', { name: /Rundt hode/ }).click();
     await apneEgenskaper(page);
     await page.getByRole('button', { name: 'Bytt ut', exact: true }).click();
-    await apneDeler(page);
+    await fane(page, 'Bibliotek');
     await page.getByRole('button', { name: 'Dragehode', exact: true }).click();
+    await fane(page, 'Modell');
     await expect(tre.getByRole('button', { name: /Dragehode/ })).toBeVisible();
     await expect(tre.getByRole('button', { name: /Rundt hode/ })).toHaveCount(0);
     await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
@@ -159,6 +175,9 @@ test.describe('BuildForge-modulbygger', () => {
     await page.getByRole('button', { name: 'Horn', exact: true }).click();
     await page.getByRole('group', { name: 'Fest horn på' }).getByRole('button').first().click();
     await expect(page.locator('#bf-kontroll')).toContainText(/Grønn|Gul/, { timeout: 30_000 });
+    // its connectors are listed on their own tab
+    await page.getByRole('tab', { name: /Koblinger/ }).click();
+    await expect(page.getByRole('list', { name: 'Koblinger på dragehode' })).toContainText('Hunn');
     await page.locator('body').press('Escape');
     await page.locator('body').press('Escape');
     await expect(page.getByRole('navigation', { name: 'Hvor du er', exact: true })).toHaveCount(0);
@@ -169,9 +188,65 @@ test.describe('BuildForge-modulbygger', () => {
     await expect(dialog.getByRole('button', { name: 'STL: Dragehode' })).toBeVisible();
   });
 
+  test('gjør et ledd om til kuleledd og bøyer det innenfor grensen', async ({ page }) => {
+    await velgStart(page, /^Menneske/);
+    await fane(page, 'Bibliotek');
+    await page.getByRole('button', { name: 'Tynn arm', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'Plasser tynn arm' })
+      .getByRole('button', { name: 'Smal kropp · venstre skulder' })
+      .click();
+    await expect(page.locator('#bf-kontroll')).toContainText('Grønn', { timeout: 30_000 });
+    // the new arm is selected; its joint is in the properties
+    await apneEgenskaper(page);
+    const ledd = page.getByRole('region', { name: 'Ledd' });
+    await ledd.getByRole('radio', { name: 'Kuleledd' }).click();
+    await expect(ledd.getByRole('radio', { name: 'Kuleledd' })).toHaveAttribute('aria-checked', 'true');
+    await ledd.getByRole('slider', { name: /^Bøy\b/ }).fill('20');
+    await expect(page.locator('#bf-kontroll')).toContainText(/Grønn|Gul/, { timeout: 30_000 });
+    await expect(page.getByRole('region', { name: 'Kuleleddprofil' })).toContainText('Prøveprofil');
+
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
+    await expect(dialog.getByText('Leddene er ikke fysisk testet')).toBeVisible({ timeout: 20_000 });
+  });
+
+  test('høyreklikk åpner en ringmeny som kan brukes med tastatur', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Høyreklikk med mus; på berøring er det et langt trykk');
+    await velgStart(page, /^Menneske/);
+    const lerret = page.locator('.visning3d canvas').first();
+    const l = (await lerret.boundingBox())!;
+    // on empty plate: the model menu
+    await page.mouse.click(l.x + l.width - 120, l.y + l.height - 160, { button: 'right' });
+    const meny = page.getByRole('menu', { name: 'Valg for Modellen' });
+    await expect(meny.getByRole('menuitem', { name: 'Legg til del' })).toBeVisible();
+    await expect(meny.getByRole('menuitem', { name: 'Legg til del' })).toBeFocused();
+    await page.keyboard.press('ArrowRight');
+    await expect(meny.getByRole('menuitem', { name: 'Vis modelltreet' })).toBeFocused();
+    const r = await new AxeBuilder({ page }).include('.bf-radial').analyze();
+    expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(meny).toHaveCount(0);
+
+    // on a selected part, from the keyboard: the part's menu
+    await fane(page, 'Modell');
+    await page
+      .getByRole('region', { name: 'Modellen' })
+      .getByRole('button', { name: /Smal kropp/ })
+      .click();
+    await page.keyboard.press('Shift+F10');
+    const delmeny = page.getByRole('menu', { name: 'Valg for Smal kropp' });
+    await expect(delmeny.getByRole('menuitem', { name: 'Slett' })).toBeDisabled();
+    await delmeny.getByRole('menuitem', { name: 'Rediger' }).click();
+    await expect(page.getByRole('navigation', { name: 'Hvor du er', exact: true })).toContainText(
+      'Smal kropp',
+    );
+  });
+
   test('drar en kroppsdel ut på platen som en løs del', async ({ page, isMobile }) => {
-    test.skip(isMobile, 'Dra med mus; på berøring brukes valg og liste');
+    test.skip(isMobile, 'Dra med mus; på berøring holdes kortet før det dras');
     await velgStart(page, /^Skapning/);
+    await fane(page, 'Bibliotek');
     const knapp = page.getByRole('button', { name: 'Vinge', exact: true });
     await knapp.scrollIntoViewIfNeeded();
     const lerret = page.locator('.visning3d canvas').first();
@@ -179,9 +254,10 @@ test.describe('BuildForge-modulbygger', () => {
     const l = (await lerret.boundingBox())!;
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
     await page.mouse.down();
-    await page.mouse.move(l.x + l.width * 0.85, l.y + l.height * 0.8, { steps: 12 });
+    await page.mouse.move(l.x + l.width * 0.85, l.y + l.height * 0.75, { steps: 12 });
     await expect(page.locator('.bf-drahint')).toBeVisible();
     await page.mouse.up();
+    await fane(page, 'Modell');
     const tre = page.getByRole('region', { name: 'Modellen' });
     await expect(tre.getByRole('heading', { name: 'Løse deler' })).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('#bf-kontroll')).toContainText(/Gul|Rød/, { timeout: 30_000 });
@@ -191,11 +267,11 @@ test.describe('BuildForge-modulbygger', () => {
 
   test('modulbyggeren har ingen tilgjengelighetsfeil', async ({ page, isMobile }) => {
     await velgStart(page, /^Drage/);
-    await apneDeler(page);
+    await fane(page, 'Bibliotek');
     await page.getByRole('button', { name: 'Vinge', exact: true }).click();
     const r = await new AxeBuilder({ page })
       .include(isMobile ? '.ark' : '.flytpanel')
-      .include('.bunnbrett')
+      .include('.bf-statusbrikke')
       .analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });

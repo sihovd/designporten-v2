@@ -60,6 +60,8 @@ export interface Scene3d {
   straale(sx: number, sy: number): THREE.Raycaster;
   /** Enable/disable orbiting while a generator handle is dragged. */
   settKameraStyring(pa: boolean): void;
+  /** Frame a box (model mm) from the current viewing direction, e.g. one part of the model. */
+  fokuser(min: [number, number, number], maks: [number, number, number]): void;
 }
 
 /** Light-weight description for the hub and routes (no UI code). */
@@ -94,6 +96,13 @@ export interface GeneratorPlugin {
   ui: GeneratorUi;
   /** Name of the left panel on small screens and for screen readers (default «Lag»). */
   venstrepanelNavn?: string;
+  /**
+   * Canvas first: no tool rail column, and on wide screens the inspector
+   * floats over the canvas only when asked for (the «Egenskaper» button,
+   * or the generator setting `innstillinger.inspektor`). Small screens keep
+   * their sheets.
+   */
+  lerretForst?: boolean;
   /** Development-geometry notice (e.g. dragon parts not final). */
   utviklingsgeometri?: string;
   /**

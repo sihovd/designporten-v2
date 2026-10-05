@@ -85,6 +85,18 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   const filvelger = useRef<HTMLInputElement>(null);
   const ui = plugin.ui;
 
+  // generators can ask for the left panel (for example «Legg til del» in a menu)
+  useEffect(() => {
+    const vis = () => {
+      settPanelApent(true);
+      requestAnimationFrame(() => benk.kommando('tegn'));
+    };
+    benk.kommandoer.set('vis-venstrepanel', vis);
+    return () => {
+      if (benk.kommandoer.get('vis-venstrepanel') === vis) benk.kommandoer.delete('vis-venstrepanel');
+    };
+  }, [benk]);
+
   useEffect(() => {
     if (gjenopprettet.current) benk.melde('Prosjektet ditt fra forrige gang er hentet fram.');
     forhandslast3d();
@@ -181,9 +193,11 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
 
   const venstre = ui.Venstrepanel ? <ui.Venstrepanel benk={benk} /> : null;
   const hoyre = <ui.Inspektor benk={benk} />;
+  const lerretForst = !!plugin.lerretForst;
+  const inspektorApen = t.innstillinger.inspektor;
 
   return (
-    <div class={`verksted${bred ? ' bred' : ' smal'}`}>
+    <div class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}`}>
       <header class="verkstedlinje">
         <a class="hjem" href="/" aria-label="Designporten, til forsiden">
           <img src={logomerke.src} alt="" width={logomerke.bredde} height={logomerke.hoyde} />
@@ -281,6 +295,20 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             ))}
           </div>
         )}
+        {lerretForst && bred && (
+          <button
+            type="button"
+            class="ikonknapp"
+            aria-pressed={inspektorApen}
+            aria-controls="verksted-inspektor"
+            onClick={() => {
+              benk.settInnstillinger({ inspektor: !inspektorApen });
+              requestAnimationFrame(() => benk.kommando('tegn'));
+            }}
+          >
+            Egenskaper
+          </button>
+        )}
         <button type="button" class="ikonknapp" onClick={() => settHjelp(true)} title="Hurtigtaster (?)">
           ?<span class="visuelt-skjult"> Hjelp og hurtigtaster</span>
         </button>
@@ -330,13 +358,28 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             {panelApent && venstre}
           </section>
         )}
+        {bred && lerretForst && inspektorApen && (
+          <aside id="verksted-inspektor" class="flytpanel hoyre" aria-label="Egenskaper">
+            <button
+              type="button"
+              class="panelbryter"
+              onClick={() => {
+                benk.settInnstillinger({ inspektor: false });
+                requestAnimationFrame(() => benk.kommando('tegn'));
+              }}
+            >
+              Lukk egenskaper
+            </button>
+            <div class="flytpanel-innhold">{hoyre}</div>
+          </aside>
+        )}
       </main>
 
-      {bred ? (
+      {bred && !lerretForst ? (
         <aside class="inspektor" aria-label="Egenskaper">
           {hoyre}
         </aside>
-      ) : (
+      ) : bred ? null : (
         <>
           <nav class="arkvelger" aria-label="Paneler">
             {venstre && (
