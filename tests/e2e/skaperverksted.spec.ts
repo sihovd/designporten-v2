@@ -112,6 +112,76 @@ test.describe('Signgen', () => {
     expect(zip.suggestedFilename()).toMatch(/batch\.zip$/);
   });
 
+  test('ny tekst går i det valgte tekstlaget og blir gruppert, «Tekstlag» gir et eget lag', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Lagpanelet og tegning med mus testes på desktop');
+    const lagNavn = page.locator('.lagrad-hode .lag-navn', { hasText: 'Tekst' }).first();
+    await lagNavn.click();
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    await page.keyboard.press('t');
+    await page.mouse.click(b.x + b.width * 0.5, b.y + b.height * 0.8);
+    await expect(page.locator('.lagrad').first()).toContainText('Gruppe');
+    await expect(page.locator('.lagrad')).toHaveCount(1);
+    // a new, empty text layer is a layer of its own
+    await page.getByRole('button', { name: '+ Nytt lag' }).click();
+    await page.getByRole('button', { name: /^Tekstlag/ }).click();
+    await expect(page.locator('.lagrad')).toHaveCount(2);
+  });
+
+  test('bare det valgte omrisset vises i egenskapene', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Lagpanelet testes på desktop');
+    const tekstlag = page.locator('.lagrad', { hasText: 'Tekst' }).first();
+    await tekstlag.getByRole('button', { name: '+ Omriss' }).click();
+    await tekstlag.locator('.omrissrad .lag-navn').first().click();
+    await expect(page.locator('.omrissblokk')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Vis alle omrissene' }).click();
+    await expect(page.locator('.omrissblokk')).toHaveCount(2);
+  });
+
+  test('legger et dekor fra galleriet i tekstlaget og drar det ut i et eget lag', async ({
+    page,
+    isMobile,
+  }) => {
+    await page.getByRole('button', { name: 'Dekor' }).click();
+    const galleri = page.getByRole('dialog', { name: 'Dekor' });
+    await expect(galleri.getByRole('button', { name: 'Enhjørning' })).toBeVisible();
+    const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await galleri.getByRole('button', { name: 'Enhjørning' }).click();
+    await expect(galleri).toBeHidden();
+    if (isMobile) return;
+    await expect(page.locator('.lagrad').first()).toContainText('Gruppe');
+    const rad = page.locator('.objektliste li', { hasText: 'Enhjørning' });
+    const bb = (await rad.boundingBox())!;
+    await page.mouse.move(bb.x + 20, bb.y + bb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(bb.x + 30, bb.y + bb.height / 2 + 10, { steps: 4 });
+    const ut = page.locator('.lag-ut');
+    await expect(ut).toBeVisible();
+    const ub = (await ut.boundingBox())!;
+    await page.mouse.move(ub.x + ub.width / 2, ub.y + ub.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await expect(page.locator('.lagrad')).toHaveCount(2);
+    await expect(page.locator('.lagrad').first()).toContainText('Pynt');
+  });
+
+  test('«Eksporter via CSV» åpner CSV-vinduet og viser byggeplaten med skiltene', async ({ page }) => {
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    const eksport = page.getByRole('dialog', { name: 'Se over før eksport' });
+    await eksport.getByRole('button', { name: 'Eksporter via CSV' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Lag skilt fra CSV' });
+    await dialog.getByRole('button', { name: 'Gjør til felt' }).click();
+    await dialog.getByLabel('Eller lim inn').fill('navn\nOla\nKari');
+    await dialog.getByRole('button', { name: 'Bruk teksten' }).click();
+    await expect(dialog.getByText('2 skilt, ingen problemer')).toBeVisible();
+    await expect(dialog.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
+      timeout: 20_000,
+    });
+  });
+
   test('har ingen tilgjengelighetsfeil i verkstedet', async ({ page }) => {
     const r = await new AxeBuilder({ page }).exclude('canvas').analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);

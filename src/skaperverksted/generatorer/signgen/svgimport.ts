@@ -7,7 +7,7 @@
 import type { SvgKilde } from '../../core/dokument';
 import { multipliser, anvend, type Matrise } from '../../core/geometri2d';
 import { stiTilRinger, StiFeil } from '../../geometri/stidata';
-import { regionFraRinger, regionBoks } from '../../geometri/polygon';
+import { kildeFraRinger } from './svgkilde';
 
 export class SvgFeil extends Error {}
 
@@ -146,8 +146,9 @@ export function importerSvg(tekst: string, filnavn: string): SvgResultat {
   }
 
   const hoppetOver = new Set<string>();
+  // each shape keeps the fill rule it was drawn with, so holes made either way survive
   const ringer: ReturnType<typeof transformerteRinger> = [];
-  let fyllregel: 'nonzero' | 'evenodd' = 'nonzero';
+  const jevnOddRinger: ReturnType<typeof transformerteRinger> = [];
   const besok = (el: Element, m: Matrise) => {
     const mm_ = multipliser(m, tolkTransform(el.getAttribute('transform')));
     const navn = el.localName;
@@ -185,14 +186,11 @@ export function importerSvg(tekst: string, filnavn: string): SvgResultat {
       hoppetOver.add('former uten fyll (bare strek)');
       return;
     }
-    if (
+    const jevnOdd =
       (el.getAttribute('fill-rule') ?? '').trim() === 'evenodd' ||
-      /fill-rule\s*:\s*evenodd/.test(el.getAttribute('style') ?? '')
-    ) {
-      fyllregel = 'evenodd';
-    }
+      /fill-rule\s*:\s*evenodd/.test(el.getAttribute('style') ?? '');
     try {
-      ringer.push(...transformerteRinger(d, mm_));
+      (jevnOdd ? jevnOddRinger : ringer).push(...transformerteRinger(d, mm_));
     } catch (e) {
       if (e instanceof StiFeil) hoppetOver.add('ugyldige stier');
       else throw e;
@@ -202,25 +200,9 @@ export function importerSvg(tekst: string, filnavn: string): SvgResultat {
   const vbX = vb.length === 4 ? vb[0]! : 0;
   const vbY = vb.length === 4 ? vb[1]! : 0;
   besok(rot, multipliser(start, [1, 0, 0, 1, -vbX, -vbY]));
-  if (!ringer.length) throw new SvgFeil('Fant ingen fylte former i SVG-en.');
+  if (!ringer.length && !jevnOddRinger.length) throw new SvgFeil('Fant ingen fylte former i SVG-en.');
 
-  const region = regionFraRinger(ringer, fyllregel);
-  if (!region.length) throw new SvgFeil('Formene i SVG-en har ingen flate.');
-  const b = regionBoks(region);
-  const cx = (b.minX + b.maksX) / 2,
-    cy = (b.minY + b.maksY) / 2;
-  // store the normalised outline (already flattened) as compact path data
-  const stier = region.map((f) =>
-    [f.ytre, ...f.hull]
-      .map((r) => `M${r.map((p) => `${rund3(p.x - cx)} ${rund3(p.y - cy)}`).join('L')}Z`)
-      .join(''),
-  );
-  return {
-    kilde: { type: 'svg', stier, filnavn, fyllregel: 'nonzero' },
-    bredde: b.maksX - b.minX,
-    hoyde: b.maksY - b.minY,
-    hoppetOver: [...hoppetOver],
-  };
+  const r = kildeFraRinger(ringer, jevnOddRinger, filnavn);
+  if (!r) throw new SvgFeil('Formene i SVG-en har ingen flate.');
+  return { kilde: r.kilde, bredde: r.bredde, hoyde: r.hoyde, hoppetOver: [...hoppetOver] };
 }
-
-const rund3 = (v: number) => Math.round(v * 1000) / 1000;

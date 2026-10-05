@@ -7,12 +7,16 @@
  */
 import { useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { objekterILag, type Lag, type Omriss } from '../../core/dokument';
+import { finnLag, objekterILag, type Dokument, type Lag, type Omriss } from '../../core/dokument';
 import { finnMateriale } from '../../core/materialer';
 import { tall } from '../../core/enheter';
 import { brukBenk } from '../../shell/bruk-benk';
 import {
   dupliserLag,
+  flyttLagInnI,
+  flyttObjekterInnI,
+  kanLiggeI,
+  losUtObjekt,
   nesteFarge,
   leggTilOmriss,
   nyttOmriss,
@@ -25,7 +29,7 @@ import {
   slettLag,
 } from './dokument';
 import { signtilstand, brukSigntilstand } from './tilstand';
-import { importerSvgSom, nyttLagRundtTeksten, type Svgrolle } from './handlinger';
+import { importerSvgSom, nyttLagRundtTeksten, nyttTomtTekstlag, type Svgrolle } from './handlinger';
 
 /** One outline of a text layer: a row of its own in the layers panel. */
 function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss }) {
@@ -77,16 +81,36 @@ export function nyttOmrissI(benk: Arbeidsbenk, lag: Lag): void {
   benk.melde(`${o.navn} er lagt til rundt teksten i «${lag.navn}», i ${mat.navn}.`);
 }
 
+/** What is being dragged in the layers panel: an object, or a whole layer. */
+interface Dra {
+  type: 'objekt' | 'lag';
+  id: string;
+}
+
+interface Dnd {
+  dra: Dra | null;
+  start: (d: Dra, e: DragEvent) => void;
+  slutt: () => void;
+  /** The layer under the pointer while dragging. */
+  over: string | null;
+  settOver: (id: string | null) => void;
+  /** Whether the dragged thing may be dropped on this layer. */
+  kan: (lag: Lag) => boolean;
+  slipp: (lagId: string) => void;
+}
+
 function Lagrad({
   benk,
   lag,
   apen,
   veksle,
+  dnd,
 }: {
   benk: Arbeidsbenk;
   lag: Lag;
   apen: boolean;
   veksle: () => void;
+  dnd: Dnd;
 }) {
   const t = brukBenk(benk);
   const aktiv = t.utvalg.lag === lag.id;
@@ -94,9 +118,34 @@ function Lagrad({
   const mat = finnMateriale(lag.materialId);
   const endreLag = (navn: string, endring: Partial<Lag>) =>
     benk.endre({ navn, anvend: (d) => oppdaterLag(d, lag.id, endring) });
+  const kanSlippes = !!dnd.dra && dnd.kan(lag);
   return (
-    <li class={`lagrad${aktiv ? ' aktiv' : ''}${lag.synlig ? '' : ' skjult'}`}>
-      <div class="lagrad-hode">
+    <li
+      class={`lagrad${aktiv ? ' aktiv' : ''}${lag.synlig ? '' : ' skjult'}${
+        kanSlippes ? ' kan-slippes' : ''
+      }${kanSlippes && dnd.over === lag.id ? ' slipp-her' : ''}`}
+      onDragOver={(e) => {
+        if (!kanSlippes) return;
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        if (dnd.over !== lag.id) dnd.settOver(lag.id);
+      }}
+      onDragLeave={(e) => {
+        if (dnd.over === lag.id && !(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null))
+          dnd.settOver(null);
+      }}
+      onDrop={(e) => {
+        if (!kanSlippes) return;
+        e.preventDefault();
+        dnd.slipp(lag.id);
+      }}
+    >
+      <div
+        class="lagrad-hode"
+        draggable={!lag.last}
+        onDragStart={(e) => dnd.start({ type: 'lag', id: lag.id }, e)}
+        onDragEnd={dnd.slutt}
+      >
         <button type="button" class="lag-apne" aria-expanded={apen} onClick={veksle}>
           <span class="visuelt-skjult">{apen ? 'Skjul innholdet i' : 'Vis innholdet i'} </span>
           <span aria-hidden="true">{apen ? '▾' : '▸'}</span>
@@ -106,7 +155,10 @@ function Lagrad({
           type="button"
           class="lag-navn"
           aria-current={aktiv ? 'true' : undefined}
-          onClick={() => benk.velg({ lag: lag.id, objekter: [] })}
+          onClick={() => {
+            signtilstand(benk).sett({ omriss: null });
+            benk.velg({ lag: lag.id, objekter: [] });
+          }}
         >
           <span class="lag-tittel">
             {lag.navn}
@@ -154,7 +206,13 @@ function Lagrad({
           {[...objekter].reverse().map((o) => {
             const valgt = t.utvalg.objekter.includes(o.id);
             return (
-              <li key={o.id} class={valgt ? 'valgt' : ''}>
+              <li
+                key={o.id}
+                class={valgt ? 'valgt' : ''}
+                draggable={!o.last && !lag.last}
+                onDragStart={(e) => dnd.start({ type: 'objekt', id: o.id }, e)}
+                onDragEnd={dnd.slutt}
+              >
                 <button
                   type="button"
                   class="objekt-navn"
@@ -258,6 +316,80 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
     const ny = benk.tilstand.utvalg.lag;
     if (ny) apneNytt(ny);
   };
+  // dragging in the layers panel (Sivert, 2026-10-05): an object or a layer onto a layer, or an
+  // object out of its group
+  const [dra, settDraTilstand] = useState<Dra | null>(null);
+  const [over, settOver] = useState<string | null>(null);
+  const kan = (lag: Lag): boolean => {
+    if (!dra || lag.last) return false;
+    if (dra.type === 'objekt') {
+      const o = t.dok.objekter[dra.id];
+      return !!o && o.lagId !== lag.id && kanLiggeI(o, lag);
+    }
+    return dra.id !== lag.id && objekterILag(t.dok, dra.id).some((o) => !o.last && kanLiggeI(o, lag));
+  };
+  const start = (d: Dra, e: DragEvent) => {
+    e.stopPropagation();
+    e.dataTransfer?.setData('text/plain', d.id);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+    // changing the DOM inside dragstart can cancel the drag
+    requestAnimationFrame(() => settDraTilstand(d));
+  };
+  const slutt = () => {
+    settDraTilstand(null);
+    settOver(null);
+  };
+  const slipp = (lagId: string) => {
+    const d = dra;
+    slutt();
+    if (!d) return;
+    const mal = finnLag(benk.dok, lagId);
+    const r =
+      d.type === 'objekt' ? flyttObjekterInnI(benk.dok, [d.id], lagId) : flyttLagInnI(benk.dok, d.id, lagId);
+    if (!r.flyttet.length || !mal) {
+      benk.melde('Det kan ikke legges i det laget.');
+      return;
+    }
+    benk.endre({
+      navn: d.type === 'objekt' ? 'Flytt til lag' : 'Flytt lag inn i lag',
+      anvend: (dok: Dokument) =>
+        (d.type === 'objekt' ? flyttObjekterInnI(dok, [d.id], lagId) : flyttLagInnI(dok, d.id, lagId)).dok,
+    });
+    benk.velg({ lag: lagId, objekter: r.flyttet });
+    apneNytt(lagId);
+    benk.melde(
+      mal.tekstlag
+        ? `Flyttet til «${mal.navn}». Det får samme omriss som resten av gruppen.`
+        : `Flyttet til «${mal.navn}».`,
+    );
+  };
+  const slippUt = () => {
+    const d = dra;
+    slutt();
+    if (d?.type !== 'objekt') return;
+    let ny: string | null = null;
+    benk.endre({
+      navn: 'Løs ut av gruppen',
+      anvend: (dok: Dokument) => {
+        const r = losUtObjekt(dok, d.id);
+        ny = r.lagId;
+        return r.dok;
+      },
+    });
+    if (ny) {
+      benk.velg({ lag: ny, objekter: [d.id] });
+      apneNytt(ny);
+      benk.melde('Tatt ut av gruppen og lagt i et eget lag.');
+    }
+  };
+  const draObjekt = dra?.type === 'objekt' ? t.dok.objekter[dra.id] : undefined;
+  const kanLosesUt =
+    !!draObjekt &&
+    !!finnLag(t.dok, draObjekt.lagId)?.tekstlag &&
+    (t.dok.rekkefolge[draObjekt.lagId]?.length ?? 0) > 1 &&
+    draObjekt.kilde.type !== 'form';
+  const dnd: Dnd = { dra, start, slutt, over, settOver, kan, slipp };
+
   const svg = (rolle: Svgrolle) => {
     settMeny(false);
     svgrolle.current = rolle;
@@ -281,6 +413,24 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
         </h2>
         {meny && (
           <ul id="nytt-lag-meny" class="nytt-lag-meny" role="list">
+            <li>
+              <button type="button" onClick={() => velg(() => nyttTomtTekstlag(benk))}>
+                <strong>Tekstlag</strong>
+                <span class="dempet">Et eget lag for tekst, atskilt fra de andre tekstene</span>
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  settMeny(false);
+                  signtilstand(benk).sett({ dekor: true });
+                }}
+              >
+                <strong>Dekor fra galleri</strong>
+                <span class="dempet">Stjerne, hest, enhjørning og flere, eller din egen vektor</span>
+              </button>
+            </li>
             <li>
               <button type="button" onClick={() => velg(() => nyttLagRundtTeksten(benk))}>
                 <strong>Rundt teksten</strong>
@@ -329,6 +479,7 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
               benk={benk}
               lag={l}
               apen={!lukket.has(l.id)}
+              dnd={dnd}
               veksle={() => {
                 const n = new Set(lukket);
                 if (n.has(l.id)) n.delete(l.id);
@@ -338,6 +489,22 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
             />
           ))}
         </ol>
+        {dra && kanLosesUt && (
+          <div
+            class={`lag-ut${over === 'ut' ? ' slipp-her' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (over !== 'ut') settOver('ut');
+            }}
+            onDragLeave={() => settOver(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              slippUt();
+            }}
+          >
+            Slipp her for å ta det ut av gruppen
+          </div>
+        )}
         {aktiv && (
           <div class="lagknapper" role="group" aria-label="Valgt lag">
             <button

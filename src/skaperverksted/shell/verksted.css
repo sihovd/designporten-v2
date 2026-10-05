@@ -1624,36 +1624,6 @@
   margin: 8px 0 0;
 }
 
-.batch-plate svg {
-  display: block;
-  width: 100%;
-  max-width: 420px;
-  height: auto;
-  margin-top: 8px;
-}
-
-.batch-plateflate {
-  fill: var(--bg);
-  stroke: var(--linje);
-  stroke-width: 0.6;
-}
-
-.batch-skilt {
-  stroke: var(--fg-dempet);
-  stroke-width: 0.4;
-}
-
-.batch-nummer {
-  fill: var(--fg);
-  paint-order: stroke;
-  stroke: var(--bg);
-  stroke-width: 1.2;
-  font-family: var(--font-mono);
-  font-size: 7px;
-  text-anchor: middle;
-  dominant-baseline: central;
-}
-
 .batch-innhold progress {
   width: 100%;
   margin-top: 8px;
@@ -1792,4 +1762,87 @@
 
 .nytt-lag-meny .dempet {
   font-size: 12px;
+}
+
+/* decoration gallery (Sivert, 2026-10-05) */
+.dekorgalleri .dialog-innhold {
+  width: min(720px, 100%);
+}
+
+.dekor-innhold {
+  display: grid;
+  gap: 10px;
+}
+
+.dekor-rutenett {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dekor-valg {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 6px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kontroll, 6px);
+  background: var(--panel-2);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dekor-valg:hover,
+.dekor-valg:focus-visible {
+  border-color: var(--dp-lilla);
+}
+
+.dekor-miniatyr {
+  width: 56px;
+  height: 56px;
+  color: var(--fg);
+}
+
+.dekor-rutenett .kontroll-knapp {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* dragging in the layers panel */
+.lagrad.kan-slippes {
+  outline: 1px dashed var(--dp-lilla);
+  outline-offset: -1px;
+}
+
+.lagrad.slipp-her {
+  outline: 2px solid var(--dp-lilla);
+  background: var(--panel-2);
+}
+
+.lagrad-hode[draggable='true'],
+.objektliste li[draggable='true'] {
+  cursor: grab;
+}
+
+.lag-ut {
+  margin-top: 8px;
+  padding: 12px;
+  border: 2px dashed var(--linje-sterk, var(--linje));
+  border-radius: var(--radius-kontroll, 6px);
+  color: var(--fg-dempet);
+  font-size: 13px;
+  text-align: center;
+}
+
+.lag-ut.slipp-her {
+  border-color: var(--dp-lilla);
+  color: var(--fg);
+  background: var(--panel-2);
 }

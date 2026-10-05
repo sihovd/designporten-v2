@@ -105,7 +105,14 @@ const lokalBuffer = new Map<string, LokalGeometri>();
 const lokalEtterKilde = new WeakMap<ObjektKilde, LokalGeometri>();
 
 function nokkel(k: ObjektKilde): string {
-  return JSON.stringify(k.type === 'tekst' ? { ...k, felt: undefined } : k);
+  // the batch field and the gallery id do not change the shape
+  return JSON.stringify(
+    k.type === 'tekst'
+      ? { ...k, felt: undefined }
+      : k.type === 'svg'
+        ? { ...k, felt: undefined, dekorId: undefined }
+        : k,
+  );
 }
 
 /** Local outline of a source, or null while its font is loading. */
@@ -151,7 +158,9 @@ export function lokalGeometri(k: ObjektKilde): LokalGeometri | null {
         return [];
       }
     });
-    const region = regionFraRinger(ringer, k.fyllregel);
+    const alle = regionFraRinger(ringer, k.fyllregel);
+    // «fyll»: close the holes in the vector, leaving its silhouette
+    const region = k.hull === 'fyll' ? utenHull(alle) : alle;
     g = { region, boks: region.length ? regionBoks(region) : TOM.boks, mangler: [] };
   } else {
     const region = regionFraRinger(formTilRinger(k));
@@ -838,4 +847,19 @@ export function innholdsboks(dok: Dokument): Boks | null {
 export function modellBoks(dok: Dokument): Boks | null {
   const f = modellFlate(dok);
   return f?.length ? regionBoks(f) : null;
+}
+
+/**
+ * The area the finished sign takes on the plate: what it prints, outlines
+ * and eyes included. Used to lay signs out side by side. Null while fonts load.
+ */
+export function fotavtrykkBoks(dok: Dokument): Boks | null {
+  const flate = modellFlate(dok);
+  if (!flate) return null;
+  let b = flate.length ? regionBoks(flate) : tomBoks();
+  for (const o of hullOgOyne(dok).oyne) {
+    const e = regionBoks(o.ytre);
+    b = slaSammen(b, { minX: e.minX, minY: e.minY, maksX: e.maksX, maksY: e.maksY });
+  }
+  return erTom(b) ? null : b;
 }

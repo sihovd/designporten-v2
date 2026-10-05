@@ -37,6 +37,12 @@ export interface SvgKilde {
   filnavn: string;
   /** How the source's fill rule should be applied. */
   fyllregel: 'nonzero' | 'evenodd';
+  /** Holes in the vector: kept as holes (default) or filled so only the silhouette is left. */
+  hull?: 'behold' | 'fyll';
+  /** The gallery element it came from; a CSV column can swap it for another one. */
+  dekorId?: string;
+  /** Marks the vector as a batch variable (CSV column name): the cell names the gallery element. */
+  felt?: string;
 }
 
 export interface FormKilde {

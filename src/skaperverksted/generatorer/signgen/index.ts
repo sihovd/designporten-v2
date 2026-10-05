@@ -80,6 +80,18 @@ const plugin: GeneratorPlugin = {
     ['Dobbeltklikk på tekst', 'Rediger teksten'],
     ['Esc', 'Tilbake til Velg / fjern utvalg'],
   ],
+  eksport(_dok, _modell, benk) {
+    if (!benk) return {};
+    return {
+      handlinger: [
+        {
+          navn: 'Eksporter via CSV',
+          hjelp: 'Lag ett skilt per rad i en CSV-fil, med forhåndsvisning av byggeplatene',
+          kjor: () => signtilstand(benk).sett({ batch: true }),
+        },
+      ],
+    };
+  },
   bestilling(dok, modell) {
     const m = mal(modell.deler);
     const farger = [...new Set(modell.deler.map((d) => finnMateriale(d.materialId).navn))];

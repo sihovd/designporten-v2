@@ -30,6 +30,10 @@ export interface Signtilstand {
   omriss: string | null;
   /** The colour profile window is open (it also opens by itself for a new sign). */
   fargeprofil: boolean;
+  /** The decoration gallery is open. */
+  dekor: boolean;
+  /** The CSV window («Lag skilt fra CSV») is open. */
+  batch: boolean;
 }
 
 class Lager {
@@ -42,6 +46,8 @@ class Lager {
     maletikett: null,
     omriss: null,
     fargeprofil: false,
+    dekor: false,
+    batch: false,
   };
   private lyttere = new Set<(t: Signtilstand) => void>();
   constructor(private benk: Arbeidsbenk) {}

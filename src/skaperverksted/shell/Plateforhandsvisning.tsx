@@ -55,12 +55,27 @@ function farge(el: Element, navn: string, reserve: string): string {
   return getComputedStyle(el).getPropertyValue(navn).trim() || reserve;
 }
 
+/** A label drawn on the plate with its top-left corner at (x, y) in plate millimetres. */
+export interface Plateetikett {
+  x: number;
+  y: number;
+  tekst: string;
+}
+
+const INGEN: Plateetikett[] = [];
+
 export function Plateforhandsvisning({
   deler,
   plate,
+  etiketter = INGEN,
+  beskrivelse,
 }: {
   deler: ModellDel[];
   plate: { bredde: number; dybde: number };
+  /** Numbers or names drawn over the parts (the CSV row of each sign). */
+  etiketter?: Plateetikett[];
+  /** Replaces the caption text. */
+  beskrivelse?: string;
 }) {
   const lerret = useRef<HTMLCanvasElement>(null);
   const plasser = filamentplasser(deler);
@@ -129,12 +144,27 @@ export function Plateforhandsvisning({
         }
       }
       ctx.globalAlpha = 1;
+
+      // labels: dark text with a light edge reads on every filament colour
+      if (etiketter.length) {
+        ctx.font = `600 ${Math.max(10, Math.min(16, s * 7))}px sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3;
+        for (const e of etiketter) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+          ctx.strokeText(e.tekst, X(e.x), Y(e.y));
+          ctx.fillStyle = '#111';
+          ctx.fillText(e.tekst, X(e.x), Y(e.y));
+        }
+      }
     };
     tegn();
     const ro = new ResizeObserver(tegn);
     ro.observe(c);
     return () => ro.disconnect();
-  }, [deler, plate.bredde, plate.dybde]);
+  }, [deler, etiketter, plate.bredde, plate.dybde]);
 
   return (
     <figure class="plateforhandsvisning">
@@ -145,13 +175,13 @@ export function Plateforhandsvisning({
       />
       <figcaption>
         <p class="dempet">
-          Slik ligger delene på byggeplaten i 3MF-filen, sett ovenfra og i skala. Plate {tall(plate.bredde)} ×{' '}
-          {tall(plate.dybde)} mm.
+          {beskrivelse ??
+            `Slik ligger delene på byggeplaten i 3MF-filen, sett ovenfra og i skala. Plate ${tall(plate.bredde)} × ${tall(plate.dybde)} mm.`}
         </p>
         <ul class="filamentliste">
           {plasser.map((id, i) => {
             const m = finnMateriale(id);
-            const navn = deler.filter((d) => d.materialId === id).map((d) => d.navn);
+            const navn = [...new Set(deler.filter((d) => d.materialId === id).map((d) => d.navn))];
             return (
               <li key={id}>
                 <span class="mono filamentnr">{i + 1}</span>

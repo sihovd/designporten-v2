@@ -6,11 +6,12 @@
  *
  * Pure functions; the dialog in Batch.tsx drives them.
  */
-import { finnLag, type Dokument, type TekstKilde } from '../../core/dokument';
+import { finnLag, objekterILag, type Dokument, type Objekt, type TekstKilde } from '../../core/dokument';
 import { materialer } from '../../core/materialer';
 import { erTom, slaSammen, tomBoks, type Boks } from '../../core/geometri2d';
-import { fargeplasser, feltObjekter, oppdaterObjekter, settFarge } from './dokument';
-import { byggSigngen, lokalGeometri, verdensBoks } from './modell';
+import { fargeplasser, feltNavn, feltObjekter, oppdaterObjekter, settFarge } from './dokument';
+import { byggSigngen, fotavtrykkBoks, lokalGeometri, objektStorrelse, verdensBoks } from './modell';
+import { erIngenDekor, finnDekorFraTekst, hentEgneDekor, type EgetDekor } from './dekor';
 import type { Mesh, ModellDel } from '../../geometri/mesh';
 import { filnavn as trygtFilnavn, tilTremfSamlinger, type TremfSamling } from '../../eksport/tremf';
 import { zipSync, strToU8 } from 'fflate';
@@ -72,7 +73,7 @@ export type Kolonnemal =
   { type: 'felt'; felt: string } | { type: 'farge'; lagId: string } | { type: 'ingen' };
 
 export function foreslaKobling(csv: Csv, dok: Dokument): Kolonnemal[] {
-  const felt = feltObjekter(dok).map((o) => (o.kilde as TekstKilde).felt!);
+  const felt = feltObjekter(dok).map((o) => feltNavn(o)!);
   return csv.kolonner.map((k) => {
     const n = k.trim().toLowerCase();
     const f = felt.find((x) => x === n);
@@ -126,22 +127,164 @@ function feltGrense(dok: Dokument): Boks | null {
   return erTom(b) ? null : b;
 }
 
+// ---------- spacing inside a group ----------
+
+/**
+ * The gap between the texts (and vectors) of a text layer is a rule:
+ * measured on the master sign and kept on every sign, so first and last
+ * name sit the same distance apart whatever the names are (Sivert,
+ * 2026-10-05). The group keeps its centre, so it grows from the middle.
+ */
+export interface Gruppeavstand {
+  lagId: string;
+  akse: 'x' | 'y';
+  /** The group's objects in reading order: left to right, or top to bottom. */
+  ider: string[];
+  /** Gap before each object after the first (mm). */
+  gap: number[];
+  /** The group's centre along the axis (mm). */
+  senter: number;
+}
+
+/** Gaps below this are overlaps, not spacing (mm). */
+const MIN_GAP = -2;
+
+export function gruppeavstander(master: Dokument): Gruppeavstand[] {
+  const ut: Gruppeavstand[] = [];
+  for (const lag of master.lag) {
+    if (!lag.tekstlag || !lag.synlig) continue;
+    const obj = objekterILag(master, lag.id).filter(
+      (o) => o.synlig && o.operasjon === 'legg-til' && o.kilde.type !== 'form',
+    );
+    // only worth a rule when something in the group varies from sign to sign
+    if (obj.length < 2 || !obj.some((o) => feltNavn(o))) continue;
+    const med = obj.map((o) => ({ o, b: verdensBoks(o) }));
+    const kandidat = (akse: 'x' | 'y') => {
+      const sortert = [...med].sort((a, b) => (akse === 'x' ? a.b.minX - b.b.minX : b.b.maksY - a.b.maksY));
+      const gap = sortert.slice(1).map((m, i) => {
+        const f = sortert[i]!.b;
+        return akse === 'x' ? m.b.minX - f.maksX : f.minY - m.b.maksY;
+      });
+      const fra =
+        akse === 'x' ? Math.min(...med.map((m) => m.b.minX)) : Math.min(...med.map((m) => m.b.minY));
+      const til =
+        akse === 'x' ? Math.max(...med.map((m) => m.b.maksX)) : Math.max(...med.map((m) => m.b.maksY));
+      return { akse, sortert, gap, senter: (fra + til) / 2, ok: gap.every((g) => g >= MIN_GAP) };
+    };
+    const x = kandidat('x');
+    const y = kandidat('y');
+    // side by side or stacked; if both read, the wider gap decides
+    const valgt =
+      x.ok && y.ok
+        ? x.gap.reduce((a, g) => a + g, 0) >= y.gap.reduce((a, g) => a + g, 0)
+          ? x
+          : y
+        : x.ok
+          ? x
+          : y.ok
+            ? y
+            : null;
+    if (!valgt) continue;
+    ut.push({
+      lagId: lag.id,
+      akse: valgt.akse,
+      ider: valgt.sortert.map((m) => m.o.id),
+      gap: valgt.gap,
+      senter: valgt.senter,
+    });
+  }
+  return ut;
+}
+
+/** Lay a group out again with its measured gaps, around its centre. */
+function brukGruppeavstand(dok: Dokument, regler: Gruppeavstand[]): Dokument {
+  let d = dok;
+  for (const r of regler) {
+    const obj = r.ider.map((id) => d.objekter[id]).filter((o): o is Objekt => !!o && o.synlig);
+    // a hidden member (a decoration left out) takes no room and leaves no gap
+    if (obj.length < 2) continue;
+    const bokser = obj.map((o) => verdensBoks(o));
+    const storrelse = bokser.map((b) => (r.akse === 'x' ? b.maksX - b.minX : b.maksY - b.minY));
+    const gap = r.ider.flatMap((id, i) => (i > 0 && d.objekter[id]?.synlig ? [r.gap[i - 1]!] : []));
+    const total = storrelse.reduce((a, v) => a + v, 0) + gap.reduce((a, v) => a + v, 0);
+    let pos = r.akse === 'x' ? r.senter - total / 2 : r.senter + total / 2;
+    const flytt = new Map<string, number>();
+    obj.forEach((o, i) => {
+      const b = bokser[i]!;
+      if (r.akse === 'x') {
+        flytt.set(o.id, pos - b.minX);
+        pos += storrelse[i]! + (gap[i] ?? 0);
+      } else {
+        flytt.set(o.id, pos - b.maksY);
+        pos -= storrelse[i]! + (gap[i] ?? 0);
+      }
+    });
+    d = oppdaterObjekter(d, [...flytt.keys()], (o) => {
+      const v = flytt.get(o.id)!;
+      return Math.abs(v) < 1e-9
+        ? o
+        : { ...o, transform: { ...o.transform, [r.akse]: o.transform[r.akse] + v } };
+    });
+  }
+  return d;
+}
+
+export interface Varianttilvalg {
+  /** Keep the master's gaps inside text groups. Default on. */
+  gruppeavstand?: boolean;
+  /** The user's own gallery vectors (default: those stored in this browser). */
+  egneDekor?: EgetDekor[];
+}
+
 /** Build one variant per row. Fonts must be loaded (lastFonter) first. */
-export function lagVarianter(master: Dokument, csv: Csv, kobling: Kolonnemal[]): Variant[] {
+export function lagVarianter(
+  master: Dokument,
+  csv: Csv,
+  kobling: Kolonnemal[],
+  tilvalg: Varianttilvalg = {},
+): Variant[] {
   const feltMaster = feltObjekter(master);
   const grense = feltGrense(master);
+  const regler = tilvalg.gruppeavstand === false ? [] : gruppeavstander(master);
+  const egne = tilvalg.egneDekor ?? hentEgneDekor();
   return csv.rader.map((rad, indeks) => {
     let dok = master;
     const problemer: string[] = [];
     kobling.forEach((k, i) => {
       const verdi = rad[i] ?? '';
       if (k.type === 'felt') {
-        const ider = feltMaster.filter((o) => (o.kilde as TekstKilde).felt === k.felt).map((o) => o.id);
-        dok = oppdaterObjekter(dok, ider, (o) => ({
-          ...o,
-          kilde: { ...(o.kilde as TekstKilde), tekst: verdi },
-        }));
-        if (!verdi.trim()) problemer.push(`«${k.felt}» er tom`);
+        const treff = feltMaster.filter((o) => feltNavn(o) === k.felt);
+        const tekster = treff.filter((o) => o.kilde.type === 'tekst').map((o) => o.id);
+        const dekor = treff.filter((o) => o.kilde.type === 'svg');
+        if (tekster.length) {
+          dok = oppdaterObjekter(dok, tekster, (o) => ({
+            ...o,
+            kilde: { ...(o.kilde as TekstKilde), tekst: verdi },
+          }));
+          if (!verdi.trim()) problemer.push(`«${k.felt}» er tom`);
+        }
+        if (dekor.length) {
+          // a decoration variable: the cell names a gallery element, empty or «ingen» leaves it off
+          const valg = erIngenDekor(verdi) ? null : finnDekorFraTekst(verdi, egne);
+          if (!valg && !erIngenDekor(verdi)) problemer.push(`ukjent dekor «${verdi}» i «${k.felt}»`);
+          dok = oppdaterObjekter(
+            dok,
+            dekor.map((o) => o.id),
+            (o) => {
+              if (!valg) return { ...o, synlig: false };
+              // the new element keeps the size the old one had on the sign
+              const gammel = objektStorrelse(o);
+              const ny = valg.lag();
+              const s = Math.max(gammel.bredde, gammel.hoyde) / Math.max(ny.bredde, ny.hoyde);
+              return {
+                ...o,
+                synlig: true,
+                kilde: { ...ny.kilde, felt: feltNavn(o) },
+                transform: { ...o.transform, skalaX: s, skalaY: s },
+              };
+            },
+          );
+        }
       } else if (k.type === 'farge') {
         const m = finnFarge(verdi);
         const plass = fargeplasser(dok).find((p) => p.id === k.lagId);
@@ -149,7 +292,9 @@ export function lagVarianter(master: Dokument, csv: Csv, kobling: Kolonnemal[]):
         else dok = settFarge(dok, k.lagId, m);
       }
     });
+    if (regler.length) dok = brukGruppeavstand(dok, regler);
     for (const o of feltObjekter(dok)) {
+      if (o.kilde.type !== 'tekst') continue;
       const g = lokalGeometri(o.kilde);
       if (!g) continue;
       if (g.mangler.length) problemer.push(`fonten mangler ${g.mangler.map((c) => `«${c}»`).join(', ')}`);
@@ -162,10 +307,11 @@ export function lagVarianter(master: Dokument, csv: Csv, kobling: Kolonnemal[]):
           b.minY < grense.minY + margin ||
           b.maksY > grense.maksY - margin)
       ) {
-        problemer.push(`«${(o.kilde as TekstKilde).tekst.slice(0, 24)}» er for lang for skiltet`);
+        problemer.push(`«${o.kilde.tekst.slice(0, 24)}» er for lang for skiltet`);
       }
     }
-    let boks = tomBoks();
+    // the footprint on the plate: what is printed, outlines and eyes too, not just the objects
+    let boks = fotavtrykkBoks(dok) ?? tomBoks();
     for (const o of Object.values(dok.objekter)) if (o.synlig) boks = slaSammen(boks, verdensBoks(o));
     return {
       indeks,

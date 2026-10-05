@@ -55,7 +55,7 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
     );
     benk.melde('3MF-filen er lastet ned.');
   };
-  const regler = modell && plugin.eksport ? plugin.eksport(t.dok, modell) : {};
+  const regler = modell && plugin.eksport ? plugin.eksport(t.dok, modell, benk) : {};
   const stl = () => {
     lastNed(tilStl(deler, t.dok.navn), filnavn(t.dok.navn, 'stl'), STL_TYPE);
     benk.melde('STL-filen er lastet ned.');
@@ -224,6 +224,24 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                     )}
                   </div>
                 </>
+              )}
+              {regler.handlinger && regler.handlinger.length > 0 && (
+                <div class="knapperad">
+                  {regler.handlinger.map((h) => (
+                    <button
+                      key={h.navn}
+                      type="button"
+                      class="sekundar"
+                      title={h.hjelp}
+                      onClick={() => {
+                        lukk();
+                        h.kjor();
+                      }}
+                    >
+                      {h.navn}
+                    </button>
+                  ))}
+                </div>
               )}
               {regler.vedlegg && (
                 <div class="knapperad">

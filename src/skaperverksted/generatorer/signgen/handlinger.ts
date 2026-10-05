@@ -4,11 +4,20 @@
  * label, and reports what happened to the live region.
  */
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { finnLag, objekterILag, type LagId, type Objekt, type ObjektKilde } from '../../core/dokument';
+import {
+  finnLag,
+  objekterILag,
+  type Lag,
+  type LagId,
+  type Objekt,
+  type ObjektKilde,
+  type SvgKilde,
+} from '../../core/dokument';
 import type { Transform2D } from '../../core/geometri2d';
 import { slaSammen, tomBoks, erTom, type Boks } from '../../core/geometri2d';
 import {
   dupliserObjekter,
+  ledigNavn,
   ledigTekstlagnavn,
   leggTilLag,
   leggTilLagNederst,
@@ -63,10 +72,13 @@ export function aktivtLag(benk: Arbeidsbenk): LagId | null {
 }
 
 /**
- * Where a new object goes. Text gets a text layer of its own (above the
- * active layer), unless the active layer is an empty text layer. Shapes
- * and SVGs go into the active layer, or, when that is a text layer, into
- * the nearest plain layer below it (a new one above it if there is none).
+ * Where a new object goes. With a text layer selected, new text joins it
+ * and is grouped with what is already there; with anything else selected
+ * it gets a text layer of its own (above the active layer). To get a
+ * second, separate text layer, make a new layer first (Sivert,
+ * 2026-10-05). Shapes and SVGs go into the active layer, or, when that is
+ * a text layer, into the nearest plain layer below it (a new one above it
+ * if there is none).
  */
 function malFor(
   benk: Arbeidsbenk,
@@ -77,9 +89,8 @@ function malFor(
   if (!id && d.lag.length) return null;
   const aktiv = id ? finnLag(d, id) : undefined;
   if (kilde.type === 'tekst') {
-    if (aktiv?.tekstlag && !d.rekkefolge[aktiv.id]?.length) return { lagId: aktiv.id };
-    const farge = aktiv?.tekstlag ? aktiv.materialId : (palett(d)[0] ?? 'pla-kritthvit');
-    const nytt = nyttTekstlag(ledigTekstlagnavn(d), farge, aktiv?.tekstlag ? aktiv.hoyde : 1.5);
+    if (aktiv?.tekstlag) return { lagId: aktiv.id };
+    const nytt = nyttTekstlag(ledigTekstlagnavn(d), palett(d)[0] ?? 'pla-kritthvit', 1.5);
     return { lagId: nytt.id, nytt };
   }
   if (aktiv && !aktiv.tekstlag) return { lagId: aktiv.id };
@@ -336,4 +347,89 @@ export async function importerSvgSom(benk: Arbeidsbenk, fil: File, rolle: Svgrol
   ];
   if (r.hoppetOver.length) deler.push(`Hoppet over: ${r.hoppetOver.join(', ')}`);
   benk.melde(`${deler.join('. ')}.`);
+}
+
+// ---------- decoration gallery (Sivert, 2026-10-05) ----------
+
+export type Dekorplass = 'gruppe' | 'eget';
+
+/** The text layer a decoration would be grouped with: the selected one, else the only one. */
+export function tekstlagForDekor(benk: Arbeidsbenk): Lag | null {
+  const d = benk.dok;
+  const aktiv = benk.tilstand.utvalg.lag ? finnLag(d, benk.tilstand.utvalg.lag) : undefined;
+  if (aktiv?.tekstlag && !aktiv.last && aktiv.synlig) return aktiv;
+  const alle = d.lag.filter((l) => l.tekstlag && !l.last && l.synlig);
+  return alle.length === 1 ? alle[0]! : null;
+}
+
+/**
+ * Put a gallery element (or any vector) on the sign. «gruppe» adds it to
+ * the text layer, so it shares the text's outlines and sits beside the
+ * text; «eget» gives it a layer of its own above the active layer, to
+ * place and colour freely. Both can be changed later by dragging it in
+ * the layers panel.
+ */
+export function leggTilDekor(
+  benk: Arbeidsbenk,
+  navn: string,
+  r: { kilde: SvgKilde; bredde: number; hoyde: number },
+  plass: Dekorplass,
+): void {
+  const d = benk.dok;
+  const tekstlag = plass === 'gruppe' ? tekstlagForDekor(benk) : null;
+  const skilt = modellBoks(d);
+  const storste = Math.max(r.bredde, r.hoyde);
+  let maal: number;
+  let x = 0;
+  let y = 0;
+  if (tekstlag) {
+    // beside the text group, as tall as the text, a little apart
+    const bokser = objekterILag(d, tekstlag.id)
+      .filter((o) => o.synlig)
+      .map(verdensBoks);
+    const gruppe = bokser.reduce(slaSammen, tomBoks());
+    const hoyde = erTom(gruppe) ? 14 : gruppe.maksY - gruppe.minY;
+    maal = Math.min(40, Math.max(10, hoyde * 1.3));
+    if (!erTom(gruppe)) {
+      x = gruppe.maksX + 3 + maal / 2;
+      y = (gruppe.minY + gruppe.maksY) / 2;
+    }
+  } else {
+    maal = skilt ? Math.max(10, (skilt.maksY - skilt.minY) / 3) : 30;
+    if (skilt) {
+      x = skilt.maksX - maal / 2;
+      y = skilt.maksY - maal / 2;
+    }
+  }
+  const plate = Math.min(d.plate.bredde, d.plate.dybde) * 0.8;
+  const s = Math.min(maal, plate) / storste;
+  const lagNavn = ledigNavn(d, 'Pynt');
+  const nyttPynt = tekstlag ? null : nyttLag(lagNavn, nesteFarge(d), 1);
+  const lagId = tekstlag ? tekstlag.id : nyttPynt!.id;
+  const o = nyttObjekt(lagId, r.kilde, { skalaX: s, skalaY: s, x, y }, navn);
+  const over = benk.tilstand.utvalg.lag ?? undefined;
+  benk.endre({
+    navn: `Legg til dekor ${navn}`,
+    anvend: (x0) => leggTilObjekt(nyttPynt ? leggTilLag(x0, nyttPynt, over) : x0, o),
+  });
+  benk.velg({ lag: lagId, objekter: [o.id] });
+  benk.melde(
+    tekstlag
+      ? `${navn} er lagt til i «${tekstlag.navn}» og får samme omriss som teksten.`
+      : `${navn} er lagt til i et eget lag, «${lagNavn}».`,
+  );
+}
+
+/**
+ * An empty text layer above the selected layer. Text written while it is
+ * selected goes into it, apart from the other text layers (Sivert,
+ * 2026-10-05: a new layer is a separate layer).
+ */
+export function nyttTomtTekstlag(benk: Arbeidsbenk): void {
+  const d = benk.dok;
+  const lag = nyttTekstlag(ledigTekstlagnavn(d), nesteFarge(d), 1.5);
+  const over = benk.tilstand.utvalg.lag ?? undefined;
+  benk.endre({ navn: 'Nytt tekstlag', anvend: (x) => leggTilLag(x, lag, over) });
+  benk.velg({ lag: lag.id, objekter: [] });
+  benk.melde(`«${lag.navn}» er lagt til. Tekst du skriver nå havner her, atskilt fra de andre tekstene.`);
 }
