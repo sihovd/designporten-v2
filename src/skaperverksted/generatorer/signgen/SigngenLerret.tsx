@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { finnLag, objekterILag, type Dokument, type Objekt } from '../../core/dokument';
+import { finnLag, objekterILag, type Objekt } from '../../core/dokument';
 import { anvend, inverter, tilMatrise, type Boks, type Transform2D, type Vec2 } from '../../core/geometri2d';
 import { finnMateriale } from '../../core/materialer';
 import { rutenettnivaa, snapTil } from '../../core/rutenett';
@@ -14,12 +14,12 @@ import type { Region } from '../../geometri/polygon';
 import { Lerret, type Farger, type Verktoyhandler } from '../../render2d/Lerret';
 import { lagVisning, type Visning } from '../../render2d/visning';
 import { brukBenk } from '../../shell/bruk-benk';
-import { nyForm, nyTekst, oppdaterObjekter, underlagFor } from './dokument';
+import { nyForm, nyTekst, oppdaterObjekter } from './dokument';
 import {
   hjorner,
   innholdsboks,
   lagRegion,
-  underlagRegioner,
+  omrissRegioner,
   lokalGeometri,
   nårFontLastes,
   verdensBoks,
@@ -123,22 +123,20 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
   // layers bottom to top in their material colours: the sign seen from above
   for (const lag of d.lag) {
     if (!lag.synlig) continue;
-    // the text layer is drawn colour group by colour group
+    const region = lagRegion(d, lag.id);
+    if (!region) continue;
+    // a text layer: its outlines, then the text (unless it is cut out of them)
     const deler: [Region, string][] = [];
-    if (lag.underlag?.length) {
-      const grupper = underlagRegioner(d, lag.id);
-      if (!grupper) continue;
-      for (const u of lag.underlag) {
-        const r = grupper.get(u.id);
-        if (r?.length) deler.push([r, u.materialId]);
+    if (lag.tekstlag) {
+      const omriss = omrissRegioner(d, lag.id);
+      for (const o of lag.omriss ?? []) {
+        const r = omriss?.get(o.id);
+        if (o.synlig && r?.length) deler.push([r, o.materialId]);
       }
-    } else {
-      const region = lagRegion(d, lag.id);
-      if (!region) continue;
-      deler.push([region, lag.materialId]);
     }
-    for (const [region, materialId] of deler) {
-      sti(ctx, v, region);
+    if (lag.tekstvisning !== 'kutt') deler.push([region, lag.materialId]);
+    for (const [r, materialId] of deler) {
+      sti(ctx, v, r);
       ctx.fillStyle = finnMateriale(materialId).hex;
       ctx.fill('evenodd');
       ctx.strokeStyle = f.bakgrunn;
@@ -288,12 +286,6 @@ function iRegion(p: Vec2, r: Region): boolean {
   return inne;
 }
 
-/** The object's colour group in the text layer is hidden or locked. */
-function gruppeSperret(d: Dokument, o: Objekt): boolean {
-  const u = underlagFor(d, o);
-  return !!u && (!u.synlig || u.last);
-}
-
 /** Topmost selectable object under a model point. */
 export function treff(benk: Arbeidsbenk, p: Vec2, toleranseMm: number): Objekt | null {
   const d = benk.dok;
@@ -301,13 +293,13 @@ export function treff(benk: Arbeidsbenk, p: Vec2, toleranseMm: number): Objekt |
     if (!lag.synlig || lag.last) continue;
     const obj = objekterILag(d, lag.id).reverse();
     for (const o of obj) {
-      if (!o.synlig || o.last || gruppeSperret(d, o)) continue;
+      if (!o.synlig || o.last) continue;
       const r = verdensRegion(o);
       if (r && iRegion(p, r)) return o;
     }
     // near-miss on thin shapes: accept the box when zoomed out
     for (const o of obj) {
-      if (!o.synlig || o.last || gruppeSperret(d, o)) continue;
+      if (!o.synlig || o.last) continue;
       const b = verdensBoks(o);
       if (b.maksX - b.minX < toleranseMm * 3 || b.maksY - b.minY < toleranseMm * 3) {
         if (
@@ -515,7 +507,6 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         }
         const o = treff(benk, modell, tol);
         const utvalg = benk.tilstand.utvalg.objekter;
-        if (o?.underlagId) lager.sett({ underlag: o.underlagId });
         if (o) {
           if (e.shiftKey) {
             const ny = utvalg.includes(o.id) ? utvalg.filter((x) => x !== o.id) : [...utvalg, o.id];
@@ -657,8 +648,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
               !o.synlig ||
               o.last ||
               finnLag(benk.dok, o.lagId)?.last ||
-              !finnLag(benk.dok, o.lagId)?.synlig ||
-              gruppeSperret(benk.dok, o)
+              !finnLag(benk.dok, o.lagId)?.synlig
             )
               return false;
             const ob = verdensBoks(o);

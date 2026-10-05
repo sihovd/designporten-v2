@@ -23,7 +23,6 @@ import {
   differanse,
   forskyv,
   ringAreal,
-  snitt,
   trianguler,
   type Flate,
   type Region,
@@ -208,10 +207,7 @@ export function planleggSkiver(
 /**
  * Extrude `region` (already normalised through Clipper) from zBunn to
  * zBunn + hoyde with the given profile. `lagHoyde` is the print layer
- * height used to realise curved profiles. With `klipp`, only the part of
- * each slab inside it is built: the profile follows the whole region's
- * edge, so parts cut from one region with clips that tile it fit together
- * exactly (Sign Forge colour groups).
+ * height used to realise curved profiles.
  */
 export function ekstruder(
   region: Region,
@@ -220,7 +216,6 @@ export function ekstruder(
   profil: Profil,
   lagHoyde = 0.2,
   hjorne: 'rund' | 'skarp' | 'faset' = 'rund',
-  klipp?: Region,
 ): Ekstrudering {
   const b = new MeshBygger();
   const hk = new Hjornekart(b);
@@ -240,9 +235,7 @@ export function ekstruder(
       forbrukt = true;
       break;
     }
-    const del = klipp ? snitt(r, klipp) : r;
-    if (!del.length) break;
-    skiver.push({ z0: zBunn + p.z0, z1: zBunn + p.z1, region: del });
+    skiver.push({ z0: zBunn + p.z0, z1: zBunn + p.z1, region: r });
   }
   if (!skiver.length) return { mesh: b.bygg(), toppZ: zBunn, forbrukt: true };
 

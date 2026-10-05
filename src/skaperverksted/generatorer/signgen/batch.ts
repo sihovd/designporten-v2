@@ -67,7 +67,7 @@ export function tolkCsv(tekst: string): Csv {
 
 // ---------- mapping and variants ----------
 
-/** What a CSV column controls: a text field, a colour (layer or text-layer colour id), or nothing. */
+/** What a CSV column controls: a text field, a colour (layer or outline id), or nothing. */
 export type Kolonnemal =
   { type: 'felt'; felt: string } | { type: 'farge'; lagId: string } | { type: 'ingen' };
 
@@ -77,11 +77,11 @@ export function foreslaKobling(csv: Csv, dok: Dokument): Kolonnemal[] {
     const n = k.trim().toLowerCase();
     const f = felt.find((x) => x === n);
     if (f) return { type: 'felt', felt: f };
-    // a colour column names a layer, or a colour in the text layer
+    // a colour column names a layer or an outline («Omriss 1» or «Tekst: Omriss 1»)
     const plass = fargeplasser(dok).find((p) => {
-      const navn = (p.navn.split(': ').at(-1) ?? p.navn).trim().toLowerCase();
       const hele = p.navn.trim().toLowerCase();
-      return [navn, hele].some((x) => x === n || `farge ${x}` === n);
+      const kort = (p.navn.split(': ').at(-1) ?? p.navn).trim().toLowerCase();
+      return [hele, kort].some((x) => x === n || `farge ${x}` === n);
     });
     if (plass) return { type: 'farge', lagId: plass.id };
     return { type: 'ingen' };

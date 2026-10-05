@@ -62,8 +62,6 @@ export interface Objekt {
   last: boolean;
   /** Boolean role within its layer: add material or cut a hole. */
   operasjon: 'legg-til' | 'trekk-fra';
-  /** Sign Forge: the colour group (Underlag) the object belongs to, in the text layer only. */
-  underlagId?: UnderlagId;
 }
 
 /** An outline from one layer applied to another (Signgen Phase 5). */
@@ -83,16 +81,24 @@ export interface Kontur {
   ringBredde: number;
 }
 
-export type UnderlagId = string;
-
 /**
- * Sign Forge: a colour group inside the text layer. It shares the layer's
- * Z, height, profile, outline and influences, and has its own colour.
+ * Sign Forge: an outline around the text of a text layer (Sivert,
+ * 2026-10-05). It never covers the text, has its own height and colour,
+ * and starts at the text layer's Z. Outlines are listed inside out.
  */
-export interface Underlag {
-  id: UnderlagId;
+export interface Omriss {
+  id: string;
   navn: string;
+  /** «omriss»: a ring that follows the edge. «fyll»: filled out to the edge, closing holes. */
+  type: 'omriss' | 'fyll';
+  /** Gap between what is inside (the text or the previous outline) and this outline (mm). */
+  avstand: number;
+  /** Width of the outline (mm). For «fyll» the filled distance beyond the gap. */
+  bredde: number;
+  /** Own height (mm), independent of the text's height. */
+  hoyde: number;
   materialId: string;
+  hjorne: 'rund' | 'skarp' | 'faset';
   synlig: boolean;
   last: boolean;
 }
@@ -110,13 +116,15 @@ export interface Lag {
   pavirkninger: LagPavirkning[];
   synlig: boolean;
   last: boolean;
-  /** Sign Forge: this is the sign's one text layer. */
-  tekstlag?: boolean;
   /**
-   * Sign Forge: the text layer's colour groups, bottom to top. Where two
-   * overlap, the higher one wins. `materialId` follows the first one.
+   * Sign Forge: a text layer holds text only. Several texts in one text
+   * layer are a group and share its outlines.
    */
-  underlag?: Underlag[];
+  tekstlag?: boolean;
+  /** Sign Forge: the text layer's outlines, inside out. */
+  omriss?: Omriss[];
+  /** Sign Forge: the text stands up («normal») or is cut out of the outlines («kutt»). */
+  tekstvisning?: 'normal' | 'kutt';
 }
 
 export interface Plate {

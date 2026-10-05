@@ -1309,12 +1309,26 @@
   vertical-align: 1px;
 }
 
-.fargegrupper {
-  min-width: 0;
-  padding: 0 4px 8px 14px;
+.omrissblokk {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 8px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
 }
 
-.gruppeliste {
+.omrissblokk.aktiv {
+  border-color: color-mix(in srgb, var(--handling) 60%, transparent);
+}
+
+.omrissliste {
+  display: grid;
+  gap: 4px;
+  padding: 0 4px 8px 34px;
+}
+
+.omrissliste ol {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 2px;
@@ -1323,30 +1337,33 @@
   list-style: none;
 }
 
-.grupperad {
+.omrissrad {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 4px;
   border: 1px solid transparent;
   border-radius: var(--radius-felt);
 }
 
-.grupperad.aktiv {
+.omrissrad.aktiv {
   border-color: color-mix(in srgb, var(--handling) 60%, transparent);
 }
 
-.grupperad.skjult .lag-tittel {
+.omrissrad.skjult .lag-tittel {
   color: var(--fg-dempet);
   text-decoration: line-through;
 }
 
-.grupperad .lag-navn {
+.omrissrad .lag-navn {
   min-height: 32px;
 }
 
-.grupperad .objektliste {
-  padding-left: 16px;
-}
-
-.fargegrupper .lagknapper {
-  margin-top: 4px;
+.omrissliste > .kontroll-knapp {
+  justify-self: start;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .lagknapper {
@@ -1360,22 +1377,6 @@
   flex: 1;
   padding: 0 6px;
   font-size: 12px;
-}
-
-.stabel {
-  margin: 0;
-}
-
-.stabel svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.stabel-z {
-  fill: var(--fg-dempet);
-  font-family: var(--font-mono);
-  font-size: 9px;
 }
 
 .materialvalg {

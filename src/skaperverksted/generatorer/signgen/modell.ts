@@ -30,7 +30,6 @@ import {
   areal,
   differanse,
   forskyv,
-  snitt,
   regionBoks,
   regionFraRinger,
   transformerRegion,
@@ -43,7 +42,8 @@ import { formTilRinger } from '../../geometri/former';
 import { lastFont, tekstTilRinger } from '../../geometri/tekst';
 import { ekstruder } from '../../geometri/ekstruder';
 import type { ModellDel } from '../../geometri/mesh';
-import { parametre, tekstUtenforTekstlaget } from './dokument';
+import { parametre, tekstUtenforTekstlag } from './dokument';
+import { rettProfil } from '../../core/profil';
 
 // ---------- fonts ----------
 
@@ -197,22 +197,12 @@ function erGjennomgaende(o: Objekt): boolean {
   return o.kilde.type === 'form' && o.kilde.form === 'hull';
 }
 
-/** Objects of a hidden colour group are left out, like a hidden layer. */
-function iSynligUnderlag(lag: Lag, o: Objekt): boolean {
-  if (!lag.underlag) return true;
-  return lag.underlag.find((u) => u.id === o.underlagId)?.synlig ?? true;
-}
-
-/**
- * Outline of a layer before influences (objects + Kontur), or of one of
- * its colour groups. Null while fonts load.
- */
-function egenRegion(dok: Dokument, lag: Lag, underlagId?: string): Region | null {
+/** Outline of a layer before influences (objects + Kontur). Null while fonts load. */
+function egenRegion(dok: Dokument, lag: Lag): Region | null {
   const pluss: Region[] = [];
   const minus: Region[] = [];
   for (const o of objekterILag(dok, lag.id)) {
-    if (!o.synlig || erGjennomgaende(o) || !iSynligUnderlag(lag, o)) continue;
-    if (underlagId !== undefined && o.underlagId !== underlagId) continue;
+    if (!o.synlig || erGjennomgaende(o)) continue;
     const r = verdensRegion(o);
     if (!r) return null;
     (o.operasjon === 'trekk-fra' ? minus : pluss).push(r);
@@ -242,7 +232,8 @@ export function lagRegion(dok: Dokument, lagId: string): Region | null {
     for (const p of lag.pavirkninger) {
       const kilde = finnLag(dok, p.kildeLagId);
       if (!kilde || kilde.id === lag.id) continue;
-      const r = egenRegion(dok, kilde);
+      // a text layer acts with everything it prints: text and outlines
+      const r = kilde.tekstlag ? fotavtrykk(dok, kilde) : egenRegion(dok, kilde);
       if (!r) {
         region = null;
         break;
@@ -265,30 +256,59 @@ export function lagRegion(dok: Dokument, lagId: string): Region | null {
   return region;
 }
 
-/**
- * The text layer split into its colour groups: each group gets the part of
- * the layer's final outline its own objects cover, a higher group wins
- * where groups overlap, and material added by influences goes to the first
- * group. The pieces tile the layer exactly. Null while fonts load.
- */
-export function underlagRegioner(dok: Dokument, lagId: string): Map<string, Region> | null {
-  const lag = finnLag(dok, lagId);
-  const alle = lagRegion(dok, lagId);
-  if (!lag || !alle) return null;
-  const synlige = (lag.underlag ?? []).filter((u) => u.synlig);
-  const ut = new Map<string, Region>();
-  if (!synlige.length) return ut;
-  let rest = alle;
-  for (const u of [...synlige].reverse()) {
-    const egen = egenRegion(dok, lag, u.id);
-    if (!egen) return null;
-    const del = snitt(egen, rest);
-    ut.set(u.id, del);
-    rest = differanse(rest, del);
+// ---------- outlines ----------
+
+/** The region with every hole filled (its outer rings only). */
+function utenHull(region: Region): Region {
+  return unionAlle(region.map((f) => [{ ytre: f.ytre, hull: [] }]));
+}
+
+function hullGjennom(dok: Dokument): Region {
+  const hull: Region[] = [];
+  for (const o of Object.values(dok.objekter)) {
+    if (!o.synlig || !erGjennomgaende(o)) continue;
+    const r = verdensRegion(o);
+    if (r) hull.push(r);
   }
-  const forste = synlige[0]!.id;
-  if (areal(rest) > 1e-6) ut.set(forste, union(ut.get(forste) ?? [], rest));
+  return unionAlle(hull);
+}
+
+/**
+ * Outlines of a text layer, from a base outline (the text). Each outline
+ * starts a gap away from what is inside it and never covers it: «omriss»
+ * is a ring of its width; «fyll» fills out to its width and closes holes
+ * such as the inside of «o» and the space between letters.
+ */
+function omrissFra(lag: Lag, tekst: Region): { id: string; region: Region }[] {
+  const ut: { id: string; region: Region }[] = [];
+  let inne = tekst;
+  for (const o of lag.omriss ?? []) {
+    if (!o.synlig) continue;
+    const start = o.avstand > 0 ? forskyv(inne, o.avstand, o.hjorne) : inne;
+    const ytre = forskyv(inne, Math.max(0, o.avstand) + Math.max(0.2, o.bredde), o.hjorne);
+    const kant = o.type === 'fyll' ? utenHull(ytre) : ytre;
+    ut.push({ id: o.id, region: differanse(kant, start) });
+    inne = union(inne, kant);
+  }
   return ut;
+}
+
+/** Everything a text layer prints (text and outlines), before influences. Null while fonts load. */
+function fotavtrykk(dok: Dokument, lag: Lag): Region | null {
+  const tekst = egenRegion(dok, lag);
+  if (!tekst) return null;
+  return unionAlle([tekst, ...omrissFra(lag, tekst).map((o) => o.region)]);
+}
+
+/** Outline regions of a text layer by outline id, holes cut. Null while fonts load. */
+export function omrissRegioner(dok: Dokument, lagId: string): Map<string, Region> | null {
+  const lag = finnLag(dok, lagId);
+  const tekst = lagRegion(dok, lagId);
+  if (!lag || !tekst) return null;
+  const hull = hullGjennom(dok);
+  return new Map(
+    omrissFra(lag, tekst).map((o) => [o.id, hull.length ? differanse(o.region, hull) : o.region]),
+  );
 }
 
 // ---------- model ----------
@@ -312,7 +332,6 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
 
   const { lagHoyde } = parametre(dok);
   const deler: ModellDel[] = [];
-  const regioner = new Map<string, Region>();
   const plate = dok.plate;
 
   for (const o of Object.values(dok.objekter)) {
@@ -327,11 +346,42 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     }
   }
 
+  /** Every printed slab: a layer, a text layer's text, or one of its outlines. */
+  interface Skive {
+    navn: string;
+    lagId: string;
+    region: Region;
+    zBunn: number;
+    hoyde: number;
+    materialId: string;
+  }
+  const skiver: Skive[] = [];
+  const sjekk = (navn: string, lagId: string, region: Region, materialId: string) => {
+    const b = regionBoks(region);
+    if (
+      b.minX < -plate.bredde / 2 ||
+      b.maksX > plate.bredde / 2 ||
+      b.minY < -plate.dybde / 2 ||
+      b.maksY > plate.dybde / 2
+    ) {
+      advarsler.push({ niva: 'advarsel', tekst: `«${navn}» går utenfor byggeplaten.`, lagId });
+    }
+    const minVegg = materialtyper[finnMateriale(materialId).type].minVegg;
+    if (tynneDetaljer(region, minVegg) > 0.05) {
+      advarsler.push({
+        niva: 'advarsel',
+        tekst: `Noen detaljer i «${navn}» er tynnere enn ${mm(minVegg)} og kan bli borte eller brekke i printen.`,
+        lagId,
+      });
+    }
+  };
+
   for (const lag of dok.lag) {
     if (!lag.synlig) continue;
     const region = lagRegion(dok, lag.id) ?? [];
-    regioner.set(lag.id, region);
-    if (!region.length) {
+    const omriss = lag.tekstlag ? (omrissRegioner(dok, lag.id) ?? new Map<string, Region>()) : new Map();
+    const tekstSkjult = lag.tekstvisning === 'kutt';
+    if (!region.length && ![...omriss.values()].some((r) => r.length)) {
       if (objekterILag(dok, lag.id).length || lag.pavirkninger.length) {
         advarsler.push({
           niva: 'info',
@@ -341,96 +391,82 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
       }
       continue;
     }
-    let forbrukt = false;
-    let toppZ = lag.zBunn;
-    if (lag.underlag?.length) {
-      const grupper = underlagRegioner(dok, lag.id) ?? new Map<string, Region>();
-      for (const u of lag.underlag) {
-        const klipp = grupper.get(u.id);
-        if (!klipp?.length) continue;
-        const e = ekstruder(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne, klipp);
-        forbrukt ||= e.forbrukt;
-        toppZ = Math.max(toppZ, e.toppZ);
-        if (!e.mesh.indekser.length) continue;
-        deler.push({
-          id: u.id,
+
+    if (region.length && !tekstSkjult) {
+      const e = ekstruder(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne);
+      if (e.forbrukt) {
+        advarsler.push({
+          niva: 'advarsel',
+          tekst: `Profilen på «${lag.navn}» er bredere enn formen tåler, så laget slutter ved ${mm(e.toppZ)} i stedet for ${mm(lag.zBunn + lag.hoyde)}.`,
           lagId: lag.id,
-          navn: lag.underlag.length > 1 ? `${lag.navn}: ${u.navn}` : lag.navn,
-          materialId: u.materialId,
-          mesh: e.mesh,
         });
       }
-    } else {
-      const e = ekstruder(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne);
-      forbrukt = e.forbrukt;
-      toppZ = e.toppZ;
       deler.push({ id: lag.id, navn: lag.navn, materialId: lag.materialId, mesh: e.mesh });
-    }
-    if (forbrukt) {
-      advarsler.push({
-        niva: 'advarsel',
-        tekst: `Profilen på «${lag.navn}» er bredere enn formen tåler, så laget slutter ved ${mm(toppZ)} i stedet for ${mm(lag.zBunn + lag.hoyde)}.`,
+      skiver.push({
+        navn: lag.navn,
         lagId: lag.id,
+        region,
+        zBunn: lag.zBunn,
+        hoyde: lag.hoyde,
+        materialId: lag.materialId,
       });
+
+      const maksOverheng = materialtyper[finnMateriale(lag.materialId).type].maksOverheng;
+      const overheng = profilOverheng(lag.profil, lag.hoyde);
+      if (overheng > maksOverheng + 0.5) {
+        advarsler.push({
+          niva: 'advarsel',
+          tekst: `Profilen på «${lag.navn}» heller utover med ${Math.round(overheng)}°. Over ${maksOverheng}° kan veggen henge ned uten støttemateriale.`,
+          lagId: lag.id,
+        });
+      }
+      sjekk(lag.navn, lag.id, region, lag.materialId);
     }
 
-    const maksOverheng = materialtyper[finnMateriale(lag.materialId).type].maksOverheng;
-    const overheng = profilOverheng(lag.profil, lag.hoyde);
-    if (overheng > maksOverheng + 0.5) {
-      advarsler.push({
-        niva: 'advarsel',
-        tekst: `Profilen på «${lag.navn}» heller utover med ${Math.round(overheng)}°. Over ${maksOverheng}° kan veggen henge ned uten støttemateriale.`,
+    for (const o of lag.omriss ?? []) {
+      const r = omriss.get(o.id);
+      if (!o.synlig || !r?.length) continue;
+      const navn = `${lag.navn}: ${o.navn}`;
+      const e = ekstruder(r, lag.zBunn, o.hoyde, rettProfil(), lagHoyde, o.hjorne);
+      deler.push({ id: o.id, lagId: lag.id, navn, materialId: o.materialId, mesh: e.mesh });
+      skiver.push({
+        navn,
         lagId: lag.id,
+        region: r,
+        zBunn: lag.zBunn,
+        hoyde: o.hoyde,
+        materialId: o.materialId,
       });
-    }
-
-    const b = regionBoks(region);
-    if (
-      b.minX < -plate.bredde / 2 ||
-      b.maksX > plate.bredde / 2 ||
-      b.minY < -plate.dybde / 2 ||
-      b.maksY > plate.dybde / 2
-    ) {
-      advarsler.push({ niva: 'advarsel', tekst: `«${lag.navn}» går utenfor byggeplaten.`, lagId: lag.id });
-    }
-    const minVegg = materialtyper[finnMateriale(lag.materialId).type].minVegg;
-    const tynt = tynneDetaljer(region, minVegg);
-    if (tynt > 0.05) {
-      advarsler.push({
-        niva: 'advarsel',
-        tekst: `Noen detaljer i «${lag.navn}» er tynnere enn ${mm(minVegg)} og kan bli borte eller brekke i printen.`,
-        lagId: lag.id,
-      });
+      sjekk(navn, lag.id, r, o.materialId);
     }
   }
 
-  for (const o of tekstUtenforTekstlaget(dok)) {
+  for (const o of tekstUtenforTekstlag(dok)) {
     advarsler.push({
       niva: 'info',
-      tekst: `«${o.navn}» ligger utenfor tekstlaget (fra før skiltet hadde ett tekstlag). Flytt den til tekstlaget under «Lag og farge».`,
+      tekst: `«${o.navn}» ligger i et lag med andre former (fra før tekstlagene). Flytt den til et tekstlag for å gi den omriss.`,
       objektId: o.id,
       lagId: o.lagId,
     });
   }
 
-  // unsupported material: parts of a layer that start above the plate with nothing under them
-  const synlige = dok.lag.filter((l) => l.synlig && (regioner.get(l.id)?.length ?? 0) > 0);
-  for (const lag of synlige) {
-    if (lag.zBunn < 0.01) continue;
-    const under = synlige.filter(
-      (l) => l !== lag && l.zBunn < lag.zBunn - 1e-6 && l.zBunn + l.hoyde >= lag.zBunn - 0.01,
+  // unsupported material: parts that start above the plate with nothing under them
+  for (const s of skiver) {
+    if (s.zBunn < 0.01) continue;
+    const under = skiver.filter(
+      (u) => u !== s && u.zBunn < s.zBunn - 1e-6 && u.zBunn + u.hoyde >= s.zBunn - 0.01,
     );
-    const stotte = unionAlle(under.map((l) => regioner.get(l.id)!));
-    const flyter = areal(differanse(regioner.get(lag.id)!, stotte));
+    const stotte = unionAlle(under.map((u) => u.region));
+    const flyter = areal(differanse(s.region, stotte));
     if (flyter > 1) {
       advarsler.push({
         niva: 'advarsel',
-        tekst: `Deler av «${lag.navn}» henger i lufta (${Math.round(flyter)} mm² uten noe under). Det trenger støttemateriale eller et lag under.`,
-        lagId: lag.id,
+        tekst: `Deler av «${s.navn}» henger i lufta (${Math.round(flyter)} mm² uten noe under). Det trenger støttemateriale eller et lag under.`,
+        lagId: s.lagId,
       });
     }
   }
-  if (dok.lag.reduce((h, l) => Math.max(h, l.zBunn + l.hoyde), 0) > plate.hoyde) {
+  if (skiver.reduce((h, s) => Math.max(h, s.zBunn + s.hoyde), 0) > plate.hoyde) {
     advarsler.push({
       niva: 'advarsel',
       tekst: `Modellen er høyere enn skriveren kan bygge (${mm(plate.hoyde)}).`,

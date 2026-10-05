@@ -89,7 +89,7 @@ const plugin: GeneratorPlugin = {
       valg: {
         Mål: m ? `${tall(m.bredde)} × ${tall(m.dybde)} × ${tall(m.hoyde)} mm` : 'ukjent',
         Lag: String(dok.lag.filter((l) => l.synlig).length),
-        'Farger på skiltet': String(new Set(fargeplasser(dok).map((p) => p.materialId)).size),
+        Deler: String(fargeplasser(dok).length),
         Farger: farger.join(', '),
       },
     };

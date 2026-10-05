@@ -4,53 +4,33 @@
  * label, and reports what happened to the live region.
  */
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import {
-  finnLag,
-  objekterILag,
-  type Lag,
-  type LagId,
-  type Objekt,
-  type ObjektKilde,
-  type Underlag,
-} from '../../core/dokument';
+import { finnLag, objekterILag, type LagId, type Objekt, type ObjektKilde } from '../../core/dokument';
 import type { Transform2D } from '../../core/geometri2d';
 import { slaSammen, tomBoks, erTom, type Boks } from '../../core/geometri2d';
 import {
   dupliserObjekter,
-  finnTekstlag,
+  ledigTekstlagnavn,
   leggTilLag,
   leggTilObjekt,
+  nyttLag,
   nyttObjekt,
   nyttTekstlag,
   oppdaterObjekter,
   slettObjekter,
   standardNavn,
-  underlagFor,
 } from './dokument';
 import { verdensBoks } from './modell';
-import { signtilstand } from './tilstand';
-import { materialer } from '../../core/materialer';
+import { finnMateriale } from '../../core/materialer';
 
 export function valgte(benk: Arbeidsbenk): Objekt[] {
   const d = benk.dok;
   return benk.tilstand.utvalg.objekter.map((id) => d.objekter[id]).filter((o): o is Objekt => !!o);
 }
 
-/** Objects the user may change (not locked, layer or colour group not locked). */
+/** Objects the user may change (not locked, layer not locked). */
 export function redigerbare(benk: Arbeidsbenk): Objekt[] {
   const d = benk.dok;
-  return valgte(benk).filter((o) => !o.last && !finnLag(d, o.lagId)?.last && !underlagFor(d, o)?.last);
-}
-
-/**
- * The text layer's active colour group: that of a selected object in it,
- * else the one last chosen in the layers panel, else the top one.
- */
-export function aktivtUnderlag(benk: Arbeidsbenk, lag: Lag): Underlag | undefined {
-  const grupper = lag.underlag ?? [];
-  const fraUtvalg = valgte(benk).find((o) => o.lagId === lag.id)?.underlagId;
-  const valgt = fraUtvalg ?? signtilstand(benk).t.underlag;
-  return grupper.find((u) => u.id === valgt) ?? grupper.at(-1);
+  return valgte(benk).filter((o) => !o.last && !finnLag(d, o.lagId)?.last);
 }
 
 export function utvalgsboks(objekter: Objekt[]): Boks | null {
@@ -79,26 +59,34 @@ export function aktivtLag(benk: Arbeidsbenk): LagId | null {
 }
 
 /**
- * The text layer for new text: the sign's text layer, or a new one for the
- * top of the stack if it has none. Null (with a message) if it is locked
- * or hidden.
+ * Where a new object goes. Text gets a text layer of its own (above the
+ * active layer), unless the active layer is an empty text layer. Shapes
+ * and SVGs go into the active layer, or, when that is a text layer, into
+ * the nearest plain layer below it (a new one above it if there is none).
  */
-function tekstlagForNyTekst(benk: Arbeidsbenk): { lag: Lag; ny: boolean } | null {
-  const lag = finnTekstlag(benk.dok);
-  if (!lag) {
-    const brukte = new Set(benk.dok.lag.map((l) => l.materialId));
-    const mat = materialer.find((m) => !brukte.has(m.id)) ?? materialer[0]!;
-    return { lag: nyttTekstlag(mat.id), ny: true };
+function malFor(
+  benk: Arbeidsbenk,
+  kilde: ObjektKilde,
+): { lagId: LagId; nytt?: ReturnType<typeof nyttLag> } | null {
+  const d = benk.dok;
+  const id = aktivtLag(benk);
+  if (!id && d.lag.length) return null;
+  const aktiv = id ? finnLag(d, id) : undefined;
+  if (kilde.type === 'tekst') {
+    if (aktiv?.tekstlag && !d.rekkefolge[aktiv.id]?.length) return { lagId: aktiv.id };
+    const farge = aktiv?.tekstlag ? aktiv.materialId : 'pla-kritthvit';
+    const nytt = nyttTekstlag(ledigTekstlagnavn(d), farge, aktiv?.tekstlag ? aktiv.hoyde : 1.5);
+    return { lagId: nytt.id, nytt };
   }
-  if (lag.last || !lag.synlig) {
-    benk.melde(
-      lag.last
-        ? 'Tekstlaget er låst. Lås det opp for å legge til tekst.'
-        : 'Tekstlaget er skjult. Vis det for å legge til tekst.',
-    );
-    return null;
-  }
-  return { lag, ny: false };
+  if (aktiv && !aktiv.tekstlag) return { lagId: aktiv.id };
+  const i = aktiv ? d.lag.indexOf(aktiv) : d.lag.length;
+  const under = d.lag
+    .slice(0, i)
+    .reverse()
+    .find((l) => !l.tekstlag && l.synlig && !l.last);
+  if (under) return { lagId: under.id };
+  const nytt = nyttLag(`Lag ${d.lag.length + 1}`, finnMateriale('pla-grafitt').id, 1);
+  return { lagId: nytt.id, nytt };
 }
 
 export function leggTil(
@@ -107,35 +95,23 @@ export function leggTil(
   transform: Partial<Transform2D> = {},
   navn?: string,
 ): Objekt | null {
-  // text always goes into the sign's one text layer
-  let lag: Lag | undefined;
-  let nyttLag = false;
-  if (kilde.type === 'tekst') {
-    const t = tekstlagForNyTekst(benk);
-    if (!t) return null;
-    lag = t.lag;
-    nyttLag = t.ny;
-  } else {
-    const id = aktivtLag(benk);
-    lag = id ? finnLag(benk.dok, id) : undefined;
-  }
-  if (!lag) return null;
-  const gruppe = lag.tekstlag ? aktivtUnderlag(benk, lag) : undefined;
-  if (gruppe && (gruppe.last || !gruppe.synlig)) {
-    benk.melde(
-      `Fargen «${gruppe.navn}» er ${gruppe.last ? 'låst' : 'skjult'}. Velg en annen farge i tekstlaget.`,
-    );
-    return null;
-  }
-  const o = nyttObjekt(lag.id, kilde, transform, navn ?? standardNavn(kilde), gruppe?.id);
-  const ny = lag;
+  const mal = malFor(benk, kilde);
+  if (!mal) return null;
+  const o = nyttObjekt(mal.lagId, kilde, transform, navn ?? standardNavn(kilde));
+  const nytt = mal.nytt;
+  const over = benk.tilstand.utvalg.lag ?? undefined;
   benk.endre({
     navn: `Legg til ${o.navn}`,
-    anvend: (d) => leggTilObjekt(nyttLag ? leggTilLag(d, ny) : d, o),
+    // a new layer goes above the active one, like «+ Nytt lag»
+    anvend: (d) => leggTilObjekt(nytt ? leggTilLag(d, nytt, over) : d, o),
   });
-  benk.velg({ objekter: [o.id], lag: lag.id });
-  const hvor = gruppe && (lag.underlag?.length ?? 0) > 1 ? `${lag.navn} (${gruppe.navn})` : lag.navn;
-  benk.melde(nyttLag ? `${o.navn} lagt til i et nytt tekstlag.` : `${o.navn} lagt til i ${hvor}.`);
+  benk.velg({ objekter: [o.id], lag: mal.lagId });
+  const lag = finnLag(benk.dok, mal.lagId);
+  benk.melde(
+    nytt
+      ? `${o.navn} lagt til i et nytt lag, «${lag?.navn ?? ''}».`
+      : `${o.navn} lagt til i ${lag?.navn ?? 'laget'}.`,
+  );
   return o;
 }
 
