@@ -6,7 +6,7 @@
  *
  * Pure functions; the dialog in Batch.tsx drives them.
  */
-import type { Dokument, Objekt, TekstKilde } from '../../core/dokument';
+import { finnLag, type Dokument, type TekstKilde } from '../../core/dokument';
 import { materialer } from '../../core/materialer';
 import { erTom, slaSammen, tomBoks, type Boks } from '../../core/geometri2d';
 import { fargeplasser, feltObjekter, oppdaterObjekter, settFarge } from './dokument';
@@ -110,12 +110,17 @@ export interface Variant {
   boks: Boks;
 }
 
-function feltGrense(dok: Dokument, felt: Objekt[]): Boks | null {
-  // the sign area: everything that is not a field
-  const ider = new Set(felt.map((o) => o.id));
+/**
+ * The area a field's text must stay inside: the shapes of the plain
+ * layers (a plate or an SVG frame). Text layers and their outlines grow
+ * with the text, so a sign built from outlines has no such limit, and
+ * other texts are not a limit either.
+ */
+function feltGrense(dok: Dokument): Boks | null {
   let b = tomBoks();
   for (const o of Object.values(dok.objekter)) {
-    if (!o.synlig || ider.has(o.id) || o.operasjon === 'trekk-fra') continue;
+    if (!o.synlig || o.operasjon === 'trekk-fra' || o.kilde.type === 'tekst') continue;
+    if (finnLag(dok, o.lagId)?.tekstlag) continue;
     b = slaSammen(b, verdensBoks(o));
   }
   return erTom(b) ? null : b;
@@ -124,7 +129,7 @@ function feltGrense(dok: Dokument, felt: Objekt[]): Boks | null {
 /** Build one variant per row. Fonts must be loaded (lastFonter) first. */
 export function lagVarianter(master: Dokument, csv: Csv, kobling: Kolonnemal[]): Variant[] {
   const feltMaster = feltObjekter(master);
-  const grense = feltGrense(master, feltMaster);
+  const grense = feltGrense(master);
   return csv.rader.map((rad, indeks) => {
     let dok = master;
     const problemer: string[] = [];

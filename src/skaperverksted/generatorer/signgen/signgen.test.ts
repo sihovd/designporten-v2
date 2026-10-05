@@ -1,3 +1,4 @@
+import { skiltMedPlate } from './testskilt';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { settFontHenter } from '../../geometri/tekst';
@@ -13,7 +14,6 @@ import {
   nyForm,
   nyttLag,
   nyttObjekt,
-  nyttSigngenDokument,
   oppdaterLag,
   slettLag,
   slettObjekter,
@@ -29,7 +29,7 @@ beforeAll(() => {
 
 describe('Signgen document', () => {
   it('starts with a base plate and a text layer stacked in Z', () => {
-    const d = nyttSigngenDokument();
+    const d = skiltMedPlate();
     expect(d.lag.map((l) => [l.navn, l.zBunn, l.hoyde])).toEqual([
       ['Bunnplate', 0, 3],
       ['Tekst', 3, 1.5],
@@ -37,7 +37,7 @@ describe('Signgen document', () => {
   });
 
   it('restacks Z when heights and order change', () => {
-    let d = nyttSigngenDokument();
+    let d = skiltMedPlate();
     const [bunn, tekst] = d.lag;
     d = oppdaterLag(d, bunn!.id, { hoyde: 4 });
     expect(finnLag(d, tekst!.id)!.zBunn).toBe(4);
@@ -47,7 +47,7 @@ describe('Signgen document', () => {
   });
 
   it('adds, duplicates and deletes objects and layers', () => {
-    let d = nyttSigngenDokument();
+    let d = skiltMedPlate();
     const lag = nyttLag('Ramme', 'pla-lilla', 1);
     d = leggTilLag(d, lag);
     const o = nyttObjekt(lag.id, nyForm('ellipse', 10, 10));
@@ -64,7 +64,7 @@ describe('Signgen document', () => {
 
 describe('Signgen model', () => {
   it('builds one closed part per layer with the right materials and heights', async () => {
-    const d = nyttSigngenDokument();
+    const d = skiltMedPlate();
     const r = await byggSigngen(d);
     expect(r.deler.map((p) => p.materialId)).toEqual(['pla-grafitt', 'pla-kritthvit']);
     for (const p of r.deler) expect(sjekkManifold(p.mesh).lukket).toBe(true);
@@ -74,7 +74,7 @@ describe('Signgen model', () => {
   });
 
   it('cuts hanging holes through every layer', async () => {
-    let d = nyttSigngenDokument();
+    let d = skiltMedPlate();
     const a0 = areal(lagRegion(d, d.lag[0]!.id)!);
     d = leggTilObjekt(d, nyttObjekt(d.lag[1]!.id, nyForm('hull', 5, 5), { x: -50 }));
     await lastFonter(d);
@@ -82,7 +82,7 @@ describe('Signgen model', () => {
   });
 
   it('applies Kontur and layer influences', async () => {
-    let d = nyttSigngenDokument();
+    let d = skiltMedPlate();
     await lastFonter(d);
     const [bunn, tekst] = d.lag;
     const tekstAreal = areal(lagRegion(d, tekst!.id)!);
@@ -96,7 +96,7 @@ describe('Signgen model', () => {
   });
 
   it('builds profiled layers closed and warns about floating layers and thin details', async () => {
-    let d = nyttSigngenDokument();
+    let d = skiltMedPlate();
     const [bunn, tekst] = d.lag;
     d = oppdaterLag(d, bunn!.id, { profil: forhandsvalg('avrundet', 1.5) });
     let r = await byggSigngen(d);
@@ -117,7 +117,7 @@ describe('Signgen model', () => {
   });
 
   it('flags details thinner than the material minimum', async () => {
-    let d = nyttSigngenDokument();
+    let d = skiltMedPlate();
     d = leggTilObjekt(d, nyttObjekt(d.lag[1]!.id, nyForm('rektangel', 20, 0.4), { y: -15 }));
     const r = await byggSigngen(d);
     expect(r.advarsler.some((a) => a.tekst.includes('tynnere enn'))).toBe(true);

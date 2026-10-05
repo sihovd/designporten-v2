@@ -3,8 +3,9 @@ import { useRef } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { brukBenk } from '../../shell/bruk-benk';
 import { brukSigntilstand, signtilstand, type VerktoyId } from './tilstand';
-import { leggTil } from './handlinger';
-import { importerSvg, SvgFeil } from './svgimport';
+import { importerSvgSom } from './handlinger';
+import { startErValgt } from './dokument';
+import { Fargeprofilvindu } from './Fargeprofilvindu';
 
 export const VERKTOY: { id: VerktoyId; navn: string; tast: string; tegn: string; hjelp: string }[] = [
   { id: 'velg', navn: 'Velg', tast: 'V', tegn: 'V', hjelp: 'Velg, flytt, skaler og roter' },
@@ -23,26 +24,9 @@ export const VERKTOY: { id: VerktoyId; navn: string; tast: string; tegn: string;
   { id: 'panorer', navn: 'Panorer', tast: 'Space', tegn: '↔', hjelp: 'Dra for å flytte visningen' },
 ];
 
-export async function importerSvgFil(benk: Arbeidsbenk, fil: File): Promise<void> {
-  if (fil.size > 5 * 1024 * 1024) {
-    benk.melde('SVG-filen er større enn 5 MB.');
-    return;
-  }
-  try {
-    const r = importerSvg(await fil.text(), fil.name);
-    // fit large drawings to the plate's usable size
-    const maks = Math.min(benk.dok.plate.bredde, benk.dok.plate.dybde) * 0.8;
-    const s = Math.min(1, maks / Math.max(r.bredde, r.hoyde));
-    const o = leggTil(benk, r.kilde, { skalaX: s, skalaY: s });
-    if (o) {
-      const deler = [`«${fil.name}» er importert`];
-      if (s < 1) deler.push(`og skalert til ${Math.round(s * 100)} % for å passe på platen`);
-      if (r.hoppetOver.length) deler.push(`Hoppet over: ${r.hoppetOver.join(', ')}`);
-      benk.melde(`${deler.join('. ')}.`);
-    }
-  } catch (e) {
-    benk.melde(e instanceof SvgFeil ? e.message : 'SVG-filen kunne ikke leses.');
-  }
+/** The tool rail's SVG button: a decoration in a layer of its own. */
+export function importerSvgFil(benk: Arbeidsbenk, fil: File): Promise<void> {
+  return importerSvgSom(benk, fil, 'pynt');
 }
 
 export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
@@ -71,7 +55,12 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
         </button>
       ))}
       <span class="skinne-skille" aria-hidden="true" />
-      <button type="button" class="verktoy" title="Importer en SVG-fil" onClick={() => fil.current?.click()}>
+      <button
+        type="button"
+        class="verktoy"
+        title="Legg til en SVG som pynt i et eget lag (ramme: + Nytt lag i lagpanelet)"
+        onClick={() => fil.current?.click()}
+      >
         <span class="verktoy-tegn" aria-hidden="true">
           +
         </span>
@@ -113,6 +102,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
         </span>
         Rutenett
       </button>
+      {(!startErValgt(t.dok) || st.fargeprofil) && <Fargeprofilvindu benk={benk} />}
     </>
   );
 }

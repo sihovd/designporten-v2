@@ -21,6 +21,7 @@ import { identitet, type Transform2D } from '../../core/geometri2d';
 import { rettProfil } from '../../core/profil';
 import { standardPrinter } from '../../core/materialer';
 import { standardFont } from '../../geometri/tekst';
+import { narmesteFarge, rensFarger, STANDARD_PROFIL } from './fargeprofiler';
 
 export const SIGNGEN_ID = 'signgen';
 
@@ -29,11 +30,70 @@ export interface SigngenParametre {
   autoZ: boolean;
   /** Print layer height used to realise side profiles (mm). */
   lagHoyde: number;
+  /** The sign's colour profile: the material ids it may use (Sivert, 2026-10-05). */
+  farger?: string[];
+  /** False until the start window has been answered for this project. */
+  startvalgt?: boolean;
 }
 
 export function parametre(dok: Dokument): SigngenParametre {
   const p = dok.parametre as Partial<SigngenParametre>;
-  return { autoZ: p.autoZ ?? true, lagHoyde: p.lagHoyde ?? standardPrinter.lagHoyde };
+  return { ...p, autoZ: p.autoZ ?? true, lagHoyde: p.lagHoyde ?? standardPrinter.lagHoyde };
+}
+
+function settParametre(dok: Dokument, endring: Partial<SigngenParametre>): Dokument {
+  return { ...dok, parametre: { ...dok.parametre, ...endring } };
+}
+
+/** Every colour the sign uses now, bottom to top, each once. */
+function brukteFarger(dok: Dokument): string[] {
+  return [...new Set(dok.lag.flatMap((l) => [l.materialId, ...(l.omriss ?? []).map((o) => o.materialId)]))];
+}
+
+/**
+ * The sign's colour profile. Projects from before profiles get the
+ * colours they already use, so nothing changes for them.
+ */
+export function palett(dok: Dokument): string[] {
+  const p = parametre(dok).farger;
+  const egen = p ? rensFarger(p) : [];
+  return egen.length ? egen : rensFarger(brukteFarger(dok));
+}
+
+/**
+ * Use a new colour profile. Colours the sign uses that are not in it are
+ * swapped for the closest colour in it.
+ */
+export function settPalett(dok: Dokument, farger: string[]): Dokument {
+  const ny = rensFarger(farger);
+  if (!ny.length) return dok;
+  const bytt = (id: string) => narmesteFarge(id, ny);
+  const lag = dok.lag.map((l) => {
+    const omriss = l.omriss?.map((o) =>
+      ny.includes(o.materialId) ? o : { ...o, materialId: bytt(o.materialId) },
+    );
+    const endret = !ny.includes(l.materialId) || omriss?.some((o, i) => o !== l.omriss![i]);
+    return endret ? { ...l, materialId: bytt(l.materialId), ...(omriss ? { omriss } : {}) } : l;
+  });
+  return settParametre({ ...dok, lag }, { farger: ny, startvalgt: true });
+}
+
+/** Add a catalogue colour to the sign's profile. */
+export function leggTilFarge(dok: Dokument, materialId: string): Dokument {
+  const naa = palett(dok);
+  return naa.includes(materialId) ? dok : settParametre(dok, { farger: rensFarger([...naa, materialId]) });
+}
+
+/** The first colour in the profile that the sign does not use yet (else the first one). */
+export function nesteFarge(dok: Dokument): string {
+  const brukte = new Set(fargeplasser(dok).map((p) => p.materialId));
+  const p = palett(dok);
+  return p.find((id) => !brukte.has(id)) ?? p[0] ?? STANDARD_PROFIL.farger[0]!;
+}
+
+/** The start window has been answered. */
+export function startErValgt(dok: Dokument): boolean {
+  return parametre(dok).startvalgt !== false;
 }
 
 export function nyttLag(navn: string, materialId: string, hoyde: number): Lag {
@@ -73,8 +133,16 @@ export function nyttOmriss(navn: string, materialId: string, endring: Partial<Om
 }
 
 /** Height a layer takes in the stack: its own, or its tallest visible outline. */
-export function lagHoydeIStabel(l: Lag): number {
+export function lagHoydeIStabel(l: Lag, dok?: Dokument): number {
+  // a layer that only holds hanging holes prints nothing, so it takes no room
+  if (dok && !l.pavirkninger.length && bareHull(dok, l.id)) return 0;
   return (l.omriss ?? []).reduce((h, o) => (o.synlig ? Math.max(h, o.hoyde) : h), l.hoyde);
+}
+
+/** The layer holds hanging holes and nothing else. */
+export function bareHull(dok: Dokument, lagId: LagId): boolean {
+  const obj = objekterILag(dok, lagId);
+  return obj.length > 0 && obj.every((o) => o.kilde.type === 'form' && o.kilde.form === 'hull');
 }
 
 export function nyTekst(tekst = 'Tekst', storrelse = 16): TekstKilde {
@@ -117,24 +185,33 @@ export function standardNavn(k: ObjektKilde): string {
   return { rektangel: 'Rektangel', ellipse: 'Ellipse', polygon: 'Polygon', hull: 'Opphengshull' }[k.form];
 }
 
-/** The starting sign: a rounded base plate and a text layer on top. */
-export function nyttSigngenDokument(): Dokument {
+/**
+ * The starting sign: a text layer with one filled outline that is the
+ * base (Sivert, 2026-10-05: the separate base plate is no longer needed).
+ * Colours come from the profile; the start window lets the user pick it.
+ */
+export function nyttSigngenDokument(farger: string[] = STANDARD_PROFIL.farger): Dokument {
   const dok = tomtDokument(SIGNGEN_ID, 'Mitt skilt', {
     bredde: standardPrinter.plateBredde,
     dybde: standardPrinter.plateDybde,
     hoyde: standardPrinter.byggHoyde,
     printerProfilId: standardPrinter.id,
   });
-  const bunn = nyttLag('Bunnplate', 'pla-grafitt', 3);
-  const tekst = nyttTekstlag('Tekst', 'pla-kritthvit');
-  const plate = nyttObjekt(bunn.id, nyForm('rektangel', 120, 42, 6), {}, 'Bunnplate');
+  const p = rensFarger(farger);
+  const tekst = nyttTekstlag('Tekst', p[0] ?? 'pla-kritthvit', 3);
+  tekst.omriss = [nyttOmriss('Underlag', p[1] ?? p[0] ?? 'pla-grafitt', { bredde: 4, hoyde: 2 })];
   const t = nyttObjekt(tekst.id, nyTekst('Designporten', 14));
   const d: Dokument = {
     ...dok,
-    lag: [bunn, tekst],
-    objekter: { [plate.id]: plate, [t.id]: t },
-    rekkefolge: { [bunn.id]: [plate.id], [tekst.id]: [t.id] },
-    parametre: { autoZ: true, lagHoyde: standardPrinter.lagHoyde } satisfies SigngenParametre,
+    lag: [tekst],
+    objekter: { [t.id]: t },
+    rekkefolge: { [tekst.id]: [t.id] },
+    parametre: {
+      autoZ: true,
+      lagHoyde: standardPrinter.lagHoyde,
+      farger: p,
+      startvalgt: false,
+    } satisfies SigngenParametre,
   };
   return stable(d);
 }
@@ -146,7 +223,7 @@ export function stable(dok: Dokument): Dokument {
   let endret = false;
   const lag = dok.lag.map((l) => {
     const zBunn = Math.round(z * 1000) / 1000;
-    z += lagHoydeIStabel(l);
+    z += lagHoydeIStabel(l, dok);
     if (Math.abs(l.zBunn - zBunn) < 1e-9) return l;
     endret = true;
     return { ...l, zBunn };
@@ -157,6 +234,11 @@ export function stable(dok: Dokument): Dokument {
 export function oppdaterLag(dok: Dokument, id: LagId, endring: Partial<Lag>): Dokument {
   const lag = dok.lag.map((l) => (l.id === id ? { ...l, ...endring } : l));
   return stable({ ...dok, lag });
+}
+
+/** Add a layer at the bottom of the stack (under everything). */
+export function leggTilLagNederst(dok: Dokument, lag: Lag): Dokument {
+  return stable({ ...dok, lag: [lag, ...dok.lag], rekkefolge: { ...dok.rekkefolge, [lag.id]: [] } });
 }
 
 export function leggTilLag(dok: Dokument, lag: Lag, overId?: LagId): Dokument {

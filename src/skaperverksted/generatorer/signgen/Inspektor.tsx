@@ -13,16 +13,11 @@ import {
   type Omriss,
   type TekstKilde,
 } from '../../core/dokument';
-import {
-  finnMateriale,
-  materialer,
-  materialtyper,
-  standardPrinter,
-  type Materialtype,
-} from '../../core/materialer';
+import { finnMateriale, materialer, standardPrinter } from '../../core/materialer';
 import { forhandsvalg, type ProfilType } from '../../core/profil';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
+import { tall } from '../../core/enheter';
 import { fonter } from '../../geometri/tekst';
 import {
   parametre,
@@ -31,6 +26,8 @@ import {
   flyttTilLag,
   fargeplasser,
   flyttOmriss,
+  leggTilFarge,
+  palett,
   grupperTekst,
   losUtTekst,
   oppdaterOmriss,
@@ -39,7 +36,7 @@ import {
   stable,
   standardNavn,
 } from './dokument';
-import { lokalGeometri, MIN_OMRISSBREDDE, objektStorrelse } from './modell';
+import { erOye, lokalGeometri, MIN_OMRISSBREDDE, objektStorrelse, STANDARD_RINGBREDDE } from './modell';
 import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
 import { nyttOmrissI } from './Lagpanel';
@@ -58,26 +55,60 @@ const PROFILER: { id: Exclude<ProfilType, 'egendefinert'> | 'egendefinert'; navn
   { id: 'egendefinert', navn: 'Egendefinert' },
 ];
 
-function Materialvelger({ verdi, endre, id }: { verdi: string; endre: (id: string) => void; id: string }) {
-  const typer = Object.keys(materialtyper) as Materialtype[];
+/**
+ * Colour picker: the sign's colour profile first (Sivert, 2026-10-05).
+ * A catalogue colour outside the profile can still be picked; it is then
+ * added to the profile.
+ */
+function Materialvelger({
+  benk,
+  verdi,
+  endre,
+  id,
+}: {
+  benk: Arbeidsbenk;
+  verdi: string;
+  endre: (id: string) => void;
+  id: string;
+}) {
+  const t = brukBenk(benk);
+  const profil = palett(t.dok);
+  const valg = profil.includes(verdi) ? profil : [verdi, ...profil];
+  const andre = materialer.filter((x) => !valg.includes(x.id));
   const m = finnMateriale(verdi);
   return (
     <label class="felt" for={id}>
       <span>Farge</span>
       <span class="materialvalg">
         <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
-        <select id={id} value={verdi} onChange={(e) => endre((e.target as HTMLSelectElement).value)}>
-          {typer.map((t) => (
-            <optgroup key={t} label={t}>
-              {materialer
-                .filter((x) => x.type === t)
-                .map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.navn}
-                  </option>
-                ))}
+        <select
+          id={id}
+          value={verdi}
+          onChange={(e) => {
+            const ny = (e.target as HTMLSelectElement).value;
+            if (!profil.includes(ny)) {
+              benk.endre({ navn: 'Legg til farge i profilen', anvend: (d) => leggTilFarge(d, ny) });
+              benk.melde(`${finnMateriale(ny).navn} er lagt til i fargeprofilen.`);
+            }
+            endre(ny);
+          }}
+        >
+          <optgroup label="Fargeprofilen">
+            {valg.map((x) => (
+              <option key={x} value={x}>
+                {finnMateriale(x).navn}
+              </option>
+            ))}
+          </optgroup>
+          {andre.length > 0 && (
+            <optgroup label="Legg til fra katalogen">
+              {andre.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.navn} ({x.type})
+                </option>
+              ))}
             </optgroup>
-          ))}
+          )}
         </select>
       </span>
     </label>
@@ -85,6 +116,43 @@ function Materialvelger({ verdi, endre, id }: { verdi: string; endre: (id: strin
 }
 
 // ---------- object ----------
+
+/** A hanging hole: a hole through the model, or an eye outside it (Sivert, 2026-10-05). */
+function Hullvalg({
+  benk,
+  o,
+  endre,
+}: {
+  benk: Arbeidsbenk;
+  o: Objekt;
+  endre: (navn: string, fn: (o: Objekt) => Objekt, slaSammen?: string) => void;
+}) {
+  const t = brukBenk(benk);
+  if (o.kilde.type !== 'form') return null;
+  const kilde = o.kilde;
+  const oye = erOye(t.dok, o.id);
+  return (
+    <>
+      <p class="merknad">
+        {oye
+          ? `Øye utenfor skiltet: en ring med hull på ${tall(kilde.bredde)} mm til nøkkelring. Dra det inn over skiltet for å gjøre det til et hull.`
+          : `Hull gjennom skiltet, ${tall(kilde.bredde)} mm innvendig. Dra det utenfor kanten for å gjøre det til et øye til nøkkelring.`}
+      </p>
+      {oye && (
+        <TallFelt
+          etikett="Ringbredde"
+          verdi={kilde.ringBredde ?? STANDARD_RINGBREDDE}
+          min={MIN_OMRISSBREDDE}
+          maks={20}
+          steg={0.5}
+          endre={(v) =>
+            endre('Ringbredde', (x) => ({ ...x, kilde: { ...kilde, ringBredde: v } }), 'ringbredde')
+          }
+        />
+      )}
+    </>
+  );
+}
 
 /** Select value for «take the text out of its group». */
 const EGET = '__eget-tekstlag';
@@ -266,9 +334,7 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
             }
           />
         )}
-        {o.kilde.type === 'form' && o.kilde.form === 'hull' && (
-          <p class="merknad">Opphengshull går gjennom alle lagene i skiltet.</p>
-        )}
+        {o.kilde.type === 'form' && o.kilde.form === 'hull' && <Hullvalg benk={benk} o={o} endre={endre} />}
         {o.kilde.type === 'svg' && <p class="merknad">Importert fra «{o.kilde.filnavn}».</p>}
       </Panel>
 
@@ -589,6 +655,7 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
           <p class="merknad">Teksten skjæres ut av omrissene, så det som ligger under, synes gjennom.</p>
         )}
         <Materialvelger
+          benk={benk}
           id="signgen-lagfarge"
           verdi={lag.materialId}
           endre={(m) => endre('Bytt farge', { materialId: m })}
@@ -886,6 +953,7 @@ function OmrissBlokk({ benk, lag, o, i }: { benk: Arbeidsbenk; lag: Lag; o: Omri
         endre={(v, k) => endre('Omrisshøyde', { hoyde: v }, k === 'pil' ? `hoyde-${o.id}` : undefined)}
       />
       <Materialvelger
+        benk={benk}
         id={id('farge')}
         verdi={o.materialId}
         endre={(m) => endre('Bytt farge', { materialId: m })}
@@ -999,7 +1067,32 @@ function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
           <dt>Farger i bruk</dt>
           <dd>{brukte.map((m) => m.navn).join(', ')}</dd>
         </div>
+        <div>
+          <dt>Fargeprofil</dt>
+          <dd>
+            <span class="profilfarger">
+              {palett(t.dok).map((id) => (
+                <span
+                  key={id}
+                  class="fargeprove"
+                  style={{ background: finnMateriale(id).hex }}
+                  aria-hidden="true"
+                />
+              ))}
+            </span>{' '}
+            {palett(t.dok)
+              .map((id) => finnMateriale(id).navn)
+              .join(', ')}
+          </dd>
+        </div>
       </dl>
+      <button
+        type="button"
+        class="kontroll-knapp"
+        onClick={() => signtilstand(benk).sett({ fargeprofil: true })}
+      >
+        Endre fargeprofil
+      </button>
       {!standardPrinter.bekreftet && (
         <p class="merknad">Skriverprofil og farger er foreløpige og ikke bekreftet av Designporten.</p>
       )}

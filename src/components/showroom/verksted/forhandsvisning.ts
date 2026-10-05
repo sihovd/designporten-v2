@@ -58,9 +58,12 @@ export interface Skilt {
 }
 
 /**
- * Signgen's starting sign (signgen/dokument.ts `nyttSigngenDokument`). Kept
- * as data here because that module pulls in the font engine, which the
- * static build does not need; a unit test keeps the two in step.
+ * A plate sign as Signgen builds it: a base plate layer with a text layer
+ * on top (Signgen's starting sign until 2026-10-05; it now starts with an
+ * outline as the base, but plates remain a normal way to build). Kept as
+ * data here because Signgen pulls in the font engine, which the static
+ * build does not need; a unit test keeps the two in step
+ * (signgen/testskilt.ts).
  */
 export const SIGNGEN_START = {
   bredde: 120,
