@@ -314,11 +314,12 @@ export function Batchdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => voi
           <>
             <label class="avkryssing">
               <input type="checkbox" checked={holdAvstand} onChange={() => settHoldAvstand(!holdAvstand)} />{' '}
-              Hold avstanden mellom tekstene i en gruppe lik på alle skilt
+              Hold avstanden mellom tekstene som hører sammen lik på alle skilt
             </label>
             <p class="merknad">
-              Avstanden slik den er på skiltet ditt brukes på hvert skilt, så for- og etternavn får like langt
-              mellom seg uansett navn. Gruppen vokser fra midten.
+              Tekster som står ved siden av hverandre eller under hverandre, i samme tekstlag eller i hvert
+              sitt, beholder avstanden fra skiltet ditt. For- og etternavn får like langt mellom seg uansett
+              navn, målt mellom bokstavene du ser. Gruppen vokser fra midten.
             </p>
           </>
         )}

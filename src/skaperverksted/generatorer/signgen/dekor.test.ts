@@ -14,11 +14,20 @@ import {
   nyTekst,
   nyttObjekt,
   nyttSigngenDokument,
+  feltNavn,
   nyttTekstlag,
   oppdaterKilde,
   oppdaterObjekter,
 } from './dokument';
-import { byggSigngen, fotavtrykkBoks, lagRegion, lastFonter, lokalGeometri, verdensBoks } from './modell';
+import {
+  blekkBoks,
+  byggSigngen,
+  fotavtrykkBoks,
+  lagRegion,
+  lastFonter,
+  lokalGeometri,
+  verdensBoks,
+} from './modell';
 import { DEKOR, dekorKilde, dekorValg, erIngenDekor, finnDekorFraTekst } from './dekor';
 import { foreslaKobling, gruppeavstander, lagVarianter, tolkCsv } from './batch';
 
@@ -164,37 +173,82 @@ describe('Batch: gaps in a group and decoration variables', () => {
     return d;
   }
 
-  it('keeps the gap between first and last name the same on every sign', async () => {
+  /** The gaps between the printed letters of the texts, left to right. */
+  const blekkGap = (dok: Dokument): number[] => {
+    const t = Object.values(dok.objekter)
+      .filter((o) => o.synlig && o.kilde.type === 'tekst')
+      .map(blekkBoks)
+      .sort((a, b) => a.minX - b.minX);
+    return t.slice(1).map((b, i) => b.minX - t[i]!.maksX);
+  };
+
+  it('keeps the visible gap between first and last name the same on every sign', async () => {
     const master = await fornavnOgEtternavn();
     const regler = gruppeavstander(master);
     expect(regler).toHaveLength(1);
     expect(regler[0]).toMatchObject({ akse: 'x' });
-    const csv = tolkCsv('fornavn;etternavn\nAnna;Hansen\nMaximilian;Li\nEd;Johannessen-Bakkestuen');
+    const csv = tolkCsv(
+      'fornavn;etternavn\nAnna;Hansen\nMaximilian;Li\nEd;Johannessen-Bakkestuen\nGry;Pettersen\nAv;Ja',
+    );
     const v = lagVarianter(master, csv, foreslaKobling(csv, master));
     await lastFonter(v[2]!.dok);
-    const gap = v.map((x) => {
-      const t = objekterILag(x.dok, x.dok.lag[0]!.id)
-        .filter((o) => o.kilde.type === 'tekst')
-        .map(verdensBoks)
-        .sort((a, b) => a.minX - b.minX);
-      return t[1]!.minX - t[0]!.maksX;
-    });
-    for (const g of gap) expect(g).toBeCloseTo(gap[0]!, 3);
+    const gap = v.map((x) => blekkGap(x.dok)[0]!);
+    for (const g of gap) expect(g).toBeCloseTo(blekkGap(master)[0]!, 2);
     // the group keeps its centre
     const sentrum = v.map((x) => {
-      const b = objekterILag(x.dok, x.dok.lag[0]!.id).map(verdensBoks);
+      const b = objekterILag(x.dok, x.dok.lag[0]!.id).map(blekkBoks);
       return (Math.min(...b.map((m) => m.minX)) + Math.max(...b.map((m) => m.maksX))) / 2;
     });
-    for (const s of sentrum) expect(s).toBeCloseTo(sentrum[0]!, 3);
+    for (const s of sentrum) expect(s).toBeCloseTo(sentrum[0]!, 2);
     // without the rule the gap would change
     const fri = lagVarianter(master, csv, foreslaKobling(csv, master), { gruppeavstand: false });
-    const g2 = fri.map((x) => {
-      const t = objekterILag(x.dok, x.dok.lag[0]!.id)
-        .map(verdensBoks)
-        .sort((a, b) => a.minX - b.minX);
-      return t[1]!.minX - t[0]!.maksX;
-    });
+    const g2 = fri.map((x) => blekkGap(x.dok)[0]!);
     expect(Math.abs(g2[2]! - g2[0]!)).toBeGreaterThan(1);
+  });
+
+  it('holds the gap between texts in separate text layers too', async () => {
+    let d = await fornavnOgEtternavn();
+    // move the last name into a text layer of its own
+    const etternavn = Object.values(d.objekter).find((o) => feltNavn(o) === 'etternavn')!;
+    const eget = nyttTekstlag('Etternavn', 'pla-svart', 1);
+    d = leggTilLag(d, eget);
+    d = flyttTilLag(d, [etternavn.id], eget.id);
+    expect(d.objekter[etternavn.id]!.lagId).toBe(eget.id);
+    const regler = gruppeavstander(d);
+    expect(regler).toHaveLength(1);
+    expect(regler[0]).toMatchObject({ akse: 'x' });
+    expect(regler[0]!.ider).toHaveLength(2);
+    const csv = tolkCsv('fornavn;etternavn\nAnna;Hansen\nMaximilian;Li\nEd;Johannessen-Bakkestuen');
+    const v = lagVarianter(d, csv, foreslaKobling(csv, d));
+    await lastFonter(v[2]!.dok);
+    for (const x of v) expect(blekkGap(x.dok)[0]!).toBeCloseTo(blekkGap(d)[0]!, 2);
+    // texts far apart on different rows are not tied together
+    const rader = oppdaterObjekter(d, [etternavn.id], (o) => ({
+      ...o,
+      transform: { ...o.transform, x: -40, y: -40 },
+    }));
+    expect(gruppeavstander(rader).filter((r) => r.akse === 'x')).toHaveLength(0);
+  });
+
+  it('keeps the gap between the names when a decoration in front of them is left out', async () => {
+    let d = await fornavnOgEtternavn();
+    const lag = d.lag[0]!;
+    const stjerne = nyttObjekt(
+      lag.id,
+      { ...dekorKilde(DEKOR[0]!).kilde, felt: 'dekor' },
+      { x: -90, y: 0, skalaX: 0.5, skalaY: 0.5 },
+    );
+    d = leggTilObjekt(d, stjerne);
+    await lastFonter(d);
+    const regler = gruppeavstander(d);
+    expect(regler).toHaveLength(1);
+    expect(regler[0]!.ider).toHaveLength(3);
+    const navnGap = blekkGap(oppdaterObjekter(d, [stjerne.id], (o) => ({ ...o, synlig: false })))[0]!;
+    const csv = tolkCsv('fornavn;etternavn;dekor\nAnna;Hansen;Ingen\nMaximilian;Li;Ingen\nEd;Ola;Hest');
+    const v = lagVarianter(d, csv, foreslaKobling(csv, d), { egneDekor: [] });
+    // the star is off on the first two signs: the names keep their own gap, not the star's
+    expect(v[0]!.dok.objekter[stjerne.id]!.synlig).toBe(false);
+    for (const i of [0, 1]) expect(blekkGap(v[i]!.dok)[0]!).toBeCloseTo(navnGap, 2);
   });
 
   it('stacks first and last name with a fixed gap too', async () => {
@@ -206,6 +260,17 @@ describe('Batch: gaps in a group and decoration variables', () => {
     }));
     const r = gruppeavstander(d);
     expect(r[0]).toMatchObject({ akse: 'y' });
+    // the line boxes keep their distance, so the baselines keep a steady pitch
+    const csv = tolkCsv('fornavn;etternavn\nAnna;Hansen\nGry;Pettersen\nTove;Lie');
+    const v = lagVarianter(d, csv, foreslaKobling(csv, d));
+    await lastFonter(v[2]!.dok);
+    const gap = v.map((x) => {
+      const t = Object.values(x.dok.objekter)
+        .map(verdensBoks)
+        .sort((a, b) => b.maksY - a.maksY);
+      return t[0]!.minY - t[1]!.maksY;
+    });
+    for (const g of gap) expect(g).toBeCloseTo(gap[0]!, 3);
   });
 
   it('swaps a decoration from the CSV and leaves it off when the cell is empty', async () => {

@@ -10,7 +10,14 @@ import { finnLag, objekterILag, type Dokument, type Objekt, type TekstKilde } fr
 import { materialer } from '../../core/materialer';
 import { erTom, slaSammen, tomBoks, type Boks } from '../../core/geometri2d';
 import { fargeplasser, feltNavn, feltObjekter, oppdaterObjekter, settFarge } from './dokument';
-import { byggSigngen, fotavtrykkBoks, lokalGeometri, objektStorrelse, verdensBoks } from './modell';
+import {
+  blekkBoks,
+  byggSigngen,
+  fotavtrykkBoks,
+  lokalGeometri,
+  objektStorrelse,
+  verdensBoks,
+} from './modell';
 import { erIngenDekor, finnDekorFraTekst, hentEgneDekor, type EgetDekor } from './dekor';
 import type { Mesh, ModellDel } from '../../geometri/mesh';
 import { filnavn as trygtFilnavn, tilTremfSamlinger, type TremfSamling } from '../../eksport/tremf';
@@ -130,12 +137,19 @@ function feltGrense(dok: Dokument): Boks | null {
 // ---------- spacing inside a group ----------
 
 /**
- * The gap between the texts (and vectors) of a text layer is a rule:
+ * The gap between texts (and vectors) that belong together is a rule:
  * measured on the master sign and kept on every sign, so first and last
  * name sit the same distance apart whatever the names are (Sivert,
  * 2026-10-05). The group keeps its centre, so it grows from the middle.
+ *
+ * Texts that sit side by side (or stacked) form a group whether they are in
+ * one text layer or in several. Side by side, the gap is the visible one,
+ * from the last letter to the next text's first letter; stacked, it is the
+ * gap between the lines, so the baselines keep a steady pitch whatever
+ * ascenders and descenders the names have.
  */
 export interface Gruppeavstand {
+  /** The text layer of the first object. */
   lagId: string;
   akse: 'x' | 'y';
   /** The group's objects in reading order: left to right, or top to bottom. */
@@ -149,49 +163,85 @@ export interface Gruppeavstand {
 /** Gaps below this are overlaps, not spacing (mm). */
 const MIN_GAP = -2;
 
-export function gruppeavstander(master: Dokument): Gruppeavstand[] {
-  const ut: Gruppeavstand[] = [];
+/** What gaps are measured on: the printed letters across, the line boxes down. */
+function gruppeboks(o: Objekt): Boks {
+  const ink = blekkBoks(o);
+  const linje = verdensBoks(o);
+  return { minX: ink.minX, maksX: ink.maksX, minY: linje.minY, maksY: linje.maksY };
+}
+
+interface Medlem {
+  o: Objekt;
+  b: Boks;
+}
+
+/** Along the axis: the gap between two boxes (negative when they overlap). */
+function langsAkse(akse: 'x' | 'y', a: Boks, b: Boks): number {
+  return akse === 'x'
+    ? Math.max(a.minX - b.maksX, b.minX - a.maksX)
+    : Math.max(a.minY - b.maksY, b.minY - a.maksY);
+}
+
+/** Across the axis: how far the boxes overlap (side by side: in height; stacked: in width). */
+function tversAvAkse(akse: 'x' | 'y', a: Boks, b: Boks): number {
+  return akse === 'x'
+    ? Math.min(a.maksY, b.maksY) - Math.max(a.minY, b.minY)
+    : Math.min(a.maksX, b.maksX) - Math.max(a.minX, b.minX);
+}
+
+/** The objects a gap rule can hold: text and vectors in the visible text layers. */
+function gruppemedlemmer(master: Dokument): Medlem[] {
+  const ut: Medlem[] = [];
   for (const lag of master.lag) {
     if (!lag.tekstlag || !lag.synlig) continue;
-    const obj = objekterILag(master, lag.id).filter(
-      (o) => o.synlig && o.operasjon === 'legg-til' && o.kilde.type !== 'form',
-    );
-    // only worth a rule when something in the group varies from sign to sign
-    if (obj.length < 2 || !obj.some((o) => feltNavn(o))) continue;
-    const med = obj.map((o) => ({ o, b: verdensBoks(o) }));
-    const kandidat = (akse: 'x' | 'y') => {
-      const sortert = [...med].sort((a, b) => (akse === 'x' ? a.b.minX - b.b.minX : b.b.maksY - a.b.maksY));
-      const gap = sortert.slice(1).map((m, i) => {
-        const f = sortert[i]!.b;
-        return akse === 'x' ? m.b.minX - f.maksX : f.minY - m.b.maksY;
-      });
-      const fra =
-        akse === 'x' ? Math.min(...med.map((m) => m.b.minX)) : Math.min(...med.map((m) => m.b.minY));
-      const til =
-        akse === 'x' ? Math.max(...med.map((m) => m.b.maksX)) : Math.max(...med.map((m) => m.b.maksY));
-      return { akse, sortert, gap, senter: (fra + til) / 2, ok: gap.every((g) => g >= MIN_GAP) };
+    for (const o of objekterILag(master, lag.id)) {
+      if (o.synlig && o.operasjon === 'legg-til' && o.kilde.type !== 'form') ut.push({ o, b: gruppeboks(o) });
+    }
+  }
+  return ut;
+}
+
+export function gruppeavstander(master: Dokument): Gruppeavstand[] {
+  const ut: Gruppeavstand[] = [];
+  const brukt = new Set<string>();
+  // rows first: a text with something beside it belongs to the row, not to a stack
+  for (const akse of ['x', 'y'] as const) {
+    const frie = gruppemedlemmer(master).filter((m) => !brukt.has(m.o.id));
+    const forelder = frie.map((_, i) => i);
+    const rot = (i: number): number => {
+      while (forelder[i] !== i) {
+        forelder[i] = forelder[forelder[i]!]!;
+        i = forelder[i]!;
+      }
+      return i;
     };
-    const x = kandidat('x');
-    const y = kandidat('y');
-    // side by side or stacked; if both read, the wider gap decides
-    const valgt =
-      x.ok && y.ok
-        ? x.gap.reduce((a, g) => a + g, 0) >= y.gap.reduce((a, g) => a + g, 0)
-          ? x
-          : y
-        : x.ok
-          ? x
-          : y.ok
-            ? y
-            : null;
-    if (!valgt) continue;
-    ut.push({
-      lagId: lag.id,
-      akse: valgt.akse,
-      ider: valgt.sortert.map((m) => m.o.id),
-      gap: valgt.gap,
-      senter: valgt.senter,
-    });
+    for (let i = 0; i < frie.length; i++) {
+      for (let j = i + 1; j < frie.length; j++) {
+        const a = frie[i]!.b;
+        const b = frie[j]!.b;
+        // next to each other along the axis, and level with each other across it
+        if (langsAkse(akse, a, b) >= MIN_GAP && tversAvAkse(akse, a, b) > -MIN_GAP) forelder[rot(i)] = rot(j);
+      }
+    }
+    const grupper = new Map<number, Medlem[]>();
+    frie.forEach((m, i) => grupper.set(rot(i), [...(grupper.get(rot(i)) ?? []), m]));
+    for (const g of grupper.values()) {
+      // only worth a rule when something in the group varies from sign to sign
+      if (g.length < 2 || !g.some((m) => feltNavn(m.o))) continue;
+      const sortert = [...g].sort((a, b) => (akse === 'x' ? a.b.minX - b.b.minX : b.b.maksY - a.b.maksY));
+      const gap = sortert.slice(1).map((m, i) => langsAkse(akse, sortert[i]!.b, m.b));
+      if (!gap.every((v) => v >= MIN_GAP)) continue;
+      const fra = Math.min(...g.map((m) => (akse === 'x' ? m.b.minX : m.b.minY)));
+      const til = Math.max(...g.map((m) => (akse === 'x' ? m.b.maksX : m.b.maksY)));
+      for (const m of g) brukt.add(m.o.id);
+      ut.push({
+        lagId: sortert[0]!.o.lagId,
+        akse,
+        ider: sortert.map((m) => m.o.id),
+        gap,
+        senter: (fra + til) / 2,
+      });
+    }
   }
   return ut;
 }
@@ -200,23 +250,26 @@ export function gruppeavstander(master: Dokument): Gruppeavstand[] {
 function brukGruppeavstand(dok: Dokument, regler: Gruppeavstand[]): Dokument {
   let d = dok;
   for (const r of regler) {
-    const obj = r.ider.map((id) => d.objekter[id]).filter((o): o is Objekt => !!o && o.synlig);
     // a hidden member (a decoration left out) takes no room and leaves no gap
-    if (obj.length < 2) continue;
-    const bokser = obj.map((o) => verdensBoks(o));
+    const med = r.ider
+      .map((id, i) => ({ o: d.objekter[id], foran: i > 0 ? r.gap[i - 1]! : 0 }))
+      .filter((m): m is { o: Objekt; foran: number } => !!m.o && m.o.synlig);
+    if (med.length < 2) continue;
+    const bokser = med.map((m) => gruppeboks(m.o));
     const storrelse = bokser.map((b) => (r.akse === 'x' ? b.maksX - b.minX : b.maksY - b.minY));
-    const gap = r.ider.flatMap((id, i) => (i > 0 && d.objekter[id]?.synlig ? [r.gap[i - 1]!] : []));
-    const total = storrelse.reduce((a, v) => a + v, 0) + gap.reduce((a, v) => a + v, 0);
+    const total = storrelse.reduce((a, v) => a + v, 0) + med.slice(1).reduce((a, m) => a + m.foran, 0);
     let pos = r.akse === 'x' ? r.senter - total / 2 : r.senter + total / 2;
     const flytt = new Map<string, number>();
-    obj.forEach((o, i) => {
+    med.forEach((m, i) => {
       const b = bokser[i]!;
       if (r.akse === 'x') {
-        flytt.set(o.id, pos - b.minX);
-        pos += storrelse[i]! + (gap[i] ?? 0);
+        if (i > 0) pos += m.foran;
+        flytt.set(m.o.id, pos - b.minX);
+        pos += storrelse[i]!;
       } else {
-        flytt.set(o.id, pos - b.maksY);
-        pos -= storrelse[i]! + (gap[i] ?? 0);
+        if (i > 0) pos -= m.foran;
+        flytt.set(m.o.id, pos - b.maksY);
+        pos -= storrelse[i]!;
       }
     });
     d = oppdaterObjekter(d, [...flytt.keys()], (o) => {

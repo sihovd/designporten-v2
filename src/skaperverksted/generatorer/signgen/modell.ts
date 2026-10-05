@@ -202,6 +202,33 @@ export function verdensBoks(o: Objekt): Boks {
   return hjorner(o).reduce(utvidBoks, tomBoks());
 }
 
+const blekkLokal = new WeakMap<object, Boks>();
+
+/**
+ * The box round what is actually printed. For a text, `verdensBoks` is the
+ * layout box (full advance width, ascender to descender), which is wider than
+ * the letters by their side bearings and taller than the line's glyphs. Gaps
+ * the eye reads between two texts are measured on this box instead.
+ */
+export function blekkBoks(o: Objekt): Boks {
+  const g = lokalGeometri(o.kilde);
+  if (!g || !g.region.length) return verdensBoks(o);
+  let lokal = blekkLokal.get(g);
+  if (!lokal) {
+    lokal = regionBoks(g.region);
+    blekkLokal.set(g, lokal);
+  }
+  const m = tilMatrise(o.transform);
+  return [
+    { x: lokal.minX, y: lokal.minY },
+    { x: lokal.maksX, y: lokal.minY },
+    { x: lokal.maksX, y: lokal.maksY },
+    { x: lokal.minX, y: lokal.maksY },
+  ]
+    .map((p) => anvend(m, p))
+    .reduce(utvidBoks, tomBoks());
+}
+
 export function objektStorrelse(o: Objekt): { bredde: number; hoyde: number } {
   const b = (lokalGeometri(o.kilde) ?? TOM).boks;
   return {
