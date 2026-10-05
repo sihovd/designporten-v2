@@ -35,6 +35,21 @@ There are two build targets from the same pages. Both pass the same e2e suite.
 
 **Preview on Render** (`render.yaml`): the Node build runs as a free Render web service, deployed from `main` on every push, at a `*.onrender.com` address. Nothing on one.com is touched. Create it in Render with New → Blueprint and this repository. Form e-mail needs the SMTP variables from `.env.example` under Environment; without them submissions are stored on the server (and lost on redeploy) and the receipt says e-mail is not set up. The free plan sleeps when idle, so the first visit after a pause is slow.
 
+### Shop: content editor and card payment
+
+**Content editor** at `/admin/` (Sveltia CMS, git-based). Products (`src/content/produkter/data/`), uploaded product photos (`src/content/produkter/bilder/`) and the shop settings (`src/content/butikk/innstillinger.json`: the card payment switch and shipping options) are edited there. Signing in uses GitHub: «Sign In with GitHub» needs an OAuth helper, so use «Sign In Using Access Token» with a fine-grained GitHub token that has **Contents: read and write** on this repository only. Publishing commits to `main`, and Render rebuilds the site from that commit. The editor's field lists (categories, materials, colours, concept images, generators) are generated from the same TypeScript the build validates against (`src/lib/admin/oppsett.ts`, served as `/admin/config.yml`), so it cannot offer a value the build rejects. The script is self-hosted from the `@sveltia/cms` devDependency.
+
+**Card payment** uses Stripe Checkout, a hosted payment page (ADR-001: no own payment engine). The cart offers «Gå til betaling» only when all three are true: «Kortbetaling» is switched on in `/admin` → Butikk, `STRIPE_SECRET_KEY` is set on the server, and at least one shipping option exists. The cart also has to hold only products marked «Klar for salg» (`status: bekreftet`) with a price. Placeholders, unpriced products and Skaperverksted designs are still sent as order requests, and the cart says why. The server recomputes every price from the catalogue (`src/lib/handel/kasse.ts`) and never trusts the browser. Server routes (Node build only):
+
+| Route | Does |
+|---|---|
+| `GET /api/kasse/` | Tells the cart whether card payment is on |
+| `POST /api/kasse/` | Checks the cart and returns the Stripe Checkout URL |
+| `GET /api/kasse/okt/?okt=cs_…` | The thank-you page `/handlekurv/betalt/` asks whether the session is paid before it empties the cart |
+| `POST /api/stripe/webhook/` | Verifies Stripe's signature and e-mails the paid order (same delivery as the forms) |
+
+Setup in Stripe: create the account, take the **test** secret key (Developers → API keys) and put it in Render → Environment as `STRIPE_SECRET_KEY`. Then add a webhook endpoint `https://<site>/api/stripe/webhook/` with the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`, and put its signing secret in `STRIPE_WEBHOOK_SECRET`. Turn on customer e-mail receipts under Settings → Customer emails. Orders, refunds and disputes are handled in the Stripe dashboard. Swap to live keys when the shop is ready. The PHP/one.com build has no payment routes; there the cart falls back to order requests.
+
 **Publishing to one.com** is automatic on every push to `main` once these GitHub secrets exist (Settings → Secrets and variables → Actions); without them the workflow skips itself:
 
 | Secret | Value |

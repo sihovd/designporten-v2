@@ -1,0 +1,78 @@
+---
+/**
+ * Return page after Stripe Checkout. Asks the server whether the session is
+ * paid before it says so; only then is the cart in this browser emptied.
+ */
+import Side from '@/layouts/Side.astro';
+---
+
+<Side
+  tittel="Takk for bestillingen"
+  beskrivelse="Kvittering for betalingen din hos Designporten."
+  ikkeIndekser
+>
+  <div class="betalt ramme" data-betalt>
+    <p class="betalt__status mono" data-betalt-status role="status">
+      Sjekker betalingen …
+    </p>
+    <h1 data-betalt-tittel>Takk for bestillingen</h1>
+    <div data-betalt-ok hidden>
+      <p>
+        Betalingen er mottatt. Kvitteringen kommer på e-post fra Stripe, og vi tar kontakt når bestillingen er
+        på vei.
+      </p>
+      <p class="mono" data-betalt-ref></p>
+    </div>
+    <div data-betalt-ukjent hidden>
+      <p>
+        Vi fant ikke en fullført betaling for denne lenken. Har du betalt, får du kvittering på e-post. Ellers
+        ligger varene fortsatt i <a href="/handlekurv/">handlekurven</a>.
+      </p>
+    </div>
+    <p>
+      <a href="/produkter/">Tilbake til produktene</a>
+    </p>
+  </div>
+</Side>
+
+<script>
+  import { tomKurv } from '@/lib/handel/kurv';
+
+  const rot = document.querySelector<HTMLElement>('[data-betalt]');
+  const okt = new URLSearchParams(location.search).get('okt') ?? '';
+  const status = rot?.querySelector<HTMLElement>('[data-betalt-status]');
+
+  async function sjekk() {
+    const svar = await fetch(`/api/kasse/okt/?okt=${encodeURIComponent(okt)}`)
+      .then((r) => r.json() as Promise<{ betalt: boolean; referanse?: string | null }>)
+      .catch(() => ({ betalt: false, referanse: null }));
+    if (!rot || !status) return;
+    if (svar.betalt) {
+      tomKurv();
+      status.textContent = 'Betalt';
+      rot.querySelector<HTMLElement>('[data-betalt-ok]')!.hidden = false;
+      const ref = rot.querySelector<HTMLElement>('[data-betalt-ref]');
+      if (ref && svar.referanse) ref.textContent = `Referanse ${svar.referanse}`;
+    } else {
+      status.textContent = 'Ikke bekreftet';
+      rot.querySelector<HTMLElement>('[data-betalt-tittel]')!.textContent = 'Vi fant ikke betalingen';
+      rot.querySelector<HTMLElement>('[data-betalt-ukjent]')!.hidden = false;
+    }
+  }
+  void sjekk();
+</script>
+
+<style>
+  .betalt {
+    display: grid;
+    gap: var(--r-4);
+    max-width: 40rem;
+    padding-block: var(--r-7) var(--r-seksjon);
+  }
+
+  .betalt__status {
+    color: var(--dempet);
+    font-size: var(--fs-mono-liten);
+    letter-spacing: 0.04em;
+  }
+</style>

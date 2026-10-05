@@ -73,6 +73,33 @@ test.describe('Produkter', () => {
     await expect(minus).toBeHidden();
   });
 
+  test('with card payment on, a cart with placeholders still goes as a request and says why', async ({
+    page,
+  }) => {
+    await page.route('**/api/kasse/', (r) =>
+      r.request().method() === 'GET' ? r.fulfill({ json: { aktiv: true } }) : r.abort(),
+    );
+    await page.goto('/produkter/');
+    await page
+      .locator('[data-produktkort][data-produkt-id="spiralvase"]')
+      .getByRole('button', { name: /^Legg/ })
+      .click();
+    await page.goto('/handlekurv/');
+    await expect(page.getByText('«Spiralvase» er ikke klart for salg ennå.', { exact: false })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send bestillingsforespørsel' })).toBeVisible();
+  });
+
+  test('without the payment route the cart sends requests', async ({ page }) => {
+    await page.route('**/api/kasse/', (r) => r.fulfill({ status: 404, body: '' }));
+    await page.goto('/produkter/');
+    await page
+      .locator('[data-produktkort][data-produkt-id="spiralvase"]')
+      .getByRole('button', { name: /^Legg/ })
+      .click();
+    await page.goto('/handlekurv/');
+    await expect(page.getByText('Ingen betaling tas her.')).toBeVisible();
+  });
+
   test('filters narrow the list and can be reset', async ({ page }) => {
     await page.goto('/produkter/');
     const apne = page.getByRole('button', { name: /^Filter/ });
