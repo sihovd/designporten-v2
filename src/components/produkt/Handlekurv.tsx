@@ -3,6 +3,10 @@
  * lets the visitor change quantities, and sends the cart through the active
  * CommerceProvider. With the «forespørsel» provider no payment is taken, and
  * the page says so before, during and after sending.
+ *
+ * Card payment (Stripe Checkout, src/lib/handel/kasse.ts) is offered when the
+ * server says it is on and every line is a confirmed product with a price.
+ * Otherwise the cart goes as a request, and the page says why.
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { erDesignlinje, type Bestillingssvar, type Designvedlegg } from '@/lib/handel/bestilling';
@@ -16,6 +20,7 @@ import {
   tomKurv,
   type KurvLinje,
 } from '@/lib/handel/kurv';
+import { hvorforIkkeKort, type Kassestatus, type Kassesvar } from '@/lib/handel/kasse';
 import { aktivLeverandor } from '@/lib/handel/leverandor';
 import type { ProduktVisning } from '@/lib/handel/visning';
 import { hentDesign } from '@/skaperverksted/core/lagring';
@@ -49,10 +54,19 @@ export default function Handlekurv({ produkter }: Props) {
   const [feil, settFeil] = useState<string | null>(null);
   const [feltfeil, settFeltfeil] = useState<Record<string, string>>({});
   const [sendt, settSendt] = useState<Sendt | null>(null);
+  const [kort, settKort] = useState<Kassestatus | null>(null);
 
   useEffect(() => {
     settLinjer(hentKurv());
     return lyttPaKurv(settLinjer);
+  }, []);
+
+  useEffect(() => {
+    // Hosts without the payment route (the static PHP build) answer 404: requests only.
+    fetch('/api/kasse/', { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? (r.json() as Promise<Kassestatus>) : null))
+      .catch(() => null)
+      .then((s) => settKort(s ?? { aktiv: false, grunn: 'Kortbetaling er ikke tilgjengelig.' }));
   }, []);
 
   // Designs from Skaperverksted live in this browser's storage (skaperverksted/core/lagring.ts).
@@ -72,6 +86,15 @@ export default function Handlekurv({ produkter }: Props) {
     [linjer, produkter, design],
   );
 
+  const utenKort = linjer ? hvorforIkkeKort(linjer, (id) => produkter[id]) : null;
+  const kortMulig = kort?.aktiv === true && utenKort === null;
+
+  function visFeil(grunn: string, felt?: Record<string, string>) {
+    settFeil(grunn);
+    settFeltfeil(felt ?? {});
+    requestAnimationFrame(() => document.getElementById('bestillingsfeil')?.focus());
+  }
+
   async function send(e: Event) {
     e.preventDefault();
     if (!linjer?.length || sender) return;
@@ -80,7 +103,7 @@ export default function Handlekurv({ produkter }: Props) {
     settSender(true);
     settFeil(null);
     settFeltfeil({});
-    const svar: Bestillingssvar = await leverandor.sendBestilling({
+    const bestilling = {
       navn: String(f.get('navn') ?? ''),
       epost: String(f.get('epost') ?? ''),
       telefon: String(f.get('telefon') ?? ''),
@@ -93,7 +116,27 @@ export default function Handlekurv({ produkter }: Props) {
         valg: l.valg,
         design: design[l.nokkel] ?? undefined,
       })),
-    });
+    };
+
+    if (kortMulig) {
+      const svar: Kassesvar = await fetch('/api/kasse/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(bestilling),
+      })
+        .then((r) => r.json() as Promise<Kassesvar>)
+        .catch(() => ({ ok: false, grunn: 'Vi fikk ikke kontakt med betalingen. Prøv igjen om litt.' }));
+      if (svar.ok) {
+        // The cart is emptied on the thank-you page, once Stripe confirms the payment.
+        window.location.assign(svar.url);
+        return;
+      }
+      settSender(false);
+      visFeil(svar.grunn, svar.felt);
+      return;
+    }
+
+    const svar: Bestillingssvar = await leverandor.sendBestilling(bestilling);
     settSender(false);
     if (svar.ok) {
       settSendt({ referanse: svar.referanse, kanal: svar.kanal, linjer });
@@ -101,9 +144,7 @@ export default function Handlekurv({ produkter }: Props) {
       window.scrollTo({ top: 0 });
       requestAnimationFrame(() => document.getElementById('kvittering')?.focus());
     } else {
-      settFeil(svar.grunn);
-      settFeltfeil(svar.felt ?? {});
-      requestAnimationFrame(() => document.getElementById('bestillingsfeil')?.focus());
+      visFeil(svar.grunn, svar.felt);
     }
   }
 
@@ -254,7 +295,19 @@ export default function Handlekurv({ produkter }: Props) {
             </div>
           )}
         </dl>
-        {!leverandor.tarBetalt && (
+        {kortMulig && (
+          <p class="kurv__ingenbetaling">
+            <strong>Du betaler med kort hos Stripe.</strong> Der velger du frakt og skriver inn
+            leveringsadressen. Vi får beskjed så snart betalingen er gjennomført.
+          </p>
+        )}
+        {!kortMulig && kort?.aktiv && utenKort && (
+          <p class="kurv__ingenbetaling">
+            <strong>Denne handlekurven sendes som forespørsel.</strong> {utenKort} Pris, frakt og levering
+            avtaler du med oss før noe blir laget.
+          </p>
+        )}
+        {!kortMulig && !kort?.aktiv && !leverandor.tarBetalt && (
           <p class="kurv__ingenbetaling">
             <strong>Ingen betaling tas her.</strong> Handlekurven sendes til oss som en forespørsel. Pris,
             frakt og levering avtaler du med oss før noe blir laget.
@@ -314,10 +367,19 @@ export default function Handlekurv({ produkter }: Props) {
             <input name="nettside" tabIndex={-1} autocomplete="off" />
           </label>
           <button class="kurv__send" type="submit" disabled={sender || ukjente.length > 0}>
-            {sender ? 'Sender …' : leverandor.sendeTekst}
+            {sender
+              ? kortMulig
+                ? 'Åpner betalingen …'
+                : 'Sender …'
+              : kortMulig
+                ? 'Gå til betaling'
+                : leverandor.sendeTekst}
           </button>
           <p class="kurv__hjelp">
-            Vi bruker opplysningene bare til å svare på forespørselen. <a href="/personvern/">Personvern</a>
+            {kortMulig
+              ? 'Vi bruker opplysningene bare til å behandle bestillingen. '
+              : 'Vi bruker opplysningene bare til å svare på forespørselen. '}
+            <a href="/personvern/">Personvern</a>
           </p>
         </form>
       </aside>

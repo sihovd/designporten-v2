@@ -1,0 +1,21 @@
+---
+/**
+ * Content editor (Sveltia CMS). Sign in with GitHub; publishing commits to
+ * `main`, and the host rebuilds the site. The script is self-hosted: the
+ * `sveltia-admin` integration in astro.config.mjs copies it from node_modules.
+ */
+---
+
+<!doctype html>
+<html lang="nb">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Redigering – Designporten</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <script is:inline src="/admin/sveltia-cms.js"></script>
+  </body>
+</html>
