@@ -5,15 +5,15 @@
  * outlines, each its own row (Sivert, 2026-10-05). The stack diagram was
  * removed on Sivert's request the same day.
  */
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { objekterILag, type Lag, type Omriss } from '../../core/dokument';
-import { finnMateriale, materialer } from '../../core/materialer';
+import { finnMateriale } from '../../core/materialer';
 import { tall } from '../../core/enheter';
 import { brukBenk } from '../../shell/bruk-benk';
 import {
   dupliserLag,
-  fargeplasser,
+  nesteFarge,
   leggTilOmriss,
   nyttOmriss,
   oppdaterOmriss,
@@ -25,6 +25,7 @@ import {
   slettLag,
 } from './dokument';
 import { signtilstand, brukSigntilstand } from './tilstand';
+import { importerSvgSom, nyttLagRundtTeksten, type Svgrolle } from './handlinger';
 
 /** One outline of a text layer: a row of its own in the layers panel. */
 function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss }) {
@@ -67,8 +68,7 @@ function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss })
 
 /** Add an outline outside the text layer's outlines, in a colour not yet used. */
 export function nyttOmrissI(benk: Arbeidsbenk, lag: Lag): void {
-  const brukte = new Set(fargeplasser(benk.dok).map((p) => p.materialId));
-  const mat = materialer.find((m) => !brukte.has(m.id)) ?? materialer[0]!;
+  const mat = finnMateriale(nesteFarge(benk.dok));
   const n = (lag.omriss?.length ?? 0) + 1;
   const o = nyttOmriss(`Omriss ${n}`, mat.id, { hoyde: Math.max(0.6, Math.round(lag.hoyde * 5) / 10) });
   benk.endre({ navn: 'Nytt omriss', anvend: (d) => leggTilOmriss(d, lag.id, o) });
@@ -230,18 +230,38 @@ function Lagrad({
 
 export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
-  const [apne, settApne] = useState<Set<string>>(() => new Set(t.dok.lag.map((l) => l.id)));
+  // layers start open, new ones too; this remembers the ones the user closed
+  const [lukket, settLukket] = useState<Set<string>>(() => new Set());
   const aktiv = t.utvalg.lag;
   const indeks = t.dok.lag.findIndex((l) => l.id === aktiv);
 
-  const nytt = () => {
-    const brukte = new Set(fargeplasser(t.dok).map((p) => p.materialId));
-    const mat = materialer.find((m) => !brukte.has(m.id)) ?? materialer[0]!;
-    const lag = nyttLag(`Lag ${t.dok.lag.length + 1}`, mat.id, 1);
+  const [meny, settMeny] = useState(false);
+  const svgfil = useRef<HTMLInputElement>(null);
+  const svgrolle = useRef<Svgrolle>('ramme');
+  const apneNytt = (id: string) =>
+    settLukket((a) => {
+      const n = new Set(a);
+      n.delete(id);
+      return n;
+    });
+
+  const tomt = () => {
+    const lag = nyttLag(`Lag ${t.dok.lag.length + 1}`, nesteFarge(t.dok), 1);
     benk.endre({ navn: 'Nytt lag', anvend: (d) => leggTilLag(d, lag, aktiv ?? undefined) });
     benk.velg({ lag: lag.id, objekter: [] });
-    settApne(new Set([...apne, lag.id]));
+    apneNytt(lag.id);
     benk.melde(`${lag.navn} er lagt til over det valgte laget.`);
+  };
+  const velg = (gjor: () => void) => {
+    settMeny(false);
+    gjor();
+    const ny = benk.tilstand.utvalg.lag;
+    if (ny) apneNytt(ny);
+  };
+  const svg = (rolle: Svgrolle) => {
+    settMeny(false);
+    svgrolle.current = rolle;
+    svgfil.current?.click();
   };
 
   return (
@@ -249,22 +269,71 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
       <div class="panel">
         <h2 class="panel-tittel">
           <span>Lag, øverst først</span>
-          <button type="button" class="kontroll-knapp" onClick={nytt}>
+          <button
+            type="button"
+            class="kontroll-knapp"
+            aria-expanded={meny}
+            aria-controls="nytt-lag-meny"
+            onClick={() => settMeny(!meny)}
+          >
             + Nytt lag
           </button>
         </h2>
+        {meny && (
+          <ul id="nytt-lag-meny" class="nytt-lag-meny" role="list">
+            <li>
+              <button type="button" onClick={() => velg(() => nyttLagRundtTeksten(benk))}>
+                <strong>Rundt teksten</strong>
+                <span class="dempet">Under skiltet, formet etter teksten og omrissene</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => svg('ramme')}>
+                <strong>SVG som ramme</strong>
+                <span class="dempet">En SVG-fil under skiltet, stor nok til å gå rundt det</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => svg('pynt')}>
+                <strong>SVG som pynt</strong>
+                <span class="dempet">En SVG-fil i et eget lag over det valgte laget</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" onClick={() => velg(tomt)}>
+                <strong>Tomt lag</strong>
+                <span class="dempet">Tegn former i det selv</span>
+              </button>
+            </li>
+          </ul>
+        )}
+        <input
+          ref={svgfil}
+          type="file"
+          accept=".svg,image/svg+xml"
+          hidden
+          onChange={(e) => {
+            const f = (e.target as HTMLInputElement).files?.[0];
+            if (f)
+              void importerSvgSom(benk, f, svgrolle.current).then(() => {
+                const ny = benk.tilstand.utvalg.lag;
+                if (ny) apneNytt(ny);
+              });
+            (e.target as HTMLInputElement).value = '';
+          }}
+        />
         <ol class="lagliste" role="list">
           {[...t.dok.lag].reverse().map((l) => (
             <Lagrad
               key={l.id}
               benk={benk}
               lag={l}
-              apen={apne.has(l.id)}
+              apen={!lukket.has(l.id)}
               veksle={() => {
-                const n = new Set(apne);
+                const n = new Set(lukket);
                 if (n.has(l.id)) n.delete(l.id);
                 else n.add(l.id);
-                settApne(n);
+                settLukket(n);
               }}
             />
           ))}

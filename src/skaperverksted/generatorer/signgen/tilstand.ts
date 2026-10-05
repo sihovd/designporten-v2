@@ -28,6 +28,8 @@ export interface Signtilstand {
   maletikett: { p: Vec2; tekst: string } | null;
   /** The outline last chosen in the layers panel (highlighted in the inspector). */
   omriss: string | null;
+  /** The colour profile window is open (it also opens by itself for a new sign). */
+  fargeprofil: boolean;
 }
 
 class Lager {
@@ -39,6 +41,7 @@ class Lager {
     utkast: null,
     maletikett: null,
     omriss: null,
+    fargeprofil: false,
   };
   private lyttere = new Set<(t: Signtilstand) => void>();
   constructor(private benk: Arbeidsbenk) {}

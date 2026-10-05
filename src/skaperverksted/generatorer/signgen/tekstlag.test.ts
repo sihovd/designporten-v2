@@ -1,3 +1,4 @@
+import { skiltMedPlate } from './testskilt';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { settFontHenter } from '../../geometri/tekst';
@@ -17,7 +18,6 @@ import {
   nyttLag,
   nyttObjekt,
   nyttOmriss,
-  nyttSigngenDokument,
   nyttTekstlag,
   oppdaterLag,
   oppdaterObjekter,
@@ -39,7 +39,7 @@ const tekstlag = (d: Dokument): Lag => d.lag.find((l) => l.tekstlag)!;
 
 /** The starting sign with one outline around the text. */
 async function medOmriss(endring: Partial<Omriss> = {}): Promise<{ d: Dokument; o: Omriss }> {
-  let d = nyttSigngenDokument();
+  let d = skiltMedPlate();
   const o = nyttOmriss('Omriss 1', 'pla-lilla', { bredde: 2, hoyde: 1, ...endring });
   d = leggTilOmriss(d, tekstlag(d).id, o);
   await lastFonter(d);
@@ -48,7 +48,7 @@ async function medOmriss(endring: Partial<Omriss> = {}): Promise<{ d: Dokument; 
 
 describe('Sign Forge text layers', () => {
   it('starts with the text in a text layer without outlines', () => {
-    const d = nyttSigngenDokument();
+    const d = skiltMedPlate();
     const lag = tekstlag(d);
     expect(lag).toMatchObject({ navn: 'Tekst', omriss: [], tekstvisning: 'normal' });
     const tekst = Object.values(d.objekter).find((o) => o.kilde.type === 'tekst')!;
@@ -152,7 +152,7 @@ describe('Sign Forge text layers', () => {
   });
 
   it('keeps text in text layers and everything else out of them', () => {
-    const d = nyttSigngenDokument();
+    const d = skiltMedPlate();
     const lag = tekstlag(d);
     const bunn = d.lag[0]!;
     const tekst = d.rekkefolge[lag.id]![0]!;
@@ -204,7 +204,7 @@ describe('Sign Forge while dragging', () => {
 describe('Projects from before text layers', () => {
   /** A text-only layer and a layer that mixes a shape with text, as older projects could. */
   function gammelt(): Dokument {
-    let d = nyttSigngenDokument();
+    let d = skiltMedPlate();
     d = { ...d, lag: d.lag.map(({ tekstlag: _, omriss: __, tekstvisning: ___, ...l }) => l) };
     d = leggTilObjekt(d, nyttObjekt(d.lag[0]!.id, nyTekst('Under', 6)));
     d = leggTilObjekt(d, nyttObjekt(d.lag[1]!.id, nyTekst('Hei', 8), { y: 12 }));
@@ -225,7 +225,7 @@ describe('Projects from before text layers', () => {
   });
 
   it('does not mark a layer with shapes, and leaves projects with text layers alone', () => {
-    const d = nyttSigngenDokument();
+    const d = skiltMedPlate();
     const plain = nyttLag('Ramme', 'pla-lilla', 1);
     const m = leggTilObjekt(leggTilLag(d, plain), nyttObjekt(plain.id, nyForm('rektangel', 10, 10)));
     expect(ordneTekstlag(m)).toBe(m);

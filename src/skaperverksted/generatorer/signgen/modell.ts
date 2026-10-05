@@ -33,6 +33,7 @@ import {
   forskyv,
   regionBoks,
   regionFraRinger,
+  snitt,
   transformerRegion,
   unionAlle,
   union,
@@ -44,7 +45,7 @@ import { formTilRinger } from '../../geometri/former';
 import { lastFont, tekstTilRinger } from '../../geometri/tekst';
 import { ekstruder } from '../../geometri/ekstruder';
 import type { ModellDel } from '../../geometri/mesh';
-import { parametre, tekstUtenforTekstlag } from './dokument';
+import { bareHull, parametre, tekstUtenforTekstlag } from './dokument';
 import { rettProfil } from '../../core/profil';
 
 // ---------- fonts ----------
@@ -332,19 +333,99 @@ function lagForHull(dok: Dokument, lag: Lag): Region | null {
   });
 }
 
-/** Every hanging hole in the sign, as one region. */
-function hullGjennom(dok: Dokument): Region {
-  const objekter = Object.values(dok.objekter).filter((o) => o.synlig && erGjennomgaende(o));
+/** Visible hanging-hole objects. */
+function hullObjekter(dok: Dokument): Objekt[] {
+  return Object.values(dok.objekter).filter((o) => o.synlig && erGjennomgaende(o));
+}
+
+/** Everything the sign prints, before holes and eyes. Null while fonts load. */
+function modellFlate(dok: Dokument): Region | null {
+  const deler: Region[] = [];
+  for (const lag of dok.lag) {
+    if (!lag.synlig) continue;
+    const r = lagForHull(dok, lag);
+    if (!r) return null;
+    if (!(lag.tekstlag && lag.tekstvisning === 'kutt')) deler.push(r);
+    if (lag.tekstlag) {
+      const o = omrissForHull(dok, lag);
+      if (!o) return null;
+      for (const x of o) deler.push(x.region);
+    }
+  }
+  return husk('modellflate', deler, () => unionAlle(deler));
+}
+
+/** Default width of the ring around an eye (mm). */
+export const STANDARD_RINGBREDDE = 3;
+
+interface Oye {
+  objekt: Objekt;
+  /** The hole through the eye. */
+  hull: Region;
+  /** The eye's outer edge (hole included). */
+  ytre: Region;
+}
+
+/**
+ * Hanging holes (Sivert, 2026-10-05): a hole over the model cuts through
+ * it, its size being the inner diameter; dragged off the model it becomes
+ * an eye, a ring outside the sign to put a key ring through. Over the
+ * model means at least half the hole lies on it.
+ */
+function hullOgOyne(dok: Dokument): { hull: Region; oyne: Oye[] } {
+  const objekter = hullObjekter(dok);
+  const tom = { hull: [], oyne: [] };
+  if (!objekter.length) return tom;
+  const flate = modellFlate(dok) ?? [];
   return (
-    husk('hull', objekter, () => {
+    husk('hulloyne', [flate, ...objekter], () => {
       const hull: Region[] = [];
+      const oyne: Oye[] = [];
       for (const o of objekter) {
         const r = verdensRegion(o);
-        if (r) hull.push(r);
+        if (!r?.length) continue;
+        const inne = areal(snitt(r, flate));
+        if (inne >= areal(r) / 2) hull.push(r);
+        else {
+          const bredde = Math.max(
+            MIN_OMRISSBREDDE,
+            o.kilde.type === 'form' ? (o.kilde.ringBredde ?? STANDARD_RINGBREDDE) : STANDARD_RINGBREDDE,
+          );
+          oyne.push({ objekt: o, hull: r, ytre: forskyv(r, bredde, 'rund') });
+        }
       }
-      return unionAlle(hull);
-    }) ?? []
+      return { hull: unionAlle(hull), oyne };
+    }) ?? tom
   );
+}
+
+/** Every hanging hole over the model, as one region. */
+function hullGjennom(dok: Dokument): Region {
+  return hullOgOyne(dok).hull;
+}
+
+/** Whether a hanging hole lies off the model and is printed as an eye. */
+export function erOye(dok: Dokument, objektId: string): boolean {
+  return hullOgOyne(dok).oyne.some((x) => x.objekt.id === objektId);
+}
+
+/**
+ * What the eyes join: the lowest visible layer, or its outermost outline
+ * when it is a text layer with outlines (the outline is then the base).
+ */
+function oyeMal(dok: Dokument): { lagId: string; omrissId?: string } | null {
+  const lag = dok.lag.find((l) => l.synlig);
+  if (!lag) return null;
+  const omriss = lag.tekstlag ? (lag.omriss ?? []).filter((o) => o.synlig) : [];
+  return omriss.length ? { lagId: lag.id, omrissId: omriss.at(-1)!.id } : { lagId: lag.id };
+}
+
+/** A region with the eyes joined on and their holes kept open. */
+function medOyne(slot: string, region: Region, oyne: Oye[]): Region {
+  if (!oyne.length) return region;
+  return husk(`oyne:${slot}`, [region, ...oyne], () =>
+    differanse(unionAlle([region, ...oyne.map((x) => x.ytre)]), unionAlle(oyne.map((x) => x.hull))),
+  )!;
 }
 
 function overlapper(a: Boks, b: Boks): boolean {
@@ -377,7 +458,9 @@ export function lagRegion(dok: Dokument, lagId: string): Region | null {
   if (!lag) return [];
   const for_ = lagForHull(dok, lag);
   const hull = hullGjennom(dok);
-  const region = for_ && husk(`kuttet:${lagId}`, [for_, hull], () => utenHullGjennom(for_, hull));
+  let region = for_ && husk(`kuttet:${lagId}`, [for_, hull], () => utenHullGjennom(for_, hull));
+  const mal = oyeMal(dok);
+  if (region && mal?.lagId === lagId && !mal.omrissId) region = medOyne(lagId, region, hullOgOyne(dok).oyne);
   // null means «fonts still loading»: do not cache it
   if (region) buffer.set(lagId, region);
   return region;
@@ -446,32 +529,56 @@ function fotavtrykk(dok: Dokument, lag: Lag): Plassert | null {
   return { ...tekst, lokal };
 }
 
-/** Outline regions of a text layer by outline id, holes cut. Null while fonts load. */
-export function omrissRegioner(dok: Dokument, lagId: string): Map<string, Region> | null {
-  const lag = finnLag(dok, lagId);
-  if (!lag) return null;
-  let omriss: Omrissliste;
+/** A text layer's outlines in place, before holes. Null while fonts load. */
+function omrissForHull(dok: Dokument, lag: Lag): Omrissliste | null {
   if (pavirkningerAv(dok, lag).length) {
     // around the text with its influences
     const tekst = lagForHull(dok, lag);
-    if (!tekst) return null;
-    omriss = omrissFra(lag, tekst, 'pavirket');
-  } else {
-    // the footprint's outlines, moved into place
-    const tekst = egenLokal(dok, lag);
-    if (!tekst) return null;
-    const lokal = omrissFra(lag, tekst.lokal, 'egen');
-    omriss = husk(`omriss-egen:${lagId}@`, [lokal, tekst.dx, tekst.dy], () =>
-      lokal.map((o) => ({ id: o.id, region: flyttRegion(o.region, tekst.dx, tekst.dy) })),
-    )!;
+    return tekst && omrissFra(lag, tekst, 'pavirket');
   }
+  // the footprint's outlines, moved into place
+  const tekst = egenLokal(dok, lag);
+  if (!tekst) return null;
+  const lokal = omrissFra(lag, tekst.lokal, 'egen');
+  return husk(`omriss-egen:${lag.id}@`, [lokal, tekst.dx, tekst.dy], () =>
+    lokal.map((o) => ({ id: o.id, region: flyttRegion(o.region, tekst.dx, tekst.dy) })),
+  );
+}
+
+/** Outline regions of a text layer by outline id, holes cut and eyes joined. Null while fonts load. */
+export function omrissRegioner(dok: Dokument, lagId: string): Map<string, Region> | null {
+  const lag = finnLag(dok, lagId);
+  if (!lag) return null;
+  const omriss = omrissForHull(dok, lag);
+  if (!omriss) return null;
   // the holes are cut from text and outlines alike
   const hull = hullGjennom(dok);
+  const mal = oyeMal(dok);
+  const oyne = mal?.lagId === lagId && mal.omrissId ? hullOgOyne(dok).oyne : [];
   return husk(
     `omrisskuttet:${lagId}`,
-    [omriss, hull],
-    () => new Map(omriss.map((o) => [o.id, utenHullGjennom(o.region, hull)])),
+    [omriss, hull, mal?.omrissId, ...oyne],
+    () =>
+      new Map(
+        omriss.map((o) => {
+          const r = utenHullGjennom(o.region, hull);
+          return [o.id, o.id === mal?.omrissId ? medOyne(o.id, r, oyne) : r];
+        }),
+      ),
   );
+}
+
+/** Eyes that do not touch what they are joined to (by object). */
+function losOyne(dok: Dokument): Objekt[] {
+  const mal = oyeMal(dok);
+  const { oyne } = hullOgOyne(dok);
+  if (!mal || !oyne.length) return [];
+  const lag = finnLag(dok, mal.lagId)!;
+  const under = mal.omrissId
+    ? omrissForHull(dok, lag)?.find((o) => o.id === mal.omrissId)?.region
+    : lagForHull(dok, lag);
+  if (!under) return [];
+  return oyne.filter((x) => areal(snitt(forskyv(x.ytre, 0.05, 'rund'), under)) < 0.5).map((x) => x.objekt);
 }
 
 // ---------- model ----------
@@ -487,11 +594,29 @@ function tynneDetaljer(region: Region, minVegg: number): number {
 }
 
 function tynneAreal(region: Region, minVegg: number): number {
+  return areal(tynneDeler(region, minVegg));
+}
+
+function tynneDeler(region: Region, minVegg: number): Region {
   // Morphological opening removes features thinner than minVegg. It also
   // shaves sharp corners; those slivers are at most ~0.17 mm thick, so a
   // 0.1 mm erosion of the removed part leaves only genuinely thin features.
   const apnet = forskyv(forskyv(region, -minVegg / 2, 'rund'), minVegg / 2, 'rund');
-  return areal(forskyv(differanse(region, apnet), -0.1, 'rund'));
+  return forskyv(differanse(region, apnet), -0.1, 'rund');
+}
+
+/**
+ * Thin parts of an outline, judged together with what it lies against
+ * (the text and the outlines inside it): a filled outline between two
+ * letters is narrow, but it prints as one with the letters beside it.
+ */
+function tynneOmriss(id: string, region: Region, inntil: Region[], minVegg: number): number {
+  if (!inntil.some((r) => r.length)) return tynneDetaljer(region, minVegg);
+  return husk(`tynn:${id}`, [region, minVegg, ...inntil], () => {
+    // close the hidden gap so the slicer's view (one solid) is what is judged
+    const samlet = union(region, forskyv(unionAlle(inntil), 2 * SKJULT_GLIPE, 'rund'));
+    return areal(snitt(tynneDeler(samlet, minVegg), region));
+  })!;
 }
 
 /** Extruded slabs by region: an unchanged layer keeps its mesh between builds. */
@@ -559,7 +684,13 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     materialId: string;
   }
   const skiver: Skive[] = [];
-  const sjekk = (navn: string, lagId: string, region: Region, materialId: string) => {
+  const sjekk = (
+    navn: string,
+    lagId: string,
+    region: Region,
+    materialId: string,
+    inntil?: { id: string; regioner: Region[] },
+  ) => {
     const b = regionBoks(region);
     if (
       b.minX < -plate.bredde / 2 ||
@@ -570,7 +701,10 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
       advarsler.push({ niva: 'advarsel', tekst: `«${navn}» går utenfor byggeplaten.`, lagId });
     }
     const minVegg = materialtyper[finnMateriale(materialId).type].minVegg;
-    if (tynneDetaljer(region, minVegg) > 0.05) {
+    const tynt = inntil
+      ? tynneOmriss(inntil.id, region, inntil.regioner, minVegg)
+      : tynneDetaljer(region, minVegg);
+    if (tynt > 0.05) {
       advarsler.push({
         niva: 'advarsel',
         tekst: `Noen detaljer i «${navn}» er tynnere enn ${mm(minVegg)} og kan bli borte eller brekke i printen.`,
@@ -585,7 +719,7 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     const omriss = lag.tekstlag ? (omrissRegioner(dok, lag.id) ?? new Map<string, Region>()) : new Map();
     const tekstSkjult = lag.tekstvisning === 'kutt';
     if (!region.length && ![...omriss.values()].some((r) => r.length)) {
-      if (objekterILag(dok, lag.id).length || lag.pavirkninger.length) {
+      if ((objekterILag(dok, lag.id).length && !bareHull(dok, lag.id)) || lag.pavirkninger.length) {
         advarsler.push({
           niva: 'info',
           tekst: `Laget «${lag.navn}» har ingen form og blir ikke printet.`,
@@ -626,6 +760,8 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
       sjekk(lag.navn, lag.id, region, lag.materialId);
     }
 
+    // what each outline lies against: the text (unless cut out) and the outlines inside it
+    const inne: Region[] = region.length && !tekstSkjult ? [region] : [];
     for (const o of lag.omriss ?? []) {
       const r = omriss.get(o.id);
       if (!o.synlig || !r?.length) continue;
@@ -640,8 +776,17 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
         hoyde: o.hoyde,
         materialId: o.materialId,
       });
-      sjekk(navn, lag.id, r, o.materialId);
+      sjekk(navn, lag.id, r, o.materialId, { id: o.id, regioner: [...inne] });
+      inne.push(r);
     }
+  }
+
+  for (const o of losOyne(dok)) {
+    advarsler.push({
+      niva: 'advarsel',
+      tekst: `Øyet «${o.navn}» henger ikke fast i skiltet. Dra det inntil kanten.`,
+      objektId: o.id,
+    });
   }
 
   for (const o of tekstUtenforTekstlag(dok)) {
@@ -684,5 +829,13 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
 export function innholdsboks(dok: Dokument): Boks | null {
   let b = tomBoks();
   for (const o of Object.values(dok.objekter)) if (o.synlig) b = slaSammen(b, verdensBoks(o));
+  const m = modellBoks(dok);
+  if (m) b = slaSammen(b, m);
   return erTom(b) ? null : b;
+}
+
+/** Bounds of what the sign prints, outlines included (before holes and eyes). */
+export function modellBoks(dok: Dokument): Boks | null {
+  const f = modellFlate(dok);
+  return f?.length ? regionBoks(f) : null;
 }

@@ -1674,3 +1674,122 @@
   font-family: var(--font-mono);
   font-size: 12px;
 }
+
+/* ---------- Sign Forge: colour profiles and new layers ---------- */
+
+.fargeprofil {
+  width: min(560px, calc(100vw - 24px));
+}
+
+.fargeprofil-innhold {
+  padding: 4px 18px 18px;
+  overflow: auto;
+}
+
+.profilliste,
+.profilfargeliste,
+.nytt-lag-meny {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.profilliste li,
+.profilfargeliste li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profilvalg {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kontroll, 6px);
+  cursor: pointer;
+}
+
+.profilvalg.valgt {
+  border-color: var(--dp-lilla);
+  background: var(--panel-2);
+}
+
+.profilvalg input {
+  accent-color: var(--dp-lilla);
+}
+
+.profilnavn {
+  min-width: 8em;
+}
+
+.profilfarger {
+  display: inline-flex;
+  gap: 3px;
+  vertical-align: middle;
+}
+
+.profilfarger .fargeprove {
+  width: 18px;
+  height: 18px;
+}
+
+.profilfargeliste li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--linje);
+}
+
+.profilfargeliste li > span:nth-child(3) {
+  flex: 1;
+}
+
+.profil-lagre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.profil-lagre .felt {
+  flex: 1 1 220px;
+}
+
+.fargeprofil-fot {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.nytt-lag-meny {
+  margin: 0 0 10px;
+}
+
+.nytt-lag-meny button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kontroll, 6px);
+  background: var(--panel-2);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nytt-lag-meny button:hover,
+.nytt-lag-meny button:focus-visible {
+  border-color: var(--dp-lilla);
+}
+
+.nytt-lag-meny .dempet {
+  font-size: 12px;
+}
