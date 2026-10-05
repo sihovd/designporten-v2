@@ -16,8 +16,15 @@ import {
   slettEgetDekor,
   type DekorValg,
 } from './dekor';
-import { leggTilDekor, tekstlagForDekor, type Dekorplass } from './handlinger';
-import { importerSvg, SvgFeil } from './svgimport';
+import {
+  behandleSvg,
+  leggTilDekor,
+  leggTilFlerfarget,
+  lesSvgFil,
+  tekstlagForDekor,
+  type Dekorplass,
+} from './handlinger';
+import { delerTilKilde } from './svgimport';
 import { signtilstand } from './tilstand';
 
 function Miniatyr({ v }: { v: DekorValg }) {
@@ -41,38 +48,43 @@ export function Dekorgalleri({ benk }: { benk: Arbeidsbenk }) {
 
   const lukk = () => signtilstand(benk).sett({ dekor: false });
   const sett = (v: DekorValg) => {
-    leggTilDekor(benk, v.navn, v.lag(), plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
+    // a vector saved with several colours keeps them, in a layer per colour
+    if (v.flerfarget) leggTilFlerfarget(benk, v.flerfarget(), 'pynt', 'eget');
+    else leggTilDekor(benk, v.navn, v.lag(), plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
     lukk();
   };
   const leggTilEgen = async (f: File) => {
     settMelding(null);
-    if (f.size > 2 * 1024 * 1024) {
-      settMelding('SVG-filen er større enn 2 MB. Forenkle vektoren og prøv igjen.');
+    const deler = await lesSvgFil(benk, f, 2);
+    if (!deler) {
+      settMelding('SVG-filen kunne ikke leses, eller den er større enn 2 MB.');
       return;
     }
-    try {
-      const r = importerSvg(await f.text(), f.name);
-      const navn = f.name.replace(/\.svg$/i, '');
-      const lagret = lagreEgetDekor(navn, r);
-      if (!lagret) {
-        settMelding(
-          'Nettleseren fikk ikke lagret vektoren (for mye data). Den legges på skiltet uten å bli i galleriet.',
-        );
-        leggTilDekor(benk, navn, r, plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
-        lukk();
-        return;
-      }
-      settEgne(hentEgneDekor());
-      const hull = r.kilde.stier.some((s) => (s.match(/M/g)?.length ?? 0) > 1);
-      settMelding(
-        `«${navn}» er lagt i galleriet.${hull ? ' Hull i vektoren er beholdt.' : ''}${
-          r.hoppetOver.length ? ` Hoppet over: ${r.hoppetOver.join(', ')}.` : ''
-        }`,
-      );
-      benk.melde(`«${navn}» er lagt i galleriet.`);
-    } catch (e) {
-      settMelding(e instanceof SvgFeil ? e.message : 'SVG-filen kunne ikke leses.');
+    // several parts: the part picker lets the user keep some, colour them and save them
+    if (behandleSvg(benk, deler, 'pynt', 'galleri') === 'apnet') return;
+    const r = delerTilKilde(deler, f.name);
+    if (!r) {
+      settMelding('Formene i SVG-en har ingen flate.');
+      return;
     }
+    const navn = f.name.replace(/\.svg$/i, '');
+    const lagret = lagreEgetDekor(navn, r);
+    if (!lagret) {
+      settMelding(
+        'Nettleseren fikk ikke lagret vektoren (for mye data). Den legges på skiltet uten å bli i galleriet.',
+      );
+      leggTilDekor(benk, navn, r, plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
+      lukk();
+      return;
+    }
+    settEgne(hentEgneDekor());
+    const hull = r.kilde.stier.some((s) => (s.match(/M/g)?.length ?? 0) > 1);
+    settMelding(
+      `«${navn}» er lagt i galleriet.${hull ? ' Hull i vektoren er beholdt.' : ''}${
+        r.hoppetOver.length ? ` Hoppet over: ${r.hoppetOver.join(', ')}.` : ''
+      }`,
+    );
+    benk.melde(`«${navn}» er lagt i galleriet.`);
   };
 
   return (
@@ -80,7 +92,8 @@ export function Dekorgalleri({ benk }: { benk: Arbeidsbenk }) {
       <div class="dekor-innhold">
         <p class="dempet">
           Velg et dekor for å legge det på skiltet. Hull i dekoret beholdes som hull. Du kan også legge til
-          din egen vektor (SVG).
+          din egen vektor (SVG). Har SVG-en flere deler, kan du velge hvilke du vil ha og gi delene hver sin
+          farge.
         </p>
         <div class="felt">
           <span>Legges</span>

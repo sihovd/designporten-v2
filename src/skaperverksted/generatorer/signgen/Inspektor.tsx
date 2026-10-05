@@ -735,6 +735,27 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
           deaktivert={auto}
           endre={(v) => endre('Lagets Z', { zBunn: v })}
         />
+        {auto && t.dok.lag[0]?.id !== lag.id && (
+          <>
+            <label class="avkryssing">
+              <input
+                type="checkbox"
+                checked={!!lag.sammeNivaa}
+                onChange={() =>
+                  endre(lag.sammeNivaa ? 'Stable laget oppå' : 'Legg laget på samme nivå', {
+                    sammeNivaa: !lag.sammeNivaa,
+                  })
+                }
+              />{' '}
+              Samme nivå som laget under
+            </label>
+            <p class="merknad">
+              {lag.sammeNivaa
+                ? 'Laget starter på samme Z som laget under, så delene kan ligge side om side i hver sin farge.'
+                : 'Laget stables oppå laget under. Kryss av for å legge delene side om side i hver sin farge.'}
+            </p>
+          </>
+        )}
         {auto && (
           <p class="merknad">
             Z følger lagrekkefølgen. Slå av «Stable lagene automatisk» under Prosjekt for å sette Z selv.

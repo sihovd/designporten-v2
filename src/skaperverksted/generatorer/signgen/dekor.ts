@@ -7,8 +7,10 @@
  * the credit below is shown in the gallery.
  */
 import type { SvgKilde } from '../../core/dokument';
+import { unionAlle } from '../../geometri/polygon';
 import { stiTilRinger } from '../../geometri/stidata';
-import { kildeFraRinger } from './svgkilde';
+import type { Fargegruppe, Flerfarget } from './svgdeler';
+import { kildeFraRegion, kildeFraRinger } from './svgkilde';
 
 export interface Dekor {
   id: string;
@@ -152,9 +154,12 @@ export function dekorKilde(d: Dekor): { kilde: SvgKilde; bredde: number; hoyde: 
 export interface EgetDekor {
   id: string;
   navn: string;
+  /** All the parts joined, in one colour (what a CSV cell or a text layer gets). */
   kilde: SvgKilde;
   bredde: number;
   hoyde: number;
+  /** A vector with parts in several colours keeps them here, one vector per colour. */
+  grupper?: Omit<Fargegruppe, 'region'>[];
 }
 
 const NOKKEL = 'designporten:signgen:dekor';
@@ -174,7 +179,13 @@ export function hentEgneDekor(): EgetDekor[] {
         d.kilde?.type === 'svg' &&
         Array.isArray(d.kilde.stier) &&
         typeof d.bredde === 'number' &&
-        typeof d.hoyde === 'number',
+        typeof d.hoyde === 'number' &&
+        (d.grupper === undefined ||
+          (Array.isArray(d.grupper) &&
+            d.grupper.every(
+              (g: Fargegruppe) =>
+                typeof g?.farge === 'string' && g.kilde?.type === 'svg' && Array.isArray(g.kilde.stier),
+            ))),
     );
   } catch {
     return [];
@@ -209,6 +220,18 @@ export function lagreEgetDekor(
   return skriv([...andre, d]) ? d : null;
 }
 
+/** Add a vector with parts in several colours to the gallery. Null if the browser would not store it. */
+export function lagreEgetFlerfarget(navn: string, ff: Flerfarget): EgetDekor | null {
+  const alle = unionAlle(ff.grupper.flatMap((g) => (g.region ? [g.region] : [])));
+  const samlet = kildeFraRegion(alle, navn);
+  if (!samlet) return null;
+  const enkelt = lagreEgetDekor(navn, samlet);
+  if (!enkelt || ff.grupper.length < 2) return enkelt;
+  const med: EgetDekor = { ...enkelt, grupper: ff.grupper.map(({ region: _r, ...g }) => g) };
+  const andre = hentEgneDekor().filter((x) => x.id !== med.id);
+  return skriv([...andre, med]) ? med : null;
+}
+
 export function slettEgetDekor(id: string): void {
   skriv(hentEgneDekor().filter((d) => d.id !== id));
 }
@@ -219,6 +242,8 @@ export interface DekorValg {
   navn: string;
   egen: boolean;
   lag: () => { kilde: SvgKilde; bredde: number; hoyde: number };
+  /** The parts in their own colours, for a vector saved with several colours. */
+  flerfarget?: () => Flerfarget;
   /** For the thumbnail: path data and its view box (own vectors are y up, so they are flipped). */
   forhandsvisning: { d: string; viewBox: string; flipp: boolean };
 }
@@ -237,6 +262,14 @@ export function dekorValg(egne: EgetDekor[] = hentEgneDekor()): DekorValg[] {
       navn: d.navn,
       egen: true,
       lag: () => ({ kilde: { ...d.kilde, dekorId: d.id }, bredde: d.bredde, hoyde: d.hoyde }),
+      flerfarget: d.grupper
+        ? () => ({
+            navn: d.navn,
+            bredde: d.bredde,
+            hoyde: d.hoyde,
+            grupper: d.grupper!.map((g) => ({ ...g, kilde: { ...g.kilde, dekorId: d.id } })),
+          })
+        : undefined,
       forhandsvisning: {
         d: d.kilde.stier.join(''),
         viewBox: `${-d.bredde / 2} ${-d.hoyde / 2} ${d.bredde} ${d.hoyde}`,

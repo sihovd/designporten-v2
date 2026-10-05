@@ -219,11 +219,22 @@ export function nyttSigngenDokument(farger: string[] = STANDARD_PROFIL.farger): 
 /** Recompute Z positions from the layer order when autoZ is on. */
 export function stable(dok: Dokument): Dokument {
   if (!parametre(dok).autoZ) return dok;
+  // z is the top of everything stacked so far; a level is a run of layers that start together
   let z = 0;
+  let nivaaBunn = 0;
   let endret = false;
-  const lag = dok.lag.map((l) => {
-    const zBunn = Math.round(z * 1000) / 1000;
-    z += lagHoydeIStabel(l, dok);
+  const lag = dok.lag.map((l, i) => {
+    const hoyde = lagHoydeIStabel(l, dok);
+    let zBunn: number;
+    if (l.sammeNivaa && i > 0) {
+      zBunn = nivaaBunn;
+      z = Math.max(z, zBunn + hoyde);
+    } else {
+      zBunn = z;
+      nivaaBunn = z;
+      z += hoyde;
+    }
+    zBunn = Math.round(zBunn * 1000) / 1000;
     if (Math.abs(l.zBunn - zBunn) < 1e-9) return l;
     endret = true;
     return { ...l, zBunn };

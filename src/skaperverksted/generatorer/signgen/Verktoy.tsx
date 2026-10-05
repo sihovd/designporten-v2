@@ -7,6 +7,7 @@ import { importerSvgSom } from './handlinger';
 import { startErValgt } from './dokument';
 import { Fargeprofilvindu } from './Fargeprofilvindu';
 import { Dekorgalleri } from './Dekorgalleri';
+import { Delvelger } from './Delvelger';
 import { Batchdialog } from './Batch';
 
 export const VERKTOY: { id: VerktoyId; navn: string; tast: string; tegn: string; hjelp: string }[] = [
@@ -60,7 +61,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       <button
         type="button"
         class="verktoy"
-        title="Legg til en SVG som pynt i et eget lag (ramme: + Nytt lag i lagpanelet)"
+        title="Legg til en SVG som pynt. Har den flere deler, velger du hvilke du vil ha og farger dem. Ramme: + Nytt lag i lagpanelet"
         onClick={() => fil.current?.click()}
       >
         <span class="verktoy-tegn" aria-hidden="true">
@@ -117,6 +118,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       </button>
       {(!startErValgt(t.dok) || st.fargeprofil) && <Fargeprofilvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
+      {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}
       {st.batch && <Batchdialog benk={benk} lukk={() => signtilstand(benk).sett({ batch: false })} />}
     </>
   );

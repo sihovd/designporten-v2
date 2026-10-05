@@ -133,6 +133,11 @@ export interface Lag {
   omriss?: Omriss[];
   /** Sign Forge: the text stands up («normal») or is cut out of the outlines («kutt»). */
   tekstvisning?: 'normal' | 'kutt';
+  /**
+   * Sign Forge: the layer starts at the same Z as the layer under it instead of on top of it, so
+   * parts of different colours can lie side by side (a horse with a mane in another colour).
+   */
+  sammeNivaa?: boolean;
 }
 
 export interface Plate {

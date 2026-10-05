@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+/** A sheet with three shapes in three colours; the third has a hole. */
+const ARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="60mm" height="20mm" viewBox="0 0 60 20">
+<rect x="0" y="0" width="16" height="16" fill="#cc2222"/>
+<circle cx="30" cy="8" r="8" fill="#2222cc"/>
+<path fill="#22aa22" fill-rule="evenodd" d="M44 0h16v16h-16zM48 4v8h8v-8z"/>
+</svg>`;
+
 test.describe('Skaperverksted', () => {
   test('huben viser generatorene', async ({ page }) => {
     await page.goto('/skaperverksted/');
@@ -180,6 +187,62 @@ test.describe('Signgen', () => {
     await expect(dialog.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
       timeout: 20_000,
     });
+  });
+
+  test('velger deler av en SVG, gir dem farger og legger dem på skiltet', async ({ page, isMobile }) => {
+    const [valg] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      page.getByRole('button', { name: 'SVG', exact: true }).click(),
+    ]);
+    await valg.setFiles({ name: 'ark.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(ARK_SVG) });
+    const dialog = page.getByRole('dialog', { name: 'Velg deler av SVG-en' });
+    await expect(dialog.locator('.svgdeler-liste li')).toHaveCount(3);
+    const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    // click the circle in the drawing: it becomes the chosen part
+    await dialog.locator('[data-del="1"]').click();
+    await expect(dialog.getByRole('checkbox', { name: /Del 2/ })).toBeChecked();
+    await dialog.getByRole('button', { name: 'Behold bare de valgte' }).click();
+    await expect(dialog.getByText('1 av 3 deler er med, i én farge.')).toBeVisible();
+    // bring the square back in another colour than the circle
+    await dialog.getByLabel('Farge på Del 2', { exact: true }).selectOption({ label: 'Cyan' });
+    await dialog.getByLabel('Farge på Del 1', { exact: true }).selectOption({ label: 'Lilla' });
+    await expect(dialog.getByText('2 av 3 deler er med, i 2 farger.')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Legg på skiltet' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('.statuslinje')).toContainText('4 deler');
+    if (!isMobile) {
+      await expect(page.locator('.lagrad')).toHaveCount(3);
+      await expect(page.locator('.lagrad', { hasText: 'ark · Lilla' })).toHaveCount(1);
+      await expect(page.locator('.lagrad', { hasText: 'ark · Cyan' })).toHaveCount(1);
+      // the layers lie on the same level, which the layer's settings show
+      await page.locator('.lagrad-hode .lag-navn', { hasText: 'ark · Cyan' }).click();
+      await expect(page.getByLabel('Samme nivå som laget under')).toBeChecked();
+    }
+  });
+
+  test('lagrer deler av en SVG i galleriet og beholder fargene', async ({ page, isMobile }) => {
+    await page.getByRole('button', { name: 'Dekor' }).click();
+    const galleri = page.getByRole('dialog', { name: 'Dekor' });
+    const [valg] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      galleri.getByRole('button', { name: 'Legg til egen vektor (SVG)' }).click(),
+    ]);
+    await valg.setFiles({ name: 'ark.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(ARK_SVG) });
+    // the gallery steps aside for the part picker and comes back when it closes
+    const velger = page.getByRole('dialog', { name: 'Velg deler av SVG-en' });
+    await expect(velger).toBeVisible();
+    await velger.getByLabel('Navn', { exact: true }).fill('Mine former');
+    await velger.getByRole('button', { name: 'Lagre i galleriet' }).click();
+    await expect(velger.getByText('«Mine former» er lagret i galleriet')).toBeVisible();
+    await velger.getByRole('button', { name: 'Lukk' }).click();
+    const tilbake = page.getByRole('dialog', { name: 'Dekor' });
+    const egen = tilbake.getByRole('button', { name: 'Mine former', exact: true });
+    await expect(egen).toBeVisible();
+    await egen.click();
+    await expect(tilbake).toBeHidden();
+    await expect(page.locator('.statuslinje')).toContainText('5 deler');
+    if (!isMobile) await expect(page.locator('.lagrad')).toHaveCount(4);
   });
 
   test('har ingen tilgjengelighetsfeil i verkstedet', async ({ page }) => {

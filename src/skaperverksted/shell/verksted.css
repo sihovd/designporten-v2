@@ -1772,6 +1772,8 @@
 .dekor-innhold {
   display: grid;
   gap: 10px;
+  padding: 10px 18px 18px;
+  overflow: auto;
 }
 
 .dekor-rutenett {
@@ -1813,6 +1815,143 @@
 .dekor-rutenett .kontroll-knapp {
   width: 100%;
   margin-top: 4px;
+}
+
+/* the SVG part picker */
+.svgdeler .dialog-innhold {
+  width: min(1040px, 100%);
+}
+
+.svgdeler-innhold,
+.svgdeler-venstre,
+.svgdeler-hoyre {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+
+.svgdeler-innhold {
+  padding: 10px 18px 0;
+  overflow: auto;
+}
+
+/* the drawing and its buttons beside the list and the actions, when there is room */
+@media (min-width: 900px) {
+  .svgdeler-innhold {
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr);
+    column-gap: 20px;
+  }
+
+  .svgdeler-innhold > p {
+    grid-column: 1 / -1;
+  }
+}
+
+/* a neutral bed, so a dark filament and a white one both show */
+.svgdeler-forhandsvisning {
+  height: min(52vh, 440px);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kontroll, 6px);
+  background: #8a8e97;
+  touch-action: none;
+  user-select: none;
+}
+
+.svgdeler-forhandsvisning svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.svgdeler-del {
+  cursor: pointer;
+  fill: #fff;
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.svgdeler-del.bort {
+  fill: #000;
+  fill-opacity: 0.12;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-dasharray: 4 3;
+}
+
+.svgdeler-del.valgt {
+  stroke: var(--dp-lilla);
+  stroke-width: 2.5px;
+  stroke-dasharray: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.svgdeler-ramme {
+  fill: var(--dp-lilla);
+  fill-opacity: 0.14;
+  stroke: var(--dp-lilla);
+  stroke-width: 1px;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.svgdeler-farger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.svgdeler-farge {
+  width: var(--kontroll-h);
+  height: var(--kontroll-h);
+  padding: 0;
+  border: 2px solid var(--linje-sterk, var(--linje));
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.svgdeler-farge:hover:not(:disabled),
+.svgdeler-farge:focus-visible {
+  border-color: var(--dp-lilla);
+}
+
+.svgdeler-farge:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.svgdeler-liste {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.svgdeler-handlinger {
+  position: sticky;
+  bottom: 0;
+  grid-column: 1 / -1;
+  padding: 8px 0 12px;
+  background: var(--panel);
+}
+
+.svgdeler-liste li {
+  display: grid;
+  grid-template-columns: 1fr minmax(120px, 200px);
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 480px) {
+  .svgdeler-liste li {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* dragging in the layers panel */
