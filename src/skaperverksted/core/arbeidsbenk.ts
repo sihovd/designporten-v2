@@ -63,6 +63,7 @@ export class Arbeidsbenk {
     readonly generator: GeneratorPlugin,
     dok: Dokument,
   ) {
+    dok = generator.lesInn?.(dok) ?? dok;
     this.historikk = new Historikk(dok);
     this.t = {
       dok,
@@ -146,6 +147,7 @@ export class Arbeidsbenk {
 
   /** Replace the document (load project). Clears history. */
   lastInn(dok: Dokument): void {
+    dok = this.generator.lesInn?.(dok) ?? dok;
     this.historikk.nullstill(dok);
     this.oppdater({ utvalg: { objekter: [], lag: dok.lag.at(-1)?.id ?? null } });
   }

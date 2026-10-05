@@ -15,6 +15,8 @@ import {
   type ObjektId,
   type ObjektKilde,
   type TekstKilde,
+  type Underlag,
+  type UnderlagId,
 } from '../../core/dokument';
 import { identitet, type Transform2D } from '../../core/geometri2d';
 import { rettProfil } from '../../core/profil';
@@ -50,6 +52,16 @@ export function nyttLag(navn: string, materialId: string, hoyde: number): Lag {
   };
 }
 
+export function nyttUnderlag(navn: string, materialId: string): Underlag {
+  return { id: nyId('u'), navn, materialId, synlig: true, last: false };
+}
+
+/** A text layer with one colour group. */
+export function nyttTekstlag(materialId: string, hoyde = 1.5, navn = 'Tekst'): Lag {
+  const u = nyttUnderlag('Farge 1', materialId);
+  return { ...nyttLag(navn, materialId, hoyde), tekstlag: true, underlag: [u] };
+}
+
 export function nyTekst(tekst = 'Tekst', storrelse = 16): TekstKilde {
   return {
     type: 'tekst',
@@ -71,6 +83,7 @@ export function nyttObjekt(
   kilde: ObjektKilde,
   transform: Partial<Transform2D> = {},
   navn?: string,
+  underlagId?: UnderlagId,
 ): Objekt {
   return {
     id: nyId('o'),
@@ -81,6 +94,7 @@ export function nyttObjekt(
     synlig: true,
     last: false,
     operasjon: kilde.type === 'form' && kilde.form === 'hull' ? 'trekk-fra' : 'legg-til',
+    ...(underlagId ? { underlagId } : {}),
   };
 }
 
@@ -99,9 +113,9 @@ export function nyttSigngenDokument(): Dokument {
     printerProfilId: standardPrinter.id,
   });
   const bunn = nyttLag('Bunnplate', 'pla-grafitt', 3);
-  const tekst = nyttLag('Tekst', 'pla-kritthvit', 1.5);
+  const tekst = nyttTekstlag('pla-kritthvit');
   const plate = nyttObjekt(bunn.id, nyForm('rektangel', 120, 42, 6), {}, 'Bunnplate');
-  const t = nyttObjekt(tekst.id, nyTekst('Designporten', 14));
+  const t = nyttObjekt(tekst.id, nyTekst('Designporten', 14), {}, undefined, tekst.underlag![0]!.id);
   const d: Dokument = {
     ...dok,
     lag: [bunn, tekst],
@@ -152,7 +166,8 @@ export function slettLag(dok: Dokument, id: LagId): Dokument {
         ? { ...l, pavirkninger: l.pavirkninger.filter((p) => p.kildeLagId !== id) }
         : l,
     );
-  return stable({ ...dok, lag, objekter, rekkefolge });
+  // deleting the text layer makes the topmost layer that still has text the text layer
+  return ordneTekstlag(stable({ ...dok, lag, objekter, rekkefolge }));
 }
 
 /** Move a layer up (+1, towards the top) or down (−1) in the physical stack. */
@@ -167,7 +182,8 @@ export function flyttLag(dok: Dokument, id: LagId, retning: 1 | -1): Dokument {
 
 export function dupliserLag(dok: Dokument, id: LagId): { dok: Dokument; nyId: LagId } {
   const l = finnLag(dok, id);
-  if (!l) return { dok, nyId: id };
+  // there is only one text layer per sign
+  if (!l || l.tekstlag) return { dok, nyId: id };
   const kopi: Lag = { ...structuredClone(l), id: nyId('l'), navn: `${l.navn} (kopi)` };
   let d = leggTilLag(dok, kopi, id);
   for (const o of objekterILag(dok, id)) {
@@ -235,16 +251,38 @@ export function dupliserObjekter(
   return { dok: d, nye };
 }
 
-export function flyttTilLag(dok: Dokument, ider: ObjektId[], lagId: LagId): Dokument {
-  if (!finnLag(dok, lagId)) return dok;
-  const flytt = new Set(ider.filter((id) => dok.objekter[id] && dok.objekter[id]!.lagId !== lagId));
+/**
+ * Move objects to a layer, or to a colour group of the text layer. Text
+ * only goes into the text layer; text asked to go elsewhere stays put.
+ */
+export function flyttTilLag(
+  dok: Dokument,
+  ider: ObjektId[],
+  lagId: LagId,
+  underlagId?: UnderlagId,
+): Dokument {
+  const mal = finnLag(dok, lagId);
+  if (!mal) return dok;
+  const ul = mal.tekstlag
+    ? (mal.underlag?.find((u) => u.id === underlagId) ?? mal.underlag?.at(-1))
+    : undefined;
+  const flytt = new Set(
+    ider.filter((id) => {
+      const o = dok.objekter[id];
+      if (!o || (o.kilde.type === 'tekst' && !mal.tekstlag)) return false;
+      return o.lagId !== lagId || o.underlagId !== ul?.id;
+    }),
+  );
   if (!flytt.size) return dok;
   const rekkefolge: Dokument['rekkefolge'] = {};
   for (const [lag, liste] of Object.entries(dok.rekkefolge))
     rekkefolge[lag] = liste.filter((id) => !flytt.has(id));
   rekkefolge[lagId] = [...(rekkefolge[lagId] ?? []), ...flytt];
   const objekter = { ...dok.objekter };
-  for (const id of flytt) objekter[id] = { ...objekter[id]!, lagId };
+  for (const id of flytt) {
+    const { underlagId: _, ...o } = objekter[id]!;
+    objekter[id] = ul ? { ...o, lagId, underlagId: ul.id } : { ...o, lagId };
+  }
   return { ...dok, objekter, rekkefolge };
 }
 
@@ -270,4 +308,181 @@ export function ordne(dok: Dokument, id: ObjektId, til: 'fremst' | 'bakerst' | '
 /** Text objects marked as batch fields. */
 export function feltObjekter(dok: Dokument): Objekt[] {
   return Object.values(dok.objekter).filter((o) => o.kilde.type === 'tekst' && o.kilde.felt);
+}
+
+// ---------- the text layer and its colour groups ----------
+
+export function finnTekstlag(dok: Dokument): Lag | undefined {
+  return dok.lag.find((l) => l.tekstlag);
+}
+
+export function finnUnderlag(dok: Dokument, id: UnderlagId): { lag: Lag; underlag: Underlag } | undefined {
+  for (const lag of dok.lag) {
+    const u = lag.underlag?.find((x) => x.id === id);
+    if (u) return { lag, underlag: u };
+  }
+  return undefined;
+}
+
+/** The colour group an object is in, if it is in the text layer. */
+export function underlagFor(dok: Dokument, o: Objekt): Underlag | undefined {
+  if (!o.underlagId) return undefined;
+  return finnLag(dok, o.lagId)?.underlag?.find((u) => u.id === o.underlagId);
+}
+
+/** Objects of one colour group, in stacking order. */
+export function objekterIUnderlag(dok: Dokument, lagId: LagId, underlagId: UnderlagId): Objekt[] {
+  return objekterILag(dok, lagId).filter((o) => o.underlagId === underlagId);
+}
+
+/** Text objects outside the text layer (projects from before the text layer). */
+export function tekstUtenforTekstlaget(dok: Dokument): Objekt[] {
+  return Object.values(dok.objekter).filter(
+    (o) => o.kilde.type === 'tekst' && !finnLag(dok, o.lagId)?.tekstlag,
+  );
+}
+
+function medUnderlag(dok: Dokument, lagId: LagId, fn: (u: Underlag[]) => Underlag[]): Dokument {
+  const lag = dok.lag.map((l) => {
+    if (l.id !== lagId || !l.underlag) return l;
+    const underlag = fn(l.underlag);
+    // the layer's own colour follows its first group (stack diagram, summaries)
+    return { ...l, underlag, materialId: underlag[0]?.materialId ?? l.materialId };
+  });
+  return { ...dok, lag };
+}
+
+export function oppdaterUnderlag(
+  dok: Dokument,
+  lagId: LagId,
+  id: UnderlagId,
+  endring: Partial<Omit<Underlag, 'id'>>,
+): Dokument {
+  return medUnderlag(dok, lagId, (u) => u.map((x) => (x.id === id ? { ...x, ...endring } : x)));
+}
+
+/** Add a colour group above `overId` (or on top). */
+export function leggTilUnderlag(dok: Dokument, lagId: LagId, ny: Underlag, overId?: UnderlagId): Dokument {
+  return medUnderlag(dok, lagId, (u) => {
+    const i = overId ? u.findIndex((x) => x.id === overId) : u.length - 1;
+    const kopi = [...u];
+    kopi.splice(i < 0 ? u.length : i + 1, 0, ny);
+    return kopi;
+  });
+}
+
+/** Delete a colour group and its objects. The last group cannot be deleted. */
+export function slettUnderlag(dok: Dokument, lagId: LagId, id: UnderlagId): Dokument {
+  const lag = finnLag(dok, lagId);
+  if (!lag?.underlag || lag.underlag.length <= 1 || !lag.underlag.some((u) => u.id === id)) return dok;
+  const bort = objekterILag(dok, lagId)
+    .filter((o) => o.underlagId === id)
+    .map((o) => o.id);
+  const objekter = { ...dok.objekter };
+  for (const oid of bort) delete objekter[oid];
+  const rekkefolge = {
+    ...dok.rekkefolge,
+    [lagId]: (dok.rekkefolge[lagId] ?? []).filter((x) => !bort.includes(x)),
+  };
+  return medUnderlag({ ...dok, objekter, rekkefolge }, lagId, (u) => u.filter((x) => x.id !== id));
+}
+
+/** Move a colour group up (+1) or down (−1). Higher groups win where they overlap. */
+export function flyttUnderlag(dok: Dokument, lagId: LagId, id: UnderlagId, retning: 1 | -1): Dokument {
+  return medUnderlag(dok, lagId, (u) => {
+    const i = u.findIndex((x) => x.id === id);
+    const j = i + retning;
+    if (i < 0 || j < 0 || j >= u.length) return u;
+    const kopi = [...u];
+    [kopi[i], kopi[j]] = [kopi[j]!, kopi[i]!];
+    return kopi;
+  });
+}
+
+/** Set the colour of a layer or of a colour group (batch colour columns). */
+export function settFarge(dok: Dokument, id: string, materialId: string): Dokument {
+  if (finnLag(dok, id)) {
+    const lag = finnLag(dok, id)!;
+    // a text layer's colour is its first group's colour
+    if (lag.underlag?.length) return oppdaterUnderlag(dok, id, lag.underlag[0]!.id, { materialId });
+    return oppdaterLag(dok, id, { materialId });
+  }
+  const u = finnUnderlag(dok, id);
+  return u ? oppdaterUnderlag(dok, u.lag.id, id, { materialId }) : dok;
+}
+
+/** Printed colour slots, bottom to top: plain layers and the text layer's groups. */
+export function fargeplasser(dok: Dokument): { id: string; navn: string; materialId: string }[] {
+  return dok.lag
+    .filter((l) => l.synlig)
+    .flatMap((l) =>
+      // a text layer with one colour is one slot, named and addressed as the layer
+      l.underlag && l.underlag.length > 1
+        ? l.underlag
+            .filter((u) => u.synlig)
+            .map((u) => ({ id: u.id, navn: `${l.navn}: ${u.navn}`, materialId: u.materialId }))
+        : [{ id: l.id, navn: l.navn, materialId: l.underlag?.[0]?.materialId ?? l.materialId }],
+    );
+}
+
+/**
+ * Bring a stored project up to the text-layer structure (Sivert,
+ * 2026-10-05: one text layer per sign, colour groups at one height).
+ * A project from before gets its topmost layer with text as the text
+ * layer, with one colour group in the layer's colour. Nothing moves and
+ * no geometry changes: text in other layers stays where it is and is
+ * reported, so the user decides where it goes.
+ */
+export function ordneTekstlag(dok: Dokument): Dokument {
+  if (dok.generator !== SIGNGEN_ID) return dok;
+  let endret = false;
+  let funnet = false;
+  let lag: Lag[] = dok.lag.map((l): Lag => {
+    if (!l.tekstlag) {
+      if (!l.underlag) return l;
+      endret = true;
+      const { underlag: _, ...rest } = l;
+      return rest;
+    }
+    if (funnet) {
+      // only one text layer: later ones become plain layers
+      endret = true;
+      const { underlag: _, tekstlag: __, ...rest } = l;
+      return rest;
+    }
+    funnet = true;
+    if (l.underlag?.length) return l;
+    endret = true;
+    return { ...l, underlag: [nyttUnderlag('Farge 1', l.materialId)] };
+  });
+  if (!funnet) {
+    const harTekst = (l: Lag) => objekterILag(dok, l.id).some((o) => o.kilde.type === 'tekst');
+    const kandidat = [...lag].reverse().find(harTekst);
+    if (kandidat) {
+      endret = true;
+      lag = lag.map((l) =>
+        l.id === kandidat.id
+          ? { ...l, tekstlag: true, underlag: [nyttUnderlag('Farge 1', l.materialId)] }
+          : l,
+      );
+    }
+  }
+  // every object in the text layer belongs to one of its groups; no others carry one
+  let objekter: Dokument['objekter'] | null = null;
+  for (const o of Object.values(dok.objekter)) {
+    const l = lag.find((x) => x.id === o.lagId);
+    const grupper = l?.tekstlag ? l.underlag! : null;
+    let ny: Objekt = o;
+    if (grupper && !grupper.some((u) => u.id === o.underlagId)) ny = { ...o, underlagId: grupper[0]!.id };
+    else if (!grupper && o.underlagId !== undefined) {
+      const { underlagId: _, ...rest } = o;
+      ny = rest;
+    }
+    if (ny !== o) {
+      objekter ??= { ...dok.objekter };
+      objekter[o.id] = ny;
+    }
+  }
+  if (!endret && !objekter) return dok;
+  return { ...dok, lag, objekter: objekter ?? dok.objekter };
 }

@@ -34,6 +34,22 @@ test.describe('Signgen', () => {
     await expect(page.locator('.objektliste li')).toHaveCount(antallFor);
   });
 
+  test('legger ny tekst i den valgte fargen i tekstlaget', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Tegning med mus testes på desktop');
+    const tekstlag = page.locator('.lagrad', { hasText: 'Tekstlag' });
+    await expect(tekstlag.locator('.grupperad')).toHaveCount(1);
+    await page.getByRole('button', { name: '+ Ny farge' }).click();
+    await expect(tekstlag.locator('.grupperad')).toHaveCount(2);
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    await page.keyboard.press('t');
+    await page.mouse.click(b.x + b.width * 0.6, b.y + b.height * 0.55);
+    await page.keyboard.press('Escape');
+    await expect(tekstlag.locator('.grupperad', { hasText: 'Farge 2' })).toContainText('Tekst «Tekst»');
+    await expect(page.locator('.statuslinje')).toContainText('3 deler');
+    await expect(page.getByRole('button', { name: 'Dupliser' })).toBeDisabled();
+  });
+
   test('eksporterer 3MF og STL', async ({ page }) => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });

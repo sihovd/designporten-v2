@@ -13,6 +13,8 @@ export interface Mesh {
 /** A printable part: one mesh with one material. */
 export interface ModellDel {
   id: string;
+  /** The layer the part belongs to when it is one of several parts of a layer (Sign Forge colour groups). */
+  lagId?: string;
   navn: string;
   materialId: string;
   mesh: Mesh;

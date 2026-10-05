@@ -30,6 +30,7 @@ import {
   areal,
   differanse,
   forskyv,
+  snitt,
   regionBoks,
   regionFraRinger,
   transformerRegion,
@@ -42,7 +43,7 @@ import { formTilRinger } from '../../geometri/former';
 import { lastFont, tekstTilRinger } from '../../geometri/tekst';
 import { ekstruder } from '../../geometri/ekstruder';
 import type { ModellDel } from '../../geometri/mesh';
-import { parametre } from './dokument';
+import { parametre, tekstUtenforTekstlaget } from './dokument';
 
 // ---------- fonts ----------
 
@@ -196,12 +197,22 @@ function erGjennomgaende(o: Objekt): boolean {
   return o.kilde.type === 'form' && o.kilde.form === 'hull';
 }
 
-/** Outline of a layer before influences (objects + Kontur). Null while fonts load. */
-function egenRegion(dok: Dokument, lag: Lag): Region | null {
+/** Objects of a hidden colour group are left out, like a hidden layer. */
+function iSynligUnderlag(lag: Lag, o: Objekt): boolean {
+  if (!lag.underlag) return true;
+  return lag.underlag.find((u) => u.id === o.underlagId)?.synlig ?? true;
+}
+
+/**
+ * Outline of a layer before influences (objects + Kontur), or of one of
+ * its colour groups. Null while fonts load.
+ */
+function egenRegion(dok: Dokument, lag: Lag, underlagId?: string): Region | null {
   const pluss: Region[] = [];
   const minus: Region[] = [];
   for (const o of objekterILag(dok, lag.id)) {
-    if (!o.synlig || erGjennomgaende(o)) continue;
+    if (!o.synlig || erGjennomgaende(o) || !iSynligUnderlag(lag, o)) continue;
+    if (underlagId !== undefined && o.underlagId !== underlagId) continue;
     const r = verdensRegion(o);
     if (!r) return null;
     (o.operasjon === 'trekk-fra' ? minus : pluss).push(r);
@@ -254,6 +265,32 @@ export function lagRegion(dok: Dokument, lagId: string): Region | null {
   return region;
 }
 
+/**
+ * The text layer split into its colour groups: each group gets the part of
+ * the layer's final outline its own objects cover, a higher group wins
+ * where groups overlap, and material added by influences goes to the first
+ * group. The pieces tile the layer exactly. Null while fonts load.
+ */
+export function underlagRegioner(dok: Dokument, lagId: string): Map<string, Region> | null {
+  const lag = finnLag(dok, lagId);
+  const alle = lagRegion(dok, lagId);
+  if (!lag || !alle) return null;
+  const synlige = (lag.underlag ?? []).filter((u) => u.synlig);
+  const ut = new Map<string, Region>();
+  if (!synlige.length) return ut;
+  let rest = alle;
+  for (const u of [...synlige].reverse()) {
+    const egen = egenRegion(dok, lag, u.id);
+    if (!egen) return null;
+    const del = snitt(egen, rest);
+    ut.set(u.id, del);
+    rest = differanse(rest, del);
+  }
+  const forste = synlige[0]!.id;
+  if (areal(rest) > 1e-6) ut.set(forste, union(ut.get(forste) ?? [], rest));
+  return ut;
+}
+
 // ---------- model ----------
 
 function tynneDetaljer(region: Region, minVegg: number): number {
@@ -304,15 +341,38 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
       }
       continue;
     }
-    const e = ekstruder(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne);
-    if (e.forbrukt) {
+    let forbrukt = false;
+    let toppZ = lag.zBunn;
+    if (lag.underlag?.length) {
+      const grupper = underlagRegioner(dok, lag.id) ?? new Map<string, Region>();
+      for (const u of lag.underlag) {
+        const klipp = grupper.get(u.id);
+        if (!klipp?.length) continue;
+        const e = ekstruder(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne, klipp);
+        forbrukt ||= e.forbrukt;
+        toppZ = Math.max(toppZ, e.toppZ);
+        if (!e.mesh.indekser.length) continue;
+        deler.push({
+          id: u.id,
+          lagId: lag.id,
+          navn: lag.underlag.length > 1 ? `${lag.navn}: ${u.navn}` : lag.navn,
+          materialId: u.materialId,
+          mesh: e.mesh,
+        });
+      }
+    } else {
+      const e = ekstruder(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne);
+      forbrukt = e.forbrukt;
+      toppZ = e.toppZ;
+      deler.push({ id: lag.id, navn: lag.navn, materialId: lag.materialId, mesh: e.mesh });
+    }
+    if (forbrukt) {
       advarsler.push({
         niva: 'advarsel',
-        tekst: `Profilen på «${lag.navn}» er bredere enn formen tåler, så laget slutter ved ${mm(e.toppZ)} i stedet for ${mm(lag.zBunn + lag.hoyde)}.`,
+        tekst: `Profilen på «${lag.navn}» er bredere enn formen tåler, så laget slutter ved ${mm(toppZ)} i stedet for ${mm(lag.zBunn + lag.hoyde)}.`,
         lagId: lag.id,
       });
     }
-    deler.push({ id: lag.id, navn: lag.navn, materialId: lag.materialId, mesh: e.mesh });
 
     const maksOverheng = materialtyper[finnMateriale(lag.materialId).type].maksOverheng;
     const overheng = profilOverheng(lag.profil, lag.hoyde);
@@ -342,6 +402,15 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
         lagId: lag.id,
       });
     }
+  }
+
+  for (const o of tekstUtenforTekstlaget(dok)) {
+    advarsler.push({
+      niva: 'info',
+      tekst: `«${o.navn}» ligger utenfor tekstlaget (fra før skiltet hadde ett tekstlag). Flytt den til tekstlaget under «Lag og farge».`,
+      objektId: o.id,
+      lagId: o.lagId,
+    });
   }
 
   // unsupported material: parts of a layer that start above the plate with nothing under them

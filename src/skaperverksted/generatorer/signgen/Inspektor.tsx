@@ -28,12 +28,15 @@ import {
   oppdaterLag,
   oppdaterObjekter,
   flyttTilLag,
+  oppdaterUnderlag,
+  fargeplasser,
   ordne,
   stable,
   standardNavn,
 } from './dokument';
 import { lokalGeometri, objektStorrelse } from './modell';
-import { dupliserValgte, fordel, juster, slettValgte } from './handlinger';
+import { aktivtUnderlag, dupliserValgte, fordel, juster, slettValgte } from './handlinger';
+import { brukSigntilstand, signtilstand } from './tilstand';
 import { Profilredigerer } from './Profilredigerer';
 import { Batchdialog } from './Batch';
 import { plangrenser } from '../../core/plangrenser';
@@ -338,25 +341,45 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
           )}
       </Panel>
 
-      <Panel tittel="Lag og rolle">
+      <Panel tittel="Lag og farge">
         <label class="felt" for="signgen-objektlag">
-          <span>Lag</span>
+          <span>{o.lagId && finnLag(t.dok, o.lagId)?.tekstlag ? 'Farge i tekstlaget' : 'Lag'}</span>
           <select
             id="signgen-objektlag"
-            value={o.lagId}
+            value={o.underlagId ? `${o.lagId}|${o.underlagId}` : o.lagId}
             onChange={(e) => {
-              const lag = (e.target as HTMLSelectElement).value;
-              benk.endre({ navn: 'Flytt til lag', anvend: (d) => flyttTilLag(d, [o.id], lag) });
+              const [lag, gruppe] = (e.target as HTMLSelectElement).value.split('|') as [string, string?];
+              benk.endre({ navn: 'Flytt til lag', anvend: (d) => flyttTilLag(d, [o.id], lag, gruppe) });
+              if (gruppe) signtilstand(benk).sett({ underlag: gruppe });
               benk.velg({ lag });
             }}
           >
-            {[...t.dok.lag].reverse().map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.navn}
-              </option>
-            ))}
+            {[...t.dok.lag].reverse().map((l) =>
+              l.tekstlag ? (
+                <optgroup key={l.id} label={`${l.navn} (tekstlag)`}>
+                  {[...(l.underlag ?? [])].reverse().map((u) => (
+                    <option key={u.id} value={`${l.id}|${u.id}`}>
+                      {u.navn}: {finnMateriale(u.materialId).navn}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : (
+                // text lives only in the text layer; older text elsewhere keeps its own layer listed
+                (o.kilde.type !== 'tekst' || l.id === o.lagId) && (
+                  <option key={l.id} value={l.id}>
+                    {l.navn}
+                  </option>
+                )
+              ),
+            )}
           </select>
         </label>
+        {o.kilde.type === 'tekst' && !finnLag(t.dok, o.lagId)?.tekstlag && (
+          <p class="merknad">
+            Denne teksten er fra før skiltet fikk ett tekstlag. Velg en farge i tekstlaget for å flytte den
+            dit.
+          </p>
+        )}
         {!(o.kilde.type === 'form' && o.kilde.form === 'hull') && (
           <div class="felt">
             <span>Rolle</span>
@@ -494,11 +517,13 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
             }
           />
         </label>
-        <Materialvelger
-          id="signgen-lagfarge"
-          verdi={lag.materialId}
-          endre={(m) => endre('Bytt farge', { materialId: m })}
-        />
+        {!lag.tekstlag && (
+          <Materialvelger
+            id="signgen-lagfarge"
+            verdi={lag.materialId}
+            endre={(m) => endre('Bytt farge', { materialId: m })}
+          />
+        )}
         <TallFelt
           etikett="Høyde (tykkelse)"
           verdi={lag.hoyde}
@@ -522,6 +547,8 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
           </p>
         )}
       </Panel>
+
+      {lag.tekstlag && <FargegruppeInspektor benk={benk} lag={lag} />}
 
       <Panel tittel="Sideprofil">
         <label class="felt" for="signgen-profil">
@@ -727,12 +754,46 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
   );
 }
 
+/** The text layer's active colour group: name and colour. Height, profile and outline are the layer's. */
+function FargegruppeInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
+  brukSigntilstand(benk);
+  const u = aktivtUnderlag(benk, lag);
+  if (!u) return null;
+  const endre = (navn: string, endring: Parameters<typeof oppdaterUnderlag>[3]) =>
+    benk.endre({ navn, anvend: (d) => oppdaterUnderlag(d, lag.id, u.id, endring) });
+  return (
+    <Panel tittel={`Farge: ${u.navn}`}>
+      <label class="felt" for="signgen-gruppenavn">
+        <span>Navn</span>
+        <input
+          id="signgen-gruppenavn"
+          type="text"
+          value={u.navn}
+          key={u.id}
+          onChange={(e) =>
+            endre('Gi fargen nytt navn', { navn: (e.target as HTMLInputElement).value.trim() || u.navn })
+          }
+        />
+      </label>
+      <Materialvelger
+        id="signgen-gruppefarge"
+        verdi={u.materialId}
+        endre={(m) => endre('Bytt farge', { materialId: m })}
+      />
+      <p class="merknad">
+        Alle fargene i tekstlaget har samme høyde, profil og kontur som laget. Der to farger overlapper,
+        vinner den øverste.
+      </p>
+    </Panel>
+  );
+}
+
 // ---------- project ----------
 
 function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
   const p = parametre(t.dok);
-  const brukte = [...new Set(t.dok.lag.map((l) => l.materialId))].map(finnMateriale);
+  const brukte = [...new Set(fargeplasser(t.dok).map((f) => f.materialId))].map(finnMateriale);
   const settParam = (navn: string, e: Partial<typeof p>) =>
     benk.endre({ navn, anvend: (d: Dokument) => stable({ ...d, parametre: { ...d.parametre, ...e } }) });
   return (

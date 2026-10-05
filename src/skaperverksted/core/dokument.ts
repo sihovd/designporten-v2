@@ -62,6 +62,8 @@ export interface Objekt {
   last: boolean;
   /** Boolean role within its layer: add material or cut a hole. */
   operasjon: 'legg-til' | 'trekk-fra';
+  /** Sign Forge: the colour group (Underlag) the object belongs to, in the text layer only. */
+  underlagId?: UnderlagId;
 }
 
 /** An outline from one layer applied to another (Signgen Phase 5). */
@@ -81,6 +83,20 @@ export interface Kontur {
   ringBredde: number;
 }
 
+export type UnderlagId = string;
+
+/**
+ * Sign Forge: a colour group inside the text layer. It shares the layer's
+ * Z, height, profile, outline and influences, and has its own colour.
+ */
+export interface Underlag {
+  id: UnderlagId;
+  navn: string;
+  materialId: string;
+  synlig: boolean;
+  last: boolean;
+}
+
 export interface Lag {
   id: LagId;
   navn: string;
@@ -94,6 +110,13 @@ export interface Lag {
   pavirkninger: LagPavirkning[];
   synlig: boolean;
   last: boolean;
+  /** Sign Forge: this is the sign's one text layer. */
+  tekstlag?: boolean;
+  /**
+   * Sign Forge: the text layer's colour groups, bottom to top. Where two
+   * overlap, the higher one wins. `materialId` follows the first one.
+   */
+  underlag?: Underlag[];
 }
 
 export interface Plate {

@@ -111,6 +111,17 @@ MVP (Phase 3) and later (Phase 5) are marked. The architecture supports all of t
 | Project saving (account) | 5 |
 | CSV batch generation, variant groups, plate organisation | 5 (limits per plan are a config switch, off until the paid model is decided) |
 
+### Text layer
+
+A sign has **one text layer** (Sivert, 2026-10-05). Text spread over several layers at different heights became hard to follow, so all text lives in that one layer and sits at one height.
+
+- The text layer is an ordinary layer in the stack (height, Z, side profile, Kontur, influences) marked as the text layer. Only text in it is allowed; the text tool always writes into it, and creates it on top of the stack if the sign has none. Shapes and SVGs may also go into it. It cannot be duplicated.
+- It holds one or more **colour groups** («underlag»): name, colour/material, visibility and lock. Every object in the text layer belongs to one group. All groups share the layer's Z, height, profile and Kontur; only the colour differs, so a sign can have «Ola» in white and «Nordmann» in yellow at the same height.
+- Where groups overlap, the **higher group wins**; material added to the text layer by an influence goes to the first group. The groups tile the layer exactly, and each is its own part in the 3D model and the export (one 3MF object per group). With a side profile, the profile follows the edge of the whole layer, not of each group.
+- **Influences** between layers work as before and read the whole text layer, so an outline layer under the text still follows all the text.
+- New text goes into the active group: the group of the selected object, else the one last chosen in the Layers panel, else the top one.
+- Projects from before the text layer open unchanged: the topmost layer with text becomes the text layer with one group in its colour. Text in other layers stays where it is, prints as before and is reported («ligger utenfor tekstlaget») until the user moves it into a group.
+
 ### Layers panel
 
 The Layers panel makes the physical construction understandable. For every layer the user sees:
@@ -121,6 +132,7 @@ The Layers panel makes the physical construction understandable. For every layer
 - its **colour/material role** (swatch and material name);
 - visibility and lock toggles;
 - which objects belong to it (expand to list; drag objects between layers).
+- for the text layer: its colour groups, top first, each with its colour, visibility, lock and objects, and buttons to add, reorder and delete groups (the last group cannot be deleted).
 
 A small **stack diagram** next to the list (an exploded side view, as in concept 05) shows the layers as physical slabs with Z values, so the relation between digital layer and printed layer is obvious. Hovering a layer highlights it on the canvas and in 3D.
 

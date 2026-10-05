@@ -315,6 +315,7 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
       leggTilPrintlag(mat, lagHoyde, printlagRef.current);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.userData.delId = del.id;
+      mesh.userData.lagId = del.lagId ?? del.id;
       mesh.name = del.navn;
       g.add(mesh);
     }
@@ -341,7 +342,7 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
     for (const c of scene.modell.children) {
       const m = (c as THREE.Mesh).material as THREE.MeshStandardMaterial;
       if (!('emissive' in m)) continue;
-      const valgt = !kompakt && c.userData.delId === valgtLag;
+      const valgt = !kompakt && c.userData.lagId === valgtLag;
       m.emissive = valgt ? lilla : new THREE.Color(0, 0, 0);
       m.emissiveIntensity = valgt ? 0.07 : 0;
     }

@@ -1158,6 +1158,7 @@
 .lagliste,
 .objektliste {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   margin: 0;
   padding: 0;
@@ -1201,6 +1202,7 @@
 
 .lag-navn {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   min-width: 0;
   min-height: 36px;
@@ -1292,6 +1294,59 @@
 .objekt-navn .merke {
   color: var(--dp-cyan);
   font-size: 10px;
+}
+
+/* Sign Forge: colour groups inside the text layer */
+.lag-merke {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  color: var(--fg-dempet);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  vertical-align: 1px;
+}
+
+.fargegrupper {
+  min-width: 0;
+  padding: 0 4px 8px 14px;
+}
+
+.gruppeliste {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grupperad {
+  border: 1px solid transparent;
+  border-radius: var(--radius-felt);
+}
+
+.grupperad.aktiv {
+  border-color: color-mix(in srgb, var(--handling) 60%, transparent);
+}
+
+.grupperad.skjult .lag-tittel {
+  color: var(--fg-dempet);
+  text-decoration: line-through;
+}
+
+.grupperad .lag-navn {
+  min-height: 32px;
+}
+
+.grupperad .objektliste {
+  padding-left: 16px;
+}
+
+.fargegrupper .lagknapper {
+  margin-top: 4px;
 }
 
 .lagknapper {
