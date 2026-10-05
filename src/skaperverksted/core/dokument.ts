@@ -48,6 +48,8 @@ export interface FormKilde {
   hjorneradius: number;
   /** Number of sides for polygons. */
   sider: number;
+  /** Hanging holes outside the model become an eye: the ring's width around the hole (mm). */
+  ringBredde?: number;
 }
 
 export type ObjektKilde = TekstKilde | SvgKilde | FormKilde;

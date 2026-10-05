@@ -1,9 +1,10 @@
+import { skiltMedPlate } from './testskilt';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { unzipSync, strFromU8 } from 'fflate';
 import { settFontHenter } from '../../geometri/tekst';
 import type { Dokument, TekstKilde } from '../../core/dokument';
-import { nyttSigngenDokument, oppdaterObjekter } from './dokument';
+import { oppdaterObjekter } from './dokument';
 import { lastFonter } from './modell';
 import {
   byggBatch,
@@ -25,7 +26,7 @@ beforeAll(() => {
 });
 
 function master(): Dokument {
-  const d = nyttSigngenDokument();
+  const d = skiltMedPlate();
   const tekst = Object.values(d.objekter).find((o) => o.kilde.type === 'tekst')!;
   return oppdaterObjekter(d, [tekst.id], (o) => ({
     ...o,

@@ -11,16 +11,20 @@ import {
   dupliserObjekter,
   ledigTekstlagnavn,
   leggTilLag,
+  leggTilLagNederst,
   leggTilObjekt,
   nyttLag,
   nyttObjekt,
   nyttTekstlag,
+  nesteFarge,
+  oppdaterLag,
   oppdaterObjekter,
+  palett,
   slettObjekter,
   standardNavn,
 } from './dokument';
-import { verdensBoks } from './modell';
-import { finnMateriale } from '../../core/materialer';
+import { modellBoks, verdensBoks } from './modell';
+import { importerSvg, SvgFeil } from './svgimport';
 
 export function valgte(benk: Arbeidsbenk): Objekt[] {
   const d = benk.dok;
@@ -74,18 +78,25 @@ function malFor(
   const aktiv = id ? finnLag(d, id) : undefined;
   if (kilde.type === 'tekst') {
     if (aktiv?.tekstlag && !d.rekkefolge[aktiv.id]?.length) return { lagId: aktiv.id };
-    const farge = aktiv?.tekstlag ? aktiv.materialId : 'pla-kritthvit';
+    const farge = aktiv?.tekstlag ? aktiv.materialId : (palett(d)[0] ?? 'pla-kritthvit');
     const nytt = nyttTekstlag(ledigTekstlagnavn(d), farge, aktiv?.tekstlag ? aktiv.hoyde : 1.5);
     return { lagId: nytt.id, nytt };
   }
   if (aktiv && !aktiv.tekstlag) return { lagId: aktiv.id };
+  if (kilde.type === 'form' && kilde.form === 'hull') {
+    // holes act on the whole sign: any plain layer will do, else one of their own
+    const vanlig = d.lag.find((l) => !l.tekstlag && l.synlig && !l.last);
+    if (vanlig) return { lagId: vanlig.id };
+    const nytt = nyttLag('Hull og øyne', nesteFarge(d), 1);
+    return { lagId: nytt.id, nytt };
+  }
   const i = aktiv ? d.lag.indexOf(aktiv) : d.lag.length;
   const under = d.lag
     .slice(0, i)
     .reverse()
     .find((l) => !l.tekstlag && l.synlig && !l.last);
   if (under) return { lagId: under.id };
-  const nytt = nyttLag(`Lag ${d.lag.length + 1}`, finnMateriale('pla-grafitt').id, 1);
+  const nytt = nyttLag(`Lag ${d.lag.length + 1}`, nesteFarge(d), 1);
   return { lagId: nytt.id, nytt };
 }
 
@@ -230,4 +241,99 @@ export function fordel(benk: Arbeidsbenk, akse: 'x' | 'y'): void {
         return { ...o, transform: { ...o.transform, [akse]: o.transform[akse] + v } };
       }),
   });
+}
+
+// ---------- new layers (Sivert, 2026-10-05) ----------
+
+/** Margin between the sign and a frame or the shape around the text (mm). */
+const RAMMEMARG = 4;
+
+/**
+ * A layer under everything that takes its shape from what is around the
+ * text: every text layer with its outlines, a little wider. It follows
+ * the text as it changes.
+ */
+export function nyttLagRundtTeksten(benk: Arbeidsbenk): void {
+  const d = benk.dok;
+  const tekstlag = d.lag.filter((l) => l.tekstlag);
+  if (!tekstlag.length) {
+    benk.melde('Skiltet har ingen tekst å forme laget rundt. Legg til en tekst først.');
+    return;
+  }
+  const lag = nyttLag('Rundt teksten', nesteFarge(d), 2);
+  benk.endre({
+    navn: 'Nytt lag rundt teksten',
+    // at the bottom: the text stands on it
+    anvend: (x) =>
+      oppdaterLag(leggTilLagNederst(x, lag), lag.id, {
+        pavirkninger: tekstlag.map((t) => ({
+          kildeLagId: t.id,
+          handling: 'legg-til' as const,
+          avstand: RAMMEMARG,
+        })),
+      }),
+  });
+  benk.velg({ lag: lag.id, objekter: [] });
+  benk.melde(
+    `«${lag.navn}» er lagt under teksten og følger formen til teksten og omrissene, ${RAMMEMARG} mm utenfor.`,
+  );
+}
+
+export type Svgrolle = 'ramme' | 'pynt';
+
+/**
+ * Import an SVG into a layer of its own: as a frame under the sign,
+ * sized to go round it, or as a decoration above the active layer.
+ */
+export async function importerSvgSom(benk: Arbeidsbenk, fil: File, rolle: Svgrolle): Promise<void> {
+  if (fil.size > 5 * 1024 * 1024) {
+    benk.melde('SVG-filen er større enn 5 MB.');
+    return;
+  }
+  let r: ReturnType<typeof importerSvg>;
+  try {
+    r = importerSvg(await fil.text(), fil.name);
+  } catch (e) {
+    benk.melde(e instanceof SvgFeil ? e.message : 'SVG-filen kunne ikke leses.');
+    return;
+  }
+  const d = benk.dok;
+  const plate = Math.min(d.plate.bredde, d.plate.dybde) * 0.8;
+  const skilt = modellBoks(d);
+  let s: number;
+  let x = 0;
+  let y = 0;
+  if (rolle === 'ramme' && skilt) {
+    // big enough to go round the sign with a margin, proportions kept
+    const b = skilt.maksX - skilt.minX + 2 * RAMMEMARG;
+    const h = skilt.maksY - skilt.minY + 2 * RAMMEMARG;
+    s = Math.max(b / r.bredde, h / r.hoyde);
+    x = (skilt.minX + skilt.maksX) / 2;
+    y = (skilt.minY + skilt.maksY) / 2;
+  } else {
+    // a decoration: about a third of the sign's height, or 30 mm
+    const maal = skilt ? Math.max(10, (skilt.maksY - skilt.minY) / 3) : 30;
+    s = maal / Math.max(r.bredde, r.hoyde);
+    if (skilt) {
+      x = skilt.maksX - maal / 2;
+      y = skilt.maksY - maal / 2;
+    }
+  }
+  s = Math.min(s, plate / Math.max(r.bredde, r.hoyde));
+  const lag = nyttLag(rolle === 'ramme' ? 'Ramme' : 'Pynt', nesteFarge(d), rolle === 'ramme' ? 2 : 1);
+  const o = nyttObjekt(lag.id, r.kilde, { skalaX: s, skalaY: s, x, y });
+  const over = benk.tilstand.utvalg.lag ?? undefined;
+  benk.endre({
+    navn: rolle === 'ramme' ? 'SVG som ramme' : 'SVG som pynt',
+    anvend: (x0) =>
+      leggTilObjekt(rolle === 'pynt' ? leggTilLag(x0, lag, over) : leggTilLagNederst(x0, lag), o),
+  });
+  benk.velg({ lag: lag.id, objekter: [o.id] });
+  const deler = [
+    rolle === 'ramme'
+      ? `«${fil.name}» er lagt inn som ramme under skiltet`
+      : `«${fil.name}» er lagt inn som pynt i et eget lag`,
+  ];
+  if (r.hoppetOver.length) deler.push(`Hoppet over: ${r.hoppetOver.join(', ')}`);
+  benk.melde(`${deler.join('. ')}.`);
 }

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { nyttSigngenDokument } from '@/skaperverksted/generatorer/signgen/dokument';
+import { skiltMedPlate } from '@/skaperverksted/generatorer/signgen/testskilt';
 import { SIGNGEN_START, drage, lampe, skilt } from './forhandsvisning';
 
 describe('generator previews', () => {
-  it("matches Signgen's real starting document", () => {
-    const dok = nyttSigngenDokument();
+  it('matches a plate sign built in Signgen', () => {
+    const dok = skiltMedPlate();
     expect(dok.lag.map((l) => ({ navn: l.navn, hoyde: l.hoyde, materialId: l.materialId }))).toEqual(
       SIGNGEN_START.lag,
     );

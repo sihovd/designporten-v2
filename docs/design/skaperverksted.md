@@ -124,6 +124,16 @@ Sivert, 2026-10-05. Text spread over many layers at different heights became har
 - The side profile applies to the text; outlines are straight. A layer's own Kontur stays for plain layers (and for text layers from older projects that already use it).
 - Projects from before text layers open unchanged: layers that hold only text become text layers (their texts a group, no outlines). Text in a layer with shapes stays where it is, prints as before and is reported until the user moves it to a text layer.
 
+### Start sign, colour profiles, new layers and holes
+
+Sivert, 2026-10-05.
+
+- **No base plate.** A new sign is one text layer with one filled outline, «Underlag», as its base (text 3 mm, base 2 mm). A plate is still possible as a layer of its own.
+- **Colour profiles.** A sign has a colour profile (`parametre.farger`): the filaments the user has in the printer or can get. A new sign opens a **start window** to pick it: ready-made profiles (combinations from the catalogue, not confirmed stock) or the user's own, saved in this browser. A profile has **four colours by default**; colours can be added from the catalogue or removed. The colour pickers offer the profile first; picking a catalogue colour outside it adds it to the profile. «Endre fargeprofil» in the project inspector reopens the window; colours the new profile drops are swapped for the closest one in it. Projects from before profiles get the colours they already use.
+- **New layers.** «+ Nytt lag» offers: **Rundt teksten** (a layer at the bottom shaped by every text layer and its outlines, 4 mm wider, through influences, so it follows the text), **SVG som ramme** (an SVG in a layer at the bottom, scaled to go round the sign), **SVG som pynt** (an SVG in a layer of its own above the active layer; also the tool rail's SVG button) and **Tomt lag**.
+- **Hanging holes and eyes.** The hole tool's size is the inner diameter. Over the model (at least half the hole on it) it is a hole through every layer. Dragged off the model it becomes an **eye**: a ring (3 mm by default, at least 0.6 mm) round the hole, joined to the lowest layer, or to that layer's outermost outline when it is a text layer with outlines. An eye that does not touch the sign is reported. Holes need no layer of their own; when there is no plain layer they get one, «Hull og øyne», which takes no room in the stack.
+- **CSV.** A field is «too long for the sign» only when the sign has a plate or frame (shapes in plain layers); text and outlines grow with the text.
+
 ### Layers panel
 
 The Layers panel makes the physical construction understandable. For every layer the user sees:

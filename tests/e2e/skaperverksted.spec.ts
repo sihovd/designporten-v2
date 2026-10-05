@@ -16,7 +16,38 @@ test.describe('Signgen', () => {
     await page.goto('/skaperverksted/signgen/');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
+    // a new sign opens with the start window: pick the colours
+    const start = page.getByRole('dialog', { name: 'Velg fargene til skiltet' });
+    await start.getByRole('button', { name: 'Start skiltet' }).click();
+    await expect(start).toBeHidden();
     await expect(page.locator('.statuslinje')).toContainText('mm');
+  });
+
+  test('startvinduet lar deg velge og lagre en fargeprofil', async ({ page, isMobile }) => {
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    const start = page.getByRole('dialog', { name: 'Velg fargene til skiltet' });
+    await expect(start.getByText('Fargene i profilen (4)')).toBeVisible();
+    const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await start.getByText('Natur', { exact: true }).click();
+    await start.getByLabel('Legg til farge').selectOption({ label: 'Gull (PLA Silk)' });
+    await expect(start.getByText('Fargene i profilen (5)')).toBeVisible();
+    await start.getByLabel('Lagre som min profil').fill('Verkstedet');
+    await start.getByRole('button', { name: 'Lagre profil' }).click();
+    await expect(start.getByText('Mine profiler')).toBeVisible();
+    await start.getByRole('button', { name: 'Start skiltet' }).click();
+    await expect(page.locator('.statuslinje')).toContainText('mm');
+    if (!isMobile) await expect(page.locator('.lagrad').first()).toContainText('Lys tre');
+  });
+
+  test('legger et nytt lag rundt teksten', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Lagpanelet testes på desktop');
+    await page.getByRole('button', { name: '+ Nytt lag' }).click();
+    await page.getByRole('button', { name: /Rundt teksten/ }).click();
+    await expect(page.locator('.lagrad')).toHaveCount(2);
+    await expect(page.locator('.lagrad').last()).toContainText('Rundt teksten');
+    await expect(page.locator('.statuslinje')).toContainText('3 deler');
   });
 
   test('legger til et rektangel og angrer', async ({ page, isMobile }) => {
@@ -38,7 +69,7 @@ test.describe('Signgen', () => {
     test.skip(isMobile, 'Lagpanelet testes på desktop');
     const tekstlag = page.locator('.lagrad', { hasText: 'Tekst' }).first();
     await tekstlag.getByRole('button', { name: '+ Omriss' }).click();
-    await expect(tekstlag.locator('.omrissrad')).toHaveCount(1);
+    await expect(tekstlag.locator('.omrissrad')).toHaveCount(2);
     await expect(page.locator('.statuslinje')).toContainText('3 deler');
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
