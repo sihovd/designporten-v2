@@ -31,13 +31,15 @@ import { cssFarge } from '../../shell/tema';
 import { finnDel, plasserDel } from './bibliotek';
 import { registrerLerret, startDra, avbrytDra, type Drakilde } from './dra';
 import { festepunkter } from './feste';
-import { formBoks, formFelt, formerI, dekorBoks } from './felt';
+import { formFelt, formerI, dekorBoks } from './felt';
+import { formMesh } from './formmesh';
 import {
   anvend,
   finnKropp,
   forbindelseVed,
   gange,
   kompatible,
+  passerNy,
   komponentAv,
   koble,
   koblingIVerden,
@@ -56,6 +58,7 @@ import {
   kobleGruppe,
   kobleNyKropp,
   leggNyKroppLost,
+  leggTilKobling,
   transformerForm,
 } from './handlinger';
 import { finnKroppsmal, lagKropp } from './kroppsbibliotek';
@@ -71,20 +74,7 @@ import {
   type V3,
 } from './parametre';
 import { finnProfil } from './profil';
-import { lagRutenett, marsjer, sample } from './rutenett';
 import { editor, type Drastatus } from './tilstand';
-
-const formMesher = new Map<string, Mesh>();
-function formMesh(f: Form): Mesh {
-  const nokkel = JSON.stringify([f.type, f.posisjon, f.rotasjon, f.mal, f.avrunding, f.speilet]);
-  let m = formMesher.get(nokkel);
-  if (!m) {
-    m = marsjer(sample(lagRutenett(formBoks(f), 24_000, 0.35), formFelt(f)));
-    if (formMesher.size > 200) formMesher.clear();
-    formMesher.set(nokkel, m);
-  }
-  return m;
-}
 
 /** The shape alone at the origin, unturned: what the handles carry. */
 const sentrert = (f: Form): Form => ({ ...f, posisjon: [0, 0, 0], rotasjon: [0, 0, 0], speilet: false });
@@ -398,7 +388,7 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
       handtak.attach(proxy);
     }
     // a whole part on the handles (move and turn its group)
-    if (!klikker && !e.inne && e.kropp && !e.dra) {
+    if (!klikker && !e.inne && e.kropp && !e.dra && !e.meny) {
       const k = finnKropp(p, e.kropp);
       const pl = plassFor(p).get(e.kropp);
       if (k && pl) {
@@ -596,7 +586,14 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
   };
 
   /** Free connectors on parts outside `utenfor` that fit at least one of `egne`, nearest the pointer first. */
-  const mal = (p: BuildforgeParametre, egne: Kobling[], utenfor: Set<string>, sx: number, sy: number) => {
+  const mal = (
+    p: BuildforgeParametre,
+    egne: Kobling[],
+    utenfor: Set<string>,
+    sx: number,
+    sy: number,
+    ny = false,
+  ) => {
     const plass = plassFor(p);
     const ut: { ende: Ende; kb: Kobling; punkt: V3; d: number }[] = [];
     for (const k of kropperAv(p)) {
@@ -604,7 +601,7 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
       const pl = plass.get(k.id)!;
       for (const kb of k.koblinger) {
         if (forbindelseVed(p, { kropp: k.id, kobling: kb.id })) continue;
-        if (!egne.some((x) => kompatible(x, kb))) continue;
+        if (!egne.some((x) => (ny ? passerNy(x, kb) : kompatible(x, kb)))) continue;
         const punkt = koblingIVerden(pl, kb).punkt;
         const sk = skjerm(punkt);
         if (!sk.synlig) continue;
@@ -655,7 +652,7 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
       const kobleTil = (kandidatMal: { ende: Ende; kb: Kobling }): Losning | null => {
         const kandidater = ny.kropp.koblinger
           .map((kb, i) => ({ kb, i }))
-          .filter(({ kb }) => kompatible(kb, kandidatMal.kb))
+          .filter(({ kb }) => passerNy(kb, kandidatMal.kb))
           .sort(
             (a, b) =>
               (a.kb.rolle === kandidatMal.kb.rolle ? 0 : 1) - (b.kb.rolle === kandidatMal.kb.rolle ? 0 : 1) ||
@@ -679,7 +676,7 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
           indeks,
         };
       };
-      const alle = mal(p, ny.kropp.koblinger, new Set(), sx, sy);
+      const alle = mal(p, ny.kropp.koblinger, new Set(), sx, sy, true);
       const treff = treffKropp(sx, sy);
       const under = treff ? finnKropp(p, treff.kropp) : undefined;
       // the same kind of part held over a part replaces it (handoff §11): an arm over an arm
@@ -782,7 +779,10 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     for (const k of kropperAv(p)) {
       if (utenfor.has(k.id)) continue;
       for (const kb of k.koblinger) {
-        if (forbindelseVed(p, { kropp: k.id, kobling: kb.id }) || !egne.some((x) => kompatible(x, kb)))
+        if (
+          forbindelseVed(p, { kropp: k.id, kobling: kb.id }) ||
+          !egne.some((x) => (kilde.type === 'bibliotek' ? passerNy(x, kb) : kompatible(x, kb)))
+        )
           continue;
         const aktiv = l.type === 'koble' && l.mal.kropp === k.id && l.mal.kobling === kb.id;
         markor(koblingIVerden(plass.get(k.id)!, kb).punkt, aktiv);
@@ -889,8 +889,9 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
       }
       if (id === 'underdel') continue;
       const mat = mesh.material as THREE.MeshStandardMaterial;
-      // inside a part, the others fade back (handoff §26)
+      // inside a part, the others fade back or hide (handoff §26)
       const dempet = !!e.inne && id !== e.inne;
+      c.visible = !(dempet && e.skjulAndre);
       if (mat.transparent !== dempet) {
         mat.transparent = dempet;
         mat.depthWrite = !dempet;
@@ -899,7 +900,11 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
       mat.opacity = dempet ? 0.16 : 1;
       if (mat.emissive)
         mat.emissive.copy(
-          draVisning.gronn === id ? gronn : !e.inne && e.kropp === id && !e.dra ? lilla : svart,
+          draVisning.gronn === id
+            ? gronn
+            : !e.inne && (e.kropp === id || e.flere.includes(id)) && !e.dra
+              ? lilla
+              : svart,
         );
       mat.emissiveIntensity = draVisning.gronn === id ? 0.55 : 0.28;
       const d = draVisning.flytt.get(id);
@@ -909,7 +914,17 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     }
   };
 
+  // going into a part brings it to the middle of the view; going out shows the whole model
+  let forrigeInne = editor.t.inne;
   const avEditor = editor.lytt((e) => {
+    if (e.inne !== forrigeInne) {
+      forrigeInne = e.inne;
+      const del = e.inne ? s.modell.children.find((c) => c.userData.delId === e.inne) : null;
+      if (del) {
+        const b = new T.Box3().setFromObject(del);
+        if (!b.isEmpty()) s.fokuser([b.min.x, b.min.y, b.min.z], [b.max.x, b.max.y, b.max.z]);
+      } else if (!e.inne) benk.kommando('tilpass');
+    }
     if (e.trykk !== forrigeTrykk) {
       forrigeTrykk = e.trykk;
       s.tegn();
@@ -952,22 +967,42 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     return beste;
   };
 
-  const velgVed = (sx: number, sy: number) => {
+  const velgVed = (sx: number, sy: number, shift = false) => {
     const p = tolk();
     if (!p) return;
     const treff = treffKropp(sx, sy);
     const e = editor.t;
     if (familieFor(p) === 'modul' && !e.inne) {
-      editor.sett({ kropp: treff?.kropp ?? null, valgt: null, merket: [], meny: null });
+      // Shift+click adds or removes a part from the selection (handoff §7)
+      if (shift && treff) {
+        const alle = new Set(e.flere.length ? e.flere : e.kropp ? [e.kropp] : []);
+        if (alle.has(treff.kropp)) alle.delete(treff.kropp);
+        else alle.add(treff.kropp);
+        const flere = [...alle];
+        editor.sett({
+          flere: flere.length > 1 ? flere : [],
+          kropp: flere.length === 1 ? flere[0]! : null,
+          valgt: null,
+          merket: [],
+          meny: null,
+        });
+        benk.melde(flere.length > 1 ? `${flere.length} deler valgt.` : 'Én del valgt.');
+        return;
+      }
+      editor.sett({ kropp: treff?.kropp ?? null, flere: [], valgt: null, merket: [], meny: null });
       if (treff) benk.melde(`Valgt: ${finnKropp(p, treff.kropp)?.navn}. Dobbeltklikk for å gå inn i den.`);
       return;
     }
+    if (familieFor(p) === 'modul' && e.nyKobling) {
+      if (treff && treff.kropp === e.inne) leggKoblingVed(p, treff, sx, sy);
+      return;
+    }
     if (!treff || (familieFor(p) === 'modul' && treff.kropp !== e.inne)) {
-      if (!e.plasserer) editor.sett({ valgt: null, merket: [] });
+      if (!e.plasserer) editor.sett({ valgt: null, merket: [], kobling: null });
       return;
     }
     const beste = formVed(p, treff.kropp, treff.punkt);
-    editor.sett({ valgt: beste && beste.d < 1.5 ? beste.id : null, merket: [] });
+    editor.sett({ valgt: beste && beste.d < 1.5 ? beste.id : null, merket: [], kobling: null });
     benk.melde(
       beste && beste.d < 1.5
         ? `Valgt: ${p.former.find((f) => f.id === beste.id)?.navn}`
@@ -977,14 +1012,80 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     );
   };
 
-  let ned: { x: number; y: number; knapp: number; handtak: boolean } | null = null;
+  /** A new connector where the user clicked on the part: on the surface, pointing out of it. */
+  const leggKoblingVed = (
+    p: BuildforgeParametre,
+    treff: { kropp: string; punkt: V3 },
+    sx: number,
+    sy: number,
+  ) => {
+    const pl = plassFor(p).get(treff.kropp);
+    const hit = s.straale(sx, sy).intersectObjects(s.modell.children, false)[0];
+    if (!pl || !hit?.face) return;
+    const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+    const inv = transponer(pl.m);
+    const lokal = anvend(inv, [treff.punkt[0] - pl.t[0], treff.punkt[1] - pl.t[1], treff.punkt[2] - pl.t[2]]);
+    const akse = anvend(inv, [n.x, n.y, n.z]);
+    leggTilKobling(benk, treff.kropp, { kjonn: 'hunn', familie: 'svivel', posisjon: lokal, akse });
+  };
+
+  /** Open the radial menu for what is under a point in the view (handoff §37). */
+  const apneMeny = (sx: number, sy: number) => {
+    const p = tolk();
+    if (!p || familieFor(p) !== 'modul') return;
+    const treff = treffKropp(sx, sy);
+    const e = editor.t;
+    if (e.inne) {
+      if (treff && treff.kropp === e.inne) {
+        const beste = formVed(p, treff.kropp, treff.punkt);
+        if (beste && beste.d < 1.5) {
+          editor.sett({ valgt: beste.id, meny: { x: sx, y: sy, mal: { type: 'form', id: beste.id } } });
+          return;
+        }
+      }
+      editor.sett({ meny: { x: sx, y: sy, mal: { type: 'tom' } } });
+      return;
+    }
+    if (!treff) {
+      editor.sett({ meny: { x: sx, y: sy, mal: { type: 'tom' } } });
+      return;
+    }
+    if (e.flere.length > 1 && e.flere.includes(treff.kropp)) {
+      editor.sett({ meny: { x: sx, y: sy, mal: { type: 'flere', ider: [...e.flere] } } });
+      return;
+    }
+    editor.sett({
+      kropp: treff.kropp,
+      flere: [],
+      valgt: null,
+      meny: { x: sx, y: sy, mal: { type: 'kropp', id: treff.kropp } },
+    });
+  };
+
+  // touch: a long press opens the menu, a double tap goes inside (handoff §62)
+  let langtrykk = 0;
+  let sisteTrykk: { tid: number; kropp: string | null } | null = null;
+  const LANGTRYKK_MS = 500;
+
+  let ned: { x: number; y: number; knapp: number; handtak: boolean; touch: boolean } | null = null;
   const pekNed = (ev: PointerEvent) => {
     if (ev.target !== s.lerret) return;
     const handtakTreff = handtak.axis !== null || handtak.dragging;
-    ned = { x: ev.clientX, y: ev.clientY, knapp: ev.button, handtak: handtakTreff };
+    const touch = ev.pointerType === 'touch';
+    ned = { x: ev.clientX, y: ev.clientY, knapp: ev.button, handtak: handtakTreff, touch };
     const p = tolk();
-    if (handtakTreff || ev.button !== 0 || ev.pointerType === 'touch' || !p || familieFor(p) !== 'modul')
-      return;
+    if (touch && !handtakTreff && p && familieFor(p) === 'modul') {
+      clearTimeout(langtrykk);
+      const x = ev.clientX,
+        y = ev.clientY;
+      langtrykk = window.setTimeout(() => {
+        if (!ned || Math.hypot(ned.x - x, ned.y - y) > 8) return;
+        ned = null;
+        const { sx, sy } = iLerret(x, y);
+        apneMeny(sx, sy);
+      }, LANGTRYKK_MS);
+    }
+    if (handtakTreff || ev.button !== 0 || touch || !p || familieFor(p) !== 'modul') return;
     if (editor.t.inne) return;
     const { sx, sy } = iLerret(ev.clientX, ev.clientY);
     const treff = treffKropp(sx, sy);
@@ -992,7 +1093,8 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     // a press on a part drags the part (and its group), not the camera
     s.settKameraStyring(false);
     ev.stopPropagation();
-    startDra({ type: 'gruppe', kropp: treff.kropp }, ev, s.lerret, () => velgVed(sx, sy));
+    const shift = ev.shiftKey;
+    startDra({ type: 'gruppe', kropp: treff.kropp }, ev, s.lerret, () => velgVed(sx, sy, shift));
     const slipp = () => {
       s.settKameraStyring(true);
       window.removeEventListener('pointerup', slipp, true);
@@ -1002,26 +1104,37 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     window.addEventListener('pointercancel', slipp, true);
     ned = null;
   };
+  const pekFlytt = (ev: PointerEvent) => {
+    if (ned?.touch && Math.hypot(ev.clientX - ned.x, ev.clientY - ned.y) > 8) clearTimeout(langtrykk);
+  };
   const pekOpp = (ev: PointerEvent) => {
+    clearTimeout(langtrykk);
     if (!ned || ned.handtak || Math.hypot(ev.clientX - ned.x, ev.clientY - ned.y) > 4) {
       ned = null;
       return;
     }
-    const knapp = ned.knapp;
+    const { knapp, touch } = ned;
     ned = null;
     const { sx, sy } = iLerret(ev.clientX, ev.clientY);
     if (knapp === 2) {
-      const p = tolk();
-      if (!p || familieFor(p) !== 'modul' || editor.t.inne) return;
-      const treff = treffKropp(sx, sy);
-      if (!treff) {
-        editor.sett({ meny: null });
-        return;
-      }
-      editor.sett({ kropp: treff.kropp, valgt: null, meny: { x: sx, y: sy, kropp: treff.kropp } });
+      apneMeny(sx, sy);
       return;
     }
-    if (knapp === 0) velgVed(sx, sy);
+    if (knapp !== 0) return;
+    if (touch) {
+      const p = tolk();
+      const treff = p && familieFor(p) === 'modul' ? treffKropp(sx, sy) : null;
+      const na = performance.now();
+      if (treff && sisteTrykk && na - sisteTrykk.tid < 350 && sisteTrykk.kropp === treff.kropp) {
+        sisteTrykk = null;
+        if (treff.kropp !== editor.t.inne) {
+          gaInn(benk, treff.kropp);
+          return;
+        }
+      }
+      sisteTrykk = { tid: na, kropp: treff?.kropp ?? null };
+    }
+    velgVed(sx, sy, ev.shiftKey);
   };
   const dobbelt = (ev: MouseEvent) => {
     const p = tolk();
@@ -1032,6 +1145,7 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
   };
   const ingenMeny = (ev: MouseEvent) => ev.preventDefault();
   el.addEventListener('pointerdown', pekNed, true);
+  s.lerret.addEventListener('pointermove', pekFlytt);
   s.lerret.addEventListener('pointerup', pekOpp);
   s.lerret.addEventListener('dblclick', dobbelt);
   s.lerret.addEventListener('contextmenu', ingenMeny);
@@ -1043,13 +1157,16 @@ export function tilpassBuildforge3d(s: Scene3d, benk: Arbeidsbenk): () => void {
     avEditor();
     avBenk();
     cancelAnimationFrame(ventende);
+    clearTimeout(langtrykk);
     el.removeEventListener('pointerdown', pekNed, true);
+    s.lerret.removeEventListener('pointermove', pekFlytt);
     s.lerret.removeEventListener('pointerup', pekOpp);
     s.lerret.removeEventListener('dblclick', dobbelt);
     s.lerret.removeEventListener('contextmenu', ingenMeny);
     s.scene.onBeforeRender = () => {};
     for (const c of s.modell.children) {
       c.matrixAutoUpdate = true;
+      c.visible = true;
       c.updateMatrix();
     }
     handtak.detach();

@@ -180,6 +180,25 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
       settKameraStyring(pa) {
         kontroll.enabled = pa;
       },
+      fokuser(min, maks) {
+        const boks = new THREE.Box3(new THREE.Vector3(...min), new THREE.Vector3(...maks));
+        if (boks.isEmpty()) return;
+        const senter = boks.getCenter(new THREE.Vector3());
+        const radius = Math.max(12, boks.getSize(new THREE.Vector3()).length() / 2);
+        const halvV = THREE.MathUtils.degToRad(camera.fov / 2);
+        const halvH = Math.atan(Math.tan(halvV) * camera.aspect);
+        const avstand = (radius / Math.sin(Math.min(halvV, halvH))) * 1.25;
+        const retning = camera.position.clone().sub(kontroll.target);
+        if (retning.lengthSq() < 1e-6) retning.set(0.45, -1, 0.85);
+        camera.position.copy(senter).add(retning.normalize().multiplyScalar(avstand));
+        kontroll.target.copy(senter);
+        camera.near = Math.max(0.5, avstand / 200);
+        camera.far = Math.max(camera.far, avstand * 20);
+        camera.updateProjectionMatrix();
+        kontroll.update();
+        brukerHarFlyttet = true;
+        tegn();
+      },
     };
 
     tilpassRef.current = (vinkel: Vinkel = 'perspektiv') => {

@@ -28,11 +28,16 @@ import {
   type Plassering,
 } from './graf';
 import {
+  finnKuleprofil,
   finnLeddprofil,
+  KULELEDD_PROVE,
   kroppsledd,
+  kulemal,
   leddmal,
+  sjekkKuleprofil,
   sjekkLeddprofil,
   transformerMesh,
+  type Kuleprofil,
   type Leddprofil,
   type Tilkobling,
 } from './ledd';
@@ -66,9 +71,15 @@ interface Del {
 
 const bestemt = (navn: string) => `«${navn}»`;
 
-function byggDel(kropp: Modulkropp, former: Form[], tilkoblet: Tilkobling[], profil: Leddprofil): Del {
+function byggDel(
+  kropp: Modulkropp,
+  former: Form[],
+  tilkoblet: Tilkobling[],
+  profil: Leddprofil,
+  kuleprofil: Kuleprofil,
+): Del {
   const egne = formerI(former, kropp.id);
-  const kl = kroppsledd(tilkoblet, profil);
+  const kl = kroppsledd(tilkoblet, profil, kuleprofil);
   const dekor = kl.kutt(dekorFelt(egne));
   const dBoks = dekorBoks(egne);
   let omrade: Boks | null = dBoks;
@@ -197,7 +208,7 @@ function byggDel(kropp: Modulkropp, former: Form[], tilkoblet: Tilkobling[], pro
         regel: 'BF-LAAS-01',
         niva: 'advarsel',
         tittel: 'Utsparingen når inn i et ledd',
-        arsak: '«Trekk fra»-formen overlapper en plugg eller et leddhull.',
+        arsak: '«Trekk fra»-formen overlapper en plugg, en kule eller en sokkel.',
         konsekvens: 'Leddet beholdes uendret. Utsparingen virker bare på pynten.',
         forslag: 'Flytt utsparingen bort fra leddet hvis du ventet et hull der.',
         objekter: iLaas,
@@ -344,8 +355,26 @@ export function byggModul(p: BuildforgeParametre, rev: string): BuildforgeResult
   if (profilfeil.length)
     return profilfunn(rev, 'BF-PROFIL-02', 'Leddprofilen henger ikke sammen', profilfeil.join(' '), profil);
 
+  const kulebruk = forbindelserAv(p).some(
+    (f) => finnKropp(p, f.a.kropp)?.koblinger.find((x) => x.id === f.a.kobling)?.familie === 'kule',
+  );
+  const kuleprofil = p.kuleprofil ? finnKuleprofil(p.kuleprofil.id, p.kuleprofil.versjon) : KULELEDD_PROVE;
+  if (!kuleprofil)
+    return profilfunn(
+      rev,
+      'BF-PROFIL-01',
+      'Ukjent kuleleddprofil',
+      `Prosjektet bruker kuleleddprofilen «${p.kuleprofil!.id}» versjon ${p.kuleprofil!.versjon}, som denne versjonen av BuildForge ikke kjenner.`,
+      profil,
+    );
+  const kulefeil = kulebruk ? sjekkKuleprofil(kuleprofil) : [];
+  if (kulefeil.length)
+    return profilfunn(rev, 'BF-PROFIL-02', 'Kuleleddprofilen henger ikke sammen', kulefeil.join(' '), profil);
+
   const plass = plasser(p);
   const k = leddmal(profil);
+  const kk = kulemal(kuleprofil);
+  const funnLedd: Funn[] = [];
   const tilkoblet = new Map<string, Tilkobling[]>();
   for (const f of forbindelserAv(p)) {
     for (const [egen, annen] of [
@@ -357,17 +386,32 @@ export function byggModul(p: BuildforgeParametre, rev: string): BuildforgeResult
       const c: V3 = anvend(pl.m, kb.posisjon).map((v, i) => v + pl.t[i]!) as V3;
       const a = anvend(pl.m, kb.akse);
       const radius = Math.max(
-        k.bossRadius,
+        kb.familie === 'kule' ? kk.ytre : k.bossRadius,
         rekkevidde(formerI(p.former, annen.kropp), plass.get(annen.kropp)!, c, a),
       );
       tilkoblet.set(egen.kropp, [...(tilkoblet.get(egen.kropp) ?? []), { kobling: kb, radius }]);
+    }
+    if ((f.boy ?? 0) > kk.maksBoy) {
+      const na = finnKropp(p, f.a.kropp)!.navn,
+        nb = finnKropp(p, f.b.kropp)!.navn;
+      funnLedd.push({
+        regel: 'BF-KULE-01',
+        niva: 'feil',
+        tittel: `Kuleleddet mellom ${na.toLowerCase()} og ${nb.toLowerCase()} er bøyd for mye`,
+        arsak: `Leddet er bøyd ${f.boy}°, men er tegnet for høyst ${kk.maksBoy}°.`,
+        konsekvens: 'Halsen ville truffet kanten av sokkelen.',
+        forslag: `Bøy leddet ${kk.maksBoy}° eller mindre.`,
+        objekter: [],
+        evidens: 'beregnet',
+      });
     }
   }
 
   const kropper = kropperAv(p);
   const deler = new Map<string, Del>();
-  for (const kr of kropper) deler.set(kr.id, byggDel(kr, p.former, tilkoblet.get(kr.id) ?? [], profil));
-  const funn: Funn[] = kropper.flatMap((kr) => deler.get(kr.id)!.funn);
+  for (const kr of kropper)
+    deler.set(kr.id, byggDel(kr, p.former, tilkoblet.get(kr.id) ?? [], profil, kuleprofil));
+  const funn: Funn[] = [...funnLedd, ...kropper.flatMap((kr) => deler.get(kr.id)!.funn)];
 
   // parts must not go into each other as they stand
   const plasserte = kropper.map((kr) => ({
@@ -436,6 +480,7 @@ export function byggModul(p: BuildforgeParametre, rev: string): BuildforgeResult
       funn,
       profil: null,
       leddprofil: profil,
+      kuleprofil: kulebruk ? kuleprofil : null,
       sveip: null,
       kropper: kropper.map((kr) => deler.get(kr.id)!.data),
     },

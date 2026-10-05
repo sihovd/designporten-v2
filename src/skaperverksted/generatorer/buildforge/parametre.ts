@@ -63,11 +63,14 @@ export const kategorinavn: Record<Kategori, string> = {
 export type Kjonn = 'hann' | 'hunn';
 export const kjonnnavn: Record<Kjonn, string> = { hann: 'Hann (plugg)', hunn: 'Hunn (hull)' };
 /**
- * Connector families. Only the swivel peg has a mechanical profile; ball
- * joints, snap fits, print-in-place joints, magnets and screws are planned
- * (handoff §33) and are not offered until they have one.
+ * Connector families (handoff §33). `svivel` is a peg in a hole that turns
+ * about one axis; `kule` is a ball in a snap socket that turns and bends.
+ * Both have trial profiles only. Snap fits, print-in-place joints, magnets
+ * and screws are planned and are not offered until they have a profile.
  */
-export type Koblingsfamilie = 'svivel';
+export type Koblingsfamilie = 'svivel' | 'kule';
+export const koblingsfamilier: Koblingsfamilie[] = ['svivel', 'kule'];
+export const familienavn: Record<Koblingsfamilie, string> = { svivel: 'Pluggledd', kule: 'Kuleledd' };
 /** What a connector is for. Used to keep connections when a part is replaced (handoff §12). */
 export type Koblingsrolle =
   'hals' | 'skulder' | 'hofte' | 'handledd' | 'ankel' | 'hale' | 'vinge' | 'generisk';
@@ -109,12 +112,19 @@ export interface Ende {
   kobling: string;
 }
 
-/** A connection between two connectors. `vri` turns the part on side b about the joint axis (degrees). */
+/**
+ * A connection between two connectors. `vri` turns the part on side b about
+ * the joint axis (degrees). A ball joint can also bend: `boy` degrees
+ * towards the direction `boyRetning` (degrees about the axis). Swivel
+ * joints ignore both.
+ */
 export interface Forbindelse {
   id: string;
   a: Ende;
   b: Ende;
   vri: number;
+  boy?: number;
+  boyRetning?: number;
 }
 
 export const formnavn: Record<Formtype, string> = {
@@ -159,8 +169,10 @@ export interface BuildforgeParametre {
   skjema: number;
   /** Missing = klikker. */
   familie?: Familie;
-  /** Clicker: the switch profile. Modular builder: the joint profile. */
+  /** Clicker: the switch profile. Modular builder: the swivel joint profile. */
   profil: { id: string; versjon: string };
+  /** Modular builder: the ball joint profile, set once the project has a ball joint. */
+  kuleprofil?: { id: string; versjon: string };
   /** The template or start the project came from (`ny`: no start chosen yet). */
   mal: string;
   /** Clicker: material per body. The modular builder keeps the colour on each part. */
@@ -233,7 +245,7 @@ const aksen = v3(-1, 1).refine((a) => Math.abs(Math.hypot(...a) - 1) < 0.01, 'ak
 const koblingSkjema = z.object({
   id: idSkjema,
   navn: z.string().max(40),
-  familie: z.literal('svivel'),
+  familie: z.enum(['svivel', 'kule']),
   kjonn: z.enum(['hann', 'hunn']),
   rolle: z.enum(['hals', 'skulder', 'hofte', 'handledd', 'ankel', 'hale', 'vinge', 'generisk']),
   posisjon: v3(GRENSER.posisjon.min, GRENSER.posisjon.maks),
@@ -258,12 +270,22 @@ const modulSkjema = z.object({
   skjema: z.literal(SKJEMA),
   familie: z.literal('modul'),
   profil: profilSkjema,
+  kuleprofil: profilSkjema.optional(),
   mal: z.string().max(40),
   farger: z.object({}),
   rot: idSkjema,
   kropper: z.array(kroppSkjema).min(1).max(GRENSER.maksKropper),
   forbindelser: z
-    .array(z.object({ id: idSkjema, a: endeSkjema, b: endeSkjema, vri: tall(-360, 360) }))
+    .array(
+      z.object({
+        id: idSkjema,
+        a: endeSkjema,
+        b: endeSkjema,
+        vri: tall(-360, 360),
+        boy: tall(0, 90).optional(),
+        boyRetning: tall(-360, 360).optional(),
+      }),
+    )
     .max(GRENSER.maksKropper),
   former: z.array(formSkjema(idSkjema)).max(GRENSER.maksFormerModul),
 });

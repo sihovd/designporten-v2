@@ -9,8 +9,16 @@ import { finnDel, finnStartmal, passer, plasserDel, startmaler, type FestepunktI
 import { festepunkter } from './feste';
 import { erBuildforgeResultat } from './funn';
 import {
+  byttKjonn as kjonn,
   dupliserKropp as dupliser,
+  endreKobling as endreKb,
   erstatt,
+  finnKobling,
+  forbindelseVed,
+  leggTilKobling as nyKobling,
+  settBoy as boy,
+  settLeddtype as leddtype,
+  slettKobling as slettKb,
   finnKropp,
   flyttGruppe as flytt,
   forbindelseTilForelder,
@@ -28,6 +36,7 @@ import { finnKroppsmal, lagKropp, modulprosjekt, starter } from './kroppsbibliot
 
 export { modulprosjekt };
 import {
+  familienavn,
   familieFor,
   GRENSER,
   kroppBestemt,
@@ -37,6 +46,8 @@ import {
   type Ende,
   type Form,
   type KlikkerKropp,
+  type Kobling,
+  type Koblingsfamilie,
   type V3,
 } from './parametre';
 import { editor } from './tilstand';
@@ -465,4 +476,159 @@ export function gaUt(benk: Arbeidsbenk): void {
   if (!inne) return;
   editor.sett({ inne: null, kropp: inne, valgt: null, merket: [], plasserer: null, sikter: null });
   benk.melde('Tilbake i hele modellen.');
+}
+
+// ---------------------------------------------------------------------------
+// Joints and connectors (handoff §32–36)
+
+/** Pluggledd or Kuleledd on a connection: both connectors change together. */
+export function settLeddtype(benk: Arbeidsbenk, forbindelseId: string, familie: Koblingsfamilie): void {
+  endre(benk, `Gjør om til ${familienavn[familie].toLowerCase()}`, (p) =>
+    leddtype(p, forbindelseId, familie),
+  );
+  benk.melde(
+    familie === 'kule'
+      ? 'Leddet er et kuleledd. Det kan vris og bøyes. Målene er prøveverdier som ikke er testprintet.'
+      : 'Leddet er et pluggledd. Det kan vris om aksen.',
+  );
+}
+
+/** Bend a ball joint. */
+export function settBoy(
+  benk: Arbeidsbenk,
+  forbindelseId: string,
+  grader: number,
+  retning: number,
+  slaSammen?: string,
+): void {
+  endre(benk, 'Bøy leddet', (p) => boy(p, forbindelseId, grader, retning), slaSammen);
+}
+
+/**
+ * Change a connector between male and female. A connection on it is broken
+ * first, after the user has confirmed that (handoff §36); the other part is
+ * never changed.
+ */
+export function byttKjonn(benk: Arbeidsbenk, e: Ende): boolean {
+  const p = parametre(benk);
+  if (!p) return false;
+  const f = forbindelseVed(p, e);
+  if (f) {
+    const annen = f.a.kropp === e.kropp ? f.b : f.a;
+    const navn = finnKropp(p, annen.kropp)?.navn.toLowerCase() ?? 'den andre delen';
+    if (!confirm(`Dette vil bryte forbindelsen til ${navn}. Vil du fortsette?`)) return false;
+  }
+  const kb = finnKobling(p, e);
+  const ok = graf(benk, 'Bytt hann og hunn', (q) => kjonn(q, e));
+  if (ok && kb) benk.melde(`${kb.navn} er nå ${kb.kjonn === 'hann' ? 'hunn (hull)' : 'hann (plugg)'}.`);
+  return ok;
+}
+
+/** Change a free connector's joint type. */
+export function settKoblingsfamilie(benk: Arbeidsbenk, e: Ende, familie: Koblingsfamilie): boolean {
+  return graf(benk, `Gjør om til ${familienavn[familie].toLowerCase()}`, (p) => endreKb(p, e, { familie }));
+}
+
+export function giKoblingNavn(benk: Arbeidsbenk, e: Ende, navn: string): void {
+  graf(benk, 'Gi koblingen nytt navn', (p) => endreKb(p, e, { navn: navn.slice(0, 40) }));
+}
+
+/** Add a connector where the user clicked on the part (its own frame). */
+export function leggTilKobling(
+  benk: Arbeidsbenk,
+  kroppId: string,
+  ny: Pick<Kobling, 'kjonn' | 'familie' | 'posisjon' | 'akse'>,
+): boolean {
+  let id = '';
+  const ok = graf(benk, 'Legg til kobling', (p) => {
+    const r = nyKobling(p, kroppId, ny);
+    if (r.ok) id = r.id;
+    return r;
+  });
+  if (ok) {
+    editor.sett({ kobling: id, nyKobling: false, valgt: null });
+    benk.melde('Koblingen er lagt til. Velg om den skal være hann eller hunn i Egenskaper.');
+  }
+  return ok;
+}
+
+export function slettKobling(benk: Arbeidsbenk, e: Ende): boolean {
+  const p = parametre(benk);
+  if (!p) return false;
+  const f = forbindelseVed(p, e);
+  if (f) {
+    const annen = f.a.kropp === e.kropp ? f.b : f.a;
+    const navn = finnKropp(p, annen.kropp)?.navn.toLowerCase() ?? 'den andre delen';
+    if (!confirm(`Dette vil bryte forbindelsen til ${navn}. Vil du fortsette?`)) return false;
+  }
+  const ok = graf(benk, 'Slett kobling', (q) => slettKb(q, e));
+  if (ok) {
+    editor.sett({ kobling: null });
+    benk.melde('Koblingen er slettet.');
+  }
+  return ok;
+}
+
+/** Disconnect the connection on one connector. */
+export function koblFraKobling(benk: Arbeidsbenk, e: Ende): boolean {
+  const p = parametre(benk);
+  const f = p ? forbindelseVed(p, e) : undefined;
+  if (!f) return false;
+  const ok = graf(benk, 'Koble fra', (q) => koblFra(q, f.id));
+  if (ok) benk.melde('Koblingen er koblet fra. Delen ligger løst der den var.');
+  return ok;
+}
+
+// ---------------------------------------------------------------------------
+// Several parts (Shift+click)
+
+export function speilFlere(benk: Arbeidsbenk, ider: string[]): void {
+  endre(benk, `Speil ${ider.length} deler`, (p) => {
+    let q = p;
+    for (const id of ider) {
+      const r = speil(q, id);
+      if (r.ok) q = r.p;
+    }
+    return q;
+  });
+  benk.melde(`${ider.length} deler er speilet.`);
+}
+
+export function slettFlere(benk: Arbeidsbenk, ider: string[]): void {
+  const p = parametre(benk);
+  if (!p) return;
+  const kan = ider.filter((id) => id !== p.rot);
+  endre(benk, `Slett ${kan.length} deler`, (q) => {
+    let r = q;
+    for (const id of kan) {
+      const x = slett(r, id);
+      if (x.ok) r = x.p;
+    }
+    return r;
+  });
+  editor.sett({ flere: [], kropp: null });
+  benk.melde(
+    kan.length < ider.length
+      ? `${kan.length} deler er slettet. Hovedkroppen kan ikke slettes, så den ble stående.`
+      : `${kan.length} deler er slettet.`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Panels on demand (handoff §39–40)
+
+const bred = () => typeof matchMedia === 'undefined' || matchMedia('(min-width: 1024px)').matches;
+
+/** Open the properties: the floating panel on wide screens, the sheet on small ones. */
+export function visEgenskaper(benk: Arbeidsbenk): void {
+  if (bred()) benk.settInnstillinger({ inspektor: true });
+  else benk.settInnstillinger({ ark: 'egenskaper' });
+  requestAnimationFrame(() => benk.kommando('tegn'));
+}
+
+/** Open the library (left panel or sheet) on the given tab. */
+export function visBibliotek(benk: Arbeidsbenk, fane: 'bibliotek' | 'modell' = 'bibliotek'): void {
+  editor.sett({ fane });
+  if (bred()) benk.kommando('vis-venstrepanel');
+  else benk.settInnstillinger({ ark: 'lag' });
 }

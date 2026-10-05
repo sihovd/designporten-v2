@@ -39,7 +39,7 @@ export function lagRapport(dok: Dokument, r: BuildforgeResultat, laget = new Dat
       ? [
           'Leddene er ikke fysisk testet. Filene er ikke godkjent for produksjon eller salg.',
           'En grønn digital kontroll betyr ikke at produktet er trygt leketøy eller garantert printbart.',
-          'Hvert ledd har klaring så de to delene det binder sammen, ikke treffer hverandre når det dreies. Om en del treffer andre deler når den dreies, er ikke kontrollert.',
+          'Hvert ledd har klaring så de to delene det binder sammen, ikke treffer hverandre når det dreies (og for kuleledd: bøyes innenfor største bøy). Om en del treffer andre deler når den beveges, er ikke kontrollert.',
           'Delene ligger i samlet stilling. Snu og plasser dem i sliceren.',
           'Hver del består av flere lukkede skall som overlapper. Slicere slår dem sammen ved utskrift.',
         ]
@@ -74,6 +74,16 @@ export function lagRapport(dok: Dokument, r: BuildforgeResultat, laget = new Dat
           fysiskStatus: k.leddprofil.fysiskStatus === 'testet' ? 'Testet' : 'Ikke testet',
           merknad: k.leddprofil.merknad,
           mal: maal(k.leddprofil.maal),
+        }
+      : null,
+    kuleprofil: k.kuleprofil
+      ? {
+          id: k.kuleprofil.id,
+          versjon: k.kuleprofil.versjon,
+          navn: k.kuleprofil.navn,
+          fysiskStatus: k.kuleprofil.fysiskStatus === 'testet' ? 'Testet' : 'Ikke testet',
+          merknad: k.kuleprofil.merknad,
+          mal: maal(k.kuleprofil.maal),
         }
       : null,
     deler: r.deler.map((d) => {

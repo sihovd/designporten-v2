@@ -28,6 +28,8 @@ export interface Innstillinger {
   visning: '2d' | '3d';
   /** Which mobile sheet is open. */
   ark: 'ingen' | 'lag' | 'egenskaper' | 'bibliotek';
+  /** Wide screens: the inspector is showing (always, unless the generator is canvas first). */
+  inspektor: boolean;
 }
 
 export interface BenkTilstand {
@@ -67,7 +69,13 @@ export class Arbeidsbenk {
       utvalg: { objekter: [], lag: dok.lag.at(-1)?.id ?? null },
       utsnitt: { zoom: 1, senterX: 0, senterY: 0 },
       utsnittSatt: false,
-      innstillinger: { snap: true, rutenett: true, visning: generator.visninger[0] ?? '2d', ark: 'ingen' },
+      innstillinger: {
+        snap: true,
+        rutenett: true,
+        visning: generator.visninger[0] ?? '2d',
+        ark: 'ingen',
+        inspektor: !generator.lerretForst,
+      },
       modell: null,
       bygger: false,
       melding: null,

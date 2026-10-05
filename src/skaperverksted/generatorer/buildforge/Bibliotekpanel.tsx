@@ -1,7 +1,8 @@
 /**
- * Left panel (handoff §4, §29). For the modular builder: the body-part
- * library, the model as a tree from the Main Body with loose parts below,
- * and, inside a part (Sub-part Mode), the shapes and details for it. For a
+ * Left panel (handoff §4, §28–29). For the modular builder, two tabs: the
+ * body-part library (cards with previews, category chips, search) and the
+ * model as a tree from the Main Body with loose parts below. Inside a part
+ * (Sub-part Mode): its shapes and details, and its connectors. For a
  * clicker: the shapes and details and the clicker's two bodies.
  *
  * A body part is attached by dragging it onto a connector in the 3D view,
@@ -9,18 +10,22 @@
  * on the model. Shapes and details work the same with attachment points.
  */
 import type { JSX } from 'preact';
-import { useMemo, useRef } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { brukUtdrag } from '../../shell/bruk-benk';
 import { Panel } from '../../shell/kontroller';
+import { cssFarge } from '../../shell/tema';
 import { bibliotek, festenavn, finnDel, passer, type Bibliotekdel } from './bibliotek';
 import { startDra } from './dra';
 import { festepunkter } from './feste';
-import { finnKropp, koblingsnavn, koblingsvalg, komponenter, ledigPlass, tre } from './graf';
+import { finnKropp, forbindelseVed, koblingsnavn, koblingsvalg, komponenter, ledigPlass, tre } from './graf';
 import { erstattKropp, festDel, gaInn, gaUt, kobleNyKroppOgVis, leggNyKroppLost } from './handlinger';
 import { finnKroppsmal, kroppsbibliotek, type Kroppsmal } from './kroppsbibliotek';
+import { ferdigMiniatyr, miniatyr } from './miniatyr';
 import {
+  familienavn,
   familieFor,
+  GRENSER,
   formnavn,
   kategorier,
   kategorinavn,
@@ -29,7 +34,9 @@ import {
   tolkParametre,
   type BuildforgeParametre,
   type Form,
+  type Kategori,
   type KlikkerKropp,
+  type Modulkropp,
 } from './parametre';
 import { brukEditor, editor, type Editortilstand } from './tilstand';
 
@@ -150,12 +157,54 @@ function Formliste({ former, e }: { former: Form[]; e: Editortilstand }) {
   );
 }
 
+/** A preview of shapes, drawn once and cached (miniatyr.ts). Decorative: the card has the name. */
+export function Miniatyr({
+  nokkel,
+  former,
+  materiale,
+}: {
+  nokkel: string;
+  former: Form[];
+  materiale: string | ((f: Form) => string);
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [url, settUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const bakgrunn = cssFarge(ref.current, '--grafitt-2', '#2a282e');
+    const klar = ferdigMiniatyr(nokkel, bakgrunn);
+    if (klar) {
+      settUrl(klar);
+      return;
+    }
+    let aktiv = true;
+    void miniatyr(nokkel, former, materiale, bakgrunn).then((u) => aktiv && settUrl(u));
+    return () => {
+      aktiv = false;
+    };
+  }, [nokkel]);
+  return (
+    <span class="bf-miniatyr" ref={ref} aria-hidden="true">
+      {url && <img src={url} alt="" width={160} height={120} draggable={false} />}
+    </span>
+  );
+}
+
+const malFormer = (mal: Kroppsmal): Form[] =>
+  mal.former.map((f, i) => ({ ...f, id: `${mal.id}-${i}`, kropp: mal.id }));
+
+/** Hold still this long on a touch screen before a card can be dragged (ms). */
+const LANGTRYKK = 350;
+
 /**
  * A body part in the library. Mouse: press and drag it into the 3D view.
- * Click, tap, Enter: choose it, then a connector in the list or on the model.
+ * Touch: hold it, then drag (handoff §62). Click, tap, Enter: choose it,
+ * then a connector in the list or on the model.
  */
-function Kroppsknapp({ benk, mal, aktiv }: { benk: Arbeidsbenk; mal: Kroppsmal; aktiv: boolean }) {
-  const ned = useRef<{ x: number; y: number } | null>(null);
+function Kroppskort({ benk, mal, aktiv }: { benk: Arbeidsbenk; mal: Kroppsmal; aktiv: boolean }) {
+  const ned = useRef<{ x: number; y: number; dratt: boolean } | null>(null);
+  const tidsur = useRef(0);
+  const former = useMemo(() => malFormer(mal), [mal]);
   const velg = () => {
     const erstatter = editor.t.erstatter;
     if (erstatter) {
@@ -165,26 +214,59 @@ function Kroppsknapp({ benk, mal, aktiv }: { benk: Arbeidsbenk; mal: Kroppsmal; 
     editor.sett({ plassererKropp: aktiv ? null : mal.id });
   };
   const pekNed = (ev: PointerEvent) => {
-    ned.current = { x: ev.clientX, y: ev.clientY };
-    if (ev.pointerType !== 'mouse' || ev.button !== 0) return;
-    startDra({ type: 'bibliotek', malId: mal.id }, ev, ev.currentTarget as HTMLButtonElement);
+    ned.current = { x: ev.clientX, y: ev.clientY, dratt: false };
+    const el = ev.currentTarget as HTMLButtonElement;
+    if (ev.pointerType === 'mouse') {
+      if (ev.button === 0) startDra({ type: 'bibliotek', malId: mal.id }, ev, el);
+      return;
+    }
+    // touch and pen: a long press arms the drag, and the page must not scroll from then on
+    clearTimeout(tidsur.current);
+    tidsur.current = window.setTimeout(() => {
+      const n = ned.current;
+      if (!n) return;
+      n.dratt = true;
+      el.classList.add('bf-holder');
+      const stopp = (e: TouchEvent) => e.preventDefault();
+      window.addEventListener('touchmove', stopp, { passive: false });
+      const slutt = () => {
+        el.classList.remove('bf-holder');
+        window.removeEventListener('touchmove', stopp);
+        window.removeEventListener('pointerup', slutt, true);
+        window.removeEventListener('pointercancel', slutt, true);
+      };
+      window.addEventListener('pointerup', slutt, true);
+      window.addEventListener('pointercancel', slutt, true);
+      startDra({ type: 'bibliotek', malId: mal.id }, ev, el);
+      benk.melde(`Dra ${mal.navn.toLowerCase()} til modellen.`);
+    }, LANGTRYKK);
+  };
+  const pekFlytt = (ev: PointerEvent) => {
+    const n = ned.current;
+    if (n && !n.dratt && Math.hypot(ev.clientX - n.x, ev.clientY - n.y) > 8) clearTimeout(tidsur.current);
   };
   return (
     <li>
       <button
         type="button"
-        class="bf-del bf-kroppsdel"
+        class="bf-kort"
         aria-pressed={aktiv}
         aria-describedby={`bf-k-${mal.id}`}
         onPointerDown={pekNed}
+        onPointerMove={pekFlytt}
+        onPointerUp={() => clearTimeout(tidsur.current)}
+        onPointerCancel={() => clearTimeout(tidsur.current)}
+        onContextMenu={(ev) => ned.current?.dratt && ev.preventDefault()}
         onClick={(ev) => {
           // a drag ends with a click on the button too; only a click that stayed put chooses
           const n = ned.current;
+          if (n?.dratt) return;
           if (ev.detail > 0 && n && Math.hypot(ev.clientX - n.x, ev.clientY - n.y) > 5) return;
           velg();
         }}
       >
-        {mal.navn}
+        <Miniatyr nokkel={`kropp:${mal.id}@${mal.versjon}`} former={former} materiale={mal.farge} />
+        <span class="bf-kort-navn">{mal.navn}</span>
       </button>
       <span id={`bf-k-${mal.id}`} class="visuelt-skjult">
         {mal.beskrivelse}
@@ -316,7 +398,169 @@ function Modelltre({ benk, p, e }: { benk: Arbeidsbenk; p: BuildforgeParametre; 
   );
 }
 
+/** Tabs at the top of a panel (WAI-ARIA tabs: arrow keys move between them). */
+function Faner<T extends string>({
+  etikett,
+  faner,
+  verdi,
+  endre,
+}: {
+  etikett: string;
+  faner: { id: T; navn: string }[];
+  verdi: T;
+  endre: (v: T) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  return (
+    <div
+      ref={ref}
+      class="bf-faner"
+      role="tablist"
+      aria-label={etikett}
+      onKeyDown={(ev) => {
+        if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
+        ev.preventDefault();
+        const i = faner.findIndex((f) => f.id === verdi);
+        const neste = faner[(i + (ev.key === 'ArrowRight' ? 1 : faner.length - 1)) % faner.length]!;
+        endre(neste.id);
+        requestAnimationFrame(() =>
+          ref.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus(),
+        );
+      }}
+    >
+      {faner.map((f) => (
+        <button
+          key={f.id}
+          type="button"
+          role="tab"
+          id={`bf-fane-${f.id}`}
+          aria-selected={verdi === f.id}
+          aria-controls={`bf-fanepanel-${f.id}`}
+          tabIndex={verdi === f.id ? 0 : -1}
+          onClick={() => endre(f.id)}
+        >
+          {f.navn}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The body-part library: category chips, a search field and cards with previews. */
+function Kroppsbibliotek({ benk, p, e }: { benk: Arbeidsbenk; p: BuildforgeParametre; e: Editortilstand }) {
+  const [kategori, settKategori] = useState<Kategori | 'alle'>('alle');
+  const [sok, settSok] = useState('');
+  const plasserer = e.plassererKropp ? finnKroppsmal(e.plassererKropp) : undefined;
+  const erstatter = e.erstatter ? finnKropp(p, e.erstatter) : undefined;
+  const q = sok.trim().toLowerCase();
+  const synlige = kroppsbibliotek.filter(
+    (m) =>
+      (kategori === 'alle' || m.kategori === kategori) &&
+      (!q || m.navn.toLowerCase().includes(q) || kategorinavn[m.kategori].toLowerCase().includes(q)),
+  );
+  const brukte = kategorier.filter((k) => kroppsbibliotek.some((m) => m.kategori === k));
+  return (
+    <div class="bf-bibliotekfane">
+      {erstatter && (
+        <div class="bf-plassering" role="status">
+          <p class="bf-plassering-tekst">
+            Velg delen som skal erstatte <strong>{erstatter.navn.toLowerCase()}</strong>.
+          </p>
+          <button type="button" class="kontroll-knapp" onClick={() => editor.sett({ erstatter: null })}>
+            Avbryt
+          </button>
+        </div>
+      )}
+      <label class="bf-sok">
+        <span class="visuelt-skjult">Søk i kroppsdeler</span>
+        <input
+          type="search"
+          placeholder="Søk i kroppsdeler"
+          value={sok}
+          onInput={(ev) => settSok((ev.target as HTMLInputElement).value)}
+        />
+      </label>
+      <div class="bf-brikker" role="group" aria-label="Vis kategori">
+        {(['alle', ...brukte] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            class="bf-chip"
+            aria-pressed={kategori === k}
+            onClick={() => settKategori(k)}
+          >
+            {k === 'alle' ? 'Alle' : kategorinavn[k]}
+          </button>
+        ))}
+      </div>
+      {plasserer && <Kroppsplassering benk={benk} p={p} e={e} mal={plasserer} />}
+      {synlige.length ? (
+        <ul class="bf-kort-rutenett" role="list" aria-label="Kroppsdeler">
+          {synlige.map((m) => (
+            <Kroppskort key={m.id} benk={benk} mal={m} aktiv={e.plassererKropp === m.id} />
+          ))}
+        </ul>
+      ) : (
+        <p class="merknad">Ingen kroppsdeler passer søket.</p>
+      )}
+      <p class="merknad">
+        Dra en del til modellen, eller trykk på den og velg en kobling. På berøringsskjerm: hold på delen, så
+        dra. Slipp på en del av samme slag for å bytte den ut.
+      </p>
+    </div>
+  );
+}
+
+/** Inside a part: its connectors, and adding new ones (handoff §32–36). */
+function Koblingsfane({ p, e, kropp }: { p: BuildforgeParametre; e: Editortilstand; kropp: Modulkropp }) {
+  return (
+    <div class="bf-bibliotekfane">
+      <button
+        type="button"
+        class="kontroll-knapp bf-bred-knapp"
+        aria-pressed={e.nyKobling}
+        disabled={kropp.koblinger.length >= GRENSER.maksKoblinger}
+        onClick={() => editor.sett({ nyKobling: !e.nyKobling, valgt: null, kobling: null })}
+      >
+        {e.nyKobling ? 'Avbryt ny kobling' : 'Legg til kobling'}
+      </button>
+      <p class="merknad">
+        {e.nyKobling
+          ? 'Klikk på delen der koblingen skal sitte. Den peker rett ut fra flaten.'
+          : `En del kan ha opptil ${GRENSER.maksKoblinger} koblinger.`}
+      </p>
+      <ul class="bf-objekter" role="list" aria-label={`Koblinger på ${kropp.navn.toLowerCase()}`}>
+        {kropp.koblinger.map((kb) => {
+          const f = forbindelseVed(p, { kropp: kropp.id, kobling: kb.id });
+          const annen = f ? (f.a.kropp === kropp.id ? f.b : f.a) : null;
+          return (
+            <li key={kb.id}>
+              <button
+                type="button"
+                class="bf-objekt"
+                aria-pressed={e.kobling === kb.id}
+                onClick={() => editor.sett({ kobling: e.kobling === kb.id ? null : kb.id, valgt: null })}
+              >
+                <span>{kb.navn}</span>
+                <span class="dempet">
+                  {kb.kjonn === 'hann' ? 'Hann' : 'Hunn'} · {familienavn[kb.familie]} ·{' '}
+                  {annen ? `koblet til ${finnKropp(p, annen.kropp)?.navn.toLowerCase()}` : 'ledig'}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p class="merknad">
+        Hann blir plugg eller kule, hunn blir hull eller sokkel. Geometrien lages bare der to deler er koblet
+        sammen. Målene er prøveverdier som ikke er testprintet.
+      </p>
+    </div>
+  );
+}
+
 function Modulpanel({ benk, p, e }: { benk: Arbeidsbenk; p: BuildforgeParametre; e: Editortilstand }) {
+  const [delfane, settDelfane] = useState<'former' | 'koblinger'>('former');
   const inne = e.inne ? finnKropp(p, e.inne) : undefined;
   if (inne) {
     const former = p.former.filter((f) => f.kropp === inne.id);
@@ -332,70 +576,67 @@ function Modulpanel({ benk, p, e }: { benk: Arbeidsbenk; p: BuildforgeParametre;
             <li aria-current="page">{inne.navn}</li>
           </ol>
         </nav>
-        <button type="button" class="kontroll-knapp" onClick={() => gaUt(benk)}>
+        <Faner
+          etikett={`Innhold i ${inne.navn.toLowerCase()}`}
+          faner={[
+            { id: 'former', navn: 'Former' },
+            { id: 'koblinger', navn: `Koblinger (${inne.koblinger.length})` },
+          ]}
+          verdi={delfane}
+          endre={settDelfane}
+        />
+        <div
+          role="tabpanel"
+          id={`bf-fanepanel-${delfane}`}
+          aria-labelledby={`bf-fane-${delfane}`}
+          class="bf-fanepanel"
+        >
+          {delfane === 'former' ? (
+            <>
+              <LeggTil benk={benk} p={p} e={e} bare={inne.id} />
+              <Panel tittel={`Former i ${inne.navn.toLowerCase()}`}>
+                <ul class="bf-objekter" role="list">
+                  <Formliste former={former} e={e} />
+                </ul>
+                <p class="merknad">Former trekkes unna der leddene dreier og bøyer seg.</p>
+              </Panel>
+            </>
+          ) : (
+            <Koblingsfane p={p} e={e} kropp={inne} />
+          )}
+        </div>
+        <button type="button" class="tekstknapp bf-panelfot" onClick={() => gaUt(benk)}>
           Gå ut av delen (Esc)
         </button>
-        <LeggTil benk={benk} p={p} e={e} bare={inne.id} />
-        <Panel tittel={`Former i ${inne.navn.toLowerCase()}`}>
-          <ul class="bf-objekter" role="list">
-            <li>
-              <span class="bf-laast">
-                Koblinger ({inne.koblinger.length})<span class="mono">Låst</span>
-              </span>
-            </li>
-            <Formliste former={former} e={e} />
-          </ul>
-          <p class="merknad">
-            Koblingene får plugg eller hull når en del er koblet til. Former trekkes unna der leddet dreier.
-          </p>
-        </Panel>
       </div>
     );
   }
-  const plasserer = e.plassererKropp ? finnKroppsmal(e.plassererKropp) : undefined;
-  const erstatter = e.erstatter ? finnKropp(p, e.erstatter) : undefined;
   return (
     <div class="bf-panel">
-      <button
-        type="button"
-        class="kontroll-knapp bf-nystart"
-        onClick={() => editor.sett({ startvelger: true })}
+      <Faner
+        etikett="Venstre panel"
+        faner={[
+          { id: 'bibliotek', navn: 'Bibliotek' },
+          { id: 'modell', navn: 'Modell' },
+        ]}
+        verdi={e.fane}
+        endre={(fane) => editor.sett({ fane })}
+      />
+      <div
+        role="tabpanel"
+        id={`bf-fanepanel-${e.fane}`}
+        aria-labelledby={`bf-fane-${e.fane}`}
+        class="bf-fanepanel"
       >
+        {e.fane === 'bibliotek' ? (
+          <Kroppsbibliotek benk={benk} p={p} e={e} />
+        ) : (
+          <Modelltre benk={benk} p={p} e={e} />
+        )}
+      </div>
+      <button type="button" class="tekstknapp bf-panelfot" onClick={() => editor.sett({ startvelger: true })}>
         Start på nytt …
       </button>
-      <Panel tittel="Kroppsdeler">
-        {erstatter && (
-          <div class="bf-plassering" role="status">
-            <p class="bf-plassering-tekst">
-              Velg delen som skal erstatte <strong>{erstatter.navn.toLowerCase()}</strong>.
-            </p>
-            <button type="button" class="kontroll-knapp" onClick={() => editor.sett({ erstatter: null })}>
-              Avbryt
-            </button>
-          </div>
-        )}
-        {kategorier.map((kat) => {
-          const deler = kroppsbibliotek.filter((m) => m.kategori === kat);
-          if (!deler.length) return null;
-          return (
-            <div key={kat}>
-              <h3 class="bf-kropp-tittel">{kategorinavn[kat]}</h3>
-              <ul class="bf-bibliotek" role="list">
-                {deler.map((m) => (
-                  <Kroppsknapp key={m.id} benk={benk} mal={m} aktiv={e.plassererKropp === m.id} />
-                ))}
-              </ul>
-            </div>
-          );
-        })}
-        {plasserer && <Kroppsplassering benk={benk} p={p} e={e} mal={plasserer} />}
-        <p class="merknad">
-          Dra en del til modellen. Den fester seg til nærmeste kobling som passer. Høyreklikk eller C mens du
-          drar bytter kobling. Slipp på en del av samme slag, for eksempel en arm på en arm, for å bytte den
-          ut.
-        </p>
-      </Panel>
-      <Modelltre benk={benk} p={p} e={e} />
     </div>
   );
 }
