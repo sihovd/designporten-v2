@@ -37,6 +37,12 @@ export interface SvgKilde {
   filnavn: string;
   /** How the source's fill rule should be applied. */
   fyllregel: 'nonzero' | 'evenodd';
+  /** Holes in the vector: kept as holes (default) or filled so only the silhouette is left. */
+  hull?: 'behold' | 'fyll';
+  /** The gallery element it came from; a CSV column can swap it for another one. */
+  dekorId?: string;
+  /** Marks the vector as a batch variable (CSV column name): the cell names the gallery element. */
+  felt?: string;
 }
 
 export interface FormKilde {
@@ -127,6 +133,11 @@ export interface Lag {
   omriss?: Omriss[];
   /** Sign Forge: the text stands up («normal») or is cut out of the outlines («kutt»). */
   tekstvisning?: 'normal' | 'kutt';
+  /**
+   * Sign Forge: the layer starts at the same Z as the layer under it instead of on top of it, so
+   * parts of different colours can lie side by side (a horse with a mane in another colour).
+   */
+  sammeNivaa?: boolean;
 }
 
 export interface Plate {

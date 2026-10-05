@@ -4,11 +4,21 @@
  * label, and reports what happened to the live region.
  */
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { finnLag, objekterILag, type LagId, type Objekt, type ObjektKilde } from '../../core/dokument';
+import {
+  finnLag,
+  objekterILag,
+  type Dokument,
+  type Lag,
+  type LagId,
+  type Objekt,
+  type ObjektKilde,
+  type SvgKilde,
+} from '../../core/dokument';
 import type { Transform2D } from '../../core/geometri2d';
 import { slaSammen, tomBoks, erTom, type Boks } from '../../core/geometri2d';
 import {
   dupliserObjekter,
+  ledigNavn,
   ledigTekstlagnavn,
   leggTilLag,
   leggTilLagNederst,
@@ -23,8 +33,12 @@ import {
   slettObjekter,
   standardNavn,
 } from './dokument';
+import { finnMateriale } from '../../core/materialer';
+import { narmesteFarge } from './fargeprofiler';
 import { modellBoks, verdensBoks } from './modell';
-import { importerSvg, SvgFeil } from './svgimport';
+import type { Flerfarget, SvgDeler } from './svgdeler';
+import { delerTilKilde, lesSvgDeler, SvgFeil } from './svgimport';
+import { signtilstand } from './tilstand';
 
 export function valgte(benk: Arbeidsbenk): Objekt[] {
   const d = benk.dok;
@@ -63,10 +77,13 @@ export function aktivtLag(benk: Arbeidsbenk): LagId | null {
 }
 
 /**
- * Where a new object goes. Text gets a text layer of its own (above the
- * active layer), unless the active layer is an empty text layer. Shapes
- * and SVGs go into the active layer, or, when that is a text layer, into
- * the nearest plain layer below it (a new one above it if there is none).
+ * Where a new object goes. With a text layer selected, new text joins it
+ * and is grouped with what is already there; with anything else selected
+ * it gets a text layer of its own (above the active layer). To get a
+ * second, separate text layer, make a new layer first (Sivert,
+ * 2026-10-05). Shapes and SVGs go into the active layer, or, when that is
+ * a text layer, into the nearest plain layer below it (a new one above it
+ * if there is none).
  */
 function malFor(
   benk: Arbeidsbenk,
@@ -77,9 +94,8 @@ function malFor(
   if (!id && d.lag.length) return null;
   const aktiv = id ? finnLag(d, id) : undefined;
   if (kilde.type === 'tekst') {
-    if (aktiv?.tekstlag && !d.rekkefolge[aktiv.id]?.length) return { lagId: aktiv.id };
-    const farge = aktiv?.tekstlag ? aktiv.materialId : (palett(d)[0] ?? 'pla-kritthvit');
-    const nytt = nyttTekstlag(ledigTekstlagnavn(d), farge, aktiv?.tekstlag ? aktiv.hoyde : 1.5);
+    if (aktiv?.tekstlag) return { lagId: aktiv.id };
+    const nytt = nyttTekstlag(ledigTekstlagnavn(d), palett(d)[0] ?? 'pla-kritthvit', 1.5);
     return { lagId: nytt.id, nytt };
   }
   if (aktiv && !aktiv.tekstlag) return { lagId: aktiv.id };
@@ -281,59 +297,251 @@ export function nyttLagRundtTeksten(benk: Arbeidsbenk): void {
 
 export type Svgrolle = 'ramme' | 'pynt';
 
-/**
- * Import an SVG into a layer of its own: as a frame under the sign,
- * sized to go round it, or as a decoration above the active layer.
- */
-export async function importerSvgSom(benk: Arbeidsbenk, fil: File, rolle: Svgrolle): Promise<void> {
-  if (fil.size > 5 * 1024 * 1024) {
-    benk.melde('SVG-filen er større enn 5 MB.');
-    return;
+/** An SVG file read into its parts; null (with a message) when it cannot be read. */
+export async function lesSvgFil(benk: Arbeidsbenk, fil: File, maksMb = 5): Promise<SvgDeler | null> {
+  if (fil.size > maksMb * 1024 * 1024) {
+    benk.melde(`SVG-filen er større enn ${maksMb} MB.`);
+    return null;
   }
-  let r: ReturnType<typeof importerSvg>;
   try {
-    r = importerSvg(await fil.text(), fil.name);
+    return lesSvgDeler(await fil.text(), fil.name);
   } catch (e) {
     benk.melde(e instanceof SvgFeil ? e.message : 'SVG-filen kunne ikke leses.');
-    return;
+    return null;
   }
+}
+
+const filnavnUtenSvg = (navn: string) => navn.replace(/\.svg$/i, '');
+
+/**
+ * A frame: an SVG in a layer under the sign, sized to go round it with a
+ * margin and the proportions kept.
+ */
+function leggTilRamme(
+  benk: Arbeidsbenk,
+  navn: string,
+  r: { kilde: SvgKilde; bredde: number; hoyde: number },
+  farge?: string,
+  ekstra?: string,
+): void {
   const d = benk.dok;
   const plate = Math.min(d.plate.bredde, d.plate.dybde) * 0.8;
   const skilt = modellBoks(d);
   let s: number;
   let x = 0;
   let y = 0;
-  if (rolle === 'ramme' && skilt) {
-    // big enough to go round the sign with a margin, proportions kept
+  if (skilt) {
     const b = skilt.maksX - skilt.minX + 2 * RAMMEMARG;
     const h = skilt.maksY - skilt.minY + 2 * RAMMEMARG;
     s = Math.max(b / r.bredde, h / r.hoyde);
     x = (skilt.minX + skilt.maksX) / 2;
     y = (skilt.minY + skilt.maksY) / 2;
   } else {
-    // a decoration: about a third of the sign's height, or 30 mm
-    const maal = skilt ? Math.max(10, (skilt.maksY - skilt.minY) / 3) : 30;
-    s = maal / Math.max(r.bredde, r.hoyde);
+    s = 30 / Math.max(r.bredde, r.hoyde);
+  }
+  s = Math.min(s, plate / Math.max(r.bredde, r.hoyde));
+  const lag = nyttLag('Ramme', farge || nesteFarge(d), 2);
+  const o = nyttObjekt(lag.id, r.kilde, { skalaX: s, skalaY: s, x, y });
+  benk.endre({ navn: 'SVG som ramme', anvend: (x0) => leggTilObjekt(leggTilLagNederst(x0, lag), o) });
+  benk.velg({ lag: lag.id, objekter: [o.id] });
+  const deler = [`«${navn}» er lagt inn som ramme under skiltet`];
+  if (ekstra) deler.push(ekstra);
+  benk.melde(`${deler.join('. ')}.`);
+}
+
+/**
+ * Put an SVG on the sign, as a frame under it or as a decoration. A file
+ * with several parts opens the part picker first.
+ */
+export async function importerSvgSom(benk: Arbeidsbenk, fil: File, rolle: Svgrolle): Promise<void> {
+  const deler = await lesSvgFil(benk, fil);
+  if (!deler) return;
+  behandleSvg(benk, deler, rolle, 'skilt');
+}
+
+/**
+ * A file with two or more parts is shown in the part picker, where the user
+ * keeps some of them, colours them, puts them on the sign or saves them in
+ * the gallery. A file in one piece goes straight on.
+ */
+export function behandleSvg(
+  benk: Arbeidsbenk,
+  deler: SvgDeler,
+  rolle: Svgrolle,
+  opphav: 'skilt' | 'galleri',
+): 'apnet' | 'lagt-inn' | 'feil' {
+  const navn = filnavnUtenSvg(deler.filnavn);
+  if (deler.deler.length >= 2) {
+    // opened from the gallery, the gallery steps aside and comes back when the picker closes
+    signtilstand(benk).sett({
+      svgdeler: { deler, rolle, opphav },
+      ...(opphav === 'galleri' ? { dekor: false } : {}),
+    });
+    return 'apnet';
+  }
+  const r = delerTilKilde(deler, deler.filnavn);
+  if (!r) {
+    benk.melde('Formene i SVG-en har ingen flate.');
+    return 'feil';
+  }
+  const ekstra = deler.hoppetOver.length ? `Hoppet over: ${deler.hoppetOver.join(', ')}` : undefined;
+  if (rolle === 'ramme') leggTilRamme(benk, navn, r, undefined, ekstra);
+  else leggTilDekor(benk, navn, r, 'eget', { ekstra });
+  return 'lagt-inn';
+}
+
+// ---------- decoration gallery (Sivert, 2026-10-05) ----------
+
+export type Dekorplass = 'gruppe' | 'eget';
+
+/** The text layer a decoration would be grouped with: the selected one, else the only one. */
+export function tekstlagForDekor(benk: Arbeidsbenk): Lag | null {
+  const d = benk.dok;
+  const aktiv = benk.tilstand.utvalg.lag ? finnLag(d, benk.tilstand.utvalg.lag) : undefined;
+  if (aktiv?.tekstlag && !aktiv.last && aktiv.synlig) return aktiv;
+  const alle = d.lag.filter((l) => l.tekstlag && !l.last && l.synlig);
+  return alle.length === 1 ? alle[0]! : null;
+}
+
+/**
+ * Put a gallery element (or any vector) on the sign. «gruppe» adds it to
+ * the text layer, so it shares the text's outlines and sits beside the
+ * text; «eget» gives it a layer of its own above the active layer, to
+ * place and colour freely. Both can be changed later by dragging it in
+ * the layers panel.
+ */
+export function leggTilDekor(
+  benk: Arbeidsbenk,
+  navn: string,
+  r: { kilde: SvgKilde; bredde: number; hoyde: number },
+  plass: Dekorplass,
+  valg: { farge?: string; ekstra?: string } = {},
+): void {
+  const d = benk.dok;
+  const tekstlag = plass === 'gruppe' ? tekstlagForDekor(benk) : null;
+  const skilt = modellBoks(d);
+  const storste = Math.max(r.bredde, r.hoyde);
+  let maal: number;
+  let x = 0;
+  let y = 0;
+  if (tekstlag) {
+    // beside the text group, as tall as the text, a little apart
+    const bokser = objekterILag(d, tekstlag.id)
+      .filter((o) => o.synlig)
+      .map(verdensBoks);
+    const gruppe = bokser.reduce(slaSammen, tomBoks());
+    const hoyde = erTom(gruppe) ? 14 : gruppe.maksY - gruppe.minY;
+    maal = Math.min(40, Math.max(10, hoyde * 1.3));
+    if (!erTom(gruppe)) {
+      x = gruppe.maksX + 3 + maal / 2;
+      y = (gruppe.minY + gruppe.maksY) / 2;
+    }
+  } else {
+    maal = skilt ? Math.max(10, (skilt.maksY - skilt.minY) / 3) : 30;
     if (skilt) {
       x = skilt.maksX - maal / 2;
       y = skilt.maksY - maal / 2;
     }
   }
-  s = Math.min(s, plate / Math.max(r.bredde, r.hoyde));
-  const lag = nyttLag(rolle === 'ramme' ? 'Ramme' : 'Pynt', nesteFarge(d), rolle === 'ramme' ? 2 : 1);
-  const o = nyttObjekt(lag.id, r.kilde, { skalaX: s, skalaY: s, x, y });
+  const plate = Math.min(d.plate.bredde, d.plate.dybde) * 0.8;
+  const s = Math.min(maal, plate) / storste;
+  const lagNavn = ledigNavn(d, 'Pynt');
+  const nyttPynt = tekstlag ? null : nyttLag(lagNavn, tilPalett(d, valg.farge), 1);
+  const lagId = tekstlag ? tekstlag.id : nyttPynt!.id;
+  const o = nyttObjekt(lagId, r.kilde, { skalaX: s, skalaY: s, x, y }, navn);
   const over = benk.tilstand.utvalg.lag ?? undefined;
   benk.endre({
-    navn: rolle === 'ramme' ? 'SVG som ramme' : 'SVG som pynt',
-    anvend: (x0) =>
-      leggTilObjekt(rolle === 'pynt' ? leggTilLag(x0, lag, over) : leggTilLagNederst(x0, lag), o),
+    navn: `Legg til dekor ${navn}`,
+    anvend: (x0) => leggTilObjekt(nyttPynt ? leggTilLag(x0, nyttPynt, over) : x0, o),
   });
-  benk.velg({ lag: lag.id, objekter: [o.id] });
-  const deler = [
-    rolle === 'ramme'
-      ? `«${fil.name}» er lagt inn som ramme under skiltet`
-      : `«${fil.name}» er lagt inn som pynt i et eget lag`,
-  ];
-  if (r.hoppetOver.length) deler.push(`Hoppet over: ${r.hoppetOver.join(', ')}`);
-  benk.melde(`${deler.join('. ')}.`);
+  benk.velg({ lag: lagId, objekter: [o.id] });
+  const melding = tekstlag
+    ? `${navn} er lagt til i «${tekstlag.navn}» og får samme omriss som teksten`
+    : `${navn} er lagt til i et eget lag, «${lagNavn}»`;
+  benk.melde(`${valg.ekstra ? `${melding}. ${valg.ekstra}` : melding}.`);
+}
+
+/** A filament in the sign's colour profile: the one asked for, else the closest to it, else the next unused. */
+function tilPalett(d: Dokument, farge?: string): string {
+  if (!farge) return nesteFarge(d);
+  const p = palett(d);
+  return p.length ? narmesteFarge(farge, p) : farge;
+}
+
+/**
+ * Put a picture on the sign as a decoration, in its colours. One colour
+ * goes where a gallery element goes (into the text layer or a layer of its
+ * own); several colours get a layer each, at the same height, lying side by
+ * side so they print as one coloured picture. A frame is one colour.
+ */
+export function leggTilFlerfarget(
+  benk: Arbeidsbenk,
+  ff: Flerfarget,
+  rolle: Svgrolle,
+  plass: Dekorplass,
+  ekstra?: string,
+): void {
+  const g0 = ff.grupper[0];
+  if (!g0) return;
+  if (rolle === 'ramme' || ff.grupper.length === 1) {
+    const farge = g0.farge || undefined;
+    if (rolle === 'ramme')
+      leggTilRamme(benk, ff.navn, g0, farge ? tilPalett(benk.dok, farge) : undefined, ekstra);
+    else leggTilDekor(benk, ff.navn, g0, plass, { farge, ekstra });
+    return;
+  }
+  const d = benk.dok;
+  const skilt = modellBoks(d);
+  const maal = skilt ? Math.max(10, (skilt.maksY - skilt.minY) / 3) : 30;
+  const x = skilt ? skilt.maksX - maal / 2 : 0;
+  const y = skilt ? skilt.maksY - maal / 2 : 0;
+  const plate = Math.min(d.plate.bredde, d.plate.dybde) * 0.8;
+  const s = Math.min(maal, plate) / Math.max(ff.bredde, ff.hoyde);
+  const grunn = ledigNavn(d, ff.navn);
+  const over = benk.tilstand.utvalg.lag ?? undefined;
+  const lag: Lag[] = [];
+  const objekter: Objekt[] = [];
+  ff.grupper.forEach((g, i) => {
+    const materialId = tilPalett(d, g.farge || undefined);
+    const navn = finnMateriale(materialId).navn;
+    const l = { ...nyttLag(`${grunn} · ${navn}`, materialId, 1), sammeNivaa: i > 0 };
+    lag.push(l);
+    objekter.push(
+      nyttObjekt(
+        l.id,
+        g.kilde,
+        { skalaX: s, skalaY: s, x: x + g.dx * s, y: y + g.dy * s },
+        `${ff.navn} · ${navn}`,
+      ),
+    );
+  });
+  benk.endre({
+    navn: `Legg til ${ff.navn}`,
+    anvend: (x0) => {
+      let dok = x0;
+      lag.forEach((l, i) => {
+        dok = leggTilLag(dok, l, i === 0 ? over : lag[i - 1]!.id);
+      });
+      for (const o of objekter) dok = leggTilObjekt(dok, o);
+      return dok;
+    },
+  });
+  benk.velg({ lag: lag[0]!.id, objekter: objekter.map((o) => o.id) });
+  const meldinger = [`${ff.navn} er lagt til i ${lag.length} lag, ett per farge, på samme nivå`];
+  if (ekstra) meldinger.push(ekstra);
+  benk.melde(`${meldinger.join('. ')}.`);
+}
+
+/**
+ * An empty text layer above the selected layer. Text written while it is
+ * selected goes into it, apart from the other text layers (Sivert,
+ * 2026-10-05: a new layer is a separate layer).
+ */
+export function nyttTomtTekstlag(benk: Arbeidsbenk): void {
+  const d = benk.dok;
+  const lag = nyttTekstlag(ledigTekstlagnavn(d), nesteFarge(d), 1.5);
+  const over = benk.tilstand.utvalg.lag ?? undefined;
+  benk.endre({ navn: 'Nytt tekstlag', anvend: (x) => leggTilLag(x, lag, over) });
+  benk.velg({ lag: lag.id, objekter: [] });
+  benk.melde(`«${lag.navn}» er lagt til. Tekst du skriver nå havner her, atskilt fra de andre tekstene.`);
 }

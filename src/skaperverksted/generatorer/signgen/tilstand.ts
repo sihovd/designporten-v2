@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Boks, Vec2 } from '../../core/geometri2d';
+import type { SvgDeler } from './svgdeler';
 
 export type VerktoyId = 'velg' | 'tekst' | 'rektangel' | 'ellipse' | 'polygon' | 'hull' | 'mal' | 'panorer';
 
@@ -15,6 +16,15 @@ export interface Hjelpelinje {
   verdi: number;
   fra: number;
   til: number;
+}
+
+/** An imported SVG with several parts, waiting in the part picker. */
+export interface SvgOppgave {
+  deler: SvgDeler;
+  /** Where it goes if put on the sign. */
+  rolle: 'ramme' | 'pynt';
+  /** The picker was opened from the sign or from the decoration gallery. */
+  opphav: 'skilt' | 'galleri';
 }
 
 export interface Signtilstand {
@@ -30,6 +40,12 @@ export interface Signtilstand {
   omriss: string | null;
   /** The colour profile window is open (it also opens by itself for a new sign). */
   fargeprofil: boolean;
+  /** The decoration gallery is open. */
+  dekor: boolean;
+  /** The CSV window («Lag skilt fra CSV») is open. */
+  batch: boolean;
+  /** The SVG part picker is open for this file. */
+  svgdeler: SvgOppgave | null;
 }
 
 class Lager {
@@ -42,6 +58,9 @@ class Lager {
     maletikett: null,
     omriss: null,
     fargeprofil: false,
+    dekor: false,
+    batch: false,
+    svgdeler: null,
   };
   private lyttere = new Set<(t: Signtilstand) => void>();
   constructor(private benk: Arbeidsbenk) {}

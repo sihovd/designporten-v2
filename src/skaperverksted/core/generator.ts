@@ -140,7 +140,7 @@ export interface GeneratorPlugin {
    * Generator rules for the export review (optional). Without it every
    * model can be downloaded as one 3MF and one combined STL.
    */
-  eksport?: (dok: Dokument, modell: Modellresultat) => Eksportregler;
+  eksport?: (dok: Dokument, modell: Modellresultat, benk?: Arbeidsbenk) => Eksportregler;
 }
 
 export interface Eksportregler {
@@ -152,4 +152,6 @@ export interface Eksportregler {
   stlPerDel?: boolean;
   /** A file that belongs with the export, built from the same model (for example a control report). */
   vedlegg?: { navn: string; filnavn: string; innhold: string; type: string };
+  /** Other ways to export, as buttons next to the downloads (for example «Eksporter via CSV»). */
+  handlinger?: { navn: string; hjelp?: string; kjor: () => void }[];
 }

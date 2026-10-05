@@ -11,6 +11,7 @@ import {
   type LagPavirkning,
   type Objekt,
   type Omriss,
+  type SvgKilde,
   type TekstKilde,
 } from '../../core/dokument';
 import { finnMateriale, materialer, standardPrinter } from '../../core/materialer';
@@ -29,7 +30,8 @@ import {
   leggTilFarge,
   palett,
   grupperTekst,
-  losUtTekst,
+  losUtObjekt,
+  kanLiggeI,
   oppdaterOmriss,
   slettOmriss,
   ordne,
@@ -41,7 +43,6 @@ import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinge
 import { brukSigntilstand, signtilstand } from './tilstand';
 import { nyttOmrissI } from './Lagpanel';
 import { Profilredigerer } from './Profilredigerer';
-import { Batchdialog } from './Batch';
 import { plangrenser } from '../../core/plangrenser';
 
 const PROFILER: { id: Exclude<ProfilType, 'egendefinert'> | 'egendefinert'; navn: string }[] = [
@@ -335,7 +336,34 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
           />
         )}
         {o.kilde.type === 'form' && o.kilde.form === 'hull' && <Hullvalg benk={benk} o={o} endre={endre} />}
-        {o.kilde.type === 'svg' && <p class="merknad">Importert fra «{o.kilde.filnavn}».</p>}
+        {o.kilde.type === 'svg' && (
+          <>
+            <p class="merknad">
+              {o.kilde.dekorId ? `Dekor: ${o.kilde.filnavn}.` : `Importert fra «${o.kilde.filnavn}».`}
+            </p>
+            <div class="felt">
+              <span>Hull i vektoren</span>
+              <Segment
+                etikett="Hull i vektoren"
+                valg={[
+                  { id: 'behold', navn: 'Behold hull' },
+                  { id: 'fyll', navn: 'Fyll igjen' },
+                ]}
+                verdi={o.kilde.hull ?? 'behold'}
+                endre={(v) =>
+                  endre(v === 'fyll' ? 'Fyll hull i vektor' : 'Behold hull i vektor', (x) => ({
+                    ...x,
+                    kilde: { ...(x.kilde as SvgKilde), hull: v },
+                  }))
+                }
+              />
+            </div>
+            <p class="merknad">
+              «Behold hull» lar åpningene i vektoren stå åpne. «Fyll igjen» gir bare silhuetten. Vil du skjære
+              vektoren ut av et lag, velg «Kutter» under Rolle.
+            </p>
+          </>
+        )}
       </Panel>
 
       <Panel tittel="Plassering og størrelse">
@@ -420,7 +448,9 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
 
       <Panel tittel="Lag og rolle">
         <label class="felt" for="signgen-objektlag">
-          <span>{o.kilde.type === 'tekst' ? 'Tekstlag' : 'Lag'}</span>
+          <span>
+            {o.kilde.type === 'tekst' ? 'Tekstlag' : o.kilde.type === 'svg' ? 'Lag eller gruppe' : 'Lag'}
+          </span>
           <select
             id="signgen-objektlag"
             value={o.lagId}
@@ -431,7 +461,7 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
                 benk.endre({
                   navn: 'Løs ut av gruppen',
                   anvend: (d) => {
-                    const r = losUtTekst(d, o.id);
+                    const r = losUtObjekt(d, o.id);
                     ny = r.lagId;
                     return r.dok;
                   },
@@ -445,8 +475,8 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
           >
             {[...t.dok.lag]
               .reverse()
-              // text lives in text layers, everything else in plain layers
-              .filter((l) => l.id === o.lagId || !!l.tekstlag === (o.kilde.type === 'tekst'))
+              // text lives in text layers, a vector in any layer, shapes in plain layers
+              .filter((l) => l.id === o.lagId || kanLiggeI(o, l))
               .map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.navn}
@@ -456,6 +486,7 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
             {o.kilde.type === 'tekst' && iGruppe && (
               <option value={EGET}>Eget tekstlag (løs ut av gruppen)</option>
             )}
+            {o.kilde.type === 'svg' && iGruppe && <option value={EGET}>Eget lag (løs ut av gruppen)</option>}
           </select>
         </label>
         {o.kilde.type === 'tekst' && !lagForObjekt?.tekstlag && (
@@ -510,6 +541,33 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
             Slett
           </button>
         </div>
+        {o.kilde.type === 'svg' && (
+          <label class="felt" for="signgen-felt">
+            <span>Batchfelt (dekor)</span>
+            <input
+              id="signgen-felt"
+              type="text"
+              placeholder="f.eks. dekor"
+              value={o.kilde.felt ?? ''}
+              onChange={(e) => {
+                const v = (e.target as HTMLInputElement).value
+                  .trim()
+                  .toLowerCase()
+                  .replace(/[^a-z0-9æøå_-]/g, '');
+                endre('Batchfelt', (x) => ({
+                  ...x,
+                  kilde: { ...(x.kilde as SvgKilde), felt: v || undefined },
+                }));
+              }}
+            />
+          </label>
+        )}
+        {o.kilde.type === 'svg' && o.kilde.felt && (
+          <p class="merknad">
+            I CSV-filen skriver du navnet på dekoret i kolonnen «{o.kilde.felt}», for eksempel «Hest». Tom
+            celle eller «ingen» lar skiltet være uten dekor.
+          </p>
+        )}
         {tekst && (
           <label class="felt" for="signgen-felt">
             <span>Batchfelt</span>
@@ -677,6 +735,27 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
           deaktivert={auto}
           endre={(v) => endre('Lagets Z', { zBunn: v })}
         />
+        {auto && t.dok.lag[0]?.id !== lag.id && (
+          <>
+            <label class="avkryssing">
+              <input
+                type="checkbox"
+                checked={!!lag.sammeNivaa}
+                onChange={() =>
+                  endre(lag.sammeNivaa ? 'Stable laget oppå' : 'Legg laget på samme nivå', {
+                    sammeNivaa: !lag.sammeNivaa,
+                  })
+                }
+              />{' '}
+              Samme nivå som laget under
+            </label>
+            <p class="merknad">
+              {lag.sammeNivaa
+                ? 'Laget starter på samme Z som laget under, så delene kan ligge side om side i hver sin farge.'
+                : 'Laget stables oppå laget under. Kryss av for å legge delene side om side i hver sin farge.'}
+            </p>
+          </>
+        )}
         {auto && (
           <p class="merknad">
             Z følger lagrekkefølgen. Slå av «Stable lagene automatisk» under Prosjekt for å sette Z selv.
@@ -1013,10 +1092,13 @@ function OmrissBlokk({ benk, lag, o, i }: { benk: Arbeidsbenk; lag: Lag; o: Omri
  * cover the text, and the text's height does not change theirs.
  */
 function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
+  const st = brukSigntilstand(benk);
   const omriss = lag.omriss ?? [];
+  // an outline chosen in the layers panel is the only one shown, and the only one changed
+  const valgt = omriss.find((o) => o.id === st.omriss);
   return (
     <Panel
-      tittel="Omriss rundt teksten"
+      tittel={valgt ? `Omriss: ${valgt.navn}` : 'Omriss rundt teksten'}
       handling={
         <button
           type="button"
@@ -1034,12 +1116,22 @@ function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
           og farge.
         </p>
       )}
-      {omriss.map((o, i) => (
-        <OmrissBlokk key={o.id} benk={benk} lag={lag} o={o} i={i} />
-      ))}
+      {omriss.map((o, i) =>
+        valgt && valgt.id !== o.id ? null : <OmrissBlokk key={o.id} benk={benk} lag={lag} o={o} i={i} />,
+      )}
+      {valgt && omriss.length > 1 && (
+        <button
+          type="button"
+          class="kontroll-knapp"
+          onClick={() => signtilstand(benk).sett({ omriss: null })}
+        >
+          Vis alle omrissene
+        </button>
+      )}
       {omriss.length > 0 && (
         <p class="merknad">
           Innerst først. Omrissene starter på samme høyde som teksten. Grupperte tekster deler omrissene.
+          {valgt ? ' Endringene gjelder bare omrisset du har valgt i lagpanelet.' : ''}
         </p>
       )}
     </Panel>
@@ -1118,17 +1210,15 @@ function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
 }
 
 function BatchInngang({ benk }: { benk: Arbeidsbenk }) {
-  const [apen, settApen] = useState(false);
   if (!plangrenser.csvBatch) return null;
   return (
     <Panel tittel="Mange skilt">
       <p class="tom-melding">
         Lag ett skilt per rad i en CSV-fil, for eksempel navneskilt til et arrangement.
       </p>
-      <button type="button" class="kontroll-knapp" onClick={() => settApen(true)}>
+      <button type="button" class="kontroll-knapp" onClick={() => signtilstand(benk).sett({ batch: true })}>
         Lag skilt fra CSV …
       </button>
-      {apen && <Batchdialog benk={benk} lukk={() => settApen(false)} />}
     </Panel>
   );
 }

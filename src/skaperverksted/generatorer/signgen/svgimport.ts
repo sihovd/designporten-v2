@@ -7,7 +7,9 @@
 import type { SvgKilde } from '../../core/dokument';
 import { multipliser, anvend, type Matrise } from '../../core/geometri2d';
 import { stiTilRinger, StiFeil } from '../../geometri/stidata';
-import { regionFraRinger, regionBoks } from '../../geometri/polygon';
+import { regionFraRinger, unionAlle, type Region } from '../../geometri/polygon';
+import { kildeFraRegion } from './svgkilde';
+import { lagDeler, tolkFarge, type SvgDeler } from './svgdeler';
 
 export class SvgFeil extends Error {}
 
@@ -122,8 +124,18 @@ export interface SvgResultat {
   hoppetOver: string[];
 }
 
-/** Parse an SVG file's text into a normalised SvgKilde. Throws SvgFeil. */
-export function importerSvg(tekst: string, filnavn: string): SvgResultat {
+/** The fill a shape was drawn with: its own, else the one it inherits from its groups. */
+function fyllFra(el: Element, arvet: string | null): string | null {
+  const stil = /(?:^|;)\s*fill\s*:\s*([^;]+)/.exec(el.getAttribute('style') ?? '')?.[1];
+  const verdi = stil ?? el.getAttribute('fill');
+  return verdi === null || verdi === undefined ? arvet : tolkFarge(verdi);
+}
+
+/**
+ * Read an SVG file's text into its parts: every filled shape, split into its
+ * separate pieces, in the order they are painted. Throws SvgFeil.
+ */
+export function lesSvgDeler(tekst: string, filnavn: string): SvgDeler {
   const doc = new DOMParser().parseFromString(tekst, 'image/svg+xml');
   const rot = doc.documentElement;
   if (!rot || rot.localName !== 'svg' || doc.querySelector('parsererror')) {
@@ -146,9 +158,9 @@ export function importerSvg(tekst: string, filnavn: string): SvgResultat {
   }
 
   const hoppetOver = new Set<string>();
-  const ringer: ReturnType<typeof transformerteRinger> = [];
-  let fyllregel: 'nonzero' | 'evenodd' = 'nonzero';
-  const besok = (el: Element, m: Matrise) => {
+  // each shape is resolved with the fill rule it was drawn with, so holes made either way survive
+  const elementer: { region: Region; fyll: string | null }[] = [];
+  const besok = (el: Element, m: Matrise, arvet: string | null) => {
     const mm_ = multipliser(m, tolkTransform(el.getAttribute('transform')));
     const navn = el.localName;
     if (
@@ -168,7 +180,8 @@ export function importerSvg(tekst: string, filnavn: string): SvgResultat {
       return;
     if (el.getAttribute('display') === 'none') return;
     if (navn === 'svg' || navn === 'g' || navn === 'a') {
-      for (const b of el.children) besok(b, mm_);
+      const fyll = fyllFra(el, arvet);
+      for (const b of el.children) besok(b, mm_, fyll);
       return;
     }
     if (navn === 'line') {
@@ -185,14 +198,12 @@ export function importerSvg(tekst: string, filnavn: string): SvgResultat {
       hoppetOver.add('former uten fyll (bare strek)');
       return;
     }
-    if (
+    const jevnOdd =
       (el.getAttribute('fill-rule') ?? '').trim() === 'evenodd' ||
-      /fill-rule\s*:\s*evenodd/.test(el.getAttribute('style') ?? '')
-    ) {
-      fyllregel = 'evenodd';
-    }
+      /fill-rule\s*:\s*evenodd/.test(el.getAttribute('style') ?? '');
     try {
-      ringer.push(...transformerteRinger(d, mm_));
+      const region = regionFraRinger(transformerteRinger(d, mm_), jevnOdd ? 'evenodd' : 'nonzero');
+      if (region.length) elementer.push({ region, fyll: fyllFra(el, arvet) });
     } catch (e) {
       if (e instanceof StiFeil) hoppetOver.add('ugyldige stier');
       else throw e;
@@ -201,26 +212,20 @@ export function importerSvg(tekst: string, filnavn: string): SvgResultat {
   const start: Matrise = [skala, 0, 0, -skala, 0, 0]; // SVG y down → y up, user units → mm
   const vbX = vb.length === 4 ? vb[0]! : 0;
   const vbY = vb.length === 4 ? vb[1]! : 0;
-  besok(rot, multipliser(start, [1, 0, 0, 1, -vbX, -vbY]));
-  if (!ringer.length) throw new SvgFeil('Fant ingen fylte former i SVG-en.');
-
-  const region = regionFraRinger(ringer, fyllregel);
-  if (!region.length) throw new SvgFeil('Formene i SVG-en har ingen flate.');
-  const b = regionBoks(region);
-  const cx = (b.minX + b.maksX) / 2,
-    cy = (b.minY + b.maksY) / 2;
-  // store the normalised outline (already flattened) as compact path data
-  const stier = region.map((f) =>
-    [f.ytre, ...f.hull]
-      .map((r) => `M${r.map((p) => `${rund3(p.x - cx)} ${rund3(p.y - cy)}`).join('L')}Z`)
-      .join(''),
-  );
-  return {
-    kilde: { type: 'svg', stier, filnavn, fyllregel: 'nonzero' },
-    bredde: b.maksX - b.minX,
-    hoyde: b.maksY - b.minY,
-    hoppetOver: [...hoppetOver],
-  };
+  besok(rot, multipliser(start, [1, 0, 0, 1, -vbX, -vbY]), null);
+  if (!elementer.length) throw new SvgFeil('Fant ingen fylte former i SVG-en.');
+  return lagDeler(filnavn, elementer, [...hoppetOver]);
 }
 
-const rund3 = (v: number) => Math.round(v * 1000) / 1000;
+/** Parse an SVG file's text into one normalised SvgKilde (all parts together). Throws SvgFeil. */
+export function importerSvg(tekst: string, filnavn: string): SvgResultat {
+  const r = delerTilKilde(lesSvgDeler(tekst, filnavn), filnavn);
+  if (!r) throw new SvgFeil('Formene i SVG-en har ingen flate.');
+  return r;
+}
+
+/** Every part of a file joined into one vector. */
+export function delerTilKilde(deler: SvgDeler, filnavn: string): SvgResultat | null {
+  const r = kildeFraRegion(unionAlle(deler.deler.map((d) => d.region)), filnavn);
+  return r ? { kilde: r.kilde, bredde: r.bredde, hoyde: r.hoyde, hoppetOver: deler.hoppetOver } : null;
+}

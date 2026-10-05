@@ -219,11 +219,22 @@ export function nyttSigngenDokument(farger: string[] = STANDARD_PROFIL.farger): 
 /** Recompute Z positions from the layer order when autoZ is on. */
 export function stable(dok: Dokument): Dokument {
   if (!parametre(dok).autoZ) return dok;
+  // z is the top of everything stacked so far; a level is a run of layers that start together
   let z = 0;
+  let nivaaBunn = 0;
   let endret = false;
-  const lag = dok.lag.map((l) => {
-    const zBunn = Math.round(z * 1000) / 1000;
-    z += lagHoydeIStabel(l, dok);
+  const lag = dok.lag.map((l, i) => {
+    const hoyde = lagHoydeIStabel(l, dok);
+    let zBunn: number;
+    if (l.sammeNivaa && i > 0) {
+      zBunn = nivaaBunn;
+      z = Math.max(z, zBunn + hoyde);
+    } else {
+      zBunn = z;
+      nivaaBunn = z;
+      z += hoyde;
+    }
+    zBunn = Math.round(zBunn * 1000) / 1000;
     if (Math.abs(l.zBunn - zBunn) < 1e-9) return l;
     endret = true;
     return { ...l, zBunn };
@@ -345,14 +356,24 @@ export function dupliserObjekter(
   return { dok: d, nye };
 }
 
+/**
+ * Text lives only in text layers; a vector can live in any layer, and in a
+ * text layer it is grouped with the text and shares its outlines (Sivert,
+ * 2026-10-05); plain shapes and holes stay in plain layers.
+ */
+export function kanLiggeI(o: Objekt, lag: Lag): boolean {
+  if (o.kilde.type === 'tekst') return !!lag.tekstlag;
+  if (o.kilde.type === 'svg') return true;
+  return !lag.tekstlag;
+}
+
 export function flyttTilLag(dok: Dokument, ider: ObjektId[], lagId: LagId): Dokument {
   const mal = finnLag(dok, lagId);
   if (!mal) return dok;
-  // text goes only into text layers, and text layers hold only text
   const flytt = new Set(
     ider.filter((id) => {
       const o = dok.objekter[id];
-      return !!o && o.lagId !== lagId && (o.kilde.type === 'tekst') === !!mal.tekstlag;
+      return !!o && o.lagId !== lagId && kanLiggeI(o, mal);
     }),
   );
   if (!flytt.size) return dok;
@@ -384,9 +405,14 @@ export function ordne(dok: Dokument, id: ObjektId, til: 'fremst' | 'bakerst' | '
   return { ...dok, rekkefolge: { ...dok.rekkefolge, [o.lagId]: liste } };
 }
 
-/** Text objects marked as batch fields. */
+/** Texts and vectors marked as batch fields (variables). */
 export function feltObjekter(dok: Dokument): Objekt[] {
-  return Object.values(dok.objekter).filter((o) => o.kilde.type === 'tekst' && o.kilde.felt);
+  return Object.values(dok.objekter).filter((o) => feltNavn(o));
+}
+
+/** The batch field an object is bound to, if any. */
+export function feltNavn(o: Objekt): string | undefined {
+  return o.kilde.type === 'tekst' || o.kilde.type === 'svg' ? o.kilde.felt || undefined : undefined;
 }
 
 // ---------- text layers and outlines (Sivert, 2026-10-05) ----------
@@ -409,12 +435,15 @@ export function ledigTekstlagnavn(dok: Dokument): string {
   return `Tekst ${n}`;
 }
 
-/** Remove layers left empty by moving their text away (never the last layer). */
-function fjernTommeTekstlag(dok: Dokument, kandidater: Set<LagId>): Dokument {
+/**
+ * Remove layers left empty by moving their content away (never the last
+ * layer, and not a layer that shapes itself from other layers).
+ */
+function fjernTommeLag(dok: Dokument, kandidater: Set<LagId>): Dokument {
   let d = dok;
   for (const id of kandidater) {
     const l = finnLag(d, id);
-    if (l?.tekstlag && !d.rekkefolge[id]?.length && d.lag.length > 1) d = slettLag(d, id);
+    if (l && !l.pavirkninger.length && !d.rekkefolge[id]?.length && d.lag.length > 1) d = slettLag(d, id);
   }
   return d;
 }
@@ -435,27 +464,83 @@ export function grupperTekst(dok: Dokument, ider: ObjektId[]): { dok: Dokument; 
     tekster.map((o) => o.id),
     mal.lagId,
   );
-  d = fjernTommeTekstlag(d, fra);
+  d = fjernTommeLag(d, fra);
   return { dok: stable(d), lagId: mal.lagId };
 }
 
 /**
- * Take a text out of its group into a text layer of its own, right above,
- * with a copy of the group's height, look and outlines.
+ * Move objects into a layer (dragging them onto it). They take on the
+ * layer's outlines, colour and height. What the layer cannot hold, or
+ * what is locked, stays where it is; a layer left empty goes away.
  */
-export function losUtTekst(dok: Dokument, id: ObjektId): { dok: Dokument; lagId: LagId | null } {
+export function flyttObjekterInnI(
+  dok: Dokument,
+  ider: ObjektId[],
+  tilId: LagId,
+): { dok: Dokument; flyttet: ObjektId[] } {
+  const mal = finnLag(dok, tilId);
+  if (!mal || mal.last) return { dok, flyttet: [] };
+  const kandidater = ider.filter((id) => {
+    const o = dok.objekter[id];
+    return !!o && !o.last && o.lagId !== tilId;
+  });
+  const fra = new Set(kandidater.map((id) => dok.objekter[id]!.lagId));
+  let d = flyttTilLag(dok, kandidater, tilId);
+  const flyttet = kandidater.filter((id) => d.objekter[id]?.lagId === tilId);
+  if (flyttet.length) d = fjernTommeLag(d, fra);
+  return { dok: flyttet.length ? stable(d) : dok, flyttet };
+}
+
+/**
+ * Move everything in one layer into another (dragging a layer into a
+ * group). What moves takes on the target's outlines, colour and height.
+ */
+export function flyttLagInnI(
+  dok: Dokument,
+  fraId: LagId,
+  tilId: LagId,
+): { dok: Dokument; flyttet: ObjektId[] } {
+  if (fraId === tilId) return { dok, flyttet: [] };
+  return flyttObjekterInnI(dok, dok.rekkefolge[fraId] ?? [], tilId);
+}
+
+/**
+ * Take an object out of its group into a layer of its own, right above.
+ * A text gets a text layer with a copy of the group's height, look and
+ * outlines; a vector gets a plain layer in the same colour and height.
+ */
+export function losUtObjekt(dok: Dokument, id: ObjektId): { dok: Dokument; lagId: LagId | null } {
   const o = dok.objekter[id];
   const lag = o ? finnLag(dok, o.lagId) : undefined;
   if (!o || !lag?.tekstlag || (dok.rekkefolge[lag.id]?.length ?? 0) < 2) return { dok, lagId: null };
-  const ny: Lag = {
-    ...structuredClone(lag),
-    id: nyId('l'),
-    navn: ledigTekstlagnavn(dok),
-    omriss: (lag.omriss ?? []).map((r) => ({ ...r, id: nyId('r') })),
-  };
+  if (o.kilde.type === 'tekst') {
+    const ny: Lag = {
+      ...structuredClone(lag),
+      id: nyId('l'),
+      navn: ledigTekstlagnavn(dok),
+      omriss: (lag.omriss ?? []).map((r) => ({ ...r, id: nyId('r') })),
+    };
+    let d = leggTilLag(dok, ny, lag.id);
+    d = flyttTilLag(d, [id], ny.id);
+    return { dok: d, lagId: ny.id };
+  }
+  if (o.kilde.type !== 'svg') return { dok, lagId: null };
+  const ny: Lag = { ...nyttLag(ledigNavn(dok, 'Pynt'), lag.materialId, lag.hoyde) };
   let d = leggTilLag(dok, ny, lag.id);
   d = flyttTilLag(d, [id], ny.id);
   return { dok: d, lagId: ny.id };
+}
+
+/** Kept for callers that only deal with text. */
+export const losUtTekst = losUtObjekt;
+
+/** Next free «Navn», «Navn 2» … among the layers. */
+export function ledigNavn(dok: Dokument, grunn: string): string {
+  const navn = new Set(dok.lag.map((l) => l.navn));
+  if (!navn.has(grunn)) return grunn;
+  let n = 2;
+  while (navn.has(`${grunn} ${n}`)) n++;
+  return `${grunn} ${n}`;
 }
 
 function medOmriss(dok: Dokument, lagId: LagId, fn: (o: Omriss[]) => Omriss[]): Dokument {

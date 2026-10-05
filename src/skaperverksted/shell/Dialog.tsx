@@ -1,6 +1,6 @@
 /** Modal built on <dialog>: focus trapping, Esc and focus return come from the platform. */
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useId, useRef } from 'preact/hooks';
 
 export function Dialog({
   tittel,
@@ -14,6 +14,7 @@ export function Dialog({
   klasse?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const tittelId = useId();
   useEffect(() => {
     const d = ref.current!;
     const forrige = document.activeElement as HTMLElement | null;
@@ -30,14 +31,14 @@ export function Dialog({
     <dialog
       ref={ref}
       class={`verksted-dialog ${klasse}`}
-      aria-labelledby="dialog-tittel"
+      aria-labelledby={tittelId}
       onClick={(e) => {
         if (e.target === ref.current) ref.current?.close();
       }}
     >
       <div class="dialog-innhold">
         <header class="dialog-hode">
-          <h2 id="dialog-tittel">{tittel}</h2>
+          <h2 id={tittelId}>{tittel}</h2>
           <button type="button" class="ikonknapp" onClick={() => ref.current?.close()}>
             Lukk
           </button>

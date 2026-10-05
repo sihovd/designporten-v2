@@ -6,6 +6,9 @@ import { brukSigntilstand, signtilstand, type VerktoyId } from './tilstand';
 import { importerSvgSom } from './handlinger';
 import { startErValgt } from './dokument';
 import { Fargeprofilvindu } from './Fargeprofilvindu';
+import { Dekorgalleri } from './Dekorgalleri';
+import { Delvelger } from './Delvelger';
+import { Batchdialog } from './Batch';
 
 export const VERKTOY: { id: VerktoyId; navn: string; tast: string; tegn: string; hjelp: string }[] = [
   { id: 'velg', navn: 'Velg', tast: 'V', tegn: 'V', hjelp: 'Velg, flytt, skaler og roter' },
@@ -58,7 +61,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       <button
         type="button"
         class="verktoy"
-        title="Legg til en SVG som pynt i et eget lag (ramme: + Nytt lag i lagpanelet)"
+        title="Legg til en SVG som pynt. Har den flere deler, velger du hvilke du vil ha og farger dem. Ramme: + Nytt lag i lagpanelet"
         onClick={() => fil.current?.click()}
       >
         <span class="verktoy-tegn" aria-hidden="true">
@@ -77,6 +80,17 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
           (e.target as HTMLInputElement).value = '';
         }}
       />
+      <button
+        type="button"
+        class="verktoy"
+        title="Legg til et dekor fra galleriet, eller din egen vektor"
+        onClick={() => signtilstand(benk).sett({ dekor: true })}
+      >
+        <span class="verktoy-tegn" aria-hidden="true">
+          D
+        </span>
+        Dekor
+      </button>
       <span class="skinne-skille" aria-hidden="true" />
       <button
         type="button"
@@ -103,6 +117,9 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
         Rutenett
       </button>
       {(!startErValgt(t.dok) || st.fargeprofil) && <Fargeprofilvindu benk={benk} />}
+      {st.dekor && <Dekorgalleri benk={benk} />}
+      {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}
+      {st.batch && <Batchdialog benk={benk} lukk={() => signtilstand(benk).sett({ batch: false })} />}
     </>
   );
 }
