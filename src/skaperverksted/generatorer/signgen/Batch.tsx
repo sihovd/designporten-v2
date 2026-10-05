@@ -21,6 +21,7 @@ import {
   fordelPaPlater,
   forskyvMesh,
   gruppeavstander,
+  hullankre,
   lagVarianter,
   organiser,
   tolkCsv,
@@ -217,6 +218,7 @@ export function Batchdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => voi
   const [utdeling, settUtdeling] = useState<Utdeling>('plate');
   const [hoppOver, settHoppOver] = useState(true);
   const [holdAvstand, settHoldAvstand] = useState(true);
+  const [holdHull, settHoldHull] = useState(true);
   const [arbeid, settArbeid] = useState<{ ferdig: number; totalt: number } | null>(null);
   const [resultat, settResultat] = useState<string | null>(null);
   const fil = useRef<HTMLInputElement>(null);
@@ -266,9 +268,13 @@ export function Batchdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => voi
   };
 
   const gruppeRegler = useMemo(() => (fonterKlare ? gruppeavstander(dok) : []), [dok, fonterKlare]);
+  const hullRegler = useMemo(() => (fonterKlare ? hullankre(dok) : []), [dok, fonterKlare]);
   const varianter = useMemo(
-    () => (csv && fonterKlare ? lagVarianter(dok, csv, kobling, { gruppeavstand: holdAvstand }) : []),
-    [csv, kobling, dok, fonterKlare, holdAvstand],
+    () =>
+      csv && fonterKlare
+        ? lagVarianter(dok, csv, kobling, { gruppeavstand: holdAvstand, hullavstand: holdHull })
+        : [],
+    [csv, kobling, dok, fonterKlare, holdAvstand, holdHull],
   );
   const medProblemer = varianter.filter((v) => v.problemer.length).length;
   const aktuelle = hoppOver ? varianter.filter((v) => !v.problemer.length) : varianter;
@@ -320,6 +326,19 @@ export function Batchdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => voi
               Tekster som står ved siden av hverandre eller under hverandre, i samme tekstlag eller i hvert
               sitt, beholder avstanden fra skiltet ditt. For- og etternavn får like langt mellom seg uansett
               navn, målt mellom bokstavene du ser. Gruppen vokser fra midten.
+            </p>
+          </>
+        )}
+        {felt.length > 0 && hullRegler.length > 0 && (
+          <>
+            <label class="avkryssing">
+              <input type="checkbox" checked={holdHull} onChange={() => settHoldHull(!holdHull)} /> Hold hull
+              og øyne like langt fra navnet på alle skilt
+            </label>
+            <p class="merknad">
+              Hullet for nøkkelring eller oppheng beholder avstanden til bokstavene fra skiltet ditt, på samme
+              side, så det følger navnet og ikke blir stående for seg selv. Hull på en fast plate eller ramme
+              beholder plassen sin. Du kan endre dette per hull i egenskapene.
             </p>
           </>
         )}

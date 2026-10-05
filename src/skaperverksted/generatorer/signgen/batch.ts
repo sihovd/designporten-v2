@@ -282,9 +282,120 @@ function brukGruppeavstand(dok: Dokument, regler: Gruppeavstand[]): Dokument {
   return d;
 }
 
+// ---------- holes follow the name ----------
+
+/**
+ * A hanging hole or an eye has a reference to the name (Sivert, 2026-10-05:
+ * «hullet må ikke bli stående for seg selv, lik avstandsmotor som med
+ * navnene»): it keeps its distance from the printed letters, on the side it
+ * has on the master sign, so it follows the name when the name gets longer.
+ * On a fixed plate or frame a hole keeps its place, since the plate does not
+ * grow with the name.
+ */
+export type Hullside = 'venstre' | 'hoyre' | 'topp' | 'bunn';
+
+export interface Hullanker {
+  id: string;
+  side: Hullside;
+  /** Clear distance from the name's box to the hole's edge on that side (mm, negative = overlap). */
+  gap: number;
+  /** How far the hole's centre lies from the name's centre across that side (mm). */
+  tvers: number;
+}
+
+/** The box of everything that makes up the name: the printed letters across, the lines down. */
+export function navneboks(dok: Dokument): Boks | null {
+  let b = tomBoks();
+  for (const m of gruppemedlemmer(dok)) b = slaSammen(b, m.b);
+  return erTom(b) ? null : b;
+}
+
+/**
+ * Does a hole follow the name? Its own setting wins. Automatically it does
+ * on a sign whose size comes from the name (outlines round the text) and
+ * not on a fixed plate or frame, which keeps its size and its holes.
+ */
+export function folgerNavnet(dok: Dokument, hull: Objekt): boolean {
+  if (hull.kilde.type !== 'form' || hull.kilde.form !== 'hull') return false;
+  const valg = hull.kilde.plass ?? 'auto';
+  return valg === 'auto' ? !feltGrense(dok) : valg === 'navn';
+}
+
+/** Where a hole lies in relation to the name: the side it is furthest out on, its gap and its place across. */
+export function hullanker(dok: Dokument, hull: Objekt): Hullanker | null {
+  const n = navneboks(dok);
+  if (!n) return null;
+  const h = verdensBoks(hull);
+  const hx = (h.minX + h.maksX) / 2,
+    hy = (h.minY + h.maksY) / 2;
+  const kandidater: { side: Hullside; gap: number }[] = [
+    { side: 'venstre', gap: n.minX - h.maksX },
+    { side: 'hoyre', gap: h.minX - n.maksX },
+    { side: 'topp', gap: h.minY - n.maksY },
+    { side: 'bunn', gap: n.minY - h.maksY },
+  ];
+  // the side the hole lies furthest out on; over the name itself, the nearest edge
+  const best = kandidater.reduce((a, b) => (b.gap > a.gap ? b : a));
+  const vannrett = best.side === 'venstre' || best.side === 'hoyre';
+  return {
+    id: hull.id,
+    side: best.side,
+    gap: best.gap,
+    tvers: vannrett ? hy - (n.minY + n.maksY) / 2 : hx - (n.minX + n.maksX) / 2,
+  };
+}
+
+/** The holes of the master that follow the name, with their references. */
+export function hullankre(master: Dokument): Hullanker[] {
+  const ut: Hullanker[] = [];
+  for (const o of Object.values(master.objekter)) {
+    if (!o.synlig || !folgerNavnet(master, o)) continue;
+    const a = hullanker(master, o);
+    if (a) ut.push(a);
+  }
+  return ut;
+}
+
+/** Put the holes at their references from the name of this sign. */
+function brukHullankre(dok: Dokument, ankre: Hullanker[]): Dokument {
+  const n = navneboks(dok);
+  if (!n || !ankre.length) return dok;
+  let d = dok;
+  for (const a of ankre) {
+    const o = d.objekter[a.id];
+    if (!o) continue;
+    const h = verdensBoks(o);
+    const cx = (n.minX + n.maksX) / 2,
+      cy = (n.minY + n.maksY) / 2;
+    let dx = 0,
+      dy = 0;
+    if (a.side === 'venstre') dx = n.minX - a.gap - h.maksX;
+    else if (a.side === 'hoyre') dx = n.maksX + a.gap - h.minX;
+    else if (a.side === 'topp') dy = n.maksY + a.gap - h.minY;
+    else dy = n.minY - a.gap - h.maksY;
+    if (a.side === 'venstre' || a.side === 'hoyre') dy = cy + a.tvers - (h.minY + h.maksY) / 2;
+    else dx = cx + a.tvers - (h.minX + h.maksX) / 2;
+    if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) continue;
+    d = oppdaterObjekter(d, [o.id], (x) => ({
+      ...x,
+      transform: { ...x.transform, x: x.transform.x + dx, y: x.transform.y + dy },
+    }));
+  }
+  return d;
+}
+
+/** Move a hole so it lies `gap` mm from the name on the side it is on (the inspector's distance field). */
+export function settHullavstand(dok: Dokument, hullId: string, gap: number): Dokument {
+  const o = dok.objekter[hullId];
+  const a = o && hullanker(dok, o);
+  return a ? brukHullankre(dok, [{ ...a, gap }]) : dok;
+}
+
 export interface Varianttilvalg {
   /** Keep the master's gaps inside text groups. Default on. */
   gruppeavstand?: boolean;
+  /** Keep hanging holes and eyes at their distance from the name. Default on. */
+  hullavstand?: boolean;
   /** The user's own gallery vectors (default: those stored in this browser). */
   egneDekor?: EgetDekor[];
 }
@@ -299,6 +410,7 @@ export function lagVarianter(
   const feltMaster = feltObjekter(master);
   const grense = feltGrense(master);
   const regler = tilvalg.gruppeavstand === false ? [] : gruppeavstander(master);
+  const ankre = tilvalg.hullavstand === false ? [] : hullankre(master);
   const egne = tilvalg.egneDekor ?? hentEgneDekor();
   return csv.rader.map((rad, indeks) => {
     let dok = master;
@@ -346,6 +458,7 @@ export function lagVarianter(
       }
     });
     if (regler.length) dok = brukGruppeavstand(dok, regler);
+    if (ankre.length) dok = brukHullankre(dok, ankre);
     for (const o of feltObjekter(dok)) {
       if (o.kilde.type !== 'tekst') continue;
       const g = lokalGeometri(o.kilde);

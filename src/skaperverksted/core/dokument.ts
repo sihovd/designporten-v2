@@ -56,6 +56,12 @@ export interface FormKilde {
   sider: number;
   /** Hanging holes outside the model become an eye: the ring's width around the hole (mm). */
   ringBredde?: number;
+  /**
+   * Hanging holes in a CSV batch: keep the distance to the printed letters
+   * («navn»), keep the place on the sign («fast») or decide from the sign
+   * («auto»: follow the name unless the hole lies on a fixed plate).
+   */
+  plass?: 'auto' | 'navn' | 'fast';
 }
 
 export type ObjektKilde = TekstKilde | SvgKilde | FormKilde;

@@ -119,6 +119,28 @@ test.describe('Signgen', () => {
     expect(zip.suggestedFilename()).toMatch(/batch\.zip$/);
   });
 
+  test('et hull har en referanse til navnet og følger det i CSV-serien', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Plassering av hull krever mus');
+    const bb = (await page.locator('canvas').first().boundingBox())!;
+    await page.getByRole('button', { name: 'Hull', exact: true }).click();
+    await page.mouse.click(bb.x + bb.width * 0.62, bb.y + bb.height * 0.3);
+    await expect(page.getByText(/Referanse: .* mm .* bokstavene/)).toBeVisible();
+    const a1 = await new AxeBuilder({ page })
+      .include('section[aria-label="SVG"], section[aria-label="Form"]')
+      .analyze();
+    expect(a1.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: /Lag skilt fra CSV/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Lag skilt fra CSV' });
+    await dialog.getByRole('button', { name: 'Gjør til felt' }).click();
+    await expect(dialog.getByLabel('Hold hull og øyne like langt fra navnet på alle skilt')).toBeChecked();
+    await dialog.getByLabel('Eller lim inn').fill('navn\nEd\nEt veldig langt navn');
+    await dialog.getByRole('button', { name: 'Bruk teksten' }).click();
+    await expect(dialog.getByText('2 skilt, ingen problemer')).toBeVisible();
+    const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
+
   test('ny tekst går i det valgte tekstlaget og blir gruppert, «Tekstlag» gir et eget lag', async ({
     page,
     isMobile,
