@@ -10,6 +10,7 @@ import {
   type Lag,
   type LagPavirkning,
   type Objekt,
+  type Omriss,
   type TekstKilde,
 } from '../../core/dokument';
 import {
@@ -28,12 +29,20 @@ import {
   oppdaterLag,
   oppdaterObjekter,
   flyttTilLag,
+  fargeplasser,
+  flyttOmriss,
+  grupperTekst,
+  losUtTekst,
+  oppdaterOmriss,
+  slettOmriss,
   ordne,
   stable,
   standardNavn,
 } from './dokument';
-import { lokalGeometri, objektStorrelse } from './modell';
-import { dupliserValgte, fordel, juster, slettValgte } from './handlinger';
+import { lokalGeometri, MIN_OMRISSBREDDE, objektStorrelse } from './modell';
+import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinger';
+import { brukSigntilstand, signtilstand } from './tilstand';
+import { nyttOmrissI } from './Lagpanel';
 import { Profilredigerer } from './Profilredigerer';
 import { Batchdialog } from './Batch';
 import { plangrenser } from '../../core/plangrenser';
@@ -77,8 +86,13 @@ function Materialvelger({ verdi, endre, id }: { verdi: string; endre: (id: strin
 
 // ---------- object ----------
 
+/** Select value for «take the text out of its group». */
+const EGET = '__eget-tekstlag';
+
 function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
   const t = brukBenk(benk);
+  const lagForObjekt = finnLag(t.dok, o.lagId);
+  const iGruppe = !!lagForObjekt?.tekstlag && (t.dok.rekkefolge[o.lagId]?.length ?? 0) > 1;
   const tekstfelt = useRef<HTMLTextAreaElement>(null);
   const [laas, settLaas] = useState(true);
   useEffect(() => {
@@ -340,23 +354,50 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
 
       <Panel tittel="Lag og rolle">
         <label class="felt" for="signgen-objektlag">
-          <span>Lag</span>
+          <span>{o.kilde.type === 'tekst' ? 'Tekstlag' : 'Lag'}</span>
           <select
             id="signgen-objektlag"
             value={o.lagId}
             onChange={(e) => {
               const lag = (e.target as HTMLSelectElement).value;
+              if (lag === EGET) {
+                let ny: string | null = null;
+                benk.endre({
+                  navn: 'Løs ut av gruppen',
+                  anvend: (d) => {
+                    const r = losUtTekst(d, o.id);
+                    ny = r.lagId;
+                    return r.dok;
+                  },
+                });
+                if (ny) benk.velg({ lag: ny });
+                return;
+              }
               benk.endre({ navn: 'Flytt til lag', anvend: (d) => flyttTilLag(d, [o.id], lag) });
               benk.velg({ lag });
             }}
           >
-            {[...t.dok.lag].reverse().map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.navn}
-              </option>
-            ))}
+            {[...t.dok.lag]
+              .reverse()
+              // text lives in text layers, everything else in plain layers
+              .filter((l) => l.id === o.lagId || !!l.tekstlag === (o.kilde.type === 'tekst'))
+              .map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.navn}
+                  {l.tekstlag && l.id !== o.lagId ? ' (grupper med)' : ''}
+                </option>
+              ))}
+            {o.kilde.type === 'tekst' && iGruppe && (
+              <option value={EGET}>Eget tekstlag (løs ut av gruppen)</option>
+            )}
           </select>
         </label>
+        {o.kilde.type === 'tekst' && !lagForObjekt?.tekstlag && (
+          <p class="merknad">
+            Denne teksten ligger sammen med former (fra før tekstlagene). Velg et tekstlag for å gi den
+            omriss.
+          </p>
+        )}
         {!(o.kilde.type === 'form' && o.kilde.form === 'hull') && (
           <div class="felt">
             <span>Rolle</span>
@@ -430,8 +471,42 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
 }
 
 function FlereObjekter({ benk, antall }: { benk: Arbeidsbenk; antall: number }) {
+  const t = brukBenk(benk);
+  const tekster = valgte(benk).filter((o) => o.kilde.type === 'tekst');
+  const kanGruppere =
+    tekster.length >= 2 &&
+    tekster.some((o) => finnLag(t.dok, o.lagId)?.tekstlag) &&
+    new Set(tekster.map((o) => o.lagId)).size > 1;
+  const grupper = () => {
+    let lag: string | null = null;
+    benk.endre({
+      navn: 'Grupper tekst',
+      anvend: (d) => {
+        const r = grupperTekst(
+          d,
+          tekster.map((o) => o.id),
+        );
+        lag = r.lagId;
+        return r.dok;
+      },
+    });
+    if (lag) {
+      benk.velg({ lag });
+      benk.melde(
+        `${tekster.length} tekster er gruppert i «${finnLag(benk.dok, lag)?.navn}» og deler omrissene der.`,
+      );
+    }
+  };
   return (
     <Panel tittel={`${antall} objekter valgt`}>
+      {kanGruppere && (
+        <div class="knapperad">
+          <button type="button" class="kontroll-knapp" onClick={grupper}>
+            Grupper tekst
+          </button>
+          <p class="merknad">Grupperte tekster ligger i samme tekstlag og får felles omriss.</p>
+        </div>
+      )}
       <p class="tom-melding">Juster mot hverandre:</p>
       <div class="justering" role="group" aria-label="Juster">
         {(
@@ -494,13 +569,32 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
             }
           />
         </label>
+        {lag.tekstlag && (
+          <div class="felt">
+            <span>Teksten</span>
+            <Segment
+              etikett="Hvordan teksten vises"
+              valg={[
+                { id: 'normal', navn: 'Står opp' },
+                { id: 'kutt', navn: 'Skåret ut' },
+              ]}
+              verdi={lag.tekstvisning ?? 'normal'}
+              endre={(v) =>
+                endre(v === 'kutt' ? 'Skjær ut teksten' : 'La teksten stå opp', { tekstvisning: v })
+              }
+            />
+          </div>
+        )}
+        {lag.tekstlag && lag.tekstvisning === 'kutt' && (
+          <p class="merknad">Teksten skjæres ut av omrissene, så det som ligger under, synes gjennom.</p>
+        )}
         <Materialvelger
           id="signgen-lagfarge"
           verdi={lag.materialId}
           endre={(m) => endre('Bytt farge', { materialId: m })}
         />
         <TallFelt
-          etikett="Høyde (tykkelse)"
+          etikett={lag.tekstlag ? 'Teksthøyde' : 'Høyde (tykkelse)'}
           verdi={lag.hoyde}
           min={0.2}
           maks={100}
@@ -603,51 +697,55 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
         )}
       </Panel>
 
-      <Panel tittel="Kontur">
-        <TallFelt
-          etikett="Forskyv omrisset"
-          verdi={lag.kontur.avstand}
-          min={-20}
-          maks={40}
-          steg={0.5}
-          endre={(v, k) =>
-            endre('Kontur', { kontur: { ...lag.kontur, avstand: v } }, k === 'pil' ? 'kontur' : undefined)
-          }
-        />
-        <div class="felt">
-          <span>Hjørner</span>
-          <Segment
-            etikett="Hjørner"
-            valg={[
-              { id: 'rund', navn: 'Runde' },
-              { id: 'skarp', navn: 'Skarpe' },
-              { id: 'faset', navn: 'Fasede' },
-            ]}
-            verdi={lag.kontur.hjorne}
-            endre={(h) => endre('Konturhjørner', { kontur: { ...lag.kontur, hjorne: h } })}
-          />
-        </div>
-        <label class="avkryssing">
-          <input
-            type="checkbox"
-            checked={lag.kontur.kunRing}
-            onChange={() =>
-              endre('Kontur som ring', { kontur: { ...lag.kontur, kunRing: !lag.kontur.kunRing } })
-            }
-          />{' '}
-          Bare en ring (omriss)
-        </label>
-        {lag.kontur.kunRing && (
+      {lag.tekstlag && <OmrissInspektor benk={benk} lag={lag} />}
+
+      {(!lag.tekstlag || lag.kontur.avstand !== 0 || lag.kontur.kunRing) && (
+        <Panel tittel="Kontur">
           <TallFelt
-            etikett="Ringbredde"
-            verdi={lag.kontur.ringBredde}
-            min={0.4}
-            maks={20}
-            steg={0.2}
-            endre={(v) => endre('Ringbredde', { kontur: { ...lag.kontur, ringBredde: v } })}
+            etikett="Forskyv omrisset"
+            verdi={lag.kontur.avstand}
+            min={-20}
+            maks={40}
+            steg={0.5}
+            endre={(v, k) =>
+              endre('Kontur', { kontur: { ...lag.kontur, avstand: v } }, k === 'pil' ? 'kontur' : undefined)
+            }
           />
-        )}
-      </Panel>
+          <div class="felt">
+            <span>Hjørner</span>
+            <Segment
+              etikett="Hjørner"
+              valg={[
+                { id: 'rund', navn: 'Runde' },
+                { id: 'skarp', navn: 'Skarpe' },
+                { id: 'faset', navn: 'Fasede' },
+              ]}
+              verdi={lag.kontur.hjorne}
+              endre={(h) => endre('Konturhjørner', { kontur: { ...lag.kontur, hjorne: h } })}
+            />
+          </div>
+          <label class="avkryssing">
+            <input
+              type="checkbox"
+              checked={lag.kontur.kunRing}
+              onChange={() =>
+                endre('Kontur som ring', { kontur: { ...lag.kontur, kunRing: !lag.kontur.kunRing } })
+              }
+            />{' '}
+            Bare en ring (omriss)
+          </label>
+          {lag.kontur.kunRing && (
+            <TallFelt
+              etikett="Ringbredde"
+              verdi={lag.kontur.ringBredde}
+              min={MIN_OMRISSBREDDE}
+              maks={20}
+              steg={0.2}
+              endre={(v) => endre('Ringbredde', { kontur: { ...lag.kontur, ringBredde: v } })}
+            />
+          )}
+        </Panel>
+      )}
 
       <Panel
         tittel="Påvirkning fra andre lag"
@@ -727,12 +825,165 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
   );
 }
 
+// ---------- outlines of a text layer ----------
+
+function OmrissBlokk({ benk, lag, o, i }: { benk: Arbeidsbenk; lag: Lag; o: Omriss; i: number }) {
+  const st = brukSigntilstand(benk);
+  const antall = lag.omriss?.length ?? 0;
+  const endre = (navn: string, endring: Partial<Omriss>, slaSammen?: string) =>
+    benk.endre({ navn, slaSammen, anvend: (d) => oppdaterOmriss(d, lag.id, o.id, endring) });
+  const id = (x: string) => `omriss-${o.id}-${x}`;
+  return (
+    <div
+      class={`omrissblokk${st.omriss === o.id ? ' aktiv' : ''}`}
+      onFocusCapture={() => signtilstand(benk).sett({ omriss: o.id })}
+    >
+      <label class="felt" for={id('navn')}>
+        <span>Navn</span>
+        <input
+          id={id('navn')}
+          type="text"
+          value={o.navn}
+          onChange={(e) =>
+            endre('Gi omrisset nytt navn', { navn: (e.target as HTMLInputElement).value.trim() || o.navn })
+          }
+        />
+      </label>
+      <div class="felt">
+        <span>Type</span>
+        <Segment
+          etikett={`Type for ${o.navn}`}
+          valg={[
+            { id: 'fyll', navn: 'Fyll' },
+            { id: 'omriss', navn: 'Omriss' },
+          ]}
+          verdi={o.type}
+          endre={(v) => endre(v === 'fyll' ? 'Fyll omrisset' : 'Gjør til omriss', { type: v })}
+        />
+      </div>
+      <TallFelt
+        etikett={o.type === 'fyll' ? 'Bredde' : 'Strekbredde'}
+        verdi={o.bredde}
+        min={MIN_OMRISSBREDDE}
+        maks={40}
+        steg={0.5}
+        endre={(v, k) => endre('Omrissbredde', { bredde: v }, k === 'pil' ? `bredde-${o.id}` : undefined)}
+      />
+      <TallFelt
+        etikett="Avstand innenfra"
+        verdi={o.avstand}
+        min={0}
+        maks={20}
+        steg={0.2}
+        endre={(v, k) => endre('Omrissavstand', { avstand: v }, k === 'pil' ? `avstand-${o.id}` : undefined)}
+      />
+      <TallFelt
+        etikett="Høyde"
+        verdi={o.hoyde}
+        min={0.2}
+        maks={50}
+        steg={0.2}
+        endre={(v, k) => endre('Omrisshøyde', { hoyde: v }, k === 'pil' ? `hoyde-${o.id}` : undefined)}
+      />
+      <Materialvelger
+        id={id('farge')}
+        verdi={o.materialId}
+        endre={(m) => endre('Bytt farge', { materialId: m })}
+      />
+      <div class="felt">
+        <span>Hjørner</span>
+        <Segment
+          etikett={`Hjørner for ${o.navn}`}
+          valg={[
+            { id: 'rund', navn: 'Rund' },
+            { id: 'skarp', navn: 'Skarp' },
+            { id: 'faset', navn: 'Fas' },
+          ]}
+          verdi={o.hjorne}
+          endre={(h) => endre('Omrisshjørner', { hjorne: h })}
+        />
+      </div>
+      <div class="knapperad">
+        <button
+          type="button"
+          class="kontroll-knapp"
+          disabled={i === 0}
+          onClick={() =>
+            benk.endre({ navn: 'Flytt omriss innover', anvend: (d) => flyttOmriss(d, lag.id, o.id, -1) })
+          }
+        >
+          Innover
+        </button>
+        <button
+          type="button"
+          class="kontroll-knapp"
+          disabled={i >= antall - 1}
+          onClick={() =>
+            benk.endre({ navn: 'Flytt omriss utover', anvend: (d) => flyttOmriss(d, lag.id, o.id, 1) })
+          }
+        >
+          Utover
+        </button>
+        <button
+          type="button"
+          class="kontroll-knapp farlig"
+          onClick={() => {
+            benk.endre({ navn: 'Slett omriss', anvend: (d) => slettOmriss(d, lag.id, o.id) });
+            benk.melde(`«${o.navn}» er slettet. Angre med Ctrl+Z.`);
+          }}
+        >
+          Slett
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Outlines around the text (Sivert, 2026-10-05): any number, each «fyll»
+ * or «omriss», with its own width, gap, height and colour. They never
+ * cover the text, and the text's height does not change theirs.
+ */
+function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
+  const omriss = lag.omriss ?? [];
+  return (
+    <Panel
+      tittel="Omriss rundt teksten"
+      handling={
+        <button
+          type="button"
+          class="kontroll-knapp"
+          disabled={lag.last}
+          onClick={() => nyttOmrissI(benk, lag)}
+        >
+          + Legg til
+        </button>
+      }
+    >
+      {omriss.length === 0 && (
+        <p class="tom-melding">
+          Et omriss følger teksten med teksten i midten. Det dekker aldri selve teksten og har sin egen høyde
+          og farge.
+        </p>
+      )}
+      {omriss.map((o, i) => (
+        <OmrissBlokk key={o.id} benk={benk} lag={lag} o={o} i={i} />
+      ))}
+      {omriss.length > 0 && (
+        <p class="merknad">
+          Innerst først. Omrissene starter på samme høyde som teksten. Grupperte tekster deler omrissene.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
 // ---------- project ----------
 
 function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
   const p = parametre(t.dok);
-  const brukte = [...new Set(t.dok.lag.map((l) => l.materialId))].map(finnMateriale);
+  const brukte = [...new Set(fargeplasser(t.dok).map((p) => p.materialId))].map(finnMateriale);
   const settParam = (navn: string, e: Partial<typeof p>) =>
     benk.endre({ navn, anvend: (d: Dokument) => stable({ ...d, parametre: { ...d.parametre, ...e } }) });
   return (

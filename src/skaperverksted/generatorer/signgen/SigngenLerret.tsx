@@ -19,6 +19,7 @@ import {
   hjorner,
   innholdsboks,
   lagRegion,
+  omrissRegioner,
   lokalGeometri,
   nårFontLastes,
   verdensBoks,
@@ -124,14 +125,26 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
     if (!lag.synlig) continue;
     const region = lagRegion(d, lag.id);
     if (!region) continue;
-    sti(ctx, v, region);
-    ctx.fillStyle = finnMateriale(lag.materialId).hex;
-    ctx.fill('evenodd');
-    ctx.strokeStyle = f.bakgrunn;
-    ctx.globalAlpha = 0.55;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    // a text layer: its outlines, then the text (unless it is cut out of them)
+    const deler: [Region, string][] = [];
+    if (lag.tekstlag) {
+      const omriss = omrissRegioner(d, lag.id);
+      for (const o of lag.omriss ?? []) {
+        const r = omriss?.get(o.id);
+        if (o.synlig && r?.length) deler.push([r, o.materialId]);
+      }
+    }
+    if (lag.tekstvisning !== 'kutt') deler.push([region, lag.materialId]);
+    for (const [r, materialId] of deler) {
+      sti(ctx, v, r);
+      ctx.fillStyle = finnMateriale(materialId).hex;
+      ctx.fill('evenodd');
+      ctx.strokeStyle = f.bakgrunn;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
 
   // object outlines: the active layer's objects, and all cutting objects

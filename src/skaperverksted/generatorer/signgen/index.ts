@@ -4,7 +4,7 @@ import { finnMateriale } from '../../core/materialer';
 import { tall } from '../../core/enheter';
 import { mal } from '../../shell/mal';
 import { meta } from './meta';
-import { nyttSigngenDokument } from './dokument';
+import { fargeplasser, nyttSigngenDokument, ordneTekstlag } from './dokument';
 import { byggSigngen } from './modell';
 import { SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
@@ -17,6 +17,7 @@ const plugin: GeneratorPlugin = {
   ...meta,
   visninger: ['2d', '3d'],
   nyttDokument: nyttSigngenDokument,
+  lesInn: ordneTekstlag,
   byggModell: byggSigngen,
   ui: {
     Lerret2d: SigngenLerret,
@@ -88,6 +89,7 @@ const plugin: GeneratorPlugin = {
       valg: {
         Mål: m ? `${tall(m.bredde)} × ${tall(m.dybde)} × ${tall(m.hoyde)} mm` : 'ukjent',
         Lag: String(dok.lag.filter((l) => l.synlig).length),
+        Deler: String(fargeplasser(dok).length),
         Farger: farger.join(', '),
       },
     };

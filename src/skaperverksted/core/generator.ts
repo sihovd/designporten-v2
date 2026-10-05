@@ -89,6 +89,11 @@ export interface GeneratorPlugin {
   visninger: ('2d' | '3d')[];
   nyttDokument(): Dokument;
   /**
+   * Bring a stored document (autosave or opened file) up to date with the
+   * generator's current structure. Pure; returns the input when nothing changes.
+   */
+  lesInn?(dok: Dokument): Dokument;
+  /**
    * Build printable parts from the document. Pure and deterministic; may run
    * in a worker. Throws nothing: problems become advarsler.
    */

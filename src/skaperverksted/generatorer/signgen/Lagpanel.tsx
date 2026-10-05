@@ -1,18 +1,22 @@
 /**
  * Layers panel (spec: "Layers panel"): the physical construction list,
  * top of the stack first, with Z ranges, heights, colours, visibility and
- * lock, the objects in each layer, and a stack diagram (an exploded side
- * view drawn as technical geometry, D-3).
+ * lock, and the objects in each layer. A text layer also lists its
+ * outlines, each its own row (Sivert, 2026-10-05). The stack diagram was
+ * removed on Sivert's request the same day.
  */
 import { useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { objekterILag, type Lag } from '../../core/dokument';
+import { objekterILag, type Lag, type Omriss } from '../../core/dokument';
 import { finnMateriale, materialer } from '../../core/materialer';
 import { tall } from '../../core/enheter';
-import { regionBoks } from '../../geometri/polygon';
 import { brukBenk } from '../../shell/bruk-benk';
 import {
   dupliserLag,
+  fargeplasser,
+  leggTilOmriss,
+  nyttOmriss,
+  oppdaterOmriss,
   flyttLag,
   leggTilLag,
   nyttLag,
@@ -20,57 +24,57 @@ import {
   oppdaterObjekter,
   slettLag,
 } from './dokument';
-import { lagRegion } from './modell';
+import { signtilstand, brukSigntilstand } from './tilstand';
 
-function Stabeldiagram({ benk }: { benk: Arbeidsbenk }) {
+/** One outline of a text layer: a row of its own in the layers panel. */
+function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss }) {
   const t = brukBenk(benk);
-  const lag = t.dok.lag.filter((l) => l.synlig);
-  if (!lag.length) return null;
-  const topp = Math.max(...lag.map((l) => l.zBunn + l.hoyde), 0.1);
-  const bredder = lag.map((l) => {
-    const r = lagRegion(t.dok, l.id);
-    if (!r || !r.length) return { l, min: 0, maks: 0 };
-    const b = regionBoks(r);
-    return { l, min: b.minX, maks: b.maksX };
-  });
-  const minX = Math.min(...bredder.map((b) => b.min), 0);
-  const maksX = Math.max(...bredder.map((b) => b.maks), 1);
-  const W = 240,
-    H = Math.max(70, Math.min(150, 26 * lag.length + 30));
-  const gap = 5; // exploded view
-  const hoydeTotal = H - 18 - gap * (lag.length - 1);
-  const sy = hoydeTotal / topp;
-  const sx = (W - 60) / Math.max(1, maksX - minX);
+  const st = brukSigntilstand(benk);
+  const mat = finnMateriale(o.materialId);
+  const aktiv = t.utvalg.lag === lag.id && st.omriss === o.id;
+  const endre = (navn: string, endring: Partial<Omriss>) =>
+    benk.endre({ navn, anvend: (d) => oppdaterOmriss(d, lag.id, o.id, endring) });
   return (
-    <figure class="stabel">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Lagene sett fra siden, fra bunn til topp">
-        {bredder.map(({ l, min, maks }, i) => {
-          const y = H - 8 - (l.zBunn + l.hoyde) * sy - i * gap;
-          const h = Math.max(2, l.hoyde * sy);
-          const valgt = t.utvalg.lag === l.id;
-          return (
-            <g key={l.id}>
-              <rect
-                x={4 + (min - minX) * sx}
-                y={y}
-                width={Math.max(2, (maks - min) * sx)}
-                height={h}
-                fill={finnMateriale(l.materialId).hex}
-                stroke={valgt ? 'var(--dp-lilla)' : 'var(--linje-sterk)'}
-                stroke-width={valgt ? 2 : 1}
-              />
-              <text x={W - 52} y={y + h / 2 + 3} class="stabel-z">
-                {tall(l.zBunn)}–{tall(l.zBunn + l.hoyde)}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-      <figcaption class="visuelt-skjult">
-        {lag.map((l) => `${l.navn}: ${tall(l.zBunn)} til ${tall(l.zBunn + l.hoyde)} mm`).join('. ')}
-      </figcaption>
-    </figure>
+    <li class={`omrissrad${aktiv ? ' aktiv' : ''}${o.synlig ? '' : ' skjult'}`}>
+      <span class="fargeprove" style={{ background: mat.hex }} aria-hidden="true" />
+      <button
+        type="button"
+        class="lag-navn"
+        aria-current={aktiv ? 'true' : undefined}
+        onClick={() => {
+          signtilstand(benk).sett({ omriss: o.id });
+          benk.velg({ lag: lag.id, objekter: [] });
+        }}
+      >
+        <span class="lag-tittel">{o.navn}</span>
+        <span class="mono lag-z">
+          {o.type === 'fyll' ? 'Fyll' : 'Omriss'} {tall(o.bredde)} mm · {tall(o.hoyde)} mm høy · {mat.navn}
+        </span>
+      </button>
+      <button
+        type="button"
+        class="minibryter synlighet"
+        aria-pressed={o.synlig}
+        title={o.synlig ? 'Skjul omrisset' : 'Vis omrisset'}
+        onClick={() => endre(o.synlig ? 'Skjul omriss' : 'Vis omriss', { synlig: !o.synlig })}
+      >
+        Synlig
+        <span class="visuelt-skjult"> {o.navn}</span>
+      </button>
+    </li>
   );
+}
+
+/** Add an outline outside the text layer's outlines, in a colour not yet used. */
+export function nyttOmrissI(benk: Arbeidsbenk, lag: Lag): void {
+  const brukte = new Set(fargeplasser(benk.dok).map((p) => p.materialId));
+  const mat = materialer.find((m) => !brukte.has(m.id)) ?? materialer[0]!;
+  const n = (lag.omriss?.length ?? 0) + 1;
+  const o = nyttOmriss(`Omriss ${n}`, mat.id, { hoyde: Math.max(0.6, Math.round(lag.hoyde * 5) / 10) });
+  benk.endre({ navn: 'Nytt omriss', anvend: (d) => leggTilOmriss(d, lag.id, o) });
+  signtilstand(benk).sett({ omriss: o.id });
+  benk.velg({ lag: lag.id, objekter: [] });
+  benk.melde(`${o.navn} er lagt til rundt teksten i «${lag.navn}», i ${mat.navn}.`);
 }
 
 function Lagrad({
@@ -94,7 +98,7 @@ function Lagrad({
     <li class={`lagrad${aktiv ? ' aktiv' : ''}${lag.synlig ? '' : ' skjult'}`}>
       <div class="lagrad-hode">
         <button type="button" class="lag-apne" aria-expanded={apen} onClick={veksle}>
-          <span class="visuelt-skjult">{apen ? 'Skjul objekter i' : 'Vis objekter i'} </span>
+          <span class="visuelt-skjult">{apen ? 'Skjul innholdet i' : 'Vis innholdet i'} </span>
           <span aria-hidden="true">{apen ? '▾' : '▸'}</span>
         </button>
         <span class="fargeprove" style={{ background: mat.hex }} aria-hidden="true" />
@@ -104,9 +108,17 @@ function Lagrad({
           aria-current={aktiv ? 'true' : undefined}
           onClick={() => benk.velg({ lag: lag.id, objekter: [] })}
         >
-          <span class="lag-tittel">{lag.navn}</span>
+          <span class="lag-tittel">
+            {lag.navn}
+            {lag.tekstlag && (
+              <span class="merke lag-merke">
+                {objekter.length > 1 ? `Gruppe · ${objekter.length}` : 'Tekst'}
+              </span>
+            )}
+          </span>
           <span class="mono lag-z">
-            {tall(lag.zBunn)}–{tall(lag.zBunn + lag.hoyde)} mm · {mat.navn}
+            {tall(lag.zBunn)}–{tall(lag.zBunn + lag.hoyde)} mm ·{' '}
+            {lag.tekstvisning === 'kutt' ? 'skåret ut' : mat.navn}
           </span>
         </button>
         <button
@@ -133,7 +145,11 @@ function Lagrad({
       {apen && (
         <ul class="objektliste" role="list">
           {objekter.length === 0 && (
-            <li class="tom-melding">Ingen objekter. Bruk verktøyene for å legge til.</li>
+            <li class="tom-melding">
+              {lag.tekstlag
+                ? 'Ingen tekst. Bruk Tekst-verktøyet.'
+                : 'Ingen objekter. Bruk verktøyene for å legge til.'}
+            </li>
           )}
           {[...objekter].reverse().map((o) => {
             const valgt = t.utvalg.objekter.includes(o.id);
@@ -189,6 +205,25 @@ function Lagrad({
           })}
         </ul>
       )}
+      {apen && lag.tekstlag && (
+        <div class="omrissliste">
+          {(lag.omriss ?? []).length > 0 && (
+            <ol role="list" aria-label={`Omriss rundt ${lag.navn}, innerst først`}>
+              {(lag.omriss ?? []).map((o) => (
+                <Omrissrad key={o.id} benk={benk} lag={lag} o={o} />
+              ))}
+            </ol>
+          )}
+          <button
+            type="button"
+            class="kontroll-knapp"
+            disabled={lag.last}
+            onClick={() => nyttOmrissI(benk, lag)}
+          >
+            + Omriss
+          </button>
+        </div>
+      )}
     </li>
   );
 }
@@ -200,7 +235,7 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
   const indeks = t.dok.lag.findIndex((l) => l.id === aktiv);
 
   const nytt = () => {
-    const brukte = new Set(t.dok.lag.map((l) => l.materialId));
+    const brukte = new Set(fargeplasser(t.dok).map((p) => p.materialId));
     const mat = materialer.find((m) => !brukte.has(m.id)) ?? materialer[0]!;
     const lag = nyttLag(`Lag ${t.dok.lag.length + 1}`, mat.id, 1);
     benk.endre({ navn: 'Nytt lag', anvend: (d) => leggTilLag(d, lag, aktiv ?? undefined) });
@@ -284,12 +319,6 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
             </button>
           </div>
         )}
-      </div>
-      <div class="panel">
-        <h2 class="panel-tittel">
-          <span>Stabel sett fra siden</span>
-        </h2>
-        <Stabeldiagram benk={benk} />
       </div>
     </div>
   );

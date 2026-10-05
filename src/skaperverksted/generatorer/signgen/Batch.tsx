@@ -12,7 +12,7 @@ import { filnavn } from '../../eksport/tremf';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Dialog } from '../../shell/Dialog';
 import { Segment, TallFelt } from '../../shell/kontroller';
-import { feltObjekter, oppdaterObjekter } from './dokument';
+import { fargeplasser, feltObjekter, oppdaterObjekter } from './dokument';
 import { lastFonter } from './modell';
 import {
   byggBatch,
@@ -326,9 +326,9 @@ export function Batchdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => voi
                         Tekst i feltet «{f}»
                       </option>
                     ))}
-                    {dok.lag.map((l) => (
-                      <option key={l.id} value={`farge:${l.id}`}>
-                        Farge på laget «{l.navn}»
+                    {fargeplasser(dok).map((p) => (
+                      <option key={p.id} value={`farge:${p.id}`}>
+                        Farge på «{p.navn}»
                       </option>
                     ))}
                   </select>

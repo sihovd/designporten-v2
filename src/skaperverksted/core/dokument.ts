@@ -81,6 +81,28 @@ export interface Kontur {
   ringBredde: number;
 }
 
+/**
+ * Sign Forge: an outline around the text of a text layer (Sivert,
+ * 2026-10-05). It never covers the text, has its own height and colour,
+ * and starts at the text layer's Z. Outlines are listed inside out.
+ */
+export interface Omriss {
+  id: string;
+  navn: string;
+  /** «omriss»: a ring that follows the edge. «fyll»: filled out to the edge, closing holes. */
+  type: 'omriss' | 'fyll';
+  /** Gap between what is inside (the text or the previous outline) and this outline (mm). */
+  avstand: number;
+  /** Width of the outline (mm). For «fyll» the filled distance beyond the gap. */
+  bredde: number;
+  /** Own height (mm), independent of the text's height. */
+  hoyde: number;
+  materialId: string;
+  hjorne: 'rund' | 'skarp' | 'faset';
+  synlig: boolean;
+  last: boolean;
+}
+
 export interface Lag {
   id: LagId;
   navn: string;
@@ -94,6 +116,15 @@ export interface Lag {
   pavirkninger: LagPavirkning[];
   synlig: boolean;
   last: boolean;
+  /**
+   * Sign Forge: a text layer holds text only. Several texts in one text
+   * layer are a group and share its outlines.
+   */
+  tekstlag?: boolean;
+  /** Sign Forge: the text layer's outlines, inside out. */
+  omriss?: Omriss[];
+  /** Sign Forge: the text stands up («normal») or is cut out of the outlines («kutt»). */
+  tekstvisning?: 'normal' | 'kutt';
 }
 
 export interface Plate {

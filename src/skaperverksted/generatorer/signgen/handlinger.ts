@@ -9,13 +9,18 @@ import type { Transform2D } from '../../core/geometri2d';
 import { slaSammen, tomBoks, erTom, type Boks } from '../../core/geometri2d';
 import {
   dupliserObjekter,
+  ledigTekstlagnavn,
+  leggTilLag,
   leggTilObjekt,
+  nyttLag,
   nyttObjekt,
+  nyttTekstlag,
   oppdaterObjekter,
   slettObjekter,
   standardNavn,
 } from './dokument';
 import { verdensBoks } from './modell';
+import { finnMateriale } from '../../core/materialer';
 
 export function valgte(benk: Arbeidsbenk): Objekt[] {
   const d = benk.dok;
@@ -53,18 +58,60 @@ export function aktivtLag(benk: Arbeidsbenk): LagId | null {
   return lag.id;
 }
 
+/**
+ * Where a new object goes. Text gets a text layer of its own (above the
+ * active layer), unless the active layer is an empty text layer. Shapes
+ * and SVGs go into the active layer, or, when that is a text layer, into
+ * the nearest plain layer below it (a new one above it if there is none).
+ */
+function malFor(
+  benk: Arbeidsbenk,
+  kilde: ObjektKilde,
+): { lagId: LagId; nytt?: ReturnType<typeof nyttLag> } | null {
+  const d = benk.dok;
+  const id = aktivtLag(benk);
+  if (!id && d.lag.length) return null;
+  const aktiv = id ? finnLag(d, id) : undefined;
+  if (kilde.type === 'tekst') {
+    if (aktiv?.tekstlag && !d.rekkefolge[aktiv.id]?.length) return { lagId: aktiv.id };
+    const farge = aktiv?.tekstlag ? aktiv.materialId : 'pla-kritthvit';
+    const nytt = nyttTekstlag(ledigTekstlagnavn(d), farge, aktiv?.tekstlag ? aktiv.hoyde : 1.5);
+    return { lagId: nytt.id, nytt };
+  }
+  if (aktiv && !aktiv.tekstlag) return { lagId: aktiv.id };
+  const i = aktiv ? d.lag.indexOf(aktiv) : d.lag.length;
+  const under = d.lag
+    .slice(0, i)
+    .reverse()
+    .find((l) => !l.tekstlag && l.synlig && !l.last);
+  if (under) return { lagId: under.id };
+  const nytt = nyttLag(`Lag ${d.lag.length + 1}`, finnMateriale('pla-grafitt').id, 1);
+  return { lagId: nytt.id, nytt };
+}
+
 export function leggTil(
   benk: Arbeidsbenk,
   kilde: ObjektKilde,
   transform: Partial<Transform2D> = {},
   navn?: string,
 ): Objekt | null {
-  const lag = aktivtLag(benk);
-  if (!lag) return null;
-  const o = nyttObjekt(lag, kilde, transform, navn ?? standardNavn(kilde));
-  benk.endre({ navn: `Legg til ${o.navn}`, anvend: (d) => leggTilObjekt(d, o) });
-  benk.velg({ objekter: [o.id], lag });
-  benk.melde(`${o.navn} lagt til i ${finnLag(benk.dok, lag)?.navn ?? 'laget'}.`);
+  const mal = malFor(benk, kilde);
+  if (!mal) return null;
+  const o = nyttObjekt(mal.lagId, kilde, transform, navn ?? standardNavn(kilde));
+  const nytt = mal.nytt;
+  const over = benk.tilstand.utvalg.lag ?? undefined;
+  benk.endre({
+    navn: `Legg til ${o.navn}`,
+    // a new layer goes above the active one, like «+ Nytt lag»
+    anvend: (d) => leggTilObjekt(nytt ? leggTilLag(d, nytt, over) : d, o),
+  });
+  benk.velg({ objekter: [o.id], lag: mal.lagId });
+  const lag = finnLag(benk.dok, mal.lagId);
+  benk.melde(
+    nytt
+      ? `${o.navn} lagt til i et nytt lag, «${lag?.navn ?? ''}».`
+      : `${o.navn} lagt til i ${lag?.navn ?? 'laget'}.`,
+  );
   return o;
 }
 

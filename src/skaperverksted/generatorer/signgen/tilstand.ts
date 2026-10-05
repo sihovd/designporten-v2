@@ -26,6 +26,8 @@ export interface Signtilstand {
   utkast: Boks | null;
   /** Live dimension label while dragging (screen anchored in mm space). */
   maletikett: { p: Vec2; tekst: string } | null;
+  /** The outline last chosen in the layers panel (highlighted in the inspector). */
+  omriss: string | null;
 }
 
 class Lager {
@@ -36,6 +38,7 @@ class Lager {
     maling: null,
     utkast: null,
     maletikett: null,
+    omriss: null,
   };
   private lyttere = new Set<(t: Signtilstand) => void>();
   constructor(private benk: Arbeidsbenk) {}

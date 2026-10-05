@@ -72,7 +72,7 @@ It is **not** "a form on the left and a preview on the right".
 | Units | All values in mm with one decimal by default; inputs accept simple arithmetic («40+2.5») |
 | 2D / 3D | One model, two views. 2D for layout and precision, 3D for form, height and colour. The view switch never loses selection. |
 | Autosave | Local autosave of the current project (browser storage) so a reload never loses work. Server-side project saving comes with accounts. |
-| Export / order | A review step shows the 3D model, dimensions, layers, colours and printability warnings, then offers «Bestill» (adds to cart) and, subject to D-4, file export |
+| Export / order | A review step opens on a preview of the build plate (the exported parts from above, to scale, in their colours, with the numbered filament slots) with the 3D model as a second tab, shows dimensions, parts, colours and printability warnings, then offers «Bestill» (adds to cart) and, subject to D-4, file export. 3MF files are placed on the plate as in the editor and carry a filament slot per colour for Bambu Studio / OrcaSlicer (`Metadata/model_settings.config`) |
 | Keyboard | All tools and panels reachable; shortcuts listed in a help overlay (`?`); canvas objects selectable via the Layers panel for keyboard and screen-reader users |
 
 ## Signgen — 3D-printed sign generator
@@ -111,6 +111,19 @@ MVP (Phase 3) and later (Phase 5) are marked. The architecture supports all of t
 | Project saving (account) | 5 |
 | CSV batch generation, variant groups, plate organisation | 5 (limits per plan are a config switch, off until the paid model is decided) |
 
+### Text layers and outlines
+
+Sivert, 2026-10-05. Text spread over many layers at different heights became hard to follow, so text has its own kind of layer, and the outlines around a text belong to it.
+
+- **Text layer.** Text lives only in text layers, and text layers hold only text. A new text gets a text layer of its own (above the active layer). Text layers can still be moved, hidden, locked and duplicated like other layers.
+- **Grouping.** Several texts can be grouped in one text layer («Grupper tekst» with two or more texts selected); they then share its height, look and outlines, and the outlines follow all of them. Ungrouped texts are separate text layers and never affect each other's outlines. «Eget tekstlag» on a grouped text takes it out into a new text layer with a copy of the group's settings and outlines.
+- **Outlines** («omriss»): a text layer has any number, listed inside out, each its own row in the layers panel. Each has a type, **fyll** (filled out to its width; closes holes such as the inside of «o» and the gaps between letters) or **omriss** (a ring that follows the edge), a width (at least **0.6 mm**), a gap from what is inside it, its own **height**, its own colour and corner style. Outlines never cover the text or each other; the text is always in the centre. Each outline is its own part in the model and the export.
+- **Heights.** Text and outlines start at the text layer's Z. The text's height is the layer's height; changing it does not change the outlines. In the stack, the layer takes the height of its tallest part.
+- **Text display.** The text **stands up** (default) or is **cut out** («Skåret ut»): no text part is printed, and the text is a hole through the outlines, so whatever is below shows through.
+- **Influences** between layers work as before. A text layer acting on another layer acts with its text and its outlines together.
+- The side profile applies to the text; outlines are straight. A layer's own Kontur stays for plain layers (and for text layers from older projects that already use it).
+- Projects from before text layers open unchanged: layers that hold only text become text layers (their texts a group, no outlines). Text in a layer with shapes stays where it is, prints as before and is reported until the user moves it to a text layer.
+
 ### Layers panel
 
 The Layers panel makes the physical construction understandable. For every layer the user sees:
@@ -121,8 +134,9 @@ The Layers panel makes the physical construction understandable. For every layer
 - its **colour/material role** (swatch and material name);
 - visibility and lock toggles;
 - which objects belong to it (expand to list; drag objects between layers).
+- for a text layer: its texts and its outlines (inside out), each outline with its type, width, height, colour and visibility, and «+ Omriss».
 
-A small **stack diagram** next to the list (an exploded side view, as in concept 05) shows the layers as physical slabs with Z values, so the relation between digital layer and printed layer is obvious. Hovering a layer highlights it on the canvas and in 3D.
+The stack diagram (an exploded side view) was removed at Sivert's request on 2026-10-05; Z ranges stay in each row. Selecting a layer highlights it in 3D.
 
 ### Side profile and Bézier editing
 

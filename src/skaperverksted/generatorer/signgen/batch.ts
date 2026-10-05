@@ -7,10 +7,9 @@
  * Pure functions; the dialog in Batch.tsx drives them.
  */
 import type { Dokument, Objekt, TekstKilde } from '../../core/dokument';
-import { finnLag } from '../../core/dokument';
 import { materialer } from '../../core/materialer';
 import { erTom, slaSammen, tomBoks, type Boks } from '../../core/geometri2d';
-import { feltObjekter, oppdaterLag, oppdaterObjekter } from './dokument';
+import { fargeplasser, feltObjekter, oppdaterObjekter, settFarge } from './dokument';
 import { byggSigngen, lokalGeometri, verdensBoks } from './modell';
 import type { Mesh, ModellDel } from '../../geometri/mesh';
 import { filnavn as trygtFilnavn, tilTremfSamlinger, type TremfSamling } from '../../eksport/tremf';
@@ -68,7 +67,7 @@ export function tolkCsv(tekst: string): Csv {
 
 // ---------- mapping and variants ----------
 
-/** What a CSV column controls: a text field, a layer colour, or nothing. */
+/** What a CSV column controls: a text field, a colour (layer or outline id), or nothing. */
 export type Kolonnemal =
   { type: 'felt'; felt: string } | { type: 'farge'; lagId: string } | { type: 'ingen' };
 
@@ -78,10 +77,13 @@ export function foreslaKobling(csv: Csv, dok: Dokument): Kolonnemal[] {
     const n = k.trim().toLowerCase();
     const f = felt.find((x) => x === n);
     if (f) return { type: 'felt', felt: f };
-    const lag = dok.lag.find(
-      (l) => l.navn.trim().toLowerCase() === n || `farge ${l.navn.toLowerCase()}` === n,
-    );
-    if (lag) return { type: 'farge', lagId: lag.id };
+    // a colour column names a layer or an outline («Omriss 1» or «Tekst: Omriss 1»)
+    const plass = fargeplasser(dok).find((p) => {
+      const hele = p.navn.trim().toLowerCase();
+      const kort = (p.navn.split(': ').at(-1) ?? p.navn).trim().toLowerCase();
+      return [hele, kort].some((x) => x === n || `farge ${x}` === n);
+    });
+    if (plass) return { type: 'farge', lagId: plass.id };
     return { type: 'ingen' };
   });
 }
@@ -137,9 +139,9 @@ export function lagVarianter(master: Dokument, csv: Csv, kobling: Kolonnemal[]):
         if (!verdi.trim()) problemer.push(`«${k.felt}» er tom`);
       } else if (k.type === 'farge') {
         const m = finnFarge(verdi);
-        const lag = finnLag(dok, k.lagId);
-        if (!m) problemer.push(`ukjent farge «${verdi}»${lag ? ` for ${lag.navn}` : ''}`);
-        else dok = oppdaterLag(dok, k.lagId, { materialId: m });
+        const plass = fargeplasser(dok).find((p) => p.id === k.lagId);
+        if (!m) problemer.push(`ukjent farge «${verdi}»${plass ? ` for ${plass.navn}` : ''}`);
+        else dok = settFarge(dok, k.lagId, m);
       }
     });
     for (const o of feltObjekter(dok)) {
@@ -164,9 +166,8 @@ export function lagVarianter(master: Dokument, csv: Csv, kobling: Kolonnemal[]):
       indeks,
       verdier: rad,
       dok: { ...dok, navn: `${master.navn} ${indeks + 1}` },
-      farger: dok.lag
-        .filter((l) => l.synlig)
-        .map((l) => l.materialId)
+      farger: fargeplasser(dok)
+        .map((p) => p.materialId)
         .join('+'),
       problemer: [...new Set(problemer)],
       boks: erTom(boks) ? { minX: 0, minY: 0, maksX: 0, maksY: 0 } : boks,

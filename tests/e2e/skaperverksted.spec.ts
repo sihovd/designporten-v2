@@ -34,6 +34,20 @@ test.describe('Signgen', () => {
     await expect(page.locator('.objektliste li')).toHaveCount(antallFor);
   });
 
+  test('legger et omriss rundt teksten og viser byggeplaten ved eksport', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Lagpanelet testes på desktop');
+    const tekstlag = page.locator('.lagrad', { hasText: 'Tekst' }).first();
+    await tekstlag.getByRole('button', { name: '+ Omriss' }).click();
+    await expect(tekstlag.locator('.omrissrad')).toHaveCount(1);
+    await expect(page.locator('.statuslinje')).toContainText('3 deler');
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
+    await expect(dialog.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(dialog.locator('.filamentliste li')).toHaveCount(3);
+  });
+
   test('eksporterer 3MF og STL', async ({ page }) => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
