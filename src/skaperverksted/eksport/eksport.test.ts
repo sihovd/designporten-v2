@@ -58,7 +58,12 @@ describe('STL', () => {
 describe('3MF', () => {
   it('writes the package parts, materials and one object per part', () => {
     const { filer, xml, objekter } = lesTremf(tilTremf(deler(), { tittel: 'Skilt <test> & co' }));
-    expect(Object.keys(filer).sort()).toEqual(['3D/3dmodel.model', '[Content_Types].xml', '_rels/.rels']);
+    expect(Object.keys(filer).sort()).toEqual([
+      '3D/3dmodel.model',
+      'Metadata/model_settings.config',
+      '[Content_Types].xml',
+      '_rels/.rels',
+    ]);
     expect(xml).toContain('unit="millimeter"');
     expect(xml).toContain('Skilt &lt;test&gt; &amp; co');
     expect(xml.match(/<base /g)).toHaveLength(2);
@@ -70,6 +75,26 @@ describe('3MF', () => {
       expect(sjekkManifold(o.mesh).lukket).toBe(true);
       expect(volum(o.mesh)).toBeGreaterThan(0);
     }
+  });
+
+  it('places the model on the plate as in the editor and gives each colour a filament slot', () => {
+    const d = [...deler(), { ...deler()[0]!, id: 'c', navn: 'Ramme' }];
+    const { filer, xml } = lesTremf(tilTremf(d, { tittel: 'x', plate: { bredde: 200, dybde: 180 } }));
+    // the editor is centred on the plate; slicers count from the plate's corner
+    expect(xml).toContain('<item objectid="5" transform="1 0 0 0 1 0 0 0 1 100 90 0" />');
+    const cfg = strFromU8(filer['Metadata/model_settings.config']!);
+    expect(cfg).toContain('<object id="5">');
+    const plasser = [...cfg.matchAll(/<part id="(\d+)"[\s\S]*?key="extruder" value="(\d+)"/g)].map((m) => [
+      m[1],
+      m[2],
+    ]);
+    // two parts in graphite share slot 1, the purple text gets slot 2
+    expect(plasser).toEqual([
+      ['2', '1'],
+      ['3', '2'],
+      ['4', '1'],
+    ]);
+    expect(strFromU8(filer['[Content_Types].xml']!)).toContain('Extension="config"');
   });
 
   it('skips empty parts and makes safe file names', () => {

@@ -212,7 +212,9 @@ function egenRegion(dok: Dokument, lag: Lag): Region | null {
   const k = lag.kontur;
   if (k.avstand !== 0 || k.kunRing) {
     const ytre = k.avstand !== 0 ? forskyv(region, k.avstand, k.hjorne) : region;
-    region = k.kunRing ? differanse(ytre, forskyv(ytre, -Math.max(0.2, k.ringBredde), k.hjorne)) : ytre;
+    region = k.kunRing
+      ? differanse(ytre, forskyv(ytre, -Math.max(MIN_OMRISSBREDDE, k.ringBredde), k.hjorne))
+      : ytre;
   }
   return region;
 }
@@ -258,6 +260,17 @@ export function lagRegion(dok: Dokument, lagId: string): Region | null {
 
 // ---------- outlines ----------
 
+/** Narrowest outline that prints reliably (Sivert, 2026-10-05). */
+export const MIN_OMRISSBREDDE = 0.6;
+
+/**
+ * An outline that touches the text exactly shares its edges point for
+ * point, and the shared, collinear glyph points make the outline's faces
+ * fail to close. A hidden 0.01 mm gap keeps every part a closed solid;
+ * slicers close gaps this small.
+ */
+const SKJULT_GLIPE = 0.01;
+
 /** The region with every hole filled (its outer rings only). */
 function utenHull(region: Region): Region {
   return unionAlle(region.map((f) => [{ ytre: f.ytre, hull: [] }]));
@@ -284,8 +297,9 @@ function omrissFra(lag: Lag, tekst: Region): { id: string; region: Region }[] {
   let inne = tekst;
   for (const o of lag.omriss ?? []) {
     if (!o.synlig) continue;
-    const start = o.avstand > 0 ? forskyv(inne, o.avstand, o.hjorne) : inne;
-    const ytre = forskyv(inne, Math.max(0, o.avstand) + Math.max(0.2, o.bredde), o.hjorne);
+    const avstand = Math.max(SKJULT_GLIPE, o.avstand);
+    const start = forskyv(inne, avstand, o.hjorne);
+    const ytre = forskyv(inne, avstand + Math.max(MIN_OMRISSBREDDE, o.bredde), o.hjorne);
     const kant = o.type === 'fyll' ? utenHull(ytre) : ytre;
     ut.push({ id: o.id, region: differanse(kant, start) });
     inne = union(inne, kant);

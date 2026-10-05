@@ -3,10 +3,18 @@
  * its material (colour) from a <basematerials> group, grouped under one
  * assembly object so slicers keep the parts aligned as one multi-part
  * model. Units: millimetre.
+ *
+ * Slicers place a 3MF by its build transform, with the plate's corner as
+ * origin, while the Skaperverksted works around the plate's centre. Each
+ * build item is therefore moved by half the plate, so the model lands
+ * where it sits in the editor. For Bambu Studio and OrcaSlicer, which do
+ * not read <basematerials> as filaments, Metadata/model_settings.config
+ * assigns every part a filament slot (one per colour, in order of first
+ * use), so the parts keep their colours apart (Sivert, 2026-10-05).
  */
 import { zipSync, strToU8 } from 'fflate';
 import type { ModellDel } from '../geometri/mesh';
-import { finnMateriale } from '../core/materialer';
+import { finnMateriale, standardPrinter } from '../core/materialer';
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -21,6 +29,18 @@ export interface TremfValg {
   tittel: string;
   /** Free-form metadata (designer, description). */
   meta?: Record<string, string>;
+  /** Build plate the model was designed on (centred on the origin). Default: the standard printer. */
+  plate?: { bredde: number; dybde: number };
+}
+
+/** Filament slot per material: one per colour, in order of first use (1-based). */
+export function filamentplasser(deler: ModellDel[]): string[] {
+  return [...new Set(deler.map((d) => d.materialId))];
+}
+
+function plateforskyvning(valg: TremfValg): [number, number] {
+  const p = valg.plate ?? { bredde: standardPrinter.plateBredde, dybde: standardPrinter.plateDybde };
+  return [p.bredde / 2, p.dybde / 2];
 }
 
 /** One build item: parts kept together as one multi-part object. */
@@ -31,7 +51,8 @@ export interface TremfSamling {
 
 function modellXml(samlinger: TremfSamling[], valg: TremfValg): string {
   const alle = samlinger.flatMap((s) => s.deler);
-  const matIds = [...new Set(alle.map((d) => d.materialId))];
+  const matIds = filamentplasser(alle);
+  const [tx, ty] = plateforskyvning(valg);
   const ut: string[] = [];
   ut.push('<?xml version="1.0" encoding="UTF-8"?>');
   ut.push(
@@ -82,7 +103,8 @@ function modellXml(samlinger: TremfSamling[], valg: TremfValg): string {
     ut.push('</components></object>');
   }
   ut.push('</resources>');
-  ut.push(`<build>${bygg.map((id) => `<item objectid="${id}" />`).join('')}</build>`);
+  const flytt = `1 0 0 0 1 0 0 0 1 ${tall(tx)} ${tall(ty)} 0`;
+  ut.push(`<build>${bygg.map((id) => `<item objectid="${id}" transform="${flytt}" />`).join('')}</build>`);
   ut.push('</model>');
   return ut.join('\n');
 }
@@ -91,7 +113,47 @@ const INNHOLDSTYPER = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
 <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml" />
+<Default Extension="config" ContentType="application/xml" />
 </Types>`;
+
+/**
+ * Bambu Studio / OrcaSlicer part settings: object ids and part ids are the
+ * 3MF ids of the assembly objects and their component objects.
+ */
+function modellinnstillinger(samlinger: TremfSamling[]): string {
+  const alle = samlinger.flatMap((s) => s.deler);
+  const plass = filamentplasser(alle);
+  const ut: string[] = ['<?xml version="1.0" encoding="UTF-8"?>', '<config>'];
+  let nesteId = 2;
+  const objekter: number[] = [];
+  for (const samling of samlinger) {
+    const deler = samling.deler.map((d) => ({ d, id: nesteId++ }));
+    const id = nesteId++;
+    objekter.push(id);
+    ut.push(`  <object id="${id}">`);
+    ut.push(`    <metadata key="name" value="${esc(samling.navn)}"/>`);
+    ut.push(`    <metadata key="extruder" value="${plass.indexOf(samling.deler[0]!.materialId) + 1}"/>`);
+    for (const { d, id: delId } of deler) {
+      ut.push(`    <part id="${delId}" subtype="normal_part">`);
+      ut.push(`      <metadata key="name" value="${esc(d.navn)}"/>`);
+      ut.push('      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>');
+      ut.push(`      <metadata key="extruder" value="${plass.indexOf(d.materialId) + 1}"/>`);
+      ut.push('    </part>');
+    }
+    ut.push('  </object>');
+  }
+  ut.push('  <plate>');
+  ut.push('    <metadata key="plater_id" value="1"/>');
+  for (const id of objekter) {
+    ut.push('    <model_instance>');
+    ut.push(`      <metadata key="object_id" value="${id}"/>`);
+    ut.push('      <metadata key="instance_id" value="0"/>');
+    ut.push('    </model_instance>');
+  }
+  ut.push('  </plate>');
+  ut.push('</config>');
+  return ut.join('\n');
+}
 
 const RELASJONER = `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -112,6 +174,7 @@ export function tilTremfSamlinger(samlinger: TremfSamling[], valg: TremfValg): U
       '[Content_Types].xml': strToU8(INNHOLDSTYPER),
       '_rels/.rels': strToU8(RELASJONER),
       '3D/3dmodel.model': strToU8(modellXml(medInnhold, valg)),
+      'Metadata/model_settings.config': strToU8(modellinnstillinger(medInnhold)),
     },
     { level: 6 },
   );

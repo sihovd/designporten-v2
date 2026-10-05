@@ -39,7 +39,7 @@ import {
   stable,
   standardNavn,
 } from './dokument';
-import { lokalGeometri, objektStorrelse } from './modell';
+import { lokalGeometri, MIN_OMRISSBREDDE, objektStorrelse } from './modell';
 import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
 import { nyttOmrissI } from './Lagpanel';
@@ -738,7 +738,7 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
             <TallFelt
               etikett="Ringbredde"
               verdi={lag.kontur.ringBredde}
-              min={0.4}
+              min={MIN_OMRISSBREDDE}
               maks={20}
               steg={0.2}
               endre={(v) => endre('Ringbredde', { kontur: { ...lag.kontur, ringBredde: v } })}
@@ -864,7 +864,7 @@ function OmrissBlokk({ benk, lag, o, i }: { benk: Arbeidsbenk; lag: Lag; o: Omri
       <TallFelt
         etikett={o.type === 'fyll' ? 'Bredde' : 'Strekbredde'}
         verdi={o.bredde}
-        min={0.4}
+        min={MIN_OMRISSBREDDE}
         maks={40}
         steg={0.5}
         endre={(v, k) => endre('Omrissbredde', { bredde: v }, k === 'pil' ? `bredde-${o.id}` : undefined)}
@@ -895,9 +895,9 @@ function OmrissBlokk({ benk, lag, o, i }: { benk: Arbeidsbenk; lag: Lag; o: Omri
         <Segment
           etikett={`Hjørner for ${o.navn}`}
           valg={[
-            { id: 'rund', navn: 'Runde' },
-            { id: 'skarp', navn: 'Skarpe' },
-            { id: 'faset', navn: 'Fasede' },
+            { id: 'rund', navn: 'Rund' },
+            { id: 'skarp', navn: 'Skarp' },
+            { id: 'faset', navn: 'Fas' },
           ]}
           verdi={o.hjorne}
           endre={(h) => endre('Omrisshjørner', { hjorne: h })}

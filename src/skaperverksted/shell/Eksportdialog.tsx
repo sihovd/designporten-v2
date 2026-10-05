@@ -18,10 +18,12 @@ import { Visning3d } from '../render3d/Lat3d';
 import { brukBenk } from './bruk-benk';
 import { Dialog } from './Dialog';
 import { mal } from './mal';
+import { Plateforhandsvisning } from './Plateforhandsvisning';
 
 export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => void }) {
   const t = brukBenk(benk);
   const [bestilt, settBestilt] = useState(false);
+  const [visning, settVisning] = useState<'plate' | '3d'>('plate');
   const plugin = benk.generator;
 
   useEffect(() => {
@@ -43,7 +45,11 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
 
   const tremf = () => {
     lastNed(
-      tilTremf(deler, { tittel: t.dok.navn, meta: { Designer: 'Skaperverksted, Designporten' } }),
+      tilTremf(deler, {
+        tittel: t.dok.navn,
+        meta: { Designer: 'Skaperverksted, Designporten' },
+        plate: t.dok.plate,
+      }),
       filnavn(t.dok.navn, '3mf'),
       TREMF_TYPE,
     );
@@ -92,8 +98,38 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
   return (
     <Dialog tittel="Se over før eksport" lukk={lukk} klasse="eksport">
       <div class="eksport-rutenett">
-        <div class="eksport-3d">
-          <Visning3d benk={benk} kompakt etikett="Modellen som eksporteres" />
+        <div class="eksport-visning">
+          <div class="segment eksport-faner" role="radiogroup" aria-label="Forhåndsvisning">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={visning === 'plate'}
+              onClick={() => settVisning('plate')}
+            >
+              Byggeplaten
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={visning === '3d'}
+              onClick={() => settVisning('3d')}
+            >
+              3D
+            </button>
+          </div>
+          {visning === 'plate' ? (
+            modell && deler.length > 0 ? (
+              <Plateforhandsvisning deler={deler} plate={t.dok.plate} />
+            ) : (
+              <p class="dempet eksport-venter" role="status">
+                {modell ? 'Ingen deler å vise.' : 'Bygger modellen …'}
+              </p>
+            )
+          ) : (
+            <div class="eksport-3d">
+              <Visning3d benk={benk} kompakt etikett="Modellen som eksporteres" />
+            </div>
+          )}
         </div>
         <div class="eksport-fakta">
           {!modell && <p role="status">Bygger modellen …</p>}
@@ -169,7 +205,7 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                   <p class="dempet">
                     {regler.stlPerDel
                       ? '3MF holder delene og fargene hver for seg. STL lastes ned som én fil per del.'
-                      : '3MF holder fargene som egne deler. STL er én samlet form uten farger.'}
+                      : '3MF holder fargene som egne deler, hver på sin filamentplass (nummerert ved forhåndsvisningen), og ligger midt på platen slik som i verkstedet. STL er én samlet form uten farger.'}
                   </p>
                   <div class="knapperad">
                     <button type="button" class="primar" onClick={tremf}>
