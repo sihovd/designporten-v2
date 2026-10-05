@@ -41,6 +41,21 @@ export function produktHref(id: string): string {
   return `/produkter/${id}/`;
 }
 
+/** The uploaded photo when there is one, else the registry image. */
+function hovedbilde(d: ProduktData): Bilde {
+  if (d.foto) {
+    return {
+      src: d.foto.fil.src,
+      alt: d.foto.alt,
+      bredde: d.foto.fil.width,
+      hoyde: d.foto.fil.height,
+      konsept: false,
+      midlertidig: false,
+    };
+  }
+  return utklippbilder[d.bilde!];
+}
+
 export function tilVisning(id: string, d: ProduktData): ProduktVisning {
   return {
     id,
@@ -50,7 +65,7 @@ export function tilVisning(id: string, d: ProduktData): ProduktVisning {
     kategoriNavn: finnKategori(d.kategori)?.navn ?? d.kategori,
     kortBeskrivelse: d.kortBeskrivelse,
     href: produktHref(id),
-    bilde: utklippbilder[d.bilde],
+    bilde: hovedbilde(d),
     bildeAlternativ: d.bildeAlternativ ? utklippbilder[d.bildeAlternativ] : null,
     mal: d.mal,
     prisOre: d.prisOre,

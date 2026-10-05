@@ -45,6 +45,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.63.0",
+    "@sveltia/cms": "^0.229.0",
     "@types/earcut": "^3.0.0",
     "@types/node": "^26.6.3",
     "@types/nodemailer": "^8.0.2",

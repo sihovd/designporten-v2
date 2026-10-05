@@ -34,7 +34,16 @@ const { bilde, class: klasse, lasting = 'lazy', prioritet = 'auto', sizes, merke
     display: block;
   }
 
-  .konseptbilde img {
+  /*
+   * Zero-specificity defaults so the caller's own rules for the wrapper or the
+   * img always win. The image never stretches: it crops (cover) unless the
+   * caller sets another object-fit on the wrapper or the img.
+   */
+  :global(:where(.konseptbilde)) {
+    object-fit: cover;
+  }
+
+  :global(:where(.konseptbilde) > img) {
     width: 100%;
     height: 100%;
     object-fit: inherit;

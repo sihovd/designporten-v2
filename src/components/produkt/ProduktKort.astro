@@ -57,8 +57,9 @@ const mal = formaterMal(p.mal);
     </span>
   </a>
   <div class="produktkort__kapselflate">
-    <!-- «+» is the anchor and never moves: the count opens above it and «−»
-         below it, so repeated clicks in one place always add. -->
+    <!-- «+» is the anchor and never moves. Hover shows only «+»; the first
+         click opens the pill with the count above and «−» below, and back at
+         zero the pill closes again. Repeated clicks in one place always add. -->
     <div class="kurvkapsel" data-kurvkapsel>
       <span class="kurvkapsel__flate" aria-hidden="true"></span>
       <span class="kurvkapsel__antall tall" data-kurv-antall hidden>
@@ -349,16 +350,19 @@ const mal = formaterMal(p.mal);
       visibility 0s linear var(--t-rask);
   }
 
+  .kurvkapsel[data-aktiv] .kurvkapsel__kurv,
   .kurvkapsel[data-apen] .kurvkapsel__kurv {
     opacity: 0;
     transform: rotate(90deg);
   }
 
+  .kurvkapsel[data-aktiv] .kurvkapsel__plusstegn,
   .kurvkapsel[data-apen] .kurvkapsel__plusstegn {
     opacity: 1;
     transform: none;
   }
 
+  .kurvkapsel[data-aktiv] .kurvkapsel__merke,
   .kurvkapsel[data-apen] .kurvkapsel__merke {
     display: none;
   }

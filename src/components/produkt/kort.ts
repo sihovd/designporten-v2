@@ -79,7 +79,18 @@ function oppdaterKort(kort: HTMLElement, linjer: KurvLinje[]): void {
     }
     minus.hidden = n === 0;
   }
-  if (kapsel && beroring()) kapsel.toggleAttribute('data-apen', n > 0);
+  if (kapsel) visKapsel(kapsel, n);
+}
+
+/**
+ * Two states: `data-aktiv` (pointer over the card or focus inside the capsule)
+ * turns the cart icon into a «+»; `data-apen` opens the pill with the count
+ * above and «−» below. The pill only opens when there is something in the
+ * cart, so going back to zero closes it and leaves the «+» alone.
+ */
+function visKapsel(kapsel: HTMLElement, n: number): void {
+  const aktiv = kapsel.hasAttribute('data-aktiv');
+  kapsel.toggleAttribute('data-apen', n > 0 && (aktiv || beroring()));
 }
 
 function kobleKort(kort: HTMLElement): void {
@@ -89,11 +100,16 @@ function kobleKort(kort: HTMLElement): void {
   if (!p) return;
   const kapsel = kort.querySelector<HTMLElement>('[data-kurvkapsel]');
 
-  const apne = () => kapsel?.setAttribute('data-apen', '');
+  const apne = () => {
+    if (!kapsel) return;
+    kapsel.setAttribute('data-aktiv', '');
+    visKapsel(kapsel, antallAvProdukt(p.id));
+  };
   const lukk = () => {
-    if (!kapsel || kapsel.contains(document.activeElement)) return;
-    if (beroring() && antallAvProdukt(p.id) > 0) return;
-    kapsel.removeAttribute('data-apen');
+    // Keyboard focus keeps it open; a mouse click's focus does not.
+    if (!kapsel || kapsel.querySelector(':focus-visible')) return;
+    kapsel.removeAttribute('data-aktiv');
+    visKapsel(kapsel, antallAvProdukt(p.id));
   };
   kort.addEventListener('mouseenter', () => !beroring() && apne());
   kort.addEventListener('mouseleave', lukk);
