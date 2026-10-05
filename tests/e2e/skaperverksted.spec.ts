@@ -245,6 +245,107 @@ test.describe('Signgen', () => {
     if (!isMobile) await expect(page.locator('.lagrad')).toHaveCount(4);
   });
 
+  /** Draw a closed shape with the pen at points relative to the canvas centre. */
+  async function tegnMedPenn(
+    page: import('@playwright/test').Page,
+    punkter: [number, number][],
+    lukk = true,
+  ) {
+    const bb = (await page.locator('canvas').first().boundingBox())!;
+    const sx = bb.x + bb.width / 2,
+      sy = bb.y + bb.height * 0.7;
+    await page.getByRole('button', { name: 'Penn', exact: true }).click();
+    for (const [x, y] of punkter) await page.mouse.click(sx + x, sy + y);
+    if (lukk) await page.mouse.click(sx + punkter[0]![0], sy + punkter[0]![1]);
+    else await page.keyboard.press('Enter');
+    return { sx, sy };
+  }
+
+  test('tegner en form med pennverktøyet, redigerer punktene og angrer', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Tegning med penn og dra punkter krever mus');
+    await page.getByRole('button', { name: 'Snap', exact: true }).click();
+    const { sx, sy } = await tegnMedPenn(page, [
+      [-120, -60],
+      [120, -60],
+      [120, 60],
+      [-120, 60],
+    ]);
+    await expect(page.locator('.lagrad', { hasText: 'Tegning' })).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    // double-click on the shape: its points and curves can be edited
+    await page.mouse.dblclick(sx, sy);
+    const panel = page.getByRole('region', { name: 'Rediger kurver' });
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText('1 bane, 4 punkter');
+    const a = await new AxeBuilder({ page }).include('section[aria-label="Rediger kurver"]').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    const maal = () => page.locator('.statuslinje').innerText();
+    const for_ = await maal();
+    // drag a corner out, then take it back
+    await page.mouse.move(sx - 120, sy - 60);
+    await page.mouse.down();
+    await page.mouse.move(sx - 140, sy - 80, { steps: 3 });
+    await page.mouse.move(sx - 200, sy - 140, { steps: 6 });
+    await page.mouse.up();
+    await expect(panel).toContainText('1 punkt valgt');
+    await expect.poll(maal).not.toBe(for_);
+    await page.getByRole('button', { name: 'Angre', exact: true }).click();
+    await expect.poll(maal).toBe(for_);
+    // add a point on an edge (double-click) and take it away with Delete
+    await page.mouse.dblclick(sx, sy - 60);
+    await expect(panel).toContainText('5 punkter');
+    await page.keyboard.press('Delete');
+    await expect(panel).toContainText('4 punkter');
+    // Esc clears the selection, then leaves the editing
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+  });
+
+  test('en åpen bane kan repareres, og en form kan få sin egen farge', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Tegning med penn krever mus');
+    await page.getByRole('button', { name: 'Snap', exact: true }).click();
+    const { sx, sy } = await tegnMedPenn(
+      page,
+      [
+        [-120, -60],
+        [120, -60],
+        [120, 60],
+        [-120, 60],
+        [-115, -20],
+      ],
+      false,
+    );
+    // a second, separate shape in the same drawing
+    for (const [x, y] of [
+      [160, -40],
+      [220, -40],
+      [220, 20],
+      [160, 20],
+    ] as const)
+      await page.mouse.click(sx + x, sy + y);
+    await page.mouse.click(sx + 160, sy - 40);
+    await page.keyboard.press('Escape');
+    await page.mouse.dblclick(sx, sy);
+    const panel = page.getByRole('region', { name: 'Rediger kurver' });
+    await expect(panel).toContainText('2 baner');
+    await expect(panel).toContainText('1 bane er ikke sluttet');
+    await panel.getByLabel('Vis hva som blir koblet (grønt)').check();
+    const avstand = panel.getByLabel('Største avstand som kobles');
+    await avstand.fill('50');
+    await avstand.press('Enter');
+    await expect(panel).toContainText('1 lukkes');
+    await panel.getByRole('button', { name: 'Reparer', exact: true }).click();
+    await expect(panel).toContainText('Alle banene er lukket');
+    // the second shape gets another colour, in a layer of its own
+    await page.mouse.click(sx + 190, sy - 10);
+    await expect(panel).toContainText('1 bane valgt');
+    await panel.getByRole('button', { name: 'Farg formen cyan' }).click();
+    await expect(page.locator('.lagrad', { hasText: 'Tegning · Cyan' })).toHaveCount(1);
+    await page.getByRole('button', { name: 'Angre', exact: true }).click();
+    await expect(page.locator('.lagrad', { hasText: 'Tegning · Cyan' })).toHaveCount(0);
+  });
+
   test('har ingen tilgjengelighetsfeil i verkstedet', async ({ page }) => {
     const r = await new AxeBuilder({ page }).exclude('canvas').analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);

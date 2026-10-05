@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { finnLag, objekterILag, type Objekt } from '../../core/dokument';
+import { finnLag, type Objekt } from '../../core/dokument';
 import { anvend, inverter, tilMatrise, type Boks, type Transform2D, type Vec2 } from '../../core/geometri2d';
 import { finnMateriale } from '../../core/materialer';
 import { rutenettnivaa, snapTil } from '../../core/rutenett';
@@ -27,6 +27,12 @@ import {
 } from './modell';
 import { signtilstand, brukSigntilstand, type Hjelpelinje, type VerktoyId } from './tilstand';
 import { dupliserValgte, leggTil, redigerbare, slettValgte, utvalgsboks, valgte } from './handlinger';
+import { snapPunkt, treff } from './plukk';
+import { erDobbeltklikk } from './dobbeltklikk';
+import { kurveObjekt, startKurveredigering } from './kurver';
+import { lagKurveverktoy } from './Kurveverktoy';
+import { tegnKurver } from './Kurveoverlegg';
+import { lagPennverktoy } from './Pennverktoy';
 
 // ---------- drawing ----------
 
@@ -175,7 +181,7 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
     ctx.stroke();
   }
   const h = handtakFor(benk);
-  if (h && redigerbare(benk).length === valgte(benk).length) {
+  if (h && !st.kurve && redigerbare(benk).length === valgte(benk).length) {
     if (!h.enkelt) {
       const [a, , c] = [h.punkter[0]!, h.punkter[2]!, h.punkter[4]!].map(v.tilSkjerm) as [Vec2, Vec2, Vec2];
       ctx.setLineDash([5, 4]);
@@ -268,52 +274,10 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
     const s = v.tilSkjerm(st.maletikett.p);
     etikett(ctx, f, { x: s.x + 12, y: s.y + 12 }, st.maletikett.tekst);
   }
+  tegnKurver(ctx, v, f, benk);
 }
 
 // ---------- hit testing ----------
-
-function iRegion(p: Vec2, r: Region): boolean {
-  let inne = false;
-  for (const f of r) {
-    for (const ring of [f.ytre, ...f.hull]) {
-      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-        const a = ring[i]!,
-          b = ring[j]!;
-        if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inne = !inne;
-      }
-    }
-  }
-  return inne;
-}
-
-/** Topmost selectable object under a model point. */
-export function treff(benk: Arbeidsbenk, p: Vec2, toleranseMm: number): Objekt | null {
-  const d = benk.dok;
-  for (const lag of [...d.lag].reverse()) {
-    if (!lag.synlig || lag.last) continue;
-    const obj = objekterILag(d, lag.id).reverse();
-    for (const o of obj) {
-      if (!o.synlig || o.last) continue;
-      const r = verdensRegion(o);
-      if (r && iRegion(p, r)) return o;
-    }
-    // near-miss on thin shapes: accept the box when zoomed out
-    for (const o of obj) {
-      if (!o.synlig || o.last) continue;
-      const b = verdensBoks(o);
-      if (b.maksX - b.minX < toleranseMm * 3 || b.maksY - b.minY < toleranseMm * 3) {
-        if (
-          p.x > b.minX - toleranseMm &&
-          p.x < b.maksX + toleranseMm &&
-          p.y > b.minY - toleranseMm &&
-          p.y < b.maksY + toleranseMm
-        )
-          return o;
-      }
-    }
-  }
-  return null;
-}
 
 // ---------- snapping ----------
 
@@ -373,41 +337,6 @@ function snapBoks(
     }
   }
   return res;
-}
-
-function snapPunkt(benk: Arbeidsbenk, p: Vec2, v: Visning, deaktivert: boolean): Vec2 {
-  if (deaktivert || !benk.tilstand.innstillinger.snap) return p;
-  const terskel = 8 / v.pxPerMm;
-  let best: Vec2 | null = null;
-  let bestD = terskel;
-  const kandidater: Vec2[] = [{ x: 0, y: 0 }];
-  for (const o of Object.values(benk.dok.objekter)) {
-    if (!o.synlig) continue;
-    const b = verdensBoks(o);
-    const cx = (b.minX + b.maksX) / 2,
-      cy = (b.minY + b.maksY) / 2;
-    kandidater.push(
-      { x: b.minX, y: b.minY },
-      { x: b.maksX, y: b.minY },
-      { x: b.maksX, y: b.maksY },
-      { x: b.minX, y: b.maksY },
-      { x: cx, y: cy },
-      { x: cx, y: b.minY },
-      { x: cx, y: b.maksY },
-      { x: b.minX, y: cy },
-      { x: b.maksX, y: cy },
-    );
-  }
-  for (const k of kandidater) {
-    const d = Math.hypot(k.x - p.x, k.y - p.y);
-    if (d < bestD) {
-      bestD = d;
-      best = k;
-    }
-  }
-  if (best) return best;
-  const steg = Math.max(0.1, rutenettnivaa(v.pxPerMm).liten);
-  return { x: snapTil(p.x, steg), y: snapTil(p.y, steg) };
 }
 
 // ---------- tools ----------
@@ -507,6 +436,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         }
         const o = treff(benk, modell, tol);
         const utvalg = benk.tilstand.utvalg.objekter;
+        const dobbel = erDobbeltklikk(skjerm);
         if (o) {
           if (e.shiftKey) {
             const ny = utvalg.includes(o.id) ? utvalg.filter((x) => x !== o.id) : [...utvalg, o.id];
@@ -514,8 +444,13 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
             return;
           }
           if (!utvalg.includes(o.id)) benk.velg({ objekter: [o.id], lag: o.lagId });
-          if (e.detail === 2 && o.kilde.type === 'tekst') {
+          if (dobbel && o.kilde.type === 'tekst') {
             window.dispatchEvent(new CustomEvent('signgen:rediger-tekst'));
+            return;
+          }
+          if (dobbel && o.kilde.type === 'svg' && !e.shiftKey) {
+            drag = null;
+            startKurveredigering(benk, o.id);
             return;
           }
           const valgteNa = redigerbare(benk);
@@ -801,6 +736,15 @@ function Flytlinje({ benk }: { benk: Arbeidsbenk }) {
       role="toolbar"
       aria-label="Valgte objekter"
     >
+      {obj.length === 1 && obj[0]!.kilde.type === 'svg' && (
+        <button
+          type="button"
+          onClick={() => startKurveredigering(benk, obj[0]!.id)}
+          title="Rediger punkter og kurver (dobbeltklikk)"
+        >
+          Rediger kurver
+        </button>
+      )}
       <button type="button" onClick={() => dupliserValgte(benk)} title="Dupliser (Ctrl+D)">
         Dupliser
       </button>
@@ -831,7 +775,29 @@ export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
   const st = brukSigntilstand(benk);
   const t = brukBenk(benk);
   useEffect(() => nårFontLastes(() => benk.kommando('tegn')), [benk]);
-  const verktoy = useMemo(() => lagVerktoy(benk, st.verktoy), [benk, st.verktoy]);
+  const redigerer = !!st.kurve;
+  const verktoy = useMemo(
+    () =>
+      st.verktoy === 'penn'
+        ? lagPennverktoy(benk)
+        : st.verktoy === 'velg' && redigerer
+          ? lagKurveverktoy(benk)
+          : lagVerktoy(benk, st.verktoy),
+    [benk, st.verktoy, redigerer],
+  );
+  // leave curve editing and the pen when the work moves elsewhere
+  useEffect(() => {
+    const lager = signtilstand(benk);
+    const k = lager.t.kurve;
+    if (lager.t.penn && st.verktoy !== 'penn') lager.sett({ penn: null });
+    if (!k) return;
+    const utvalg = t.utvalg.objekter;
+    const borte =
+      !kurveObjekt(benk) ||
+      (st.verktoy !== 'velg' && st.verktoy !== 'penn') ||
+      (st.verktoy === 'velg' && (utvalg.length !== 1 || utvalg[0] !== k.objektId));
+    if (borte) lager.sett({ kurve: null, markering: null });
+  }, [benk, st.verktoy, st.kurve, t.utvalg.objekter, t.dok]);
   const markering = utvalgsboks(valgte(benk));
   const antall = Object.keys(t.dok.objekter).length;
   return (
@@ -844,7 +810,7 @@ export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
       panorer={st.verktoy === 'panorer'}
       etikett={`Skiltet sett ovenfra, ${t.dok.lag.length} lag og ${antall} objekter. Velg objekter i lagpanelet med tastatur. Piltaster flytter valgte objekter.`}
     >
-      {st.verktoy === 'velg' && <Flytlinje benk={benk} />}
+      {st.verktoy === 'velg' && !st.kurve && <Flytlinje benk={benk} />}
     </Lerret>
   );
 }

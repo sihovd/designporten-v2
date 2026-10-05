@@ -12,6 +12,8 @@ import { Lagpanel } from './Lagpanel';
 import { SigngenInspektor } from './Inspektor';
 import { signtilstand } from './tilstand';
 import { dupliserValgte, flyttValgte, slettValgte, velgAlle } from './handlinger';
+import { avsluttKurveredigering, dyttValgte, settKurve, slettKurveValg } from './kurver';
+import { angrePennpunkt, fullforPenn, pennPagar } from './Pennverktoy';
 
 const plugin: GeneratorPlugin = {
   ...meta,
@@ -28,6 +30,42 @@ const plugin: GeneratorPlugin = {
   hurtigtaster(e, benk) {
     const mod = e.ctrlKey || e.metaKey;
     const tast = e.key.toLowerCase();
+    const lager = signtilstand(benk);
+    if (lager.t.verktoy === 'penn') {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        if (pennPagar(benk)) fullforPenn(benk, false);
+        else lager.sett({ verktoy: 'velg', penn: null });
+        return true;
+      }
+      if ((e.key === 'Backspace' || e.key === 'Delete') && angrePennpunkt(benk)) return true;
+    } else if (lager.t.kurve && lager.t.verktoy === 'velg') {
+      const k = lager.t.kurve;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (!slettKurveValg(benk)) benk.melde('Velg et punkt, en kurve eller en form å slette først.');
+        return true;
+      }
+      if (e.key === 'Enter') {
+        avsluttKurveredigering(benk);
+        return true;
+      }
+      if (e.key === 'Escape') {
+        if (k.noder.length || k.baner.length || k.segment)
+          settKurve(benk, { noder: [], baner: [], segment: null });
+        else avsluttKurveredigering(benk);
+        return true;
+      }
+      const retning: Record<string, [number, number]> = {
+        ArrowLeft: [-1, 0],
+        ArrowRight: [1, 0],
+        ArrowUp: [0, 1],
+        ArrowDown: [0, -1],
+      };
+      const r = retning[e.key];
+      if (r) {
+        const s = e.shiftKey ? 1 : 0.1;
+        if (dyttValgte(benk, r[0] * s, r[1] * s)) return true;
+      }
+    }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       slettValgte(benk);
       return true;
@@ -69,7 +107,7 @@ const plugin: GeneratorPlugin = {
     return false;
   },
   hurtigtastListe: [
-    ['V T R E P H M', 'Velg, Tekst, Rektangel, Ellipse, Polygon, Hull, Mål'],
+    ['V T R E P B H M', 'Velg, Tekst, Rektangel, Ellipse, Polygon, Penn, Hull, Mål'],
     ['Shift + klikk, dra rundt', 'Velg flere'],
     ['Ctrl/Cmd + A', 'Velg alt i laget'],
     ['Piltaster', 'Flytt 1 mm (Shift: 10 mm)'],
@@ -78,6 +116,11 @@ const plugin: GeneratorPlugin = {
     ['Shift mens du drar', 'Lås retning / fri skalering'],
     ['Alt mens du drar', 'Uten snapping'],
     ['Dobbeltklikk på tekst', 'Rediger teksten'],
+    ['Dobbeltklikk på en SVG', 'Rediger punkter og kurver'],
+    ['Penn: klikk / dra', 'Hjørnepunkt / jevn kurve (Alt: bare neste håndtak)'],
+    ['Penn: Enter, dobbeltklikk', 'Fullfør åpen bane (klikk første punkt lukker)'],
+    ['Punkter: Delete, piler', 'Slett punkt, kurve eller form · flytt 0,1 mm (Shift: 1 mm)'],
+    ['Dobbeltklikk på kurve / punkt', 'Legg til punkt / bytt mellom hjørne og jevn'],
     ['Esc', 'Tilbake til Velg / fjern utvalg'],
   ],
   eksport(_dok, _modell, benk) {

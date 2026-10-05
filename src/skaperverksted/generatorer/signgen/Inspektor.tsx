@@ -41,6 +41,9 @@ import {
 import { erOye, lokalGeometri, MIN_OMRISSBREDDE, objektStorrelse, STANDARD_RINGBREDDE } from './modell';
 import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
+import { Kurvepanel, Pennpanel } from './Kurvepanel';
+import { antallAapne } from '../../geometri/bane';
+import { hentBaner, settKurve, startKurveredigering } from './kurver';
 import { nyttOmrissI } from './Lagpanel';
 import { Profilredigerer } from './Profilredigerer';
 import { plangrenser } from '../../core/plangrenser';
@@ -358,6 +361,35 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
                 }
               />
             </div>
+            <div class="knapperad">
+              <button
+                type="button"
+                class="kontroll-knapp"
+                title="Rediger punkter og kurver (dobbeltklikk på vektoren)"
+                onClick={() => startKurveredigering(benk, o.id)}
+              >
+                Rediger kurver
+              </button>
+            </div>
+            {(() => {
+              const aapne = antallAapne(hentBaner(o) ?? []);
+              return aapne ? (
+                <>
+                  <p class="merknad advarsel-tekst">
+                    {aapne} {aapne === 1 ? 'bane er' : 'baner er'} ikke sluttet.
+                  </p>
+                  <button
+                    type="button"
+                    class="kontroll-knapp"
+                    onClick={() => {
+                      if (startKurveredigering(benk, o.id)) settKurve(benk, { repVis: true });
+                    }}
+                  >
+                    Reparer åpne baner …
+                  </button>
+                </>
+              ) : null;
+            })()}
             <p class="merknad">
               «Behold hull» lar åpningene i vektoren stå åpne. «Fyll igjen» gir bare silhuetten. Vil du skjære
               vektoren ut av et lag, velg «Kutter» under Rolle.
@@ -1225,12 +1257,22 @@ function BatchInngang({ benk }: { benk: Arbeidsbenk }) {
 
 export function SigngenInspektor({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
+  const st = brukSigntilstand(benk);
   const valgte = t.utvalg.objekter.map((id) => t.dok.objekter[id]).filter((o): o is Objekt => !!o);
   const lag = t.utvalg.lag ? finnLag(t.dok, t.utvalg.lag) : undefined;
-  if (valgte.length === 1) return <EttObjekt benk={benk} o={valgte[0]!} key={valgte[0]!.id} />;
+  if (valgte.length === 1) {
+    return (
+      <>
+        {st.kurve && st.kurve.objektId === valgte[0]!.id && <Kurvepanel benk={benk} />}
+        {st.verktoy === 'penn' && <Pennpanel benk={benk} />}
+        <EttObjekt benk={benk} o={valgte[0]!} key={valgte[0]!.id} />
+      </>
+    );
+  }
   if (valgte.length > 1) return <FlereObjekter benk={benk} antall={valgte.length} />;
   return (
     <>
+      {st.verktoy === 'penn' && <Pennpanel benk={benk} />}
       {lag && <LagInspektor benk={benk} lag={lag} key={lag.id} />}
       <ProsjektInspektor benk={benk} />
       <BatchInngang benk={benk} />

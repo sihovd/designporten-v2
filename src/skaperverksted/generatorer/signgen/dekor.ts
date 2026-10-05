@@ -7,8 +7,9 @@
  * the credit below is shown in the gallery.
  */
 import type { SvgKilde } from '../../core/dokument';
-import { unionAlle } from '../../geometri/polygon';
+import { regionBoks, unionAlle } from '../../geometri/polygon';
 import { stiTilRinger } from '../../geometri/stidata';
+import { flyttBaner, tolkBaner, transformerBaner } from '../../geometri/bane';
 import type { Fargegruppe, Flerfarget } from './svgdeler';
 import { kildeFraRegion, kildeFraRinger } from './svgkilde';
 
@@ -144,7 +145,12 @@ export function dekorKilde(d: Dekor): { kilde: SvgKilde; bredde: number; hoyde: 
   // 24 grid units are GRUNNSTORRELSE mm; y flips to point up
   const s = GRUNNSTORRELSE / 24;
   const ringer = stiTilRinger(d.sti, 0.02).map((r) => r.map((p) => ({ x: p.x * s, y: -p.y * s })));
-  const r = kildeFraRinger(ringer, [], d.navn, { dekorId: d.id });
+  // the icon's own curves are kept, so its points and handles can be edited
+  const kurver = {
+    baner: transformerBaner(tolkBaner(d.sti), [s, 0, 0, -s, 0, 0]),
+    regel: 'nonzero' as const,
+  };
+  const r = kildeFraRinger(ringer, [], d.navn, { dekorId: d.id }, kurver);
   if (!r) throw new Error(`Dekoret «${d.navn}» har ingen flate.`);
   return r;
 }
@@ -223,7 +229,24 @@ export function lagreEgetDekor(
 /** Add a vector with parts in several colours to the gallery. Null if the browser would not store it. */
 export function lagreEgetFlerfarget(navn: string, ff: Flerfarget): EgetDekor | null {
   const alle = unionAlle(ff.grupper.flatMap((g) => (g.region ? [g.region] : [])));
-  const samlet = kildeFraRegion(alle, navn);
+  const grupper = ff.grupper.filter((g) => g.region);
+  const regel = grupper[0]?.kilde.fyllregel;
+  // the groups' curves, each moved back to where it lies in the picture
+  const kurver =
+    regel && grupper.every((g) => g.kilde.fyllregel === regel)
+      ? {
+          regel,
+          baner: grupper.flatMap((g) => {
+            const b = regionBoks(g.region!);
+            return flyttBaner(
+              tolkBaner(g.kilde.stier.join('')),
+              (b.minX + b.maksX) / 2,
+              (b.minY + b.maksY) / 2,
+            );
+          }),
+        }
+      : null;
+  const samlet = kildeFraRegion(alle, navn, {}, kurver);
   if (!samlet) return null;
   const enkelt = lagreEgetDekor(navn, samlet);
   if (!enkelt || ff.grupper.length < 2) return enkelt;
