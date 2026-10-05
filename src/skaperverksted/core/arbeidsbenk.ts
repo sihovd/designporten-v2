@@ -32,6 +32,9 @@ export interface Innstillinger {
   inspektor: boolean;
 }
 
+/** How long the 2D view lets editing pause before the 3D model is rebuilt (ms). */
+const BYGG_I_2D_ETTER = 600;
+
 export interface BenkTilstand {
   dok: Dokument;
   utvalg: Utvalg;
@@ -52,6 +55,7 @@ export class Arbeidsbenk {
   private lyttere = new Set<Lytter>();
   private byggNr = 0;
   private byggTidsur: ReturnType<typeof setTimeout> | undefined;
+  private byggVenter = false;
   /**
    * View commands registered by the active view (tilpass, zoom-100,
    * zoom-inn, zoom-ut, tegn) so shortcuts and toolbars can drive whichever
@@ -137,7 +141,9 @@ export class Arbeidsbenk {
   }
 
   settInnstillinger(i: Partial<Innstillinger>): void {
+    const til3d = i.visning === '3d' && this.t.innstillinger.visning !== '3d';
     this.oppdater({ innstillinger: { ...this.t.innstillinger, ...i } });
+    if (til3d && this.byggVenter) void this.bygg();
   }
 
   /** Short status text for the live region (screen readers) and status bar. */
@@ -166,10 +172,30 @@ export class Arbeidsbenk {
   /** Rebuild the model after changes, debounced; stale results are dropped. */
   private planleggBygg(forsinkelse = 120): void {
     clearTimeout(this.byggTidsur);
-    this.byggTidsur = setTimeout(() => void this.bygg(), forsinkelse);
+    this.byggVenter = true;
+    // The 2D view draws the layers itself; the 3D model only feeds the
+    // status bar and notices there, so it waits until editing pauses
+    // (Sivert, 2026-10-05). Switching to 3D or exporting builds at once.
+    const i2d = this.t?.innstillinger.visning === '2d';
+    if (i2d && forsinkelse > 0) forsinkelse = Math.max(forsinkelse, BYGG_I_2D_ETTER);
+    this.byggTidsur = setTimeout(() => {
+      const ledig = (
+        globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }
+      ).requestIdleCallback;
+      if (i2d && ledig)
+        ledig(
+          () => {
+            if (this.byggVenter) void this.bygg();
+          },
+          { timeout: 1000 },
+        );
+      else void this.bygg();
+    }, forsinkelse);
   }
 
   async bygg(): Promise<Modellresultat> {
+    clearTimeout(this.byggTidsur);
+    this.byggVenter = false;
     const nr = ++this.byggNr;
     const dok = this.t.dok;
     this.oppdater({ bygger: true });

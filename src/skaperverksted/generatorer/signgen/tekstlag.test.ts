@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { settFontHenter } from '../../geometri/tekst';
 import { avgrensning, sjekkManifold } from '../../geometri/mesh';
-import { areal, snitt } from '../../geometri/polygon';
+import { areal, regionBoks, snitt } from '../../geometri/polygon';
 import { finnLag, type Dokument, type Lag, type Omriss } from '../../core/dokument';
 import {
   fargeplasser,
@@ -20,6 +20,7 @@ import {
   nyttSigngenDokument,
   nyttTekstlag,
   oppdaterLag,
+  oppdaterObjekter,
   oppdaterOmriss,
   ordneTekstlag,
   settFarge,
@@ -165,6 +166,38 @@ describe('Sign Forge text layers', () => {
     const lag = tekstlag(d);
     expect(finnLag(settFarge(d, o.id, 'pla-cyan'), lag.id)!.omriss![0]!.materialId).toBe('pla-cyan');
     expect(finnLag(settFarge(d, lag.id, 'pla-cyan'), lag.id)!.materialId).toBe('pla-cyan');
+  });
+});
+
+describe('Sign Forge while dragging', () => {
+  it('moves finished outlines with the text and cuts holes as they move', async () => {
+    const start = await medOmriss({ bredde: 2 });
+    const o = start.o;
+    let d = start.d;
+    const lag = tekstlag(d);
+    const tekstId = d.rekkefolge[lag.id]![0]!;
+    const hull = nyttObjekt(d.lag[0]!.id, nyForm('hull', 5, 5), { x: -80, y: 0 });
+    d = leggTilObjekt(d, hull);
+    const for_ = omrissRegioner(d, lag.id)!.get(o.id)!;
+    const flyttet = oppdaterObjekter(d, [tekstId], (t) => ({
+      ...t,
+      transform: { ...t.transform, x: t.transform.x + 5.3, y: t.transform.y - 2.1 },
+    }));
+    const etter = omrissRegioner(flyttet, lag.id)!.get(o.id)!;
+    expect(areal(etter)).toBeCloseTo(areal(for_), 3);
+    expect(regionBoks(etter).minX).toBeCloseTo(regionBoks(for_).minX + 5.3, 3);
+    expect(regionBoks(etter).maksY).toBeCloseTo(regionBoks(for_).maksY - 2.1, 3);
+    // the same document gives the same objects, so later steps can reuse them
+    expect(omrissRegioner(flyttet, lag.id)!.get(o.id)).toBe(etter);
+    // a hole dragged onto the outline cuts it; dragged away, the outline is whole again
+    const rand = regionBoks(for_).minX + 1;
+    const paa = oppdaterObjekter(d, [hull.id], (h) => ({ ...h, transform: { ...h.transform, x: rand } }));
+    expect(areal(omrissRegioner(paa, lag.id)!.get(o.id)!)).toBeLessThan(areal(for_) - 1);
+    expect(areal(lagRegion(paa, d.lag[0]!.id)!)).toBeLessThan(areal(lagRegion(d, d.lag[0]!.id)!) - 1);
+    const bort = oppdaterObjekter(paa, [hull.id], (h) => ({ ...h, transform: { ...h.transform, x: -80 } }));
+    expect(areal(omrissRegioner(bort, lag.id)!.get(o.id)!)).toBeCloseTo(areal(for_), 6);
+    const m = await byggSigngen(paa);
+    expect(sjekkManifold(m.deler.find((x) => x.id === o.id)!.mesh).lukket).toBe(true);
   });
 });
 
