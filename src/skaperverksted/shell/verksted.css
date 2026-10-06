@@ -2011,3 +2011,728 @@
   color: var(--fg);
   background: var(--panel-2);
 }
+
+/* ---------- panel system (generators with dockable panels, wide screens) ---------- */
+
+.verksted.med-paneler {
+  --skinne-b: 52px;
+  grid-template-columns: var(--skinne-b) minmax(0, 1fr);
+  grid-template-areas:
+    'linje linje'
+    'skinne arbeid'
+    'skinne brett'
+    'status status';
+}
+
+.panelflate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.lerretflate {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dokkolonne {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--dokk-b), 34vw);
+  min-height: 0;
+  background: var(--panel);
+}
+
+.dokkolonne.venstre {
+  border-right: 1px solid var(--linje);
+}
+
+.dokkolonne.hoyre {
+  border-left: 1px solid var(--linje);
+}
+
+.dokkskille {
+  position: absolute;
+  z-index: 6;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.dokkskille.venstre {
+  right: -5px;
+}
+
+.dokkskille.hoyre {
+  left: -5px;
+}
+
+.deling {
+  position: relative;
+  z-index: 5;
+  flex: none;
+  height: 7px;
+  margin: -3px 0;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.dokkskille:hover,
+.deling:hover,
+.dokkskille:focus-visible,
+.deling:focus-visible {
+  background: color-mix(in srgb, var(--fg) 22%, transparent);
+}
+
+.panelgruppe {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--panel);
+}
+
+.dokkolonne .panelgruppe {
+  flex: 1 1 0;
+}
+
+.dokkolonne .panelgruppe + .panelgruppe,
+.dokkolonne .deling + .panelgruppe {
+  border-top: 1px solid var(--linje);
+}
+
+.dokkolonne .panelgruppe.minimert {
+  flex: none;
+}
+
+.flytlag {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.panelgruppe.flytende {
+  position: absolute;
+  pointer-events: auto;
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--skygge-flyt);
+  overflow: hidden;
+}
+
+.panelhode {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 4px 0 10px;
+  border-bottom: 1px solid var(--linje);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.panelgruppe.minimert .panelhode {
+  border-bottom: 0;
+}
+
+.panelnavn {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panelfaner {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.panelfane {
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--fg-dempet);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.panelfane:hover,
+.panelfane[aria-selected='true'] {
+  color: var(--fg);
+}
+
+.panelfane[aria-selected='true'] {
+  border-bottom-color: var(--fg);
+}
+
+.panelknapper {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.panelknapp {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  color: var(--fg-dempet);
+  cursor: pointer;
+}
+
+.panelknapp:hover,
+.panelknapp[aria-expanded='true'] {
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.gruppemeny {
+  position: relative;
+}
+
+.meny.panelmeny {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  min-width: 210px;
+  padding: 6px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  box-shadow: var(--skygge-flyt);
+}
+
+.panelmeny button,
+.filmeny .meny .romrad button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.panelmeny button:hover {
+  background: var(--panel-2);
+}
+
+.panelinnhold {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* edges and corners that resize a floating group */
+.kant {
+  position: absolute;
+  z-index: 3;
+  touch-action: none;
+}
+
+.kant-n,
+.kant-s {
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.kant-n {
+  top: 0;
+}
+
+.kant-s {
+  bottom: 0;
+}
+
+.kant-e,
+.kant-w {
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.kant-e {
+  right: 0;
+}
+
+.kant-w {
+  left: 0;
+}
+
+.kant-ne,
+.kant-nw,
+.kant-se,
+.kant-sw {
+  width: 12px;
+  height: 12px;
+}
+
+.kant-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.kant-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.kant-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.kant-se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+.slippmal {
+  position: absolute;
+  z-index: 100;
+  border: 2px solid var(--dp-cyan);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--dp-cyan) 16%, transparent);
+  pointer-events: none;
+}
+
+.drabrikke {
+  position: fixed;
+  z-index: 200;
+  padding: 4px 10px;
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-panel);
+  background: var(--panel-2);
+  box-shadow: var(--skygge-flyt);
+  font-size: 12.5px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* «Paneler» menu in the workshop bar */
+.panelmeny-linje summary {
+  gap: 6px;
+}
+
+.filmeny .meny .meny-overskrift {
+  margin: 8px 10px 2px;
+  color: var(--fg-dempet);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.filmeny .meny .meny-overskrift:first-child {
+  margin-top: 2px;
+}
+
+.romrad {
+  display: flex;
+  align-items: stretch;
+}
+
+.romrad > button:first-child {
+  flex: 1;
+}
+
+.romrad > button[aria-pressed='true'] {
+  background: var(--panel-2);
+  font-weight: 650;
+}
+
+.romrad > button[aria-pressed='true']::before {
+  content: '●' / '';
+  font-size: 8px;
+}
+
+.romrad > button[aria-pressed='false']::before {
+  content: '' / '';
+  display: inline-block;
+  width: 8px;
+}
+
+.filmeny .meny .romrad .romslett {
+  flex: none;
+  justify-content: center;
+  width: 34px;
+  padding: 0;
+  color: var(--fg-dempet);
+}
+
+.lagre-rom {
+  display: flex;
+  gap: 6px;
+  margin: 4px 4px 6px;
+}
+
+.lagre-rom input {
+  min-width: 0;
+}
+
+.avkryssing {
+  display: inline-block;
+  width: 14px;
+  color: var(--fg);
+}
+
+/* ---------- slim tool rail and hover hints ---------- */
+
+.med-paneler .verktoyskinne {
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px 5px;
+}
+
+.med-paneler .verktoy {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0;
+}
+
+.med-paneler .verktoy .verktoy-etikett {
+  display: none;
+}
+
+.tips {
+  position: relative;
+  display: inline-flex;
+}
+
+.verktoyskinne .tips {
+  display: flex;
+}
+
+.verktoyskinne .tips > .verktoy {
+  flex: 1;
+}
+
+.ikon {
+  display: block;
+  flex: none;
+}
+
+.verktoy .ikon {
+  color: var(--fg);
+}
+
+.verktoy {
+  position: relative;
+}
+
+/* a tool with a menu of variants (Former): small mark in the corner */
+.verktoy-flere {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-bottom: 5px solid var(--fg-dempet);
+}
+
+.verktoymeny {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  box-shadow: var(--skygge-flyt);
+}
+
+.verktoymeny button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.verktoymeny button:hover,
+.verktoymeny button[aria-checked='true'] {
+  background: var(--panel-2);
+}
+
+.verktoymeny kbd {
+  margin-left: auto;
+  color: var(--fg-dempet);
+}
+
+.tipsboble {
+  position: fixed;
+  z-index: 300;
+}
+
+.tipsboble.hoyre {
+  padding-left: 8px;
+  translate: 0 -50%;
+}
+
+.tipsboble.under {
+  padding-top: 6px;
+}
+
+.tipsboble.under.fraHoyre {
+  translate: -100% 0;
+}
+
+.tipsinnhold {
+  display: grid;
+  gap: 3px;
+  width: max-content;
+  max-width: 250px;
+  padding: 6px 9px;
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  box-shadow: var(--skygge-flyt);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.tipsinnhold strong {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 650;
+}
+
+.tipsinnhold kbd {
+  color: var(--fg-dempet);
+}
+
+.tipshjelp {
+  color: var(--fg-dempet);
+}
+
+/* number scrubber: a short mm scale along the bottom edge, only while the field is hovered or focused */
+.skrubber {
+  position: absolute;
+  right: 4px;
+  bottom: 1px;
+  left: 4px;
+  height: 11px;
+  overflow: hidden;
+  border-radius: 0 0 2px 2px;
+  color: var(--fg-dempet);
+  cursor: ew-resize;
+  opacity: 0;
+  touch-action: none;
+  transition: opacity 120ms;
+}
+
+.tallfelt:hover .skrubber,
+.tallfelt:focus-within .skrubber,
+.skrubber.drar {
+  opacity: 1;
+}
+
+.skrubber .skala {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 40px) 0 100% / 100% 7px no-repeat,
+    repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 8px) 0 100% / 100% 4px no-repeat;
+  opacity: 0.7;
+}
+
+.skrubber .pil {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  translate: -50% 0;
+  width: 0;
+  height: 0;
+  border-right: 5px solid transparent;
+  border-bottom: 7px solid var(--fg);
+  border-left: 5px solid transparent;
+}
+
+@media (pointer: coarse) {
+  .skrubber {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skrubber {
+    transition: none;
+  }
+}
+
+/* small screens keep sheets and labelled tools: panel chrome is not used there */
+.smal .verktoy .verktoy-etikett {
+  display: inline;
+}
+
+/* history and production panels */
+.historikkliste,
+.plassliste {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.historikktrinn {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  color: var(--fg-dempet);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.historikktrinn:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.historikktrinn[aria-current='step'] {
+  background: var(--panel-2);
+  color: var(--fg);
+  font-weight: 650;
+}
+
+.historikktrinn.gjort-om {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.historikk-tom,
+.produksjonsnotat {
+  margin: 0;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.produksjon {
+  padding: 4px 0 8px;
+}
+
+.produksjonstall {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.produksjonstall > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.produksjonstall dt {
+  color: var(--fg-dempet);
+  font-size: 13px;
+}
+
+.produksjonstall dd {
+  margin: 0;
+}
+
+.produksjon .underoverskrift {
+  margin: 8px 12px 0;
+}
+
+.plassliste li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 6px;
+  font-size: 13px;
+}
+
+.plassnr {
+  width: 1.4em;
+  color: var(--fg-dempet);
+  text-align: right;
+}
+
+.plassnavn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.produksjon .merknader {
+  margin: 4px 12px;
+}
+
+.panelmeny-linje .meny {
+  min-width: 270px;
+}
+
+.panelmeny-linje .meny button {
+  justify-content: flex-start;
+  white-space: nowrap;
+}
+
+.panelmeny-linje .meny .lagre-rom button {
+  justify-content: center;
+}
+
+@media (max-width: 1279px) {
+  .panelmeny-linje summary span {
+    display: none;
+  }
+}

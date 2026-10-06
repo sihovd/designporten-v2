@@ -368,6 +368,134 @@ test.describe('Signgen', () => {
     await expect(page.locator('.lagrad', { hasText: 'Tegning · Cyan' })).toHaveCount(0);
   });
 
+  test('panelene kan flyttes, slås sammen til faner, minimeres, lukkes og huskes', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    const lag = page.getByRole('region', { name: 'Lag', exact: true });
+    const egenskaper = page.getByRole('region', { name: 'Egenskaper', exact: true });
+    await expect(lag).toBeVisible();
+    await expect(egenskaper).toBeVisible();
+    // Lag starts docked on the left; drag it onto Egenskaper in the right dock: they become tabs
+    const fra = (await lag.locator('.panelhode').boundingBox())!;
+    const til = (await egenskaper.boundingBox())!;
+    await page.mouse.move(fra.x + 40, fra.y + 15);
+    await page.mouse.down();
+    await page.mouse.move(til.x + til.width / 2, til.y + til.height / 2, { steps: 8 });
+    await page.mouse.up();
+    const faner = page.getByRole('tablist', { name: 'Paneler i gruppen' });
+    await expect(faner.getByRole('tab')).toHaveCount(2);
+    await expect(page.locator('.dokkolonne.venstre')).toHaveCount(0);
+    // the layout is remembered (wait for the project autosave first, so the start window is not shown again)
+    await page.waitForFunction(() => !!localStorage.getItem('dp-verksted:signgen'));
+    await page.reload();
+    await expect(page.getByRole('tablist', { name: 'Paneler i gruppen' }).getByRole('tab')).toHaveCount(2);
+    // minimise, close and reopen from the menu
+    await page.getByRole('button', { name: /^Minimer / }).click();
+    await expect(page.locator('.panelinnhold')).toHaveCount(0);
+    await page.getByRole('button', { name: /^Gjenopprett / }).click();
+    await page.getByRole('button', { name: /^Meny for / }).click();
+    await page.getByRole('menuitem', { name: /^Lukk «/ }).click();
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    await page.getByRole('button', { name: 'Historikk', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Historikk' })).toBeVisible();
+    // choosing a workspace puts everything back
+    await page.getByRole('button', { name: 'Enkel', exact: true }).click();
+    await expect(page.locator('.dokkolonne.venstre')).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Historikk' })).toHaveCount(0);
+  });
+
+  test('et panel kan gjøres flytende fra menyen, og et eget arbeidsrom kan lagres', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.getByRole('button', { name: 'Meny for Lag' }).click();
+    await page.getByRole('menuitem', { name: 'Gjør flytende' }).click();
+    await expect(page.locator('.panelgruppe.flytende')).toHaveCount(1);
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    await page.getByLabel('Lagre dette oppsettet som eget arbeidsrom').fill('Mitt rom');
+    await page.getByRole('button', { name: 'Lagre', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Mitt rom', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await page.getByRole('button', { name: 'Design', exact: true }).click();
+    await expect(page.locator('.panelgruppe.flytende')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Mitt rom', exact: true }).click();
+    await expect(page.locator('.panelgruppe.flytende')).toHaveCount(1);
+    const a = await new AxeBuilder({ page }).exclude('canvas').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
+
+  test('Historikk-panelet viser endringene og kan gå tilbake til et trinn', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    await page.getByRole('button', { name: 'Historikk', exact: true }).click();
+    await page.keyboard.press('Escape');
+    const hist = page.getByRole('region', { name: 'Historikk' });
+    await expect(hist).toContainText('Ingenting er gjort ennå');
+    await page.getByRole('button', { name: 'Rutenett', exact: true }).click(); // not a document change
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    await page.keyboard.press('r');
+    await page.mouse.move(b.x + b.width * 0.7, b.y + b.height * 0.25);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.8, b.y + b.height * 0.35, { steps: 5 });
+    await page.mouse.up();
+    await expect(hist.getByRole('button', { name: 'Utgangspunkt' })).toBeEnabled();
+    const antall = await page.locator('.objektliste li').count();
+    await hist.getByRole('button', { name: 'Utgangspunkt' }).click();
+    await expect(page.locator('.objektliste li')).toHaveCount(antall - 1);
+  });
+
+  test('verktøyene har bare ikon, med navn og forklaring etter litt hover, og Former har en meny', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Hover og dra brukes på brede skjermer');
+    const penn = page.getByRole('button', { name: 'Penn', exact: true });
+    await expect(penn.locator('.verktoy-etikett')).toBeHidden();
+    await penn.hover();
+    const hint = page.locator('.tipsboble');
+    await expect(hint).toContainText('Penn');
+    await expect(hint).not.toContainText('klikk for hjørne');
+    await expect(hint).toContainText('klikk for hjørne', { timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await expect(hint).toHaveCount(0);
+    // Former: one tool with rectangle, ellipse and polygon
+    const former = page.getByRole('button', { name: 'Former', exact: true });
+    await former.click();
+    await expect(former).toHaveAttribute('aria-pressed', 'true');
+    await former.click();
+    await page.getByRole('menuitemradio', { name: /Ellipse/ }).click();
+    await expect(former).toHaveAttribute('aria-pressed', 'true');
+    await page.keyboard.press('v');
+    await expect(former).toHaveAttribute('aria-pressed', 'false');
+    await page.keyboard.press('p');
+    await expect(former).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('tallfelt kan skrubbes med skalaen under feltet', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Skrubbing med mus brukes på brede skjermer');
+    const felt = page.getByLabel('Teksthøyde');
+    const for_ = Number((await felt.inputValue()).replace(',', '.'));
+    await felt.hover();
+    const b = (await felt.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height - 4);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 32, b.y + b.height - 4, { steps: 4 });
+    await page.mouse.up();
+    const etter = Number((await felt.inputValue()).replace(',', '.'));
+    expect(etter).toBeGreaterThan(for_);
+    // typing and the arrow keys still work
+    await felt.fill('5');
+    await felt.press('Enter');
+    await felt.press('ArrowUp');
+    await expect(felt).toHaveValue('5,2');
+  });
+
   test('har ingen tilgjengelighetsfeil i verkstedet', async ({ page }) => {
     const r = await new AxeBuilder({ page }).exclude('canvas').analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);

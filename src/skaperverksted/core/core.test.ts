@@ -62,6 +62,13 @@ describe('historikk', () => {
     h.utfor({ navn: 'ingen', anvend: (s) => s });
     expect(h.kanAngre).toBe(false);
   });
+  it('viser trinnene med navn: det som kan angres (eldst først) og gjøres om (neste først)', () => {
+    const h = new Historikk({ n: 0 });
+    for (const navn of ['a', 'b', 'c']) h.utfor({ navn, anvend: (s) => ({ n: s.n + 1 }) });
+    h.angre();
+    h.angre();
+    expect(h.trinn).toEqual({ angre: ['a'], gjorOm: ['b', 'c'] });
+  });
 });
 
 describe('rutenett', () => {

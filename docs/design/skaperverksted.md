@@ -40,6 +40,21 @@ It is **not** "a form on the left and a preview on the right".
 - Panels: 4 px radius, 1 px hairlines, no glass, no shadows beyond a subtle lift for floating panels.
 - Dense but calm: 12–13 px mono values, 14 px labels, 32 px control height (44 px on touch).
 
+### Panel system and workspaces (Sign Forge; other generators opt in)
+
+A generator that lists `ui.Paneler` gets dockable panels on screens of 1024 px and up (the shell code is in `shell/paneler/`; generators without it keep the fixed left panel and inspector, and small screens keep the bottom sheets for everyone).
+
+- **Panels** are `PanelDef` entries (id, name, component). Sign Forge has **Lag**, **Egenskaper**, **Historikk** and **Produksjon**; more come with their phases (see below). CSV is **not** a panel: it is its own workflow.
+- **Groups.** A panel lives in a group; a group holds one or more panels as tabs and sits in a dock column (left or right of the canvas) or floats over the canvas. Dock columns stack groups vertically and have draggable borders (width and height); floating groups resize from all edges and corners.
+- **Drag a group header** to float it, dock it (at the edge or between groups: a thin line shows where) or drop it on another group to make tabs. Dragging a **tab** takes that panel out of the group. The panel menu (⋯ in every header) does the same without dragging (dock left or right, make floating, detach a tab, minimise, close), so the layout can be changed with keyboard only; borders can be moved with the arrow keys.
+- **Minimise** collapses a group to its header (a single panel is minimised alone; a tab group as a whole). **Close** removes a panel; **Paneler** in the workshop bar shows and hides panels again and puts them where the first workspace has them.
+- **Workspaces** are only panel arrangements: **Enkel** (Lag left, Egenskaper right), **Design** (adds Historikk), **Produksjon** (adds Produksjon) and **Egendefinert** (whatever the user arranged last). A manual change moves the user to Egendefinert; the user can save the current arrangement under a name and delete it again. Narrow desktop windows (< 1280 px) get single-dock versions of the ready-made ones.
+- **Storage** is per generator in the browser (`dp-verksted:paneler:<id>`, versioned). A stored layout is repaired against today's panels when read (unknown panels go, new ones appear where the first workspace has them) and falls back to Enkel if damaged. Floating panels are kept inside the window.
+- **Tool rail** (Sign Forge): icon only, no permanent labels (small screens keep labels). A hint with the name appears after a short hover and adds the description and shortcut after about three seconds; keyboard focus shows it at once; Esc dismisses it. Icons come from `shell/ikoner.tsx`, one function per icon, so the final set can replace them without touching the toolbar (the temporary ones are plain geometric line icons). **Former** is one tool for rectangle, ellipse and polygon (click again, right-click, long press or ↓ opens the list; R, E and P still pick a shape directly).
+- **Number fields** keep typing and the arrow keys and get a **scrubber**: while the field is hovered or focused, a short millimetre scale appears along its bottom edge with a triangle that can be dragged (Shift = fine). One drag is one undo step. It is hidden on touch screens.
+
+The larger Sign Forge UI update (Sivert, 2026-10-06) is delivered in phases, each its own change; the plan and data model are in the project folder `sign-forge-ui/plan.md`: 1 workspace and panels (this section), 2 layers panel and per-layer cross-section profile, 3 shapes, pen, paint, boolean bar, rulers, guides and snapping, 4 filament registry, colour profiles and fonts, 5 start page, templates and guest saves, 6 CSV workflow with master, instances and overrides.
+
 ### Tablet and mobile
 
 - Canvas gets the maximum space. Panels become **bottom sheets** (Layers, Inspector, Library) opened from a compact bottom toolbar. Only one sheet is open at a time; it snaps to peek / half / full.

@@ -5,8 +5,12 @@
  * input is not understood.
  */
 import type { ComponentChildren } from 'preact';
-import { useEffect, useId, useState } from 'preact/hooks';
+import { useEffect, useId, useRef, useState } from 'preact/hooks';
 import { klem, tall, tolkLengde } from '../core/enheter';
+import { startDra } from './paneler/dra';
+
+/** Scrubber: how many pixels of dragging change the value by one `steg`. */
+const SKRUBB_PX_PER_STEG = 8;
 
 export interface TallFeltProps {
   etikett: string;
@@ -39,6 +43,10 @@ export function TallFelt({
   const [tekst, settTekst] = useState(tall(verdi, desimaler));
   const [redigerer, settRedigerer] = useState(false);
   const [ugyldig, settUgyldig] = useState(false);
+  const [skrubber, settSkrubber] = useState(false);
+  const [skalaX, settSkalaX] = useState(0);
+  const felt = useRef<HTMLInputElement>(null);
+  const dratt = useRef(false);
   useEffect(() => {
     if (!redigerer) settTekst(tall(verdi, desimaler));
   }, [verdi, desimaler, redigerer]);
@@ -53,6 +61,36 @@ export function TallFelt({
     const k = klem(v, min, maks);
     settTekst(tall(k, desimaler));
     if (Math.abs(k - verdi) > 1e-9) endre(k, 'skriv');
+  };
+
+  /** Drag the scale along the field's bottom edge to change the value (Shift: fine steps). */
+  const skrubb = (e: PointerEvent) => {
+    if (e.button !== 0) return;
+    dratt.current = false;
+    const v0 = verdi;
+    const faktor = 10 ** desimaler;
+    let siste = v0;
+    startDra(e, {
+      terskel: 3,
+      start: () => {
+        dratt.current = true;
+        settSkrubber(true);
+      },
+      flytt: (dx, _dy, ev) => {
+        const perPx = (steg / SKRUBB_PX_PER_STEG) * (ev.shiftKey ? 0.1 : 1);
+        const v = klem(Math.round((v0 + dx * perPx) * faktor) / faktor, min, maks);
+        settSkalaX(dx);
+        settTekst(tall(v, desimaler));
+        if (v !== siste) {
+          siste = v;
+          endre(v, 'pil');
+        }
+      },
+      slutt: () => {
+        settSkrubber(false);
+        settSkalaX(0);
+      },
+    });
   };
 
   return (
@@ -70,6 +108,7 @@ export function TallFelt({
       <span class="tallfelt">
         <input
           id={id}
+          ref={felt}
           type="text"
           inputMode="decimal"
           autoComplete="off"
@@ -107,6 +146,20 @@ export function TallFelt({
         {enhet && (
           <span class="enhet" aria-hidden="true">
             {enhet}
+          </span>
+        )}
+        {!deaktivert && (
+          <span
+            class={`skrubber${skrubber ? ' drar' : ''}`}
+            aria-hidden="true"
+            onPointerDown={skrubb}
+            onClick={(e) => {
+              e.preventDefault();
+              if (!dratt.current) felt.current?.focus();
+            }}
+          >
+            <span class="skala" />
+            <span class="pil" style={{ left: `clamp(5px, calc(50% + ${skalaX}px), calc(100% - 5px))` }} />
           </span>
         )}
       </span>
