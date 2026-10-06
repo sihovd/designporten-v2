@@ -9,17 +9,19 @@
  * Pure geometry (no DOM), so it can be tested.
  */
 import type { SvgKilde } from '../../core/dokument';
-import type { Boks } from '../../core/geometri2d';
+import type { Boks, Matrise } from '../../core/geometri2d';
 import {
   differanse,
   regionBoks,
   ringAreal,
   unionAlle,
   type Flate,
+  type Fyllregel,
   type Region,
   type Ring,
 } from '../../geometri/polygon';
-import { kildeFraRegion } from './svgkilde';
+import { banerBoks, banerTilSti, tolkBaner, transformerBaner, type Bane } from '../../geometri/bane';
+import { kildeFraRegion, type Kurver } from './svgkilde';
 
 /** Over this many parts the SVG is imported as one piece. */
 export const MAKS_DELER = 300;
@@ -34,6 +36,12 @@ export interface SvgDel {
   rekkefolge: number;
   /** The fill the file gave it, as «#rrggbb». */
   fyll: string | null;
+  /**
+   * The curves the part was drawn with (in the same place as `region`), so a
+   * part that is used as it is keeps its real curves, and the rule that fills them.
+   */
+  baner?: Bane[];
+  regel?: Fyllregel;
 }
 
 export interface SvgDeler {
@@ -122,17 +130,56 @@ export function tolkFarge(verdi: string | null | undefined): string | null {
 }
 
 /**
+ * Hand each curve to the island it belongs to: the smallest island whose
+ * box holds the curve's box. A curve that fits none is left out.
+ */
+export function fordelBaner(baner: Bane[], ioyer: Region[]): Bane[][] {
+  const tol = 0.05;
+  const bokser = ioyer.map((r) => regionBoks(r));
+  const flate = bokser.map((b) => (b.maksX - b.minX) * (b.maksY - b.minY));
+  const ut = ioyer.map(() => [] as Bane[]);
+  for (const b of baner) {
+    const bb = banerBoks([b]);
+    if (!bb) continue;
+    let best = -1;
+    bokser.forEach((x, k) => {
+      if (
+        bb.minX >= x.minX - tol &&
+        bb.maksX <= x.maksX + tol &&
+        bb.minY >= x.minY - tol &&
+        bb.maksY <= x.maksY + tol &&
+        (best < 0 || flate[k]! < flate[best]!)
+      )
+        best = k;
+    });
+    if (best >= 0) ut[best]!.push(b);
+  }
+  return ut;
+}
+
+/** The curves of several parts as one set, if they all have curves and one fill rule. */
+export function samleKurver(deler: SvgDel[]): Kurver | null {
+  if (!deler.length) return null;
+  const regel = deler[0]!.regel;
+  if (!regel || deler.some((d) => !d.baner?.length || d.regel !== regel)) return null;
+  return { baner: deler.flatMap((d) => d.baner!), regel };
+}
+
+/**
  * The parts of a file: one or more per shape. `elementer` are the shapes in
- * the order they are painted, each already resolved with its own fill rule.
+ * the order they are painted, each already resolved with its own fill rule;
+ * with their curves, the parts keep them.
  */
 export function lagDeler(
   filnavn: string,
-  elementer: { region: Region; fyll: string | null }[],
+  elementer: { region: Region; fyll: string | null; baner?: Bane[]; regel?: Fyllregel }[],
   hoppetOver: string[],
 ): SvgDeler {
   const deler: SvgDel[] = [];
   elementer.forEach((e, rekkefolge) => {
-    for (const region of delOppIOyer(e.region)) {
+    const ioyer = delOppIOyer(e.region);
+    const kurver = e.baner ? fordelBaner(e.baner, ioyer) : null;
+    ioyer.forEach((region, k) => {
       deler.push({
         id: deler.length,
         navn: `Del ${deler.length + 1}`,
@@ -140,8 +187,10 @@ export function lagDeler(
         boks: regionBoks(region),
         rekkefolge,
         fyll: e.fyll,
+        baner: kurver?.[k]?.length ? kurver[k] : undefined,
+        regel: e.regel,
       });
-    }
+    });
   });
   const boksAlle = (d: SvgDel[]): Boks =>
     d.reduce<Boks>(
@@ -165,6 +214,8 @@ export function lagDeler(
         boks: regionBoks(e.region),
         rekkefolge,
         fyll: e.fyll,
+        baner: e.baner?.length ? e.baner : undefined,
+        regel: e.regel,
       }));
     return {
       filnavn,
@@ -254,16 +305,19 @@ export function byggFlerfarget(
     .map((d) => ({ d, farge: farge(d.id) }))
     .filter((x): x is { d: SvgDel; farge: string } => !!x.farge);
   if (!med.length) return null;
-  const grupper = new Map<string, { forst: number; regioner: Region[] }>();
+  const grupper = new Map<string, { forst: number; regioner: Region[]; deler: SvgDel[]; ren: boolean }>();
   for (const { d, farge: f } of med) {
     const over = med.filter(
       (q) => q.farge !== f && q.d.rekkefolge > d.rekkefolge && overlapper(q.d.boks, d.boks),
     );
     const region = over.length ? differanse(d.region, unionAlle(over.map((q) => q.d.region))) : d.region;
     if (!region.length) continue;
-    const g = grupper.get(f) ?? { forst: d.rekkefolge, regioner: [] };
+    const g = grupper.get(f) ?? { forst: d.rekkefolge, regioner: [], deler: [], ren: true };
     g.forst = Math.min(g.forst, d.rekkefolge);
     g.regioner.push(region);
+    g.deler.push(d);
+    // a part cut by one painted over it is no longer what its curves draw
+    if (over.length) g.ren = false;
     grupper.set(f, g);
   }
   const alle = unionAlle(med.map((x) => x.d.region));
@@ -274,7 +328,7 @@ export function byggFlerfarget(
   const ut: Fargegruppe[] = [];
   for (const [f, g] of [...grupper.entries()].sort((a, c) => a[1].forst - c[1].forst)) {
     const region = unionAlle(g.regioner);
-    const r = kildeFraRegion(region, filnavn);
+    const r = kildeFraRegion(region, filnavn, {}, g.ren ? samleKurver(g.deler) : null);
     if (!r) continue;
     ut.push({
       farge: f,
@@ -290,21 +344,18 @@ export function byggFlerfarget(
   return { navn, bredde: b.maksX - b.minX, hoyde: b.maksY - b.minY, grupper: ut };
 }
 
-/** The picture as an SVG file: one path per colour, with the colours given. */
+/** The picture as an SVG file: one path per colour, with the colours given and the curves kept. */
 export function svgFil(ff: Flerfarget, hex: (farge: string) => string): string {
-  const grupper = ff.grupper.filter((g) => g.region);
-  const alle = unionAlle(grupper.map((g) => g.region!));
-  const b = regionBoks(alle);
   const t = (n: number) => String(Math.round(n * 1000) / 1000);
-  const sti = (region: Region) =>
-    region
-      .flatMap((f) => [f.ytre, ...f.hull])
-      .map((r) => `M${r.map((p) => `${t(p.x - b.minX)} ${t(b.maksY - p.y)}`).join('L')}Z`)
-      .join('');
-  const w = t(b.maksX - b.minX),
-    h = t(b.maksY - b.minY);
-  const paths = grupper
-    .map((g) => `<path fill="${hex(g.farge)}" fill-rule="evenodd" d="${sti(g.region!)}"/>`)
+  const w = t(ff.bredde),
+    h = t(ff.hoyde);
+  const paths = ff.grupper
+    .map((g) => {
+      // a group's centre lies (dx, dy) from the picture's centre; y up becomes y down
+      const m: Matrise = [1, 0, 0, -1, ff.bredde / 2 + g.dx, ff.hoyde / 2 - g.dy];
+      const d = banerTilSti(transformerBaner(tolkBaner(g.kilde.stier.join('')), m));
+      return `<path fill="${hex(g.farge)}" fill-rule="${g.kilde.fyllregel}" d="${d}"/>`;
+    })
     .join('\n  ');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">\n  ${paths}\n</svg>\n`;
 }

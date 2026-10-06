@@ -17,6 +17,13 @@ export const VERKTOY: { id: VerktoyId; navn: string; tast: string; tegn: string;
   { id: 'ellipse', navn: 'Ellipse', tast: 'E', tegn: 'E', hjelp: 'Dra for å tegne en ellipse' },
   { id: 'polygon', navn: 'Polygon', tast: 'P', tegn: 'P', hjelp: 'Dra for å tegne en mangekant' },
   {
+    id: 'penn',
+    navn: 'Penn',
+    tast: 'B',
+    tegn: 'B',
+    hjelp: 'Tegn en kurve: klikk for hjørne, dra for jevn kurve, klikk første punkt for å lukke',
+  },
+  {
     id: 'hull',
     navn: 'Hull',
     tast: 'H',

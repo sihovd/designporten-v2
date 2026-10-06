@@ -2,11 +2,13 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { settFontHenter } from '../../geometri/tekst';
 import { areal, regionFraRinger, type Region, type Ring } from '../../geometri/polygon';
+import { stiTilRinger } from '../../geometri/stidata';
+import { tolkBaner } from '../../geometri/bane';
 import { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { finnLag, objekterILag } from '../../core/dokument';
 import { sjekkManifold } from '../../geometri/mesh';
 import plugin from './index';
-import { lagreEgetFlerfarget, hentEgneDekor, dekorValg } from './dekor';
+import { DEKOR, dekorKilde, lagreEgetFlerfarget, hentEgneDekor, dekorValg } from './dekor';
 import { leggTilLag, nyttLag, nyttSigngenDokument, oppdaterLag } from './dokument';
 import { leggTilFlerfarget } from './handlinger';
 import { byggSigngen, lastFonter } from './modell';
@@ -92,6 +94,63 @@ describe('Splitting an SVG into parts', () => {
     // two fills close to the same filament still end up on different ones
     const to = fordelFarger(['#ff0000', '#ee0000'], palett);
     expect(to[0]).not.toBe(to[1]);
+  });
+});
+
+/** A shape from path data, with its curves, as the importer hands it to lagDeler. */
+const form = (d: string, fyll: string | null) => ({
+  region: regionFraRinger(stiTilRinger(d, 0.01), 'nonzero'),
+  fyll,
+  baner: tolkBaner(d),
+  regel: 'nonzero' as const,
+});
+
+describe('Keeping the curves of a vector', () => {
+  const sirkel = (x: number, r: number) =>
+    `M${x - r} 0A${r} ${r} 0 1 0 ${x + r} 0A${r} ${r} 0 1 0 ${x - r} 0Z`;
+
+  it('keeps curves when the parts are used as they are', () => {
+    const d = lagDeler('s.svg', [form(sirkel(10, 10), '#ff0000'), form(sirkel(50, 5), '#ff0000')], []);
+    expect(d.deler[0]!.baner).toHaveLength(1);
+    const ff = byggFlerfarget('S', d.deler, () => 'a', d.filnavn)!;
+    expect(ff.grupper).toHaveLength(1);
+    const kilde = ff.grupper[0]!.kilde;
+    expect(kilde.stier.join('')).toMatch(/C/);
+    expect(kilde.stier.join('')).not.toMatch(/L/);
+    // the same shape as the lines it would otherwise be: two circles
+    const flate = areal(regionFraRinger(stiTilRinger(kilde.stier.join(''), 0.01), kilde.fyllregel));
+    expect(flate).toBeCloseTo(Math.PI * 100 + Math.PI * 25, 0);
+  });
+
+  it('falls back to lines for a part another colour is painted over', () => {
+    const d = lagDeler('s.svg', [form(sirkel(10, 10), '#ff0000'), form(sirkel(14, 4), '#0000ff')], []);
+    const ff = byggFlerfarget('S', d.deler, (id) => (id === 0 ? 'a' : 'b'), d.filnavn)!;
+    const [stor, liten] = ff.grupper;
+    // the big circle has a hole where the small one lies, so its lines are the region's outline
+    expect(stor!.kilde.stier.join('')).not.toMatch(/C/);
+    expect(liten!.kilde.stier.join('')).toMatch(/C/);
+  });
+
+  it('hands every curve of a shape with a hole to the right part', () => {
+    const ring = 'M0 0h30v30h-30zM10 10v10h10v-10z';
+    const eks = 'M60 0h10v10h-10z';
+    const d = lagDeler('s.svg', [form(ring, null), form(eks, null)], []);
+    expect(d.deler).toHaveLength(2);
+    expect(d.deler[0]!.baner).toHaveLength(2);
+    expect(d.deler[1]!.baner).toHaveLength(1);
+  });
+
+  it('keeps the real curves of a gallery icon, and the same shape', () => {
+    const hjerte = DEKOR.find((x) => x.id === 'hjerte')!;
+    const k = dekorKilde(hjerte);
+    expect(k.kilde.stier.join('')).toMatch(/C/);
+    const linjer = regionFraRinger(stiTilRinger(hjerte.sti, 0.02), 'nonzero');
+    const kurver = regionFraRinger(stiTilRinger(k.kilde.stier.join(''), 0.02), k.kilde.fyllregel);
+    // the icon is drawn on 24 units and made 24 mm, so the areas agree
+    expect(areal(kurver) / areal(linjer)).toBeGreaterThan(0.99);
+    expect(areal(kurver) / areal(linjer)).toBeLessThan(1.01);
+    // an icon of straight lines stays lines
+    expect(dekorKilde(DEKOR.find((x) => x.id === 'lyn')!).kilde.stier.join('')).not.toMatch(/C/);
   });
 });
 

@@ -41,8 +41,12 @@ import {
 import { erOye, lokalGeometri, MIN_OMRISSBREDDE, objektStorrelse, STANDARD_RINGBREDDE } from './modell';
 import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
+import { Kurvepanel, Pennpanel } from './Kurvepanel';
+import { antallAapne } from '../../geometri/bane';
+import { hentBaner, settKurve, startKurveredigering } from './kurver';
 import { nyttOmrissI } from './Lagpanel';
 import { Profilredigerer } from './Profilredigerer';
+import { folgerNavnet, hullanker, settHullavstand } from './batch';
 import { plangrenser } from '../../core/plangrenser';
 
 const PROFILER: { id: Exclude<ProfilType, 'egendefinert'> | 'egendefinert'; navn: string }[] = [
@@ -118,6 +122,64 @@ function Materialvelger({
 
 // ---------- object ----------
 
+const SIDENAVN = { venstre: 'til venstre for', hoyre: 'til høyre for', topp: 'over', bunn: 'under' } as const;
+
+/** A hole's reference to the name: it keeps its distance from the letters on every sign in a CSV batch. */
+function HullReferanse({
+  benk,
+  o,
+  endre,
+}: {
+  benk: Arbeidsbenk;
+  o: Objekt;
+  endre: (navn: string, fn: (o: Objekt) => Objekt, slaSammen?: string) => void;
+}) {
+  const t = brukBenk(benk);
+  if (o.kilde.type !== 'form') return null;
+  const kilde = o.kilde;
+  const anker = hullanker(t.dok, o);
+  if (!anker) return null;
+  const folger = folgerNavnet(t.dok, o);
+  return (
+    <>
+      <div class="felt stablet">
+        <span>Plass når navnet er et felt i CSV</span>
+        <Segment
+          etikett="Plass når navnet er et felt i CSV"
+          valg={[
+            { id: 'auto', navn: 'Automatisk' },
+            { id: 'navn', navn: 'Følger navnet' },
+            { id: 'fast', navn: 'Fast plass' },
+          ]}
+          verdi={kilde.plass ?? 'auto'}
+          endre={(v) => endre('Plass i serie', (x) => ({ ...x, kilde: { ...kilde, plass: v } }))}
+        />
+      </div>
+      <p class="merknad">
+        {folger
+          ? `Referanse: ${tall(Math.abs(anker.gap))} mm ${anker.gap < 0 ? 'inn i' : SIDENAVN[anker.side]} bokstavene. På hvert skilt i en CSV-serie flyttes hullet så det får samme avstand, også når navnet blir lengre.`
+          : 'Hullet beholder plassen sin på alle skilt i en CSV-serie. «Automatisk» lar det følge navnet på skilt uten fast plate.'}
+      </p>
+      {folger && (
+        <TallFelt
+          etikett="Avstand fra navnet"
+          verdi={anker.gap}
+          min={-20}
+          maks={80}
+          steg={0.5}
+          endre={(v) =>
+            benk.endre({
+              navn: 'Hullets avstand fra navnet',
+              slaSammen: 'hullavstand',
+              anvend: (d) => settHullavstand(d, o.id, v),
+            })
+          }
+        />
+      )}
+    </>
+  );
+}
+
 /** A hanging hole: a hole through the model, or an eye outside it (Sivert, 2026-10-05). */
 function Hullvalg({
   benk,
@@ -139,6 +201,7 @@ function Hullvalg({
           ? `Øye utenfor skiltet: en ring med hull på ${tall(kilde.bredde)} mm til nøkkelring. Dra det inn over skiltet for å gjøre det til et hull.`
           : `Hull gjennom skiltet, ${tall(kilde.bredde)} mm innvendig. Dra det utenfor kanten for å gjøre det til et øye til nøkkelring.`}
       </p>
+      <HullReferanse benk={benk} o={o} endre={endre} />
       {oye && (
         <TallFelt
           etikett="Ringbredde"
@@ -358,6 +421,35 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
                 }
               />
             </div>
+            <div class="knapperad">
+              <button
+                type="button"
+                class="kontroll-knapp"
+                title="Rediger punkter og kurver (dobbeltklikk på vektoren)"
+                onClick={() => startKurveredigering(benk, o.id)}
+              >
+                Rediger kurver
+              </button>
+            </div>
+            {(() => {
+              const aapne = antallAapne(hentBaner(o) ?? []);
+              return aapne ? (
+                <>
+                  <p class="merknad advarsel-tekst">
+                    {aapne} {aapne === 1 ? 'bane er' : 'baner er'} ikke sluttet.
+                  </p>
+                  <button
+                    type="button"
+                    class="kontroll-knapp"
+                    onClick={() => {
+                      if (startKurveredigering(benk, o.id)) settKurve(benk, { repVis: true });
+                    }}
+                  >
+                    Reparer åpne baner …
+                  </button>
+                </>
+              ) : null;
+            })()}
             <p class="merknad">
               «Behold hull» lar åpningene i vektoren stå åpne. «Fyll igjen» gir bare silhuetten. Vil du skjære
               vektoren ut av et lag, velg «Kutter» under Rolle.
@@ -1225,12 +1317,22 @@ function BatchInngang({ benk }: { benk: Arbeidsbenk }) {
 
 export function SigngenInspektor({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
+  const st = brukSigntilstand(benk);
   const valgte = t.utvalg.objekter.map((id) => t.dok.objekter[id]).filter((o): o is Objekt => !!o);
   const lag = t.utvalg.lag ? finnLag(t.dok, t.utvalg.lag) : undefined;
-  if (valgte.length === 1) return <EttObjekt benk={benk} o={valgte[0]!} key={valgte[0]!.id} />;
+  if (valgte.length === 1) {
+    return (
+      <>
+        {st.kurve && st.kurve.objektId === valgte[0]!.id && <Kurvepanel benk={benk} />}
+        {st.verktoy === 'penn' && <Pennpanel benk={benk} />}
+        <EttObjekt benk={benk} o={valgte[0]!} key={valgte[0]!.id} />
+      </>
+    );
+  }
   if (valgte.length > 1) return <FlereObjekter benk={benk} antall={valgte.length} />;
   return (
     <>
+      {st.verktoy === 'penn' && <Pennpanel benk={benk} />}
       {lag && <LagInspektor benk={benk} lag={lag} key={lag.id} />}
       <ProsjektInspektor benk={benk} />
       <BatchInngang benk={benk} />

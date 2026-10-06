@@ -7,9 +7,10 @@
 import type { SvgKilde } from '../../core/dokument';
 import { multipliser, anvend, type Matrise } from '../../core/geometri2d';
 import { stiTilRinger, StiFeil } from '../../geometri/stidata';
-import { regionFraRinger, unionAlle, type Region } from '../../geometri/polygon';
+import { regionFraRinger, unionAlle, type Fyllregel, type Region } from '../../geometri/polygon';
+import { tolkBaner, transformerBaner, type Bane } from '../../geometri/bane';
 import { kildeFraRegion } from './svgkilde';
-import { lagDeler, tolkFarge, type SvgDeler } from './svgdeler';
+import { lagDeler, samleKurver, tolkFarge, type SvgDeler } from './svgdeler';
 
 export class SvgFeil extends Error {}
 
@@ -159,7 +160,7 @@ export function lesSvgDeler(tekst: string, filnavn: string): SvgDeler {
 
   const hoppetOver = new Set<string>();
   // each shape is resolved with the fill rule it was drawn with, so holes made either way survive
-  const elementer: { region: Region; fyll: string | null }[] = [];
+  const elementer: { region: Region; fyll: string | null; baner: Bane[]; regel: Fyllregel }[] = [];
   const besok = (el: Element, m: Matrise, arvet: string | null) => {
     const mm_ = multipliser(m, tolkTransform(el.getAttribute('transform')));
     const navn = el.localName;
@@ -202,8 +203,17 @@ export function lesSvgDeler(tekst: string, filnavn: string): SvgDeler {
       (el.getAttribute('fill-rule') ?? '').trim() === 'evenodd' ||
       /fill-rule\s*:\s*evenodd/.test(el.getAttribute('style') ?? '');
     try {
-      const region = regionFraRinger(transformerteRinger(d, mm_), jevnOdd ? 'evenodd' : 'nonzero');
-      if (region.length) elementer.push({ region, fyll: fyllFra(el, arvet) });
+      const regel: Fyllregel = jevnOdd ? 'evenodd' : 'nonzero';
+      const region = regionFraRinger(transformerteRinger(d, mm_), regel);
+      // the curves too, so the vector keeps real points and handles
+      if (region.length) {
+        elementer.push({
+          region,
+          fyll: fyllFra(el, arvet),
+          baner: transformerBaner(tolkBaner(d), mm_),
+          regel,
+        });
+      }
     } catch (e) {
       if (e instanceof StiFeil) hoppetOver.add('ugyldige stier');
       else throw e;
@@ -226,6 +236,11 @@ export function importerSvg(tekst: string, filnavn: string): SvgResultat {
 
 /** Every part of a file joined into one vector. */
 export function delerTilKilde(deler: SvgDeler, filnavn: string): SvgResultat | null {
-  const r = kildeFraRegion(unionAlle(deler.deler.map((d) => d.region)), filnavn);
+  const r = kildeFraRegion(
+    unionAlle(deler.deler.map((d) => d.region)),
+    filnavn,
+    {},
+    samleKurver(deler.deler),
+  );
   return r ? { kilde: r.kilde, bredde: r.bredde, hoyde: r.hoyde, hoppetOver: deler.hoppetOver } : null;
 }

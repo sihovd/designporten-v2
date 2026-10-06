@@ -6,9 +6,11 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Boks, Vec2 } from '../../core/geometri2d';
+import type { Bane, NodeRef } from '../../geometri/bane';
 import type { SvgDeler } from './svgdeler';
 
-export type VerktoyId = 'velg' | 'tekst' | 'rektangel' | 'ellipse' | 'polygon' | 'hull' | 'mal' | 'panorer';
+export type VerktoyId =
+  'velg' | 'tekst' | 'rektangel' | 'ellipse' | 'polygon' | 'hull' | 'penn' | 'mal' | 'panorer';
 
 export interface Hjelpelinje {
   akse: 'x' | 'y';
@@ -25,6 +27,32 @@ export interface SvgOppgave {
   rolle: 'ramme' | 'pynt';
   /** The picker was opened from the sign or from the decoration gallery. */
   opphav: 'skilt' | 'galleri';
+}
+
+/** Editing the points and curves of one vector (double-click on it). */
+export interface KurveRedigering {
+  objektId: string;
+  /** Selected anchor points. */
+  noder: NodeRef[];
+  /** Selected whole paths. */
+  baner: number[];
+  /** A selected segment (Delete takes it out). */
+  segment: { bane: number; seg: number } | null;
+  /** Repair: how far apart two ends may be and still be joined (mm on the sign). */
+  repToleranse: number;
+  /** Repair: close what is still open with a straight line. */
+  repTving: boolean;
+  /** Repair: show what would be joined. */
+  repVis: boolean;
+}
+
+/** A path being drawn with the pen, in sign coordinates (mm). */
+export interface PennUtkast {
+  /** The vector the paths are added to (the first path makes a new one). */
+  objektId: string | null;
+  bane: Bane | null;
+  /** Where the pointer is, for the line from the last point. */
+  peker: Vec2 | null;
 }
 
 export interface Signtilstand {
@@ -46,6 +74,10 @@ export interface Signtilstand {
   batch: boolean;
   /** The SVG part picker is open for this file. */
   svgdeler: SvgOppgave | null;
+  /** The vector whose curves are being edited. */
+  kurve: KurveRedigering | null;
+  /** The pen tool's path in progress. */
+  penn: PennUtkast | null;
 }
 
 class Lager {
@@ -61,6 +93,8 @@ class Lager {
     dekor: false,
     batch: false,
     svgdeler: null,
+    kurve: null,
+    penn: null,
   };
   private lyttere = new Set<(t: Signtilstand) => void>();
   constructor(private benk: Arbeidsbenk) {}

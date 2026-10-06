@@ -1009,6 +1009,31 @@
   gap: 8px;
 }
 
+.advarsel-tekst {
+  color: var(--advarsel-mork);
+}
+
+.fargeknapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.repareringsboks {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--linje);
+}
+
+.underoverskrift {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .hurtigtaster {
   display: grid;
   gap: 2px;
@@ -1195,6 +1220,7 @@
 }
 
 .flytlinje button {
+  white-space: nowrap;
   min-height: 30px;
   padding: 0 10px;
   border: 0;

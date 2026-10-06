@@ -11,7 +11,7 @@ export class StiFeil extends Error {}
 
 const TOKEN = /([MmLlHhVvCcSsQqTtAaZz])|([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)/g;
 
-function tokeniser(d: string): (string | number)[] {
+export function tokeniser(d: string): (string | number)[] {
   const ut: (string | number)[] = [];
   for (const m of d.matchAll(TOKEN)) ut.push(m[1] ?? Number(m[2]));
   return ut;

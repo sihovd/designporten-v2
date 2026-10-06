@@ -3,7 +3,7 @@ import path from 'node:path';
 import { settFontHenter } from '../../geometri/tekst';
 import { sjekkManifold } from '../../geometri/mesh';
 import { areal, regionBoks } from '../../geometri/polygon';
-import { finnLag, type Dokument, type TekstKilde } from '../../core/dokument';
+import { finnLag, type Dokument, type FormKilde, type TekstKilde } from '../../core/dokument';
 import {
   leggTilFarge,
   leggTilObjekt,
@@ -17,7 +17,7 @@ import {
   startErValgt,
 } from './dokument';
 import { byggSigngen, erOye, lagRegion, lastFonter, omrissRegioner } from './modell';
-import { foreslaKobling, lagVarianter, tolkCsv } from './batch';
+import { foreslaKobling, hullanker, lagVarianter, navneboks, tolkCsv } from './batch';
 import { FERDIGE_PROFILER, narmesteFarge, STANDARD_PROFIL } from './fargeprofiler';
 import { skiltMedPlate } from './testskilt';
 
@@ -142,5 +142,74 @@ describe('CSV fields on a sign without a plate', () => {
     const csv = tolkCsv('navn\nEt veldig langt navn som er lengre enn startskiltet');
     const v = lagVarianter(m, csv, foreslaKobling(csv, m));
     expect(v[0]!.problemer).toEqual([]);
+  });
+});
+
+describe('Holes keep their distance from the name in a batch', () => {
+  async function mal(x: number) {
+    const start = nyttSigngenDokument();
+    const tekst = Object.values(start.objekter)[0]!;
+    let d = oppdaterObjekter(start, [tekst.id], (o) => ({
+      ...o,
+      kilde: { ...(o.kilde as TekstKilde), felt: 'navn' },
+    }));
+    const hull = nyttObjekt(d.lag[0]!.id, nyForm('hull', 5, 5), { x, y: 0 });
+    d = leggTilObjekt(d, hull);
+    await lastFonter(d);
+    return { d, hull };
+  }
+  const boksAv = (d: Dokument, id: string) => {
+    const o = d.objekter[id]!;
+    return { x: o.transform.x, nb: navneboks(d)! };
+  };
+
+  it('measures the side, the gap and the place across from the name', async () => {
+    const { d, hull } = await mal(-80);
+    const a = hullanker(d, d.objekter[hull.id]!)!;
+    expect(a.side).toBe('venstre');
+    expect(a.gap).toBeGreaterThan(0);
+    expect(Math.abs(a.tvers)).toBeLessThan(10);
+  });
+
+  it('moves the hole with the name, so it is the same distance from the letters on every sign', async () => {
+    const { d, hull } = await mal(-80);
+    const csv = tolkCsv('navn\nEd\nEt veldig langt navn');
+    const v = lagVarianter(d, csv, foreslaKobling(csv, d));
+    const gap = (dok: Dokument) => {
+      const a = hullanker(dok, dok.objekter[hull.id]!)!;
+      return a.gap;
+    };
+    const maal = gap(d);
+    for (const x of v) expect(gap(x.dok)).toBeCloseTo(maal, 4);
+    // the long name pushes the hole further out than the short one
+    expect(boksAv(v[1]!.dok, hull.id).x).toBeLessThan(boksAv(v[0]!.dok, hull.id).x);
+    // the footprint counts the hole's eye
+    expect(v[1]!.boks.minX).toBeLessThan(v[0]!.boks.minX);
+  });
+
+  it('keeps the hole where it is when asked, and on a fixed plate', async () => {
+    const { d, hull } = await mal(-80);
+    const fast = oppdaterObjekter(d, [hull.id], (o) => ({
+      ...o,
+      kilde: { ...(o.kilde as FormKilde), plass: 'fast' },
+    }));
+    const csv = tolkCsv('navn\nEt veldig langt navn');
+    expect(lagVarianter(fast, csv, foreslaKobling(csv, fast))[0]!.dok.objekter[hull.id]!.transform.x).toBe(
+      -80,
+    );
+    const av = lagVarianter(d, csv, foreslaKobling(csv, d), { hullavstand: false });
+    expect(av[0]!.dok.objekter[hull.id]!.transform.x).toBe(-80);
+    // a sign with a plate does not grow with the name
+    const plate = skiltMedPlate();
+    const p = Object.values(plate.objekter).find((o) => o.kilde.type === 'tekst')!;
+    const mp = oppdaterObjekter(plate, [p.id], (o) => ({
+      ...o,
+      kilde: { ...(o.kilde as TekstKilde), felt: 'navn' },
+    }));
+    const ph = nyttObjekt(mp.lag[0]!.id, nyForm('hull', 5, 5), { x: -60, y: 0 });
+    const medHull = leggTilObjekt(mp, ph);
+    await lastFonter(medHull);
+    const pv = lagVarianter(medHull, csv, foreslaKobling(csv, medHull))[0]!;
+    expect(pv.dok.objekter[ph.id]!.transform.x).toBe(-60);
   });
 });
