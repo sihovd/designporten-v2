@@ -1,27 +1,114 @@
 /**
- * Icon slots for the workspace. Every icon is a function in `ikoner`, so the
- * final icon set can replace them one by one (or all at once through
- * `byttIkoner`) without touching a single toolbar or panel. The glyphs here
- * are temporary: plain geometric line icons, no artwork (D-3). A missing id
- * falls back to a text glyph, so a tool never ends up without a visible mark.
+ * Icon registry for the workspace. Every icon is one entry in `ikoner`, so a
+ * single icon (or the whole set) can be replaced without touching a toolbar,
+ * a panel or any tool logic: change the SVG file, or call `byttIkoner`.
+ *
+ * The 92 Sign Forge icons are Sivert's own set (docs/design/signgen-ikoner).
+ * The files in `ikonsvg/` are used as they are, one file per icon, inlined
+ * as SVG so size, colour (`currentColor`), hover and active state are set by
+ * the UI. Icons the set does not have (rectangle, ellipse, polygon, hole,
+ * decor and the panel chrome) use temporary plain line icons, marked below.
+ * An icon never means a feature: buttons keep their own accessible name.
  */
 import type { JSX } from 'preact';
 
-export type IkonId =
-  | 'velg'
-  | 'tekst'
-  | 'former'
+const filer = import.meta.glob('./ikonsvg/*.svg', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+/** The inside of each SVG file (the shared attributes are set by `Ikon`). */
+const pakke: Record<string, string> = {};
+for (const [sti, tekst] of Object.entries(filer)) {
+  const id = sti.replace(/^.*\//, '').replace(/\.svg$/, '');
+  pakke[id] = tekst
+    .replace(/^[\s\S]*?<svg[^>]*>/, '')
+    .replace(/<\/svg>[\s\S]*$/, '')
+    .trim();
+}
+
+export type PakkeIkon =
+  | 'select'
+  | 'text'
+  | 'shapes'
+  | 'pen'
+  | 'paint'
+  | 'svg-import'
+  | 'image'
+  | 'ruler'
+  | 'pan'
+  | 'snap'
+  | 'grid'
+  | 'guides'
+  | 'snap-object'
+  | 'snap-guide'
+  | 'layers'
+  | 'group'
+  | 'ungroup'
+  | 'duplicate'
+  | 'copy'
+  | 'paste'
+  | 'bring-forward'
+  | 'send-backward'
+  | 'align'
+  | 'distribute'
+  | 'union'
+  | 'subtract'
+  | 'intersect'
+  | 'exclude'
+  | 'undo'
+  | 'redo'
+  | 'delete'
+  | 'cut'
+  | 'properties'
+  | 'history'
+  | 'transform'
+  | 'lock'
+  | 'unlock'
+  | 'visible'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'fit'
+  | 'actual-size'
+  | 'cube'
+  | 'color'
+  | 'eyedropper'
+  | 'fill'
+  | 'stroke'
+  | 'gradient'
+  | 'palette'
+  | 'filaments'
+  | 'color-library'
+  | 'settings'
+  | 'smooth'
+  | 'taper'
+  | 'width'
+  | 'pressure'
+  | 'edit-point'
+  | 'add-point'
+  | 'remove-point'
+  | 'new'
+  | 'open'
+  | 'save'
+  | 'save-as'
+  | 'save-template'
+  | 'share-template'
+  | 'export'
+  | 'csv'
+  | 'three-mf'
+  | 'print-preview'
+  | 'templates'
+  | 'favorites'
+  | 'store';
+
+/** Temporary line icons for what the set does not cover (D-3: functional glyphs only). */
+export type MidlertidigIkon =
   | 'rektangel'
   | 'ellipse'
   | 'polygon'
-  | 'penn'
   | 'hull'
-  | 'mal'
-  | 'panorer'
-  | 'svg'
   | 'dekor'
-  | 'snap'
-  | 'rutenett'
   | 'meny'
   | 'minimer'
   | 'gjenopprett'
@@ -29,48 +116,24 @@ export type IkonId =
   | 'dokk-venstre'
   | 'dokk-hoyre'
   | 'flyt'
-  | 'paneler'
-  | 'pil-ned';
+  | 'paneler';
 
-type Tegning = () => JSX.Element;
+export type IkonId = PakkeIkon | MidlertidigIkon;
 
-export const ikoner: Record<IkonId, Tegning> = {
-  velg: () => <path d="M6 4l11 7-5 1.5L9.5 18z" />,
-  tekst: () => <path d="M6 7V5h12v2M12 5v14M9.5 19h5" />,
-  former: () => (
-    <>
-      <rect x="4" y="4" width="10" height="10" rx="1" />
-      <circle cx="15" cy="15" r="5" />
-    </>
-  ),
+/** An icon is SVG markup (the inside of a 24 × 24 SVG) or a function that draws it. */
+type Tegning = string | (() => JSX.Element);
+
+const midlertidige: Record<MidlertidigIkon, () => JSX.Element> = {
   rektangel: () => <rect x="4" y="6.5" width="16" height="11" rx="1" />,
   ellipse: () => <ellipse cx="12" cy="12" rx="8" ry="6" />,
   polygon: () => <path d="M12 4l7 4v8l-7 4-7-4V8z" />,
-  penn: () => <path d="M5 19l1-4L16 5l3 3L9 18zM14 7l3 3M5 19l4-1" />,
   hull: () => (
     <>
       <circle cx="12" cy="12" r="7.5" />
       <circle cx="12" cy="12" r="2.5" />
     </>
   ),
-  mal: () => <path d="M4 15L15 4l5 5L9 20zM8 11l2 2M11 8l2 2M6 13l1 1" />,
-  panorer: () => (
-    <path d="M12 4v16M4 12h16M12 4l-2 2M12 4l2 2M12 20l-2-2M12 20l2-2M4 12l2-2M4 12l2 2M20 12l-2-2M20 12l-2 2" />
-  ),
-  svg: () => (
-    <>
-      <rect x="4" y="4" width="16" height="16" rx="2" />
-      <path d="M12 8v8M8 12h8" />
-    </>
-  ),
   dekor: () => <path d="M12 4l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" />,
-  snap: () => (
-    <>
-      <circle cx="12" cy="12" r="4.5" />
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
-    </>
-  ),
-  rutenett: () => <path d="M9 4v16M15 4v16M4 9h16M4 15h16" />,
   meny: () => (
     <>
       <circle cx="6" cy="12" r="1" />
@@ -105,37 +168,40 @@ export const ikoner: Record<IkonId, Tegning> = {
       <path d="M4 10h16M10 10v9" />
     </>
   ),
-  'pil-ned': () => <path d="M8 10l4 4 4-4" />,
 };
 
+export const ikoner: Record<string, Tegning> = { ...pakke, ...midlertidige };
+
 /** Replace icons (all or some): the whole icon set can be swapped in one call. */
-export function byttIkoner(nye: Partial<Record<IkonId, Tegning>>): void {
+export function byttIkoner(nye: Record<string, Tegning>): void {
   Object.assign(ikoner, nye);
 }
 
-export function Ikon({ id, storrelse = 20 }: { id: IkonId; storrelse?: number }) {
+export function Ikon({ id, storrelse = 22 }: { id: IkonId; storrelse?: number }) {
   const tegn = ikoner[id];
   return (
     <svg
       class="ikon"
+      data-ikon={id}
       width={storrelse}
       height={storrelse}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      stroke-width="1.6"
+      stroke-width="1.65"
       stroke-linecap="round"
       stroke-linejoin="round"
       aria-hidden="true"
       focusable="false"
+      {...(typeof tegn === 'string' ? { dangerouslySetInnerHTML: { __html: tegn } } : {})}
     >
-      {tegn ? (
+      {typeof tegn === 'function' ? (
         tegn()
-      ) : (
+      ) : tegn === undefined ? (
         <text x="12" y="16" text-anchor="middle" font-size="12" fill="currentColor" stroke="none">
           {id.slice(0, 1).toUpperCase()}
         </text>
-      )}
+      ) : null}
     </svg>
   );
 }

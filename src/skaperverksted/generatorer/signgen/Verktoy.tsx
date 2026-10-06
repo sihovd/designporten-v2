@@ -24,8 +24,8 @@ export const VERKTOY: {
   ikon: IkonId;
   hjelp: string;
 }[] = [
-  { id: 'velg', navn: 'Velg', tast: 'V', ikon: 'velg', hjelp: 'Velg, flytt, skaler og roter' },
-  { id: 'tekst', navn: 'Tekst', tast: 'T', ikon: 'tekst', hjelp: 'Klikk på lerretet for å skrive' },
+  { id: 'velg', navn: 'Velg', tast: 'V', ikon: 'select', hjelp: 'Velg, flytt, skaler og roter' },
+  { id: 'tekst', navn: 'Tekst', tast: 'T', ikon: 'text', hjelp: 'Klikk på lerretet for å skrive' },
   { id: 'rektangel', navn: 'Rektangel', tast: 'R', ikon: 'rektangel', hjelp: 'Dra for å tegne et rektangel' },
   { id: 'ellipse', navn: 'Ellipse', tast: 'E', ikon: 'ellipse', hjelp: 'Dra for å tegne en ellipse' },
   { id: 'polygon', navn: 'Polygon', tast: 'P', ikon: 'polygon', hjelp: 'Dra for å tegne en mangekant' },
@@ -33,7 +33,7 @@ export const VERKTOY: {
     id: 'penn',
     navn: 'Penn',
     tast: 'B',
-    ikon: 'penn',
+    ikon: 'pen',
     hjelp: 'Tegn en kurve: klikk for hjørne, dra for jevn kurve, klikk første punkt for å lukke',
   },
   {
@@ -43,8 +43,8 @@ export const VERKTOY: {
     ikon: 'hull',
     hjelp: 'Klikk for å lage et opphengshull gjennom skiltet',
   },
-  { id: 'mal', navn: 'Mål', tast: 'M', ikon: 'mal', hjelp: 'Dra for å måle avstander' },
-  { id: 'panorer', navn: 'Panorer', tast: 'Space', ikon: 'panorer', hjelp: 'Dra for å flytte visningen' },
+  { id: 'mal', navn: 'Mål', tast: 'M', ikon: 'ruler', hjelp: 'Dra for å måle avstander' },
+  { id: 'panorer', navn: 'Panorer', tast: 'Space', ikon: 'pan', hjelp: 'Dra for å flytte visningen' },
 ];
 
 const FORMER: VerktoyId[] = ['rektangel', 'ellipse', 'polygon'];
@@ -111,7 +111,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {hjelpeknapp(
         'SVG',
         'Legg til en SVG som pynt. Har den flere deler, velger du hvilke du vil ha og farger dem. Ramme: + Nytt lag i lagpanelet',
-        'svg',
+        'svg-import',
         () => fil.current?.click(),
       )}
       <input
@@ -139,7 +139,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {hjelpeknapp(
         'Rutenett',
         'Rutenett av eller på',
-        'rutenett',
+        'grid',
         () => benk.settInnstillinger({ rutenett: !t.innstillinger.rutenett }),
         t.innstillinger.rutenett,
       )}
@@ -195,7 +195,6 @@ function Formverktoy({
     const r = knapp.current?.getBoundingClientRect();
     if (r) settMeny({ x: r.right + 6, y: r.top });
   };
-  const v = verktoyInfo(sist);
   const erAktiv = !!aktiv && FORMER.includes(aktiv);
   void benk;
   return (
@@ -249,7 +248,7 @@ function Formverktoy({
             }}
             {...p}
           >
-            <Ikon id={v.ikon} />
+            <Ikon id="shapes" />
             <span class="verktoy-flere" aria-hidden="true" />
             <span class="verktoy-etikett">Former</span>
           </button>

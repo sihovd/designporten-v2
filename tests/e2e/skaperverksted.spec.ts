@@ -387,9 +387,14 @@ test.describe('Signgen', () => {
     const faner = page.getByRole('tablist', { name: 'Paneler i gruppen' });
     await expect(faner.getByRole('tab')).toHaveCount(2);
     await expect(page.locator('.dokkolonne.venstre')).toHaveCount(0);
-    // the layout is remembered (wait for the project autosave first, so the start window is not shown again)
-    await page.waitForFunction(() => !!localStorage.getItem('dp-verksted:signgen'));
+    // the layout is remembered (the project may ask for its start colours again if the autosave had not run yet)
     await page.reload();
+    const startvindu = page.getByRole('dialog', { name: 'Velg fargene til skiltet' });
+    await startvindu
+      .getByRole('button', { name: 'Start skiltet' })
+      .click({ timeout: 3000 })
+      .catch(() => {});
+    await expect(startvindu).toBeHidden();
     await expect(page.getByRole('tablist', { name: 'Paneler i gruppen' }).getByRole('tab')).toHaveCount(2);
     // minimise, close and reopen from the menu
     await page.getByRole('button', { name: /^Minimer / }).click();

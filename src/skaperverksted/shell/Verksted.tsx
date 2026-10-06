@@ -17,6 +17,7 @@ import { Eksportdialog } from './Eksportdialog';
 import { Hjelp } from './Hjelp';
 import { Statuslinje } from './Statuslinje';
 import { Ark } from './Ark';
+import { Ikon } from './ikoner';
 import { Panelflate } from './paneler/Panelflate';
 import { Panelmeny } from './paneler/Panelmeny';
 import { brukPaneler } from './paneler/bruk-paneler';
@@ -257,7 +258,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             }
           >
             <span aria-hidden="true" class="kort">
-              ↶
+              <Ikon id="undo" storrelse={18} />
             </span>
             <span class="lang">Angre</span>
             <span class="visuelt-skjult kortetikett">Angre</span>
@@ -270,7 +271,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             title="Gjør om (Ctrl+Shift+Z)"
           >
             <span aria-hidden="true" class="kort">
-              ↷
+              <Ikon id="redo" storrelse={18} />
             </span>
             <span class="lang">Gjør om</span>
             <span class="visuelt-skjult kortetikett">Gjør om</span>
