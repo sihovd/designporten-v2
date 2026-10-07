@@ -107,6 +107,7 @@ export type MidlertidigIkon =
   | 'rektangel'
   | 'ellipse'
   | 'polygon'
+  | 'trekant'
   | 'hull'
   | 'dekor'
   | 'meny'
@@ -127,6 +128,7 @@ const midlertidige: Record<MidlertidigIkon, () => JSX.Element> = {
   rektangel: () => <rect x="4" y="6.5" width="16" height="11" rx="1" />,
   ellipse: () => <ellipse cx="12" cy="12" rx="8" ry="6" />,
   polygon: () => <path d="M12 4l7 4v8l-7 4-7-4V8z" />,
+  trekant: () => <path d="M12 5l8 14H4z" />,
   hull: () => (
     <>
       <circle cx="12" cy="12" r="7.5" />

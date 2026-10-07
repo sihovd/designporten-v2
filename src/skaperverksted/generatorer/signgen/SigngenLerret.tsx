@@ -10,6 +10,7 @@ import { anvend, inverter, tilMatrise, type Boks, type Transform2D, type Vec2 } 
 import { finnMateriale } from '../../core/materialer';
 import { rutenettnivaa, snapTil } from '../../core/rutenett';
 import { mm, tall } from '../../core/enheter';
+import { ellipse as ellipseRing, polygon } from '../../geometri/former';
 import type { Region } from '../../geometri/polygon';
 import { Lerret, type Farger, type Verktoyhandler } from '../../render2d/Lerret';
 import { LINJAL, lagVisning, type Visning } from '../../render2d/visning';
@@ -42,6 +43,11 @@ import { kurveObjekt, startKurveredigering } from './kurver';
 import { lagKurveverktoy } from './Kurveverktoy';
 import { tegnKurver } from './Kurveoverlegg';
 import { lagPennverktoy } from './Pennverktoy';
+import { leggTilStrek, strekFraPunkter } from './paint';
+import { Paintbar } from './Strekpanel';
+import { BOOLSKE, boolskHinder, kombinerValgte } from './boolsk';
+import { Ikon } from '../../shell/ikoner';
+import { strekRing } from '../../geometri/strek';
 
 // ---------- drawing ----------
 
@@ -293,7 +299,41 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
     const b = v.tilSkjerm({ x: st.utkast.maksX, y: st.utkast.minY });
     ctx.setLineDash([4, 3]);
     ctx.strokeRect(a.x + 0.5, a.y + 0.5, b.x - a.x, b.y - a.y);
+    const uf = st.utkastForm;
+    if (uf && uf.form !== 'rektangel') {
+      // the real outline of the shape being drawn, inside its box
+      const w = st.utkast.maksX - st.utkast.minX,
+        h = st.utkast.maksY - st.utkast.minY;
+      const cx = (st.utkast.minX + st.utkast.maksX) / 2,
+        cy = (st.utkast.minY + st.utkast.maksY) / 2;
+      const ring = uf.form === 'polygon' ? polygon(w, h, uf.sider) : ellipseRing(w, h);
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ring.forEach((q, i) => {
+        const sp = v.tilSkjerm({ x: cx + q.x, y: cy + q.y });
+        if (i) ctx.lineTo(sp.x, sp.y);
+        else ctx.moveTo(sp.x, sp.y);
+      });
+      ctx.closePath();
+      ctx.stroke();
+    }
     ctx.setLineDash([]);
+  }
+  if (st.paintUtkast && st.paintUtkast.length > 1) {
+    const strek = strekFraPunkter(st.paintUtkast, st.paint);
+    if (strek) {
+      ctx.beginPath();
+      strekRing(strek).forEach((q, i) => {
+        const sp = v.tilSkjerm(q);
+        if (i) ctx.lineTo(sp.x, sp.y);
+        else ctx.moveTo(sp.x, sp.y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = f.lilla;
+      ctx.globalAlpha = 0.55;
+      ctx.fill('nonzero');
+      ctx.globalAlpha = 1;
+    }
   }
   if (st.maling) {
     const a = v.tilSkjerm(st.maling.a);
@@ -402,6 +442,24 @@ function laasTil45(dx: number, dy: number): { x: number; y: number; retning: Vec
   return { x: lengde * rx, y: lengde * ry, retning: { x: rx, y: ry } };
 }
 
+/** One side more or fewer on the polygon being drawn (the mouse wheel and the up/down arrows). */
+export function endreUtkastSider(benk: Arbeidsbenk, steg: number): boolean {
+  const lager = signtilstand(benk);
+  const f = lager.t.utkastForm;
+  if (!f || f.form !== 'polygon' || !lager.t.utkast) return false;
+  const sider = Math.min(24, Math.max(3, f.sider + steg));
+  const b = lager.t.utkast;
+  lager.sett({
+    utkastForm: { form: 'polygon', sider },
+    maletikett: lager.t.maletikett && {
+      ...lager.t.maletikett,
+      tekst: `${sider} sider · ${tall(b.maksX - b.minX)} × ${tall(b.maksY - b.minY)} mm`,
+    },
+  });
+  benk.melde(`${sider} sider.`);
+  return true;
+}
+
 // ---------- tools ----------
 
 type Drag =
@@ -410,6 +468,7 @@ type Drag =
   | { type: 'roter'; orig: Objekt; senter: Vec2; start: number }
   | { type: 'marker'; start: Vec2; legg: boolean; for: string[] }
   | { type: 'utkast'; start: Vec2 }
+  | { type: 'paint' }
   | { type: 'maal'; a: Vec2 }
   | { type: 'guide'; id: string; akse: 'x' | 'y'; start: number; flyttet: boolean };
 
@@ -794,9 +853,57 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
     };
   }
 
+  if (id === 'paint') {
+    let punkter: Vec2[] = [];
+    return {
+      markor: 'crosshair',
+      ned({ modell }) {
+        drag = { type: 'paint' };
+        punkter = [modell];
+        lager.sett({ paintUtkast: punkter });
+      },
+      flytt({ modell }) {
+        if (drag?.type !== 'paint') return;
+        const sist = punkter[punkter.length - 1]!;
+        if (Math.hypot(modell.x - sist.x, modell.y - sist.y) < 0.2) return;
+        punkter = [...punkter, modell];
+        lager.sett({ paintUtkast: punkter });
+      },
+      opp() {
+        if (drag?.type !== 'paint') return;
+        drag = null;
+        const strek = strekFraPunkter(punkter, lager.t.paint);
+        punkter = [];
+        lager.sett({ paintUtkast: null });
+        if (!strek) {
+          benk.melde('Dra for å male et strøk.');
+          return;
+        }
+        leggTilStrek(benk, strek);
+      },
+      avbryt() {
+        drag = null;
+        punkter = [];
+        lager.sett({ paintUtkast: null });
+      },
+    };
+  }
+
   // shape tools: drag a box, or click for a default size
   const form =
-    id === 'rektangel' ? 'rektangel' : id === 'ellipse' ? 'ellipse' : id === 'polygon' ? 'polygon' : 'hull';
+    id === 'rektangel'
+      ? 'rektangel'
+      : id === 'ellipse'
+        ? 'ellipse'
+        : id === 'polygon' || id === 'trekant'
+          ? 'polygon'
+          : 'hull';
+  const harSider = form === 'polygon';
+  /** Sides of the polygon being drawn: the wheel changes them (3 to 24) while the button is down. */
+  const startSider = () => (id === 'trekant' ? 3 : lager.t.formSider);
+  const sider = () => lager.t.utkastForm?.sider ?? startSider();
+  const sideTekst = (b: Boks) =>
+    `${harSider ? `${sider()} sider · ` : ''}${tall(b.maksX - b.minX)} × ${tall(b.maksY - b.minY)} mm`;
   return {
     markor: 'crosshair',
     ned({ modell, e, visning }) {
@@ -807,7 +914,10 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         return;
       }
       drag = { type: 'utkast', start: p };
-      lager.sett({ utkast: { minX: p.x, maksX: p.x, minY: p.y, maksY: p.y } });
+      lager.sett({
+        utkast: { minX: p.x, maksX: p.x, minY: p.y, maksY: p.y },
+        utkastForm: { form, sider: startSider() },
+      });
     },
     flytt({ modell, e, visning }) {
       if (drag?.type !== 'utkast') return;
@@ -825,15 +935,21 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         minY: Math.min(drag.start.y, drag.start.y + h),
         maksY: Math.max(drag.start.y, drag.start.y + h),
       };
-      lager.sett({
-        utkast: b,
-        maletikett: { p, tekst: `${tall(b.maksX - b.minX)} × ${tall(b.maksY - b.minY)} mm` },
-      });
+      lager.sett({ utkast: b, maletikett: { p, tekst: sideTekst(b) } });
+    },
+    hjul(e) {
+      if (!harSider || drag?.type !== 'utkast') return false;
+      const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      if (!d) return true;
+      // one step per notch; scrolling up (negative) adds a side
+      endreUtkastSider(benk, d < 0 ? 1 : -1);
+      return true;
     },
     opp() {
       const b = lager.t.utkast;
+      const n = sider();
       drag = null;
-      lager.sett({ utkast: null, maletikett: null, verktoy: 'velg' });
+      lager.sett({ utkast: null, utkastForm: null, maletikett: null, verktoy: 'velg' });
       if (!b) return;
       let w = b.maksX - b.minX,
         h = b.maksY - b.minY;
@@ -845,14 +961,17 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         cx = b.minX;
         cy = b.minY;
       }
-      leggTil(benk, nyForm(form, w, h, form === 'rektangel' ? Math.min(3, w / 4, h / 4) : 0), {
-        x: cx,
-        y: cy,
-      });
+      const kilde = nyForm(form, w, h, form === 'rektangel' ? Math.min(3, w / 4, h / 4) : 0);
+      if (harSider) {
+        kilde.sider = n;
+        // the number of sides is remembered for the next polygon (the triangle tool stays a triangle)
+        if (id === 'polygon') lager.sett({ formSider: n });
+      }
+      leggTil(benk, kilde, { x: cx, y: cy });
     },
     avbryt() {
       drag = null;
-      lager.sett({ utkast: null, maletikett: null });
+      lager.sett({ utkast: null, utkastForm: null, maletikett: null });
     },
   };
 }
@@ -915,6 +1034,52 @@ function Flytlinje({ benk }: { benk: Arbeidsbenk }) {
       >
         {last ? 'Lås opp' : 'Lås'}
       </button>
+    </div>
+  );
+}
+
+// ---------- boolean bar ----------
+
+/** Union, Subtract, Intersect and Exclude: shown under two or more selected shapes. */
+function Boolskbar({ benk }: { benk: Arbeidsbenk }) {
+  const t = brukBenk(benk);
+  const ref = useRef<HTMLDivElement>(null);
+  const [str, settStr] = useState({ b: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current?.parentElement;
+    if (!el) return;
+    const ro = new ResizeObserver(() => settStr({ b: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const obj = valgte(benk);
+  const boks = utvalgsboks(obj);
+  if (obj.length < 2 || !boks || !str.b) return <div ref={ref} hidden />;
+  const v = lagVisning(t.utsnitt, str.b, str.h);
+  const bunn = v.tilSkjerm({ x: (boks.minX + boks.maksX) / 2, y: boks.minY });
+  const x = Math.min(Math.max(bunn.x, 190), str.b - 190);
+  const y = Math.min(bunn.y + 14, str.h - 48);
+  const hinder = boolskHinder(t.dok, obj);
+  return (
+    <div
+      ref={ref}
+      class="flytlinje boolskbar"
+      style={{ left: `${x}px`, top: `${y}px` }}
+      role="toolbar"
+      aria-label="Kombiner former"
+    >
+      {BOOLSKE.map((b) => (
+        <button
+          key={b.id}
+          type="button"
+          disabled={!!hinder}
+          title={hinder ?? b.hjelp}
+          onClick={() => kombinerValgte(benk, b.id)}
+        >
+          <Ikon id={b.ikon} storrelse={16} />
+          {b.navn}
+        </button>
+      ))}
     </div>
   );
 }
@@ -1023,6 +1188,8 @@ export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
       etikett={`Skiltet sett ovenfra, ${t.dok.lag.length} lag og ${antall} objekter. Velg objekter i lagpanelet med tastatur. Piltaster flytter valgte objekter.`}
     >
       {st.verktoy === 'velg' && !st.kurve && <Flytlinje benk={benk} />}
+      {st.verktoy === 'velg' && !st.kurve && <Boolskbar benk={benk} />}
+      {st.verktoy === 'paint' && <Paintbar benk={benk} />}
       {st.valgtGuide && <Guidebar benk={benk} />}
     </Lerret>
   );

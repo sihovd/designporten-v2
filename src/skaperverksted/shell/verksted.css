@@ -2931,3 +2931,91 @@
   grid-template-columns: 1.5rem minmax(0, 1fr);
   margin: 0;
 }
+
+/* ---------- Paint strokes ---------- */
+
+.paintbar {
+  top: calc(var(--linjal, 22px) + 10px);
+  left: 50%;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 40px);
+  padding: 4px 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.paintbar .felt {
+  grid-template-columns: auto 74px;
+  margin: 0;
+}
+
+.paintbar .segment {
+  flex-wrap: nowrap;
+}
+
+.breddegraf {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 8px 0;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  touch-action: none;
+}
+
+.breddegraf-akse {
+  stroke: var(--linje-sterk);
+  stroke-dasharray: 3 3;
+}
+
+.breddegraf-kurve {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.5;
+}
+
+.breddegraf-punkt {
+  fill: var(--dp-lilla);
+  stroke: var(--fg);
+  stroke-width: 1;
+  cursor: grab;
+}
+
+.breddepunkter {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.breddepunkter li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.breddepunkter .felt {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  margin: 0;
+}
+
+.boolskbar {
+  gap: 2px;
+}
+
+.boolskbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.boolskbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
