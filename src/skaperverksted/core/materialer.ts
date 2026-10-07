@@ -78,12 +78,38 @@ export const materialtyper: Record<Materialtype, Materialtypeinfo> = {
   },
 };
 
+/**
+ * A filament: the one thing a colour in a project refers to (Sivert,
+ * 2026-10-06, §16). The catalogue entries below are filaments too; their ids
+ * are unchanged, so projects from before the filament registry load as they
+ * were. The fields after `bekreftet` are all optional: they are filled in for
+ * filaments the user adds, and left out of the starting catalogue because
+ * Designporten has no authorised product data to put there.
+ */
 export interface Materiale {
   id: string;
+  /** Colour name. */
   navn: string;
   type: Materialtype;
+  /** Display colour (an approximation of the real filament). */
   hex: string;
   bekreftet: boolean;
+  /** Manufacturer, for example «Bambu Lab». */
+  produsent?: string;
+  /** Product series, for example «PLA Basic». */
+  serie?: string;
+  /** Article number, only when known. */
+  sku?: string;
+  /** The user's own name for it. */
+  egetNavn?: string;
+  /** A physical spool the user has (free text, for example «Spole 3»). */
+  spole?: string;
+  /** AMS slot, 1 to 16. */
+  amsPlass?: number;
+  /** Free notes as key/value pairs. */
+  metadata?: Record<string, string>;
+  /** Added by the user (not part of the starting catalogue). */
+  egen?: boolean;
 }
 
 function m(id: string, navn: string, type: Materialtype, hex: string): Materiale {
@@ -112,8 +138,41 @@ export const materialer: Materiale[] = [
   m('tre-lys', 'Lys tre', 'Tre-look PLA', '#c49a6c'),
 ];
 
+/** Filaments added at run time: the user's own, and the ones a loaded project carries. */
+const tillegg = new Map<string, Materiale>();
+
+/** Make a filament known (or update it). The starting catalogue cannot be replaced. */
+export function registrerMateriale(m: Materiale): void {
+  if (materialer.some((x) => x.id === m.id)) return;
+  tillegg.set(m.id, m);
+}
+
+export function fjernRegistrertMateriale(id: string): void {
+  tillegg.delete(id);
+}
+
+export function erKjentMateriale(id: string): boolean {
+  return tillegg.has(id) || materialer.some((x) => x.id === id);
+}
+
+/** Catalogue first, then everything added at run time. */
+export function alleMaterialer(): Materiale[] {
+  return [...materialer, ...tillegg.values()];
+}
+
 export function finnMateriale(id: string): Materiale {
-  return materialer.find((x) => x.id === id) ?? materialer[0]!;
+  return tillegg.get(id) ?? materialer.find((x) => x.id === id) ?? materialer[0]!;
+}
+
+/** What the filament is called on screen: its own name, else the colour name. */
+export function visningsnavn(m: Materiale): string {
+  return m.egetNavn?.trim() || m.navn;
+}
+
+/** «Bambu Lab PLA Basic · Lilla»: everything that is known, for a tooltip or a list. */
+export function beskrivelseAvMateriale(m: Materiale): string {
+  const kilde = [m.produsent, m.serie].filter(Boolean).join(' ');
+  return [kilde || m.type, visningsnavn(m)].join(' · ');
 }
 
 export interface Printerprofil {

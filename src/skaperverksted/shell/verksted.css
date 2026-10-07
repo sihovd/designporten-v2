@@ -3028,3 +3028,193 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* ---------- Filaments: colour swatch menu and the Fargeprofil panel (Sivert, 2026-10-06) ---------- */
+
+.fargevelger {
+  display: inline-flex;
+  align-items: center;
+}
+
+.fargeknapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fargeknapp:hover,
+.fargeknapp[aria-expanded='true'] {
+  border-color: var(--linje-sterk);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+.fargeknapp:focus-visible {
+  outline: 2px solid var(--dp-lilla);
+  outline-offset: 1px;
+}
+
+.smal .fargeknapp {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+button.profilfarger.fargeknapp {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px 5px;
+}
+
+.fargeprove.stor {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.fargemeny {
+  min-width: 232px;
+  max-width: 320px;
+}
+
+.fargemeny button {
+  min-height: 36px;
+}
+
+.fargemeny-navn {
+  flex: 1;
+  min-width: 0;
+}
+
+.fargemeny-mer {
+  margin-top: 4px;
+  border-top: 1px solid var(--linje) !important;
+  border-radius: 0 !important;
+  color: var(--dp-lilla-tekst, var(--fg));
+}
+
+.fargetype {
+  font-size: 12px;
+}
+
+.fargepanel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 16px;
+}
+
+.fargepanel .profilfargeliste,
+.fargepanel .registerliste,
+.fargepanel .profilliste {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fargepanel .profilfargeliste li,
+.fargepanel .registerliste li,
+.fargepanel .profilliste li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--linje);
+}
+
+.fargepanel .profilfargeliste li > span:nth-child(3) {
+  flex: 1;
+}
+
+.fp-tekst {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.fp-linje {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fp-knapper {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+}
+
+.registerfilter {
+  display: grid;
+  gap: 6px;
+}
+
+.registerliste {
+  max-height: 340px;
+  overflow: auto;
+}
+
+.filamentskjema {
+  display: grid;
+  gap: 8px;
+}
+
+.filamentskjema input[type='color'] {
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--linje-sterk);
+  background: transparent;
+}
+
+.fontvindu .dialog-innhold {
+  width: min(560px, 100%);
+}
+
+.fontvindu-innhold {
+  display: grid;
+  gap: 10px;
+  padding: 10px 18px 18px;
+  overflow: auto;
+}
+
+.fontliste li select {
+  flex: none;
+  width: 5.5em;
+}
+
+.fargepanel button.profilvalg {
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+}
+
+.fargepanel button.profilvalg:hover {
+  border-color: var(--linje-sterk);
+}
+
+.fargepanel .profil-lagre .sekundar,
+.fargepanel > .sekundar {
+  justify-self: start;
+}
+
+.filamentskjema .avkryssing {
+  align-items: center;
+}
+
+.filamentskjema .avkryssing input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--dp-lilla);
+}

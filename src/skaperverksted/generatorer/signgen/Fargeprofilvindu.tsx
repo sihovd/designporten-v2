@@ -7,7 +7,7 @@
  */
 import { useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { finnMateriale, materialer } from '../../core/materialer';
+import { alleMaterialer, finnMateriale, visningsnavn } from '../../core/materialer';
 import { Dialog } from '../../shell/Dialog';
 import { brukBenk } from '../../shell/bruk-benk';
 import {
@@ -21,6 +21,8 @@ import {
 } from './fargeprofiler';
 import { nyttSigngenDokument, palett, settPalett, startErValgt } from './dokument';
 import { signtilstand } from './tilstand';
+import { lastEgneFilamenter } from './filamenter';
+import { Filamentskjema, TOMT } from './Fargepanel';
 
 function Fargerad({ farger }: { farger: string[] }) {
   return (
@@ -34,6 +36,7 @@ function Fargerad({ farger }: { farger: string[] }) {
 
 export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
+  useState(() => lastEgneFilamenter());
   const start = !startErValgt(t.dok);
   const [egne, settEgne] = useState<Fargeprofil[]>(() => hentEgneProfiler());
   const naa = start ? STANDARD_PROFIL.farger : palett(t.dok);
@@ -42,6 +45,7 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
   const [farger, settFarger] = useState<string[]>(naa);
   const [navn, settNavn] = useState('');
   const [melding, settMelding] = useState<string | null>(null);
+  const [nyttFilament, settNyttFilament] = useState(false);
 
   const velgProfil = (p: Fargeprofil) => {
     settValgt(p.id);
@@ -60,7 +64,7 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
       benk.lastInn({ ...ny, parametre: { ...ny.parametre, startvalgt: true } });
       benk.kommando('tilpass');
       benk.melde(
-        `Skiltet bruker ${farger.length} farger: ${farger.map((id) => finnMateriale(id).navn).join(', ')}.`,
+        `Skiltet bruker ${farger.length} farger: ${farger.map((id) => visningsnavn(finnMateriale(id))).join(', ')}.`,
       );
     } else {
       benk.endre({ navn: 'Fargeprofil', anvend: (d) => settPalett(d, farger) });
@@ -90,7 +94,7 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
     settMelding(`«${p.navn}» er lagret i denne nettleseren.`);
   };
 
-  const ledige = materialer.filter((m) => !farger.includes(m.id));
+  const ledige = alleMaterialer().filter((m) => !farger.includes(m.id));
   const profilvalg = (p: Fargeprofil) => (
     <li key={p.id}>
       <label class={`profilvalg${valgt === p.id ? ' valgt' : ''}`}>
@@ -144,7 +148,8 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
                 <span class="mono filamentnr">{i + 1}</span>
                 <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
                 <span>
-                  {m.navn} <span class="dempet">{m.type}</span>
+                  {visningsnavn(m)}{' '}
+                  <span class="dempet">{m.produsent ? `${m.produsent} ${m.type}` : m.type}</span>
                 </span>
                 <button
                   type="button"
@@ -172,11 +177,26 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
               <option value="">Velg fra katalogen …</option>
               {ledige.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.navn} ({m.type})
+                  {visningsnavn(m)} ({m.produsent ? `${m.produsent} ${m.type}` : m.type})
                 </option>
               ))}
             </select>
           </label>
+        )}
+
+        {nyttFilament ? (
+          <Filamentskjema
+            start={{ ...TOMT }}
+            ferdig={(f, leggTil) => {
+              settNyttFilament(false);
+              if (f && leggTil && !farger.includes(f.id)) endreFarger([...farger, f.id]);
+              if (f) settMelding(`«${visningsnavn(f)}» er lagret i denne nettleseren.`);
+            }}
+          />
+        ) : (
+          <button type="button" class="sekundar" onClick={() => settNyttFilament(true)}>
+            + Nytt filament
+          </button>
         )}
 
         <form
@@ -207,7 +227,8 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
           </p>
         )}
         <p class="merknad">
-          Fargene kommer fra materialkatalogen. Hva som er på lager, er ikke bekreftet ennå.
+          Fargene kommer fra filamentregisteret. Startkatalogen er ikke bekreftet på lager ennå. Egne
+          filamenter legger du til i Fargeprofil-panelet inne i verkstedet.
         </p>
         <div class="knapperad fargeprofil-fot">
           <button type="button" class="primar" onClick={bruk}>

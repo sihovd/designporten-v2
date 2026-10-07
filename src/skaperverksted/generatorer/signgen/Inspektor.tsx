@@ -14,11 +14,12 @@ import {
   type SvgKilde,
   type TekstKilde,
 } from '../../core/dokument';
-import { finnMateriale, materialer, standardPrinter } from '../../core/materialer';
+import { finnMateriale, standardPrinter } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { tall } from '../../core/enheter';
-import { fonter } from '../../geometri/tekst';
+import { alleFonter } from '../../geometri/tekst';
+import { synkFonter } from './fontbibliotek';
 import {
   parametre,
   oppdaterLag,
@@ -26,7 +27,6 @@ import {
   flyttTilLag,
   fargeplasser,
   flyttOmriss,
-  leggTilFarge,
   palett,
   grupperTekst,
   losUtObjekt,
@@ -46,14 +46,15 @@ import { hentBaner, settKurve, startKurveredigering } from './kurver';
 import { nyttOmrissI } from './Lagpanel';
 import { PROFILER, Profilseksjon } from './Profilseksjon';
 import { Strekseksjon } from './Strekpanel';
+import { apneFargeprofil, Fargevelger } from './Fargevelger';
 import { brukPanelKontekst } from '../../shell/paneler/kontekst';
 import { folgerNavnet, hullanker, settHullavstand } from './batch';
 import { plangrenser } from '../../core/plangrenser';
 
 /**
- * Colour picker: the sign's colour profile first (Sivert, 2026-10-05).
- * A catalogue colour outside the profile can still be picked; it is then
- * added to the profile.
+ * Colour: a swatch that opens a menu of the filaments in the sign's colour
+ * profile (Sivert, 2026-10-06). More filaments are added in the Fargeprofil
+ * panel.
  */
 function Materialvelger({
   benk,
@@ -66,47 +67,22 @@ function Materialvelger({
   endre: (id: string) => void;
   id: string;
 }) {
-  const t = brukBenk(benk);
-  const profil = palett(t.dok);
-  const valg = profil.includes(verdi) ? profil : [verdi, ...profil];
-  const andre = materialer.filter((x) => !valg.includes(x.id));
   const m = finnMateriale(verdi);
   return (
-    <label class="felt" for={id}>
-      <span>Farge</span>
+    <div class="felt">
+      <span id={`${id}-etikett`}>Farge</span>
       <span class="materialvalg">
-        <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
-        <select
-          id={id}
-          value={verdi}
-          onChange={(e) => {
-            const ny = (e.target as HTMLSelectElement).value;
-            if (!profil.includes(ny)) {
-              benk.endre({ navn: 'Legg til farge i profilen', anvend: (d) => leggTilFarge(d, ny) });
-              benk.melde(`${finnMateriale(ny).navn} er lagt til i fargeprofilen.`);
-            }
-            endre(ny);
-          }}
-        >
-          <optgroup label="Fargeprofilen">
-            {valg.map((x) => (
-              <option key={x} value={x}>
-                {finnMateriale(x).navn}
-              </option>
-            ))}
-          </optgroup>
-          {andre.length > 0 && (
-            <optgroup label="Legg til fra katalogen">
-              {andre.map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.navn} ({x.type})
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+        <Fargevelger
+          benk={benk}
+          verdi={verdi}
+          endre={endre}
+          etikett="Farge"
+          medNavn
+          klasse="materialvelger"
+        />
+        <span class="dempet fargetype">{m.produsent ? `${m.produsent} ${m.type}` : m.type}</span>
       </span>
-    </label>
+    </div>
   );
 }
 
@@ -258,6 +234,19 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
     );
   };
   const tekst = o.kilde.type === 'tekst' ? o.kilde : null;
+  /** A font change also updates the project's copy of the added fonts, in the same undo step. */
+  const byttFont = (fontId: string) =>
+    benk.endre({
+      navn: 'Bytt font',
+      anvend: (d) =>
+        synkFonter(
+          oppdaterObjekter(d, [o.id], (x) => {
+            if (x.kilde.type !== 'tekst') return x;
+            const kilde = { ...x.kilde, fontId };
+            return { ...x, kilde, navn: x.navn === standardNavn(x.kilde) ? standardNavn(kilde) : x.navn };
+          }),
+        ),
+    });
   const endreTekst = (navn: string, endring: Partial<TekstKilde>, slaSammen?: string) =>
     endre(
       navn,
@@ -305,15 +294,22 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
               <select
                 id="signgen-font"
                 value={tekst.fontId}
-                onChange={(e) => endreTekst('Bytt font', { fontId: (e.target as HTMLSelectElement).value })}
+                onChange={(e) => byttFont((e.target as HTMLSelectElement).value)}
               >
-                {fonter.map((f) => (
+                {alleFonter().map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.navn} ({f.preg.toLowerCase()})
                   </option>
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              class="kontroll-knapp"
+              onClick={() => signtilstand(benk).sett({ fontvindu: true })}
+            >
+              Flere fonter fra Google Fonts …
+            </button>
             <TallFelt
               etikett="Skriftstørrelse"
               verdi={tekst.storrelse}
@@ -1191,7 +1187,12 @@ function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
         <div>
           <dt>Fargeprofil</dt>
           <dd>
-            <span class="profilfarger">
+            <button
+              type="button"
+              class="profilfarger fargeknapp"
+              aria-label="Åpne fargeprofilen"
+              onClick={() => apneFargeprofil(benk)}
+            >
               {palett(t.dok).map((id) => (
                 <span
                   key={id}
@@ -1200,7 +1201,7 @@ function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
                   aria-hidden="true"
                 />
               ))}
-            </span>{' '}
+            </button>{' '}
             {palett(t.dok)
               .map((id) => finnMateriale(id).navn)
               .join(', ')}

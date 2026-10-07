@@ -4,7 +4,7 @@ import { finnMateriale } from '../../core/materialer';
 import { tall } from '../../core/enheter';
 import { mal } from '../../shell/mal';
 import { meta } from './meta';
-import { fargeplasser, nyttSigngenDokument, ordneTekstlag } from './dokument';
+import { fargeplasser, lesInnSigngen, nyttSigngenDokument } from './dokument';
 import { byggSigngen } from './modell';
 import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
@@ -21,7 +21,7 @@ const plugin: GeneratorPlugin = {
   ...meta,
   visninger: ['2d', '3d'],
   nyttDokument: nyttSigngenDokument,
-  lesInn: ordneTekstlag,
+  lesInn: lesInnSigngen,
   byggModell: byggSigngen,
   ui: {
     Lerret2d: SigngenLerret,

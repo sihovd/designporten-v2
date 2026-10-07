@@ -13,6 +13,7 @@ import { brukSigntilstand, signtilstand, type Snapmal, type VerktoyId } from './
 import { importerSvgSom } from './handlinger';
 import { startErValgt } from './dokument';
 import { Fargeprofilvindu } from './Fargeprofilvindu';
+import { Fontvindu } from './Fontvindu';
 import { Dekorgalleri } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
 import { Batchdialog } from './Batch';
@@ -167,6 +168,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
         t.innstillinger.hjelpelinjer,
       )}
       {(!startErValgt(t.dok) || st.fargeprofil) && <Fargeprofilvindu benk={benk} />}
+      {st.fontvindu && <Fontvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
       {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}
       {st.batch && <Batchdialog benk={benk} lukk={() => signtilstand(benk).sett({ batch: false })} />}

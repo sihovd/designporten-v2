@@ -169,6 +169,19 @@ Sivert, 2026-10-05.
 - **Same level.** A layer can be set to «Samme nivå som laget under»: it starts at the same Z as the layer under it instead of on top of it (and the next layer stacks on the tallest of them). This is what lets coloured parts lie side by side as one flat picture; it works for any layers while «Stable lagene automatisk» is on. Picture layers are placed like other decorations (top right, a third of the sign's height, above the active layer), so a picture partly outside the sign hangs in the air until the user moves it or sets the layer's level; the existing check reports it.
 - **Variable decor.** A vector can be a **batch field** («Batchfelt (dekor)» in the inspector), see Batch below.
 
+### Filaments, the Fargeprofil panel and fonts
+
+Sivert, 2026-10-06 (§16 to §20 of the Sign Forge prompt).
+
+- **A colour is a filament.** Every layer, outline and object points at a filament id. The starting catalogue and the filaments the user adds are the same kind of thing (`Materiale` in `core/materialer.ts`): colour name, display colour, material, and optionally manufacturer, product series, article number (SKU), own name, physical spool, AMS slot (1 to 16) and notes. The catalogue ids are unchanged, so older projects need no migration. There is **no free RGB picker**.
+- **The profile is any size.** `parametre.farger` is the project's list of filament ids; the old four-colour default is only a default.
+- **Clickable swatches.** A colour swatch that can be changed (the layer's and outline's colour in Egenskaper, an outline's swatch in the layers panel) opens a small menu of the profile's filaments; the last entry, «Flere filamenter …», opens the Fargeprofil panel (or the profile window on small screens).
+- **Fargeprofil panel** (dockable, a tab next to Egenskaper): the project's colours with order, remove and «i bruk»; ready-made and own profiles; **colour groups** (named sets of filaments, browser only); the **registry** with search over name, manufacturer, series, material, SKU and notes, a manufacturer and a material filter; add, edit and delete your own filaments. The start and profile window can also add a filament.
+- **Where it is kept.** Own filaments, groups and profiles live in this browser. The project carries a copy of the own filaments it uses (`parametre.filamenter`), so it opens with the same colours on another computer; the browser's copy wins when both exist.
+- **No product catalogue.** Designporten has no authorised data for Bambu Lab, Polymaker, Prusament or others. The starting catalogue is the generic list (not confirmed stock); manufacturer names are only suggestions in the form. A real catalogue can be read in later as more `Materiale` entries.
+- **Google Fonts.** The text inspector has «Flere fonter fra Google Fonts …»: search the families, pick a weight, add. Google's own list needs an API key, so the list and file addresses come from the open **Fontsource** mirror (api.fontsource.org, files from the jsDelivr CDN), Latin subset only (it has æ, ø, å) and WOFF/TTF (WOFF2 cannot be read). The font file is kept in the browser's font library and copied into the project that uses it (`parametre.fonter`), so the 3D model builds offline. The network is needed to add a font, not to use it.
+
+
 ### Layers panel
 
 The Layers panel makes the physical construction understandable. For every layer the user sees:
