@@ -9,11 +9,16 @@ import { Arbeidsbenk } from '../core/arbeidsbenk';
 import type { GeneratorPlugin } from '../core/generator';
 import { fraJson, tilJson, DokumentFeil } from '../core/dokument';
 import {
+  apningFullfort,
   autolagre,
   hentAutolagret,
+  hentReserve,
   lastNed,
+  nullstillVerksted,
   ryddGjestelagring,
   slettAutolagret,
+  slettReserve,
+  startApning,
   type Gjestestatus,
 } from '../core/lagring';
 import { lastGenerator } from '../generatorer';
@@ -81,7 +86,16 @@ function erSkrivefelt(t: EventTarget | null): boolean {
 function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   const gjenopprettet = useRef(false);
   const gjest = useRef<Gjestestatus | null>(null);
+  const oppstart = useRef<'nullstilt' | 'lagt-til-side' | null>(null);
   const benk = useMemo(() => {
+    oppstart.current = null;
+    const adresse = new URL(location.href);
+    if (adresse.searchParams.has('nullstill')) {
+      nullstillVerksted(plugin.id);
+      adresse.searchParams.delete('nullstill');
+      history.replaceState(history.state, '', adresse);
+      oppstart.current = 'nullstilt';
+    } else if (startApning(plugin.id)) oppstart.current = 'lagt-til-side';
     gjest.current = plugin.gjestelagring
       ? ryddGjestelagring(plugin.id, plugin.gjestelagring.maksDager)
       : null;
@@ -90,6 +104,18 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
     return new Arbeidsbenk(plugin, lagret ?? plugin.nyttDokument());
   }, [plugin]);
   useEffect(() => () => benk.avslutt(), [benk]);
+  const [reserve, settReserve] = useState(() => hentReserve(plugin.id));
+
+  // the opening counts as finished once the page has run a few seconds without freezing
+  useEffect(() => {
+    const ferdig = () => apningFullfort(plugin.id);
+    const id = setTimeout(ferdig, 4000);
+    addEventListener('pagehide', ferdig);
+    return () => {
+      clearTimeout(id);
+      removeEventListener('pagehide', ferdig);
+    };
+  }, [benk]);
 
   const t = brukBenk(benk);
   const bred = brukBred();
@@ -146,7 +172,13 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   useEffect(() => {
     const g = gjest.current;
     const dager = plugin.gjestelagring?.maksDager;
-    if (g?.utfall === 'slettet' && dager)
+    if (oppstart.current === 'nullstilt')
+      benk.melde(`${plugin.navn} er nullstilt: det lagrede prosjektet og panelene er fjernet.`);
+    else if (oppstart.current === 'lagt-til-side')
+      benk.melde(
+        'Prosjektet fra forrige gang ble ikke ferdig åpnet, så du starter på nytt. Det gamle prosjektet er tatt vare på: Fil → «Last ned forrige prosjekt».',
+      );
+    else if (g?.utfall === 'slettet' && dager)
       benk.melde(
         `Det lagrede prosjektet fra forrige gang er slettet: det var ikke åpnet på mer enn ${dager} dager. Uten konto lagres ett prosjekt, og bare så lenge du bruker det.`,
       );
@@ -328,6 +360,34 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             <button type="button" role="menuitem" onClick={nyttProsjekt}>
               Nytt prosjekt
             </button>
+            {reserve && (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    lastNed(reserve, `forrige-${plugin.id}.skaperverksted.json`, 'application/json');
+                    benk.melde(
+                      'Det forrige prosjektet er lastet ned. Du kan åpne det med Fil → «Åpne prosjektfil».',
+                    );
+                  }}
+                >
+                  Last ned forrige prosjekt
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    if (!confirm('Slette det forrige prosjektet fra nettleseren?')) return;
+                    slettReserve(plugin.id);
+                    settReserve(null);
+                    benk.melde('Det forrige prosjektet er slettet.');
+                  }}
+                >
+                  Slett forrige prosjekt
+                </button>
+              </>
+            )}
             <button type="button" role="menuitem" onClick={() => filvelger.current?.click()}>
               Åpne prosjektfil …
             </button>

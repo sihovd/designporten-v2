@@ -9,6 +9,8 @@ import { fraJson, tilJson, type Dokument } from './dokument';
 const AUTOLAGRING = (generator: string) => `dp-verksted:${generator}`;
 const DESIGN = (id: string) => `dp-design:${id}`;
 const SIST_BRUKT = (generator: string) => `dp-verksted:${generator}:sist-brukt`;
+const APNER = (generator: string) => `dp-verksted:${generator}:apner`;
+const RESERVE = (generator: string) => `dp-verksted:${generator}:reserve`;
 
 const DAG = 24 * 60 * 60 * 1000;
 
@@ -134,5 +136,80 @@ export function ryddGjestelagring(generator: string, maksDager: number, naa = Da
     return { utfall: 'beholdt', dagerUbrukt: dager };
   } catch {
     return { utfall: 'ingen', dagerUbrukt: 0 };
+  }
+}
+
+// ---------- a saved project that freezes the page must not lock the tool for good ----------
+
+/**
+ * Called when a tool opens, before the saved project is read. Returns
+ * `true` when the last opening never finished (the page froze or crashed
+ * while the saved project was loading): the saved project is then moved
+ * aside so it is not loaded again, and can be downloaded from the menu.
+ * The mark is set here and removed by `apningFullfort`.
+ */
+export function startApning(generator: string): boolean {
+  try {
+    const l = lager();
+    if (!l) return false;
+    const hang = l.getItem(APNER(generator)) !== null;
+    const lagret = l.getItem(AUTOLAGRING(generator));
+    if (hang && lagret) {
+      l.setItem(RESERVE(generator), lagret);
+      l.removeItem(AUTOLAGRING(generator));
+    }
+    if (l.getItem(AUTOLAGRING(generator))) l.setItem(APNER(generator), String(Date.now()));
+    else l.removeItem(APNER(generator));
+    return hang && !!lagret;
+  } catch {
+    return false;
+  }
+}
+
+/** The page has run normally after opening: the saved project is safe to load next time. */
+export function apningFullfort(generator: string): void {
+  try {
+    lager()?.removeItem(APNER(generator));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** The project that was moved aside because it froze the page, as JSON, if any. */
+export function hentReserve(generator: string): string | null {
+  try {
+    return lager()?.getItem(RESERVE(generator)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function slettReserve(generator: string): void {
+  try {
+    lager()?.removeItem(RESERVE(generator));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/**
+ * «?nullstill» in the address: forget the tool's saved project, the project
+ * set aside and the panel layout, so it opens as new. Own templates, colour
+ * profiles, filaments, fonts and decor are kept.
+ */
+export function nullstillVerksted(generator: string): void {
+  try {
+    const l = lager();
+    if (!l) return;
+    for (const k of [
+      AUTOLAGRING(generator),
+      SIST_BRUKT(generator),
+      APNER(generator),
+      RESERVE(generator),
+      `dp-verksted:paneler:${generator}`,
+    ])
+      l.removeItem(k);
+  } catch {
+    /* storage unavailable */
   }
 }
