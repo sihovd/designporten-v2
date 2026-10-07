@@ -14,7 +14,7 @@ import {
   type SvgKilde,
   type TekstKilde,
 } from '../../core/dokument';
-import { finnMateriale, standardPrinter } from '../../core/materialer';
+import { fargekode, finnMateriale, standardPrinter, visningsnavn } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { tall } from '../../core/enheter';
@@ -37,7 +37,14 @@ import {
   stable,
   standardNavn,
 } from './dokument';
-import { erOye, lokalGeometri, MIN_OMRISSBREDDE, objektStorrelse, STANDARD_RINGBREDDE } from './modell';
+import {
+  erOye,
+  lokalGeometri,
+  MIN_OMRISSBREDDE,
+  objektFarge,
+  objektStorrelse,
+  STANDARD_RINGBREDDE,
+} from './modell';
 import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
 import { apneCsv } from './csvhandlinger';
@@ -604,6 +611,40 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
             />
           </div>
         )}
+        {o.kilde.type !== 'tekst' &&
+          !(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
+          o.operasjon === 'legg-til' &&
+          lagForObjekt && (
+            <div class="felt">
+              <span id="signgen-objektfarge-etikett">Farge</span>
+              <span class="materialvalg">
+                <Fargevelger
+                  benk={benk}
+                  verdi={objektFarge(lagForObjekt, o)}
+                  endre={(m) =>
+                    endre('Bytt farge på objektet', (x) => ({
+                      ...x,
+                      materialId: m === lagForObjekt.materialId ? undefined : m,
+                    }))
+                  }
+                  etikett="Farge på objektet"
+                  medNavn
+                  klasse="materialvelger"
+                />
+                {o.materialId ? (
+                  <button
+                    type="button"
+                    class="kontroll-knapp"
+                    onClick={() => endre('Følg lagets farge', (x) => ({ ...x, materialId: undefined }))}
+                  >
+                    Følg laget
+                  </button>
+                ) : (
+                  <span class="dempet fargetype">følger laget</span>
+                )}
+              </span>
+            </div>
+          )}
         <div class="knapperad">
           <button
             type="button"
@@ -1183,7 +1224,14 @@ function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
         </div>
         <div>
           <dt>Farger i bruk</dt>
-          <dd>{brukte.map((m) => m.navn).join(', ')}</dd>
+          <dd class="fargekoder">
+            {brukte.map((m) => (
+              <span class="fargekode" key={m.id} title={visningsnavn(m)}>
+                <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
+                <span class="mono">{fargekode(m)}</span>
+              </span>
+            ))}
+          </dd>
         </div>
         <div>
           <dt>Fargeprofil</dt>
@@ -1203,9 +1251,11 @@ function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
                 />
               ))}
             </button>{' '}
-            {palett(t.dok)
-              .map((id) => finnMateriale(id).navn)
-              .join(', ')}
+            <span class="mono">
+              {palett(t.dok)
+                .map((id) => fargekode(finnMateriale(id)))
+                .join(' ')}
+            </span>
           </dd>
         </div>
       </dl>

@@ -82,6 +82,11 @@ export interface Objekt {
   last: boolean;
   /** Boolean role within its layer: add material or cut a hole. */
   operasjon: 'legg-til' | 'trekk-fra';
+  /**
+   * Sign Forge: a colour of its own. Without it the object prints in the layer's colour. The
+   * layer's outline, height and profile are the same either way (Sivert, 2026-10-07).
+   */
+  materialId?: string;
 }
 
 /** An outline from one layer applied to another (Signgen Phase 5). */

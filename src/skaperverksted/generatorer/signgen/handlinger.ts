@@ -33,7 +33,7 @@ import {
   slettObjekter,
   standardNavn,
 } from './dokument';
-import { finnMateriale } from '../../core/materialer';
+import { fargekode, finnMateriale } from '../../core/materialer';
 import { narmesteFarge } from './fargeprofiler';
 import { modellBoks, verdensBoks } from './modell';
 import type { Flerfarget, SvgDeler } from './svgdeler';
@@ -511,35 +511,31 @@ export function leggTilFlerfarget(
   const s = Math.min(maal, plate) / Math.max(ff.bredde, ff.hoyde);
   const grunn = ledigNavn(d, ff.navn);
   const over = benk.tilstand.utvalg.lag ?? undefined;
-  const lag: Lag[] = [];
-  const objekter: Objekt[] = [];
-  ff.grupper.forEach((g, i) => {
-    const materialId = tilPalett(d, g.farge || undefined);
-    const navn = finnMateriale(materialId).navn;
-    const l = { ...nyttLag(`${grunn} · ${navn}`, materialId, 1), sammeNivaa: i > 0 };
-    lag.push(l);
-    objekter.push(
-      nyttObjekt(
-        l.id,
-        g.kilde,
-        { skalaX: s, skalaY: s, x: x + g.dx * s, y: y + g.dy * s },
-        `${ff.navn} · ${navn}`,
-      ),
-    );
-  });
+  // one layer for the whole picture: every colour is an object of its own with its own colour, so the
+  // layer's outline, height and profile are the same for all of them
+  const farger = ff.grupper.map((g) => tilPalett(d, g.farge || undefined));
+  const lag = nyttLag(grunn, farger[0]!, 1);
+  const objekter: Objekt[] = ff.grupper.map((g, i) => ({
+    ...nyttObjekt(
+      lag.id,
+      g.kilde,
+      { skalaX: s, skalaY: s, x: x + g.dx * s, y: y + g.dy * s },
+      `${ff.navn} · ${fargekode(finnMateriale(farger[i]!))}`,
+    ),
+    ...(farger[i] !== lag.materialId ? { materialId: farger[i]! } : {}),
+  }));
   benk.endre({
     navn: `Legg til ${ff.navn}`,
     anvend: (x0) => {
-      let dok = x0;
-      lag.forEach((l, i) => {
-        dok = leggTilLag(dok, l, i === 0 ? over : lag[i - 1]!.id);
-      });
+      let dok = leggTilLag(x0, lag, over);
       for (const o of objekter) dok = leggTilObjekt(dok, o);
       return dok;
     },
   });
-  benk.velg({ lag: lag[0]!.id, objekter: objekter.map((o) => o.id) });
-  const meldinger = [`${ff.navn} er lagt til i ${lag.length} lag, ett per farge, på samme nivå`];
+  benk.velg({ lag: lag.id, objekter: objekter.map((o) => o.id) });
+  const meldinger = [
+    `${ff.navn} er lagt til i ett lag med ${new Set(farger).size} farger. Alle delene har samme omriss og høyde`,
+  ];
   if (ekstra) meldinger.push(ekstra);
   benk.melde(`${meldinger.join('. ')}.`);
 }

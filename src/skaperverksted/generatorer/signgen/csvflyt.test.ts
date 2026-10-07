@@ -382,7 +382,7 @@ describe('Overrides on a generated sign (§30, §31)', () => {
     expect(foreldreloseOverstyringer(m, ov)).toHaveLength(1);
     expect(visVerdi({ mal: 'objekt', egenskap: 'x' }, 47)).toBe('47 mm');
     expect(visVerdi({ mal: 'objekt', egenskap: 'synlig' }, false)).toBe('skjult');
-    expect(visVerdi({ mal: 'lag', egenskap: 'materialId' }, 'pla-lilla')).toMatch(/Lilla/);
+    expect(visVerdi({ mal: 'lag', egenskap: 'materialId' }, 'pla-lilla')).toBe('#883DFF');
   });
 
   it('builds signs without the CSV work riding along', () => {

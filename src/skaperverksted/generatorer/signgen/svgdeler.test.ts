@@ -238,7 +238,7 @@ describe('Stacking layers on the same level', () => {
 });
 
 describe('A picture in several colours on the sign', () => {
-  it('gets a layer per colour at the same height, side by side, and prints', async () => {
+  it('gets one layer with an object per colour, one outline, and prints', async () => {
     await lastFonter(plugin.nyttDokument());
     const benk = new Arbeidsbenk(plugin, plugin.nyttDokument());
     const antallFor = benk.dok.lag.length;
@@ -251,23 +251,19 @@ describe('A picture in several colours on the sign', () => {
     )!;
     leggTilFlerfarget(benk, ff, 'pynt', 'eget');
     const dok = benk.dok;
-    expect(dok.lag.length).toBe(antallFor + 2);
-    const nye = dok.lag.slice(-2);
-    expect(nye[0]!.sammeNivaa).toBeFalsy();
-    expect(nye[1]!.sammeNivaa).toBe(true);
-    expect(nye[1]!.zBunn).toBe(nye[0]!.zBunn);
-    expect(nye[1]!.materialId).not.toBe(nye[0]!.materialId);
+    expect(dok.lag.length).toBe(antallFor + 1);
+    const nytt = dok.lag.at(-1)!;
+    const objekter = objekterILag(dok, nytt.id);
+    expect(objekter.length).toBe(2);
+    // the first colour is the layer's, the other is an object colour of its own
+    expect(objekter.filter((o) => o.materialId).length).toBe(1);
+    expect(objekter.find((o) => o.materialId)!.materialId).not.toBe(nytt.materialId);
     expect(benk.tilstand.utvalg.objekter.length).toBe(2);
-    // the layer above the pair starts above both
-    const full = oppdaterLag(dok, nye[1]!.id, { hoyde: 2 });
-    const toppen = Math.max(...full.lag.slice(-2).map((l) => l.zBunn + l.hoyde));
-    expect(toppen).toBeCloseTo(nye[0]!.zBunn + 2, 6);
-    // a layer after the pair stacks on the tallest of them
-    expect(finnLag(full, nye[0]!.id)).toBeTruthy();
     const modell = await byggSigngen(dok);
-    expect(modell.deler.length).toBeGreaterThanOrEqual(2);
+    const deler = modell.deler.filter((d) => d.id === nytt.id || d.id.startsWith(`${nytt.id}~`));
+    expect(new Set(deler.map((d) => d.materialId)).size).toBe(2);
     for (const del of modell.deler) expect(sjekkManifold(del.mesh).lukket).toBe(true);
-    for (const o of objekterILag(dok, nye[0]!.id)) expect(o.kilde.type).toBe('svg');
+    for (const o of objekter) expect(o.kilde.type).toBe('svg');
     benk.avslutt();
   });
 

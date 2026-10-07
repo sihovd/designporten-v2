@@ -101,22 +101,25 @@ describe('Editing the curves of a vector', () => {
     benk.avslutt();
   });
 
-  it('gives a shape a colour of its own in a layer at the same height', () => {
+  it('gives a shape a colour of its own as an object in the same layer', () => {
     const { benk, id } = benkMedVektor();
     const lagFor = benk.dok.lag.length;
     const lagId = benk.dok.objekter[id]!.lagId;
+    const antallFor = Object.keys(benk.dok.objekter).length;
     settKurve(benk, { baner: [2], noder: [], segment: null });
     expect(fargeValgtForm(benk, 'pla-roed')).toBe(true);
     const d = benk.dok;
-    expect(d.lag.length).toBe(lagFor + 1);
-    const nytt = d.lag[d.lag.findIndex((l) => l.id === lagId) + 1]!;
-    expect(nytt.sammeNivaa).toBe(true);
-    expect(nytt.materialId).toBe('pla-roed');
-    expect(nytt.hoyde).toBe(finnLag(d, lagId)!.hoyde);
+    // no new layer: the layer's outline, height and profile are shared by both colours
+    expect(d.lag.length).toBe(lagFor);
+    expect(Object.keys(d.objekter).length).toBe(antallFor + 1);
+    const nytt = Object.values(d.objekter).find((o) => o.materialId === 'pla-roed')!;
+    expect(nytt.lagId).toBe(lagId);
+    expect(d.objekter[id]!.materialId).toBeUndefined();
     // the rest of the original keeps its two paths
     expect(hentBaner(d.objekter[id]!)).toHaveLength(2);
     benk.angre();
     expect(benk.dok.lag.length).toBe(lagFor);
+    expect(Object.keys(benk.dok.objekter).length).toBe(antallFor);
     expect(hentBaner(benk.dok.objekter[id]!)).toHaveLength(3);
     benk.avslutt();
   });

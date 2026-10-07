@@ -13,6 +13,7 @@ import {
   alleMaterialer,
   finnMateriale,
   materialtyper,
+  fargekode,
   visningsnavn,
   type Materiale,
   type Materialtype,
@@ -29,6 +30,7 @@ import {
 } from './fargeprofiler';
 import {
   finnFilamenter,
+  filamentInfo,
   filamentLinje,
   hentGrupper,
   KJENTE_PRODUSENTER,
@@ -305,9 +307,7 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
       >
         <span class="profilnavn">{p.navn}</span>
         <Prover farger={p.farger} />
-        <span class="visuelt-skjult">
-          : {p.farger.map((id) => visningsnavn(finnMateriale(id))).join(', ')}
-        </span>
+        <span class="visuelt-skjult">: {p.farger.map((id) => fargekode(finnMateriale(id))).join(', ')}</span>
       </button>
       {p.egen && (
         <button
@@ -338,7 +338,7 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
             if (leggTilIProfil && !profil.includes(f.id))
               bruk([...profil, f.id], 'Legg til farge i profilen');
             else benk.endre({ navn: 'Oppdater filament', anvend: synkFilamenter });
-            settMelding(`«${visningsnavn(f)}» er lagret i denne nettleseren.`);
+            settMelding(`Filamentet ${fargekode(f)} er lagret i denne nettleseren.`);
           }}
         />
       </div>
@@ -357,9 +357,9 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
               <span class="mono filamentnr">{i + 1}</span>
               <span class="fargeprove stor" style={{ background: m.hex }} aria-hidden="true" />
               <span class="fp-tekst">
-                {visningsnavn(m)}
-                <span class="dempet fp-linje">
-                  {filamentLinje(m).replace(`${visningsnavn(m)}, `, '')}
+                <span class="mono">{fargekode(m)}</span>
+                <span class="dempet fp-linje" title={filamentLinje(m)}>
+                  {filamentInfo(m)}
                   {brukt.has(id) ? ' · i bruk' : ''}
                 </span>
               </span>
@@ -553,8 +553,10 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
             <li key={m.id}>
               <span class="fargeprove stor" style={{ background: m.hex }} aria-hidden="true" />
               <span class="fp-tekst">
-                {visningsnavn(m)}
-                <span class="dempet fp-linje">{filamentLinje(m).replace(`${visningsnavn(m)}, `, '')}</span>
+                <span class="mono">{fargekode(m)}</span>
+                <span class="dempet fp-linje" title={filamentLinje(m)}>
+                  {filamentInfo(m)}
+                </span>
               </span>
               <span class="fp-knapper">
                 <button type="button" class="kontroll-knapp" disabled={i} onClick={() => leggTil(m.id)}>

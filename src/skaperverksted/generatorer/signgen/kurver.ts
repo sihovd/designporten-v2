@@ -11,7 +11,6 @@
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { finnLag, objekterILag, type Dokument, type Objekt, type SvgKilde } from '../../core/dokument';
 import { anvend, inverter, tilMatrise, type Vec2 } from '../../core/geometri2d';
-import { finnMateriale } from '../../core/materialer';
 import {
   antallAapne,
   banerBoks,
@@ -33,13 +32,11 @@ import {
   type Reparasjon,
 } from '../../geometri/bane';
 import {
-  ledigNavn,
-  leggTilLag,
   leggTilObjekt,
-  nyttLag,
   nyttObjekt,
   oppdaterKilde,
   oppdaterLag,
+  oppdaterObjekter,
   slettObjekter,
 } from './dokument';
 import { leggTil } from './handlinger';
@@ -336,9 +333,8 @@ export function reparerAapne(benk: Arbeidsbenk): void {
 // ---------- colour and gallery ----------
 
 /**
- * Give the selected shape a colour of its own: it moves to a new vector in a
- * layer of its own, at the same height as the layer it came from, so it
- * prints in that filament next to the rest.
+ * Give the selected shape a colour of its own. It becomes an object of its own in the same layer
+ * with its own colour, so the layer's outline, height and profile stay the same for all colours.
  */
 export function fargeValgtForm(benk: Arbeidsbenk, materialId: string): boolean {
   const c = kurveObjekt(benk);
@@ -354,49 +350,46 @@ export function fargeValgtForm(benk: Arbeidsbenk, materialId: string): boolean {
   const form = [...new Set(valgt.flatMap((b) => formAv(c.baner, b)))].sort((a, b) => a - b);
   const ut = form.map((i) => c.baner[i]!);
   const rest = c.baner.filter((_, i) => !form.includes(i));
-  const materiale = finnMateriale(materialId);
-  if (lag.materialId === materialId && !rest.length) {
-    benk.melde(`Hele vektoren er allerede ${materiale.navn.toLowerCase()}.`);
+  const naa = c.o.materialId ?? lag.materialId;
+  if (naa === materialId && !rest.length) {
+    benk.melde('Hele vektoren har allerede den fargen.');
     return false;
   }
-  // the whole vector alone in its layer: the layer just changes colour
-  if (!rest.length && objekterILag(d, lag.id).length === 1) {
+  // the object's own colour is only stored when it differs from the layer's
+  const eget = materialId === lag.materialId ? undefined : materialId;
+  const id = c.o.id;
+  // the whole vector: the object changes colour, or the layer does when it is alone in it
+  if (!rest.length) {
+    const alene = objekterILag(d, lag.id).length === 1;
     benk.endre({
-      navn: `Farg formen ${materiale.navn.toLowerCase()}`,
-      anvend: (x) => oppdaterLag(x, lag.id, { materialId }),
+      navn: 'Bytt farge på formen',
+      anvend: (x) =>
+        alene
+          ? oppdaterObjekter(oppdaterLag(x, lag.id, { materialId }), [id], (o) => ({
+              ...o,
+              materialId: undefined,
+            }))
+          : oppdaterObjekter(x, [id], (o) => ({ ...o, materialId: eget })),
     });
-    benk.melde(`Laget «${lag.navn}» er ${materiale.navn.toLowerCase()}.`);
+    benk.melde('Formen har fått ny farge.');
     return true;
   }
   const kilde = c.o.kilde as SvgKilde;
-  const nyttL = {
-    ...nyttLag(ledigNavn(d, `${c.o.navn} · ${materiale.navn}`), materialId, lag.hoyde),
-    sammeNivaa: true,
+  const nytt = {
+    ...nyttObjekt(
+      lag.id,
+      { ...kilde, stier: [banerTilSti(ut)], felt: undefined, dekorId: undefined },
+      { ...c.o.transform },
+      `${c.o.navn} (ny farge)`,
+    ),
+    materialId: eget,
   };
-  const nytt = nyttObjekt(
-    nyttL.id,
-    { ...kilde, stier: [banerTilSti(ut)], felt: undefined, dekorId: undefined },
-    { ...c.o.transform },
-    `${c.o.navn} · ${materiale.navn}`,
-  );
-  const id = c.o.id;
   benk.endre({
-    navn: `Farg formen ${materiale.navn.toLowerCase()}`,
-    anvend: (x) => {
-      const medLag = leggTilObjekt(leggTilLag(x, nyttL, c.o.lagId), nytt);
-      return rest.length
-        ? oppdaterKilde(medLag, id, { stier: [banerTilSti(rest)] })
-        : slettObjekter(medLag, [id]);
-    },
+    navn: 'Bytt farge på formen',
+    anvend: (x) => oppdaterKilde(leggTilObjekt(x, nytt), id, { stier: [banerTilSti(rest)] }),
   });
-  if (rest.length) settKurve(benk, ingenValg(c));
-  else {
-    signtilstand(benk).sett({ kurve: null });
-    benk.velg({ objekter: [nytt.id], lag: nyttL.id });
-  }
-  benk.melde(
-    `Formen er ${materiale.navn.toLowerCase()}. Den ligger i laget «${nyttL.navn}», på samme nivå som resten.`,
-  );
+  settKurve(benk, ingenValg(c));
+  benk.melde('Formen er et eget objekt i samme lag, med egen farge. Laget har samme omriss som før.');
   return true;
 }
 

@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef } from 'preact/hooks';
 import type { ModellDel } from '../geometri/mesh';
-import { finnMateriale } from '../core/materialer';
+import { fargekode, finnMateriale } from '../core/materialer';
 import { filamentplasser } from '../eksport/tremf';
 import { tall } from '../core/enheter';
 
@@ -187,7 +187,7 @@ export function Plateforhandsvisning({
                 <span class="mono filamentnr">{i + 1}</span>
                 <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
                 <span>
-                  <strong>{m.navn}</strong> <span class="dempet">{navn.join(', ')}</span>
+                  <strong class="mono">{fargekode(m)}</strong> <span class="dempet">{navn.join(', ')}</span>
                 </span>
               </li>
             );

@@ -7,7 +7,7 @@
  */
 import { useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { alleMaterialer, finnMateriale, visningsnavn } from '../../core/materialer';
+import { alleMaterialer, fargekode, finnMateriale } from '../../core/materialer';
 import { Dialog } from '../../shell/Dialog';
 import { brukBenk } from '../../shell/bruk-benk';
 import {
@@ -64,7 +64,7 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
       benk.lastInn({ ...ny, parametre: { ...ny.parametre, startvalgt: true } });
       benk.kommando('tilpass');
       benk.melde(
-        `Skiltet bruker ${farger.length} farger: ${farger.map((id) => visningsnavn(finnMateriale(id))).join(', ')}.`,
+        `Skiltet bruker ${farger.length} farger: ${farger.map((id) => fargekode(finnMateriale(id))).join(', ')}.`,
       );
     } else {
       benk.endre({ navn: 'Fargeprofil', anvend: (d) => settPalett(d, farger) });
@@ -156,7 +156,7 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
                 <span class="mono filamentnr">{i + 1}</span>
                 <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
                 <span>
-                  {visningsnavn(m)}{' '}
+                  <span class="mono">{fargekode(m)}</span>{' '}
                   <span class="dempet">{m.produsent ? `${m.produsent} ${m.type}` : m.type}</span>
                 </span>
                 <button
@@ -185,7 +185,7 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
               <option value="">Velg fra katalogen …</option>
               {ledige.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {visningsnavn(m)} ({m.produsent ? `${m.produsent} ${m.type}` : m.type})
+                  {fargekode(m)} ({m.produsent ? `${m.produsent} ${m.type}` : m.type})
                 </option>
               ))}
             </select>
@@ -198,7 +198,7 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
             ferdig={(f, leggTil) => {
               settNyttFilament(false);
               if (f && leggTil && !farger.includes(f.id)) endreFarger([...farger, f.id]);
-              if (f) settMelding(`«${visningsnavn(f)}» er lagret i denne nettleseren.`);
+              if (f) settMelding(`Filamentet ${fargekode(f)} er lagret i denne nettleseren.`);
             }}
           />
         ) : (

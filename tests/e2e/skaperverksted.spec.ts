@@ -86,14 +86,14 @@ test.describe('Signgen', () => {
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
     await start.getByText('Natur', { exact: true }).click();
-    await start.getByLabel('Legg til farge').selectOption({ label: 'Gull (PLA Silk)' });
+    await start.getByLabel('Legg til farge').selectOption({ label: '#C9A444 (PLA Silk)' });
     await expect(start.getByText('Fargene i profilen (5)')).toBeVisible();
     await start.getByLabel('Lagre som min profil').fill('Verkstedet');
     await start.getByRole('button', { name: 'Lagre profil' }).click();
     await expect(start.getByText('Mine profiler')).toBeVisible();
     await start.getByRole('button', { name: 'Start skiltet' }).click();
     await expect(page.locator('.statuslinje')).toContainText('mm');
-    if (!isMobile) await expect(page.locator('.lagrad').first()).toContainText('Lys tre');
+    if (!isMobile) await expect(page.locator('.lagrad').first()).toContainText('#C49A6C');
   });
 
   test('startsiden har tre innganger, og Fra mal åpner malbiblioteket', async ({ page }) => {
@@ -520,19 +520,16 @@ test.describe('Signgen', () => {
     await dialog.getByRole('button', { name: 'Behold bare de valgte' }).click();
     await expect(dialog.getByText('1 av 3 deler er med, i én farge.')).toBeVisible();
     // bring the square back in another colour than the circle
-    await dialog.getByLabel('Farge på Del 2', { exact: true }).selectOption({ label: 'Cyan' });
-    await dialog.getByLabel('Farge på Del 1', { exact: true }).selectOption({ label: 'Lilla' });
+    await dialog.getByLabel('Farge på Del 2', { exact: true }).selectOption({ label: '#00C4D6' });
+    await dialog.getByLabel('Farge på Del 1', { exact: true }).selectOption({ label: '#883DFF' });
     await expect(dialog.getByText('2 av 3 deler er med, i 2 farger.')).toBeVisible();
     await dialog.getByRole('button', { name: 'Legg på skiltet' }).click();
     await expect(dialog).toBeHidden();
     await expect(page.locator('.statuslinje')).toContainText('4 deler');
     if (!isMobile) {
-      await expect(page.locator('.lagrad')).toHaveCount(3);
-      await expect(page.locator('.lagrad', { hasText: 'ark · Lilla' })).toHaveCount(1);
-      await expect(page.locator('.lagrad', { hasText: 'ark · Cyan' })).toHaveCount(1);
-      // the layers lie on the same level, which the layer's settings show
-      await page.locator('.lagrad-hode .lag-navn', { hasText: 'ark · Cyan' }).click();
-      await expect(page.getByLabel('Samme nivå som laget under')).toBeChecked();
+      // one layer for the whole picture: both colours share its outline and height
+      await expect(page.locator('.lagrad')).toHaveCount(2);
+      await expect(page.locator('.lagrad', { hasText: 'ark' })).toHaveCount(1);
     }
   });
 
@@ -557,7 +554,7 @@ test.describe('Signgen', () => {
     await egen.click();
     await expect(tilbake).toBeHidden();
     await expect(page.locator('.statuslinje')).toContainText('5 deler');
-    if (!isMobile) await expect(page.locator('.lagrad')).toHaveCount(4);
+    if (!isMobile) await expect(page.locator('.lagrad')).toHaveCount(2);
   });
 
   /** Draw a closed shape with the pen at points relative to the canvas centre. */
@@ -652,13 +649,15 @@ test.describe('Signgen', () => {
     await expect(panel).toContainText('1 lukkes');
     await panel.getByRole('button', { name: 'Reparer', exact: true }).click();
     await expect(panel).toContainText('Alle banene er lukket');
-    // the second shape gets another colour, in a layer of its own
+    // the second shape gets another colour, as an object in the same layer (same outline and height)
+    const lagFor = await page.locator('.lagrad').count();
     await page.mouse.click(sx + 190, sy - 10);
     await expect(panel).toContainText('1 bane valgt');
-    await panel.getByRole('button', { name: 'Farg formen cyan' }).click();
-    await expect(page.locator('.lagrad', { hasText: 'Tegning · Cyan' })).toHaveCount(1);
+    await panel.getByRole('button', { name: 'Farg formen #00C4D6' }).click();
+    await expect(page.locator('.lagrad')).toHaveCount(lagFor);
+    await expect(page.locator('.objekt-navn', { hasText: 'ny farge' })).toHaveCount(1);
     await page.getByRole('button', { name: 'Angre', exact: true }).click();
-    await expect(page.locator('.lagrad', { hasText: 'Tegning · Cyan' })).toHaveCount(0);
+    await expect(page.locator('.objekt-navn', { hasText: 'ny farge' })).toHaveCount(0);
   });
 
   test('panelene kan flyttes, slås sammen til faner, minimeres, lukkes og huskes', async ({
@@ -777,7 +776,9 @@ test.describe('Signgen', () => {
     await panel.getByLabel('AMS-plass').fill('2');
     await panel.getByRole('button', { name: 'Lagre filament' }).click();
     await expect(panel.getByText('Fargene i prosjektet (5)')).toBeVisible();
-    await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText('Havblå');
+    await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText(
+      'Polymaker PolyTerra',
+    );
     await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText('AMS 2');
 
     // the registry can be browsed by manufacturer and searched
@@ -964,6 +965,57 @@ test.describe('Signgen', () => {
     await page.mouse.up();
     await expect(sider).toHaveValue('3');
     await expect(page.locator('.objektliste li').filter({ hasText: 'Trekant' })).toHaveCount(1);
+  });
+
+  test('et objekt kan ha egen farge i samme lag, og farger vises bare som swatch og kode', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tegning med mus og panelene brukes på brede skjermer');
+    const former = page.getByRole('button', { name: 'Former', exact: true });
+    await former.click();
+    await former.click();
+    await page.getByRole('menuitemradio', { name: /Trekant/ }).click();
+    const b = (await page.locator('canvas').first().boundingBox())!;
+    for (const [x0, x1] of [
+      [0.2, 0.35],
+      [0.5, 0.65],
+    ] as const) {
+      await page.mouse.move(b.x + b.width * x0, b.y + b.height * 0.2);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width * x1, b.y + b.height * 0.35, { steps: 4 });
+      await page.mouse.up();
+      if (x0 === 0.2) {
+        await former.click();
+        await former.click();
+        await page.getByRole('menuitemradio', { name: /Trekant/ }).click();
+      }
+    }
+    const lagFor = await page.locator('.lagrad').count();
+    // the shape's inspector has a colour of its own; the menu shows codes, not names
+    const objektfarge = page.getByRole('button', { name: /^Farge på objektet:/ });
+    await objektfarge.click();
+    const meny = page.getByRole('menu', { name: /filamentene i fargeprofilen/ });
+    await expect(meny.getByText(/^#[0-9A-F]{6}$/)).toHaveCount(4);
+    for (const navn of ['Kritthvit', 'Lilla', 'Cyan', 'Grafitt'])
+      await expect(meny.getByText(navn, { exact: true })).toHaveCount(0);
+    await meny.getByRole('menuitemradio', { name: /Cyan/ }).click();
+    await expect(page.getByText('følger laget')).toHaveCount(0);
+    // still the same layers: the object is coloured, not moved
+    await expect(page.locator('.lagrad')).toHaveCount(lagFor);
+    await expect(page.locator('.objektliste .fargevelger.egenfarge')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Følg laget' }).click();
+    await expect(page.locator('.objektliste .fargevelger.egenfarge')).toHaveCount(0);
+    await expect(page.getByText('følger laget')).toBeVisible();
+    // no colour name as visible text in the colour profile panel either
+    await page.getByRole('button', { name: /^Farge på objektet:/ }).click();
+    await page.getByRole('menuitem', { name: 'Flere filamenter …' }).click();
+    const panel = page.locator('.fargepanel');
+    await expect(panel).toBeVisible();
+    await expect(panel.locator('.profilfargeliste').getByText(/^#[0-9A-F]{6}$/)).toHaveCount(4);
+    await expect(panel.locator('.profilfargeliste').getByText('Kritthvit', { exact: true })).toHaveCount(0);
+    const a = await new AxeBuilder({ page }).analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
 
   test('Paint lager et strøk med breddepunkter som kan endres etterpå', async ({ page, isMobile }) => {

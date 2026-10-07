@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../core/arbeidsbenk';
-import { finnMateriale } from '../core/materialer';
+import { fargekode, finnMateriale } from '../core/materialer';
 import { nyId } from '../core/dokument';
 import { lagreDesign, lastNed } from '../core/lagring';
 import { sjekkManifold } from '../geometri/mesh';
@@ -162,7 +162,8 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                   return (
                     <li key={d.id}>
                       <span class="fargeprove" style={{ background: mat.hex }} aria-hidden="true" />
-                      {d.navn}: {mat.navn} <span class="dempet">({mat.type})</span>
+                      {d.navn}: <span class="mono">{fargekode(mat)}</span>{' '}
+                      <span class="dempet">({mat.type})</span>
                     </li>
                   );
                 })}

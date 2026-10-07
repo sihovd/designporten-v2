@@ -8,14 +8,14 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { finnLag, objekterILag, type Dokument, type Lag, type Omriss } from '../../core/dokument';
-import { finnMateriale } from '../../core/materialer';
+import { fargekode, finnMateriale } from '../../core/materialer';
 import { Fargevelger } from './Fargevelger';
 import { tall } from '../../core/enheter';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Ikon, type IkonId } from '../../shell/ikoner';
 import type { Region } from '../../geometri/polygon';
 import { regionBoks } from '../../geometri/polygon';
-import { lagRegion } from './modell';
+import { lagRegion, objektFarge } from './modell';
 import {
   dupliserLag,
   flyttLagInnI,
@@ -230,7 +230,8 @@ function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss })
       >
         <span class="lag-tittel">{o.navn}</span>
         <span class="mono lag-z">
-          {o.type === 'fyll' ? 'Fyll' : 'Omriss'} {tall(o.bredde)} mm · {tall(o.hoyde)} mm høy · {mat.navn}
+          {o.type === 'fyll' ? 'Fyll' : 'Omriss'} {tall(o.bredde)} mm · {tall(o.hoyde)} mm høy ·{' '}
+          {fargekode(mat)}
         </span>
       </button>
       <Bryter
@@ -252,7 +253,7 @@ export function nyttOmrissI(benk: Arbeidsbenk, lag: Lag): void {
   benk.endre({ navn: 'Nytt omriss', anvend: (d) => leggTilOmriss(d, lag.id, o) });
   signtilstand(benk).sett({ omriss: o.id });
   benk.velg({ lag: lag.id, objekter: [] });
-  benk.melde(`${o.navn} er lagt til rundt teksten i «${lag.navn}», i ${mat.navn}.`);
+  benk.melde(`${o.navn} er lagt til rundt teksten i «${lag.navn}», i ${fargekode(mat)}.`);
 }
 
 /** What is being dragged in the layers panel: an object, or a whole layer. */
@@ -378,7 +379,7 @@ function Lagrad({
             </span>
             <span class="mono lag-z">
               {tall(lag.zBunn)}–{tall(lag.zBunn + lag.hoyde)} mm ·{' '}
-              {lag.tekstvisning === 'kutt' ? 'skåret ut' : mat.navn}
+              {lag.tekstvisning === 'kutt' ? 'skåret ut' : fargekode(mat)}
             </span>
           </button>
         )}
@@ -416,6 +417,24 @@ function Lagrad({
                 onDragStart={(e) => dnd.start({ type: 'objekt', id: o.id }, e)}
                 onDragEnd={dnd.slutt}
               >
+                {o.kilde.type !== 'tekst' && !(o.kilde.type === 'form' && o.kilde.form === 'hull') && (
+                  <Fargevelger
+                    benk={benk}
+                    verdi={objektFarge(lag, o)}
+                    etikett={`Farge på ${o.navn}`}
+                    klasse={o.materialId ? 'egenfarge' : ''}
+                    endre={(id) =>
+                      benk.endre({
+                        navn: 'Bytt farge på objektet',
+                        anvend: (d) =>
+                          oppdaterObjekter(d, [o.id], (x) => ({
+                            ...x,
+                            materialId: id === lag.materialId ? undefined : id,
+                          })),
+                      })
+                    }
+                  />
+                )}
                 <button
                   type="button"
                   class="objekt-navn"

@@ -1477,6 +1477,7 @@
 
 .materialvalg {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -3865,4 +3866,39 @@ button.profilfarger.fargeknapp {
   .csv-ressurser {
     scroll-behavior: auto;
   }
+}
+
+/* Colours are shown as a swatch and a code, never as a name (Sivert, 2026-10-07) */
+.fargekoder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.fargekode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fargenavn.mono,
+.fargemeny-navn .mono {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+/* an object with a colour of its own: a thin ring on its swatch */
+.objektliste li .fargevelger {
+  flex: none;
+}
+
+.objektliste li .fargeknapp {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 2px;
+}
+
+.fargevelger.egenfarge .fargeprove {
+  outline: 2px solid var(--fg);
+  outline-offset: 1px;
 }

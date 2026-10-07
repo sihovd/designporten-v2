@@ -145,7 +145,13 @@ export function brukFargeprofil(
     materialId: bytt(l.materialId),
     ...(l.omriss ? { omriss: l.omriss.map((o) => ({ ...o, materialId: bytt(o.materialId) })) } : {}),
   }));
-  return synkFilamenter({ ...dok, lag, parametre: { ...dok.parametre, farger: ny } });
+  const objekter = Object.fromEntries(
+    Object.entries(dok.objekter).map(([id, o]) => [
+      id,
+      o.materialId ? { ...o, materialId: bytt(o.materialId) } : o,
+    ]),
+  );
+  return synkFilamenter({ ...dok, lag, objekter, parametre: { ...dok.parametre, farger: ny } });
 }
 
 export function foreslaKobling(csv: Csv, dok: Dokument): Kolonnemal[] {
@@ -166,12 +172,13 @@ export function foreslaKobling(csv: Csv, dok: Dokument): Kolonnemal[] {
   });
 }
 
-/** Material id from a CSV value: an id or a colour name (case-insensitive). */
+/** Material id from a CSV value: an id, a colour code (#rrggbb) or a colour name (case-insensitive). */
 export function finnFarge(verdi: string): string | null {
   const v = verdi.trim().toLowerCase();
   if (!v) return null;
   const m =
     materialer.find((x) => x.id === v) ??
+    materialer.find((x) => x.hex.toLowerCase() === v) ??
     materialer.find((x) => x.navn.toLowerCase() === v) ??
     materialer.find((x) => `${x.navn} ${x.type}`.toLowerCase() === v);
   return m?.id ?? null;

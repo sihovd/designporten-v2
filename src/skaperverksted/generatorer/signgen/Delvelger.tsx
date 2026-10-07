@@ -9,7 +9,7 @@
 import { useMemo, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { lastNed } from '../../core/lagring';
-import { finnMateriale } from '../../core/materialer';
+import { fargekode, finnMateriale } from '../../core/materialer';
 import type { Region } from '../../geometri/polygon';
 import { Dialog } from '../../shell/Dialog';
 import { Segment } from '../../shell/kontroller';
@@ -46,7 +46,7 @@ export function Delvelger({ benk, oppgave }: { benk: Arbeidsbenk; oppgave: SvgOp
     () =>
       (palett(benk.dok).length ? palett(benk.dok) : [nesteFarge(benk.dok)]).map((id) => {
         const m = finnMateriale(id);
-        return { id, navn: m.navn, hex: m.hex };
+        return { id, navn: fargekode(m), hex: m.hex };
       }),
     [],
   );

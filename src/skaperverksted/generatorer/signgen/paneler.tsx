@@ -6,7 +6,7 @@
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { PanelDef } from '../../core/generator';
 import { tall } from '../../core/enheter';
-import { finnMateriale } from '../../core/materialer';
+import { fargekode, finnMateriale } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel } from '../../shell/kontroller';
 import { mal } from '../../shell/mal';
@@ -120,7 +120,7 @@ export function Produksjonspanel({ benk }: { benk: Arbeidsbenk }) {
                 <span class="fargeprove" style={{ background: mat.hex }} aria-hidden="true" />
                 <span class="plassnavn">
                   {p.navn}
-                  <span class="dempet"> · {mat.navn}</span>
+                  <span class="dempet mono"> · {fargekode(mat)}</span>
                 </span>
               </li>
             );

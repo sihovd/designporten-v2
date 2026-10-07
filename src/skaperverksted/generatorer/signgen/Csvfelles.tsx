@@ -4,7 +4,7 @@
  */
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Dokument } from '../../core/dokument';
-import { finnMateriale, visningsnavn } from '../../core/materialer';
+import { fargekode, finnMateriale, visningsnavn } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import type { Kolonnemal } from './batch';
 import { CSVSTEG, lesArbeid, lesInstans, nyeFelt, type Csvsteg } from './csvflyt';
@@ -142,7 +142,9 @@ export function Filamentchip({ id }: { id: string }) {
   return (
     <span class="csv-filament">
       <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
-      <span>{visningsnavn(m)}</span>
+      <span class="mono" title={visningsnavn(m)}>
+        {fargekode(m)}
+      </span>
       {m.amsPlass ? <span class="dempet mono">AMS {m.amsPlass}</span> : null}
     </span>
   );

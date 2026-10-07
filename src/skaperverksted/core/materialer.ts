@@ -169,6 +169,11 @@ export function visningsnavn(m: Materiale): string {
   return m.egetNavn?.trim() || m.navn;
 }
 
+/** The colour code shown beside a swatch: «#883DFF». Colours are shown as swatch and code, never as a name. */
+export function fargekode(m: Materiale): string {
+  return m.hex.toUpperCase();
+}
+
 /** «Bambu Lab PLA Basic · Lilla»: everything that is known, for a tooltip or a list. */
 export function beskrivelseAvMateriale(m: Materiale): string {
   const kilde = [m.produsent, m.serie].filter(Boolean).join(' ');
