@@ -142,6 +142,9 @@ export function nyMalFraDokument(
   // a template is a starting point: it always opens without the start window
   kopi.parametre = { ...kopi.parametre, startvalgt: true };
   delete kopi.parametre.malopphav;
+  // the CSV rows are the maker's own data and do not go into a template
+  delete kopi.parametre.csvarbeid;
+  delete kopi.parametre.csvinstans;
   return {
     versjon: 1,
     id,

@@ -31,11 +31,18 @@ export interface TremfValg {
   meta?: Record<string, string>;
   /** Build plate the model was designed on (centred on the origin). Default: the standard printer. */
   plate?: { bredde: number; dybde: number };
+  /**
+   * Filament slots in this order (material ids), then any others in order of
+   * first use. Production plates with the same filament combination use the
+   * same slots, so the printer's filament setup stays put between plates.
+   */
+  filamentrekkefolge?: string[];
 }
 
-/** Filament slot per material: one per colour, in order of first use (1-based). */
-export function filamentplasser(deler: ModellDel[]): string[] {
-  return [...new Set(deler.map((d) => d.materialId))];
+/** Filament slot per material: one per colour, in the given order, then in order of first use (1-based). */
+export function filamentplasser(deler: ModellDel[], rekkefolge: readonly string[] = []): string[] {
+  const brukt = new Set(deler.map((d) => d.materialId));
+  return [...new Set([...rekkefolge.filter((id) => brukt.has(id)), ...brukt])];
 }
 
 function plateforskyvning(valg: TremfValg): [number, number] {
@@ -51,7 +58,7 @@ export interface TremfSamling {
 
 function modellXml(samlinger: TremfSamling[], valg: TremfValg): string {
   const alle = samlinger.flatMap((s) => s.deler);
-  const matIds = filamentplasser(alle);
+  const matIds = filamentplasser(alle, valg.filamentrekkefolge);
   const [tx, ty] = plateforskyvning(valg);
   const ut: string[] = [];
   ut.push('<?xml version="1.0" encoding="UTF-8"?>');
@@ -120,9 +127,9 @@ const INNHOLDSTYPER = `<?xml version="1.0" encoding="UTF-8"?>
  * Bambu Studio / OrcaSlicer part settings: object ids and part ids are the
  * 3MF ids of the assembly objects and their component objects.
  */
-function modellinnstillinger(samlinger: TremfSamling[]): string {
+function modellinnstillinger(samlinger: TremfSamling[], rekkefolge?: string[]): string {
   const alle = samlinger.flatMap((s) => s.deler);
-  const plass = filamentplasser(alle);
+  const plass = filamentplasser(alle, rekkefolge);
   const ut: string[] = ['<?xml version="1.0" encoding="UTF-8"?>', '<config>'];
   let nesteId = 2;
   const objekter: number[] = [];
@@ -174,7 +181,7 @@ export function tilTremfSamlinger(samlinger: TremfSamling[], valg: TremfValg): U
       '[Content_Types].xml': strToU8(INNHOLDSTYPER),
       '_rels/.rels': strToU8(RELASJONER),
       '3D/3dmodel.model': strToU8(modellXml(medInnhold, valg)),
-      'Metadata/model_settings.config': strToU8(modellinnstillinger(medInnhold)),
+      'Metadata/model_settings.config': strToU8(modellinnstillinger(medInnhold, valg.filamentrekkefolge)),
     },
     { level: 6 },
   );

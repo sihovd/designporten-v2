@@ -18,6 +18,39 @@ async function startPaaNytt(page: import('@playwright/test').Page): Promise<void
   await expect(page.locator('.statuslinje')).toContainText('mm');
 }
 
+type Side = import('@playwright/test').Page;
+
+/** Paste a CSV in the import step of «Fra CSV» and read it in. */
+async function limInnCsv(page: Side, csv: string): Promise<void> {
+  const vindu = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
+  await vindu.getByLabel('Eller lim inn').fill(csv);
+  await vindu.getByRole('button', { name: 'Les inn teksten' }).click();
+}
+
+/** From the import step through connecting the columns to the master step. */
+async function tilMasterSteget(page: Side, csv: string): Promise<void> {
+  await limInnCsv(page, csv);
+  const vindu = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
+  await vindu.getByRole('button', { name: /Koble kolonnene/ }).click();
+  const koble = page.getByRole('dialog', { name: 'Fra CSV: Koble kolonner' });
+  await koble.getByRole('button', { name: /Lag masteren fra rad 1/ }).click();
+  await expect(page.getByRole('region', { name: 'Fra CSV: design masteren' })).toBeVisible();
+}
+
+/** From the master step to the plates, choosing every row. */
+async function genererAlt(page: Side): Promise<void> {
+  const brett = page.getByRole('region', { name: 'Fra CSV: design masteren' });
+  await brett
+    .getByRole('button', { name: /^Rader/ })
+    .first()
+    .click();
+  const rader = page.getByRole('dialog', { name: 'Fra CSV: Velg rader' });
+  await rader.getByRole('button', { name: /Valider og generer \d/ }).click();
+  const generer = page.getByRole('dialog', { name: 'Fra CSV: Valider og generer' });
+  await generer.getByRole('button', { name: /^Generer \d+ skilt/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' })).toBeVisible();
+}
+
 test.describe('Skaperverksted', () => {
   test('huben viser generatorene', async ({ page }) => {
     await page.goto('/skaperverksted/');
@@ -114,7 +147,7 @@ test.describe('Signgen', () => {
     await page.reload();
     await page.getByRole('button', { name: /Fra CSV/ }).click();
     await page.getByRole('button', { name: 'Start skiltet' }).click();
-    await expect(page.getByRole('dialog', { name: /CSV/ })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' })).toBeVisible();
   });
 
   test('et skilt kan lagres som mal med eierskap, og brukes uten at malen endres', async ({
@@ -212,21 +245,162 @@ test.describe('Signgen', () => {
     expect(stl.suggestedFilename()).toMatch(/\.stl$/);
   });
 
-  test('lager skilt fra CSV', async ({ page, isMobile }) => {
+  test('Fra CSV er en arbeidsflyt: importer, koble, master, rader, valider, generer og plater', async ({
+    page,
+    isMobile,
+  }) => {
     if (isMobile) await page.getByRole('button', { name: 'Egenskaper' }).click();
     await page.getByRole('button', { name: /Lag skilt fra CSV/ }).click();
-    const dialog = page.getByRole('dialog', { name: 'Lag skilt fra CSV' });
-    await dialog.getByRole('button', { name: 'Gjør til felt' }).click();
-    await dialog.getByLabel('Eller lim inn').fill('navn;Tekst\nOla;Lilla\nKari;Cyan\nPer;Neonoransje');
-    await dialog.getByRole('button', { name: 'Bruk teksten' }).click();
-    await expect(dialog.getByText('3 skilt, 1 med problemer')).toBeVisible();
-    const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
-    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    const importer = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
+    await expect(importer.getByRole('navigation', { name: 'Fra CSV, stegene' })).toBeVisible();
+    await importer.getByLabel('Eller lim inn').fill('navn;Tekst\nOla;Lilla\nKari;Cyan\nPer;Neonoransje');
+    await importer.getByRole('button', { name: 'Les inn teksten' }).click();
+    await expect(importer.getByText('3 rader og 2 kolonner er lest')).toBeVisible();
+    const a1 = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a1.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await importer.getByRole('button', { name: /Koble kolonnene/ }).click();
+
+    // nothing is generated yet: the columns are connected first
+    const koble = page.getByRole('dialog', { name: 'Fra CSV: Koble kolonner' });
+    await expect(koble.locator('#csv-kol-0')).toHaveValue('felt:navn');
+    await expect(koble.locator('#csv-kol-1')).toHaveValue(/^farge:/);
+    const a2 = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a2.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await koble.getByRole('button', { name: /Lag masteren fra rad 1/ }).click();
+
+    // the master is designed on the canvas, with the steps and the resources in a slim tray
+    const brett = page.getByRole('region', { name: 'Fra CSV: design masteren' });
+    await expect(brett).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Ressurser for CSV-skiltene' })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await brett
+      .getByRole('button', { name: /^Rader/ })
+      .first()
+      .click();
+
+    const rader = page.getByRole('dialog', { name: 'Fra CSV: Velg rader' });
+    await expect(rader.getByText('3 av 3 rader valgt')).toBeVisible();
+    await rader.getByRole('button', { name: /Valider og generer 3 →/ }).click();
+
+    // a row with a colour that does not exist blocks «Generer» until it is taken out
+    const generer = page.getByRole('dialog', { name: 'Fra CSV: Valider og generer' });
+    await expect(generer.getByText('1 valgte rader har problemer')).toBeVisible();
+    await expect(generer.getByRole('button', { name: /^Generer 3 skilt/ })).toBeDisabled();
+    const a3 = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a3.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await generer.getByRole('button', { name: /Fjern alle 1 fra utvalget/ }).click();
+    await expect(generer.getByRole('button', { name: /^Generer 2 skilt/ })).toBeEnabled();
+    await generer.getByRole('button', { name: /^Generer 2 skilt/ }).click();
+
+    const plater = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    // Lilla and Cyan are different filaments, so the two signs go on two plates
+    await expect(plater.getByText('2 skilt på 2 plater')).toBeVisible();
+    await expect(plater.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
+      timeout: 20_000,
+    });
+    const a4 = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a4.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
     const [zip] = await Promise.all([
       page.waitForEvent('download'),
-      dialog.getByRole('button', { name: 'Lag 2 skilt' }).click(),
+      plater.getByRole('button', { name: 'Last ned 2 skilt' }).click(),
     ]);
     expect(zip.suggestedFilename()).toMatch(/batch\.zip$/);
+  });
+
+  test('radene velges med avkrysning, skift-område, søk, filter og snu utvalget', async ({ page }) => {
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Se over før eksport' })
+      .getByRole('button', { name: 'Eksporter via CSV' })
+      .click();
+    await tilMasterSteget(page, 'navn;rolle\nOla;Designer\nKari;Leder\nPer;Deltaker\nÅse;Leder\nUlf;Leder');
+    await page
+      .getByRole('region', { name: 'Fra CSV: design masteren' })
+      .getByRole('button', { name: /^Rader/ })
+      .first()
+      .click();
+    const rader = page.getByRole('dialog', { name: 'Fra CSV: Velg rader' });
+    await expect(rader.getByText('5 av 5 rader valgt')).toBeVisible();
+    await rader.getByRole('button', { name: 'Velg ingen' }).click();
+    await expect(rader.getByText('0 av 5 rader valgt')).toBeVisible();
+    // shift-click selects the range between two rows
+    await rader.getByLabel('Velg rad 2: Kari').check();
+    await rader.getByLabel('Velg rad 4: Åse').click({ modifiers: ['Shift'] });
+    await expect(rader.getByText('3 av 5 rader valgt')).toBeVisible();
+    // search narrows what is shown, and «Velg ingen» only touches what is shown
+    await rader.getByLabel('Søk i radene').fill('leder');
+    await expect(rader.getByText('viser 3')).toBeVisible();
+    await rader.getByRole('button', { name: 'Snu utvalget' }).click();
+    // Kari and Åse go out, Ulf comes in; Per was chosen before and is not shown, so he stays
+    await expect(rader.getByText('2 av 5 rader valgt')).toBeVisible();
+    await rader.getByLabel('Søk i radene').fill('');
+    await rader.getByRole('radio', { name: 'Valgte', exact: true }).click();
+    await expect(rader.getByText('viser 2')).toBeVisible();
+    await expect(rader.getByLabel('Velg rad 1: Ola')).toHaveCount(0);
+    await rader.getByRole('radio', { name: 'Alle', exact: true }).click();
+    await rader.getByRole('button', { name: 'Velg alle' }).click();
+    await expect(rader.getByText('5 av 5 rader valgt')).toBeVisible();
+  });
+
+  test('en fargeprofilkolonne gir egne plater etter filamentene skiltene trenger', async ({ page }) => {
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Se over før eksport' })
+      .getByRole('button', { name: 'Eksporter via CSV' })
+      .click();
+    await limInnCsv(page, 'navn;Fargeprofil\nA;Natur\nB;Signal\nC;Natur\nD;Natur');
+    const vindu = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
+    await vindu.getByRole('button', { name: /Koble kolonnene/ }).click();
+    const koble = page.getByRole('dialog', { name: 'Fra CSV: Koble kolonner' });
+    await expect(koble.locator('#csv-kol-1')).toHaveValue('profil');
+    await koble.getByRole('button', { name: /Lag masteren fra rad 1/ }).click();
+    await genererAlt(page);
+    const plater = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    await expect(plater.getByText('4 skilt på 2 plater')).toBeVisible();
+    const kort = plater.getByRole('list', { name: 'Produksjonsplater' }).getByRole('listitem');
+    await expect(kort).toHaveCount(2);
+    // the profile that most signs use comes first
+    await expect(kort.first()).toContainText('3 skilt');
+    await expect(kort.nth(1)).toContainText('1 skilt');
+  });
+
+  test('et generert skilt kan redigeres: endringen blir en egen verdi som kan tilbakestilles til master', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Flytting på lerretet testes på desktop');
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Se over før eksport' })
+      .getByRole('button', { name: 'Eksporter via CSV' })
+      .click();
+    await tilMasterSteget(page, 'navn\nOla\nKari');
+    await genererAlt(page);
+    const plater = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    await expect(plater.getByText('Ingen egne verdier')).toBeVisible();
+    await plater.getByRole('button', { name: 'Rediger dette skiltet' }).click();
+
+    // the sign is open on the canvas, with a banner instead of the tray
+    const felt = page.getByRole('region', { name: 'Du redigerer et generert skilt' });
+    await expect(felt).toContainText('Du redigerer skilt 1');
+    await expect(page.getByLabel('Prosjektnavn')).toBeVisible();
+    await page.locator('.objektliste li').first().click();
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('Shift+ArrowUp');
+    await expect(felt).toContainText(/\d egne verdier/);
+    await felt.getByRole('button', { name: 'Ferdig' }).click();
+
+    const igjen = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    await expect(igjen.getByText('Egen verdi').first()).toBeVisible();
+    await expect(igjen.getByText(/Master: .* · Her:/).first()).toBeVisible();
+    const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await igjen
+      .getByRole('button', { name: /^Tilbakestill til master/ })
+      .first()
+      .click();
+    await igjen.getByRole('button', { name: 'Tilbakestill hele skiltet til master' }).click();
+    await expect(igjen.getByText('Ingen egne verdier')).toBeVisible();
   });
 
   test('et hull har en referanse til navnet og følger det i CSV-serien', async ({ page, isMobile }) => {
@@ -241,12 +415,19 @@ test.describe('Signgen', () => {
     expect(a1.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: /Lag skilt fra CSV/ }).click();
-    const dialog = page.getByRole('dialog', { name: 'Lag skilt fra CSV' });
-    await dialog.getByRole('button', { name: 'Gjør til felt' }).click();
+    await tilMasterSteget(page, 'navn\nEd\nEt veldig langt navn');
+    await page
+      .getByRole('region', { name: 'Fra CSV: design masteren' })
+      .getByRole('button', { name: /^Rader/ })
+      .first()
+      .click();
+    await page
+      .getByRole('dialog', { name: 'Fra CSV: Velg rader' })
+      .getByRole('button', { name: /Valider og generer \d/ })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Fra CSV: Valider og generer' });
     await expect(dialog.getByLabel('Hold hull og øyne like langt fra navnet på alle skilt')).toBeChecked();
-    await dialog.getByLabel('Eller lim inn').fill('navn\nEd\nEt veldig langt navn');
-    await dialog.getByRole('button', { name: 'Bruk teksten' }).click();
-    await expect(dialog.getByText('2 skilt, ingen problemer')).toBeVisible();
+    await expect(dialog.getByText('Ingen av de valgte radene har problemer')).toBeVisible();
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
@@ -307,15 +488,17 @@ test.describe('Signgen', () => {
     await expect(page.locator('.lagrad').first()).toContainText('Pynt');
   });
 
-  test('«Eksporter via CSV» åpner CSV-vinduet og viser byggeplaten med skiltene', async ({ page }) => {
+  test('«Eksporter via CSV» åpner CSV-arbeidsflyten og viser byggeplaten med skiltene til slutt', async ({
+    page,
+  }) => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const eksport = page.getByRole('dialog', { name: 'Se over før eksport' });
     await eksport.getByRole('button', { name: 'Eksporter via CSV' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Lag skilt fra CSV' });
-    await dialog.getByRole('button', { name: 'Gjør til felt' }).click();
-    await dialog.getByLabel('Eller lim inn').fill('navn\nOla\nKari');
-    await dialog.getByRole('button', { name: 'Bruk teksten' }).click();
-    await expect(dialog.getByText('2 skilt, ingen problemer')).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' })).toBeVisible();
+    await tilMasterSteget(page, 'navn\nOla\nKari');
+    await genererAlt(page);
+    const dialog = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    await expect(dialog.getByText('2 skilt på 1 plate')).toBeVisible();
     await expect(dialog.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
       timeout: 20_000,
     });

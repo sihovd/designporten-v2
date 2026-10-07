@@ -74,7 +74,12 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
     }
     // «Fra CSV» was chosen on the start page: the batch window follows the new sign
     const csv = start && signtilstand(benk).t.startCsv;
-    signtilstand(benk).sett({ fargeprofil: false, startsteg: 'valg', startCsv: false, batch: csv });
+    signtilstand(benk).sett({
+      fargeprofil: false,
+      startsteg: 'valg',
+      startCsv: false,
+      ...(csv ? { csv: 'importer' as const } : {}),
+    });
   };
   const lukk = () => {
     // closing the colours at the start goes back to the start page; later it just closes

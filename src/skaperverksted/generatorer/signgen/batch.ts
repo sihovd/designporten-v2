@@ -7,9 +7,25 @@
  * Pure functions; the dialog in Batch.tsx drives them.
  */
 import { finnLag, objekterILag, type Dokument, type Objekt, type TekstKilde } from '../../core/dokument';
-import { materialer } from '../../core/materialer';
+import { finnMateriale, materialer } from '../../core/materialer';
 import { erTom, slaSammen, tomBoks, type Boks } from '../../core/geometri2d';
-import { fargeplasser, feltNavn, feltObjekter, oppdaterObjekter, settFarge } from './dokument';
+import {
+  fargeplasser,
+  feltNavn,
+  feltObjekter,
+  oppdaterObjekter,
+  palett,
+  settFarge,
+  synkFilamenter,
+} from './dokument';
+import {
+  FERDIGE_PROFILER,
+  hentEgneProfiler,
+  narmesteFarge,
+  rensFarger,
+  type Fargeprofil,
+} from './fargeprofiler';
+import { brukOverstyringer, type Overstyringer } from './overstyring';
 import {
   blekkBoks,
   byggSigngen,
@@ -75,14 +91,68 @@ export function tolkCsv(tekst: string): Csv {
 
 // ---------- mapping and variants ----------
 
-/** What a CSV column controls: a text field, a colour (layer or outline id), or nothing. */
+/**
+ * What a CSV column controls: a text field, a colour (layer or outline id),
+ * the sign's colour profile by name, or nothing.
+ */
 export type Kolonnemal =
-  { type: 'felt'; felt: string } | { type: 'farge'; lagId: string } | { type: 'ingen' };
+  { type: 'felt'; felt: string } | { type: 'farge'; lagId: string } | { type: 'profil' } | { type: 'ingen' };
+
+/** Does a column name say the cell is a colour profile («Fargeprofil», «Profil», «Palett»)? */
+export function erProfilkolonne(navn: string): boolean {
+  return /^(farge)?\s*(profil|palett)(en)?$/i.test(navn.trim());
+}
+
+/** All colour profiles a CSV cell can name: the ready-made ones and the user's own. */
+export function alleProfiler(): Fargeprofil[] {
+  return [...FERDIGE_PROFILER, ...hentEgneProfiler()];
+}
+
+/** A colour profile from a CSV cell: by name or id, ignoring case. */
+export function finnProfil(
+  verdi: string,
+  profiler: readonly Fargeprofil[] = alleProfiler(),
+): Fargeprofil | null {
+  const v = verdi.trim().toLowerCase();
+  if (!v) return null;
+  return (
+    profiler.find((p) => p.navn.trim().toLowerCase() === v) ??
+    profiler.find((p) => p.id.toLowerCase() === v) ??
+    null
+  );
+}
+
+/**
+ * Dress a sign in a colour profile: the colours of the sign's own palette
+ * are swapped for the profile's colours in the same order (the first colour
+ * for the first, and so on). A colour with no counterpart gets the closest
+ * colour in the profile. `grunnpalett` is the palette of the master.
+ */
+export function brukFargeprofil(
+  dok: Dokument,
+  grunnpalett: readonly string[],
+  profil: Fargeprofil,
+): Dokument {
+  const ny = rensFarger(profil.farger);
+  if (!ny.length) return dok;
+  const bytt = (id: string) => {
+    const i = grunnpalett.indexOf(id);
+    if (i >= 0 && ny[i]) return ny[i]!;
+    return ny.includes(id) ? id : narmesteFarge(id, ny);
+  };
+  const lag = dok.lag.map((l) => ({
+    ...l,
+    materialId: bytt(l.materialId),
+    ...(l.omriss ? { omriss: l.omriss.map((o) => ({ ...o, materialId: bytt(o.materialId) })) } : {}),
+  }));
+  return synkFilamenter({ ...dok, lag, parametre: { ...dok.parametre, farger: ny } });
+}
 
 export function foreslaKobling(csv: Csv, dok: Dokument): Kolonnemal[] {
   const felt = feltObjekter(dok).map((o) => feltNavn(o)!);
   return csv.kolonner.map((k) => {
     const n = k.trim().toLowerCase();
+    if (erProfilkolonne(k)) return { type: 'profil' };
     const f = felt.find((x) => x === n);
     if (f) return { type: 'felt', felt: f };
     // a colour column names a layer or an outline («Omriss 1» or «Tekst: Omriss 1»)
@@ -114,6 +184,8 @@ export interface Variant {
   /** Colour combination key, bottom to top. */
   farger: string;
   problemer: string[];
+  /** The overrides that were applied to this sign (`mal:id:egenskap`). */
+  overstyrt?: string[];
   /** Footprint (mm) of the whole variant. */
   boks: Boks;
 }
@@ -398,6 +470,12 @@ export interface Varianttilvalg {
   hullavstand?: boolean;
   /** The user's own gallery vectors (default: those stored in this browser). */
   egneDekor?: EgetDekor[];
+  /** The colour profiles a CSV cell can name (default: ready-made and the user's own). */
+  profiler?: Fargeprofil[];
+  /** Overrides per row index, laid over the master and the row (Sivert, 2026-10-06, §30). */
+  overstyringer?: Record<number, Overstyringer>;
+  /** Build only these rows (by index); the others are left out of the result. */
+  rader?: readonly number[];
 }
 
 /** Build one variant per row. Fonts must be loaded (lastFonter) first. */
@@ -412,9 +490,23 @@ export function lagVarianter(
   const regler = tilvalg.gruppeavstand === false ? [] : gruppeavstander(master);
   const ankre = tilvalg.hullavstand === false ? [] : hullankre(master);
   const egne = tilvalg.egneDekor ?? hentEgneDekor();
-  return csv.rader.map((rad, indeks) => {
+  const profiler = tilvalg.profiler ?? alleProfiler();
+  const grunnpalett = palett(master);
+  const utvalg = tilvalg.rader ? new Set(tilvalg.rader) : null;
+  const bygde: Variant[] = [];
+  csv.rader.forEach((rad, indeks) => {
+    if (utvalg && !utvalg.has(indeks)) return;
     let dok = master;
     const problemer: string[] = [];
+    // the colour profile first, so a colour column for one layer can still override it
+    kobling.forEach((k, i) => {
+      if (k.type !== 'profil') return;
+      const verdi = rad[i] ?? '';
+      if (!verdi.trim()) return;
+      const p = finnProfil(verdi, profiler);
+      if (!p) problemer.push(`ukjent fargeprofil «${verdi}»`);
+      else dok = brukFargeprofil(dok, grunnpalett, p);
+    });
     kobling.forEach((k, i) => {
       const verdi = rad[i] ?? '';
       if (k.type === 'felt') {
@@ -459,6 +551,8 @@ export function lagVarianter(
     });
     if (regler.length) dok = brukGruppeavstand(dok, regler);
     if (ankre.length) dok = brukHullankre(dok, ankre);
+    const lokale = tilvalg.overstyringer?.[indeks];
+    if (lokale) dok = brukOverstyringer(dok, lokale);
     for (const o of feltObjekter(dok)) {
       if (o.kilde.type !== 'tekst') continue;
       const g = lokalGeometri(o.kilde);
@@ -479,7 +573,7 @@ export function lagVarianter(
     // the footprint on the plate: what is printed, outlines and eyes too, not just the objects
     let boks = fotavtrykkBoks(dok) ?? tomBoks();
     for (const o of Object.values(dok.objekter)) if (o.synlig) boks = slaSammen(boks, verdensBoks(o));
-    return {
+    bygde.push({
       indeks,
       verdier: rad,
       dok: { ...dok, navn: `${master.navn} ${indeks + 1}` },
@@ -487,15 +581,35 @@ export function lagVarianter(
         .map((p) => p.materialId)
         .join('+'),
       problemer: [...new Set(problemer)],
+      ...(lokale && Object.keys(lokale).length ? { overstyrt: Object.keys(lokale) } : {}),
       boks: erTom(boks) ? { minX: 0, minY: 0, maksX: 0, maksY: 0 } : boks,
-    };
+    });
   });
+  return bygde;
 }
 
 // ---------- organisation ----------
 
 export type Sortering = 'csv' | 'alfabet';
 export type Gruppering = 'ingen' | 'farger';
+
+/**
+ * The filaments a sign needs, as ids, each once and sorted: the actual
+ * filaments, not how alike the colours look and not the order the layers
+ * happen to use them in (Sivert, 2026-10-06, §33).
+ */
+export function filamentkombinasjon(v: Pick<Variant, 'farger'>): string[] {
+  return [...new Set(v.farger.split('+').filter(Boolean))].sort();
+}
+
+/** The filament ids in the order they should go in the printer: its AMS slots when set, else by id. */
+export function amsRekkefolge(ider: readonly string[]): string[] {
+  return [...ider].sort((x, y) => {
+    const a = finnMateriale(x).amsPlass ?? Infinity;
+    const b = finnMateriale(y).amsPlass ?? Infinity;
+    return a === b ? x.localeCompare(y) : a - b;
+  });
+}
 
 export function organiser(
   v: Variant[],
@@ -511,7 +625,10 @@ export function organiser(
   }
   if (gruppering === 'ingen') return [liste];
   const grupper = new Map<string, Variant[]>();
-  for (const x of liste) grupper.set(x.farger, [...(grupper.get(x.farger) ?? []), x]);
+  for (const x of liste) {
+    const nokkel = filamentkombinasjon(x).join('+');
+    grupper.set(nokkel, [...(grupper.get(nokkel) ?? []), x]);
+  }
   return [...grupper.values()];
 }
 
@@ -525,6 +642,8 @@ export interface Plassering {
 export interface Byggeplate {
   nummer: number;
   plasseringer: Plassering[];
+  /** The filaments the signs on the plate need, in printer order (production plates). */
+  kombinasjon?: string[];
 }
 
 /**
@@ -582,7 +701,9 @@ export function manifest(
   filnavn: (p: Byggeplate, pl: Plassering) => string,
 ): string {
   const esc = (v: string) => (/[;"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  const linjer = [['fil', 'plate', 'rad', 'farger', ...kolonner].map(esc).join(';')];
+  const linjer = [
+    ['fil', 'plate', 'rad', 'farger', 'filamenter', 'overstyringer', ...kolonner].map(esc).join(';'),
+  ];
   for (const p of plater) {
     for (const pl of p.plasseringer) {
       const farger = pl.variant.farger
@@ -590,7 +711,15 @@ export function manifest(
         .map((id) => materialer.find((m) => m.id === id)?.navn ?? id)
         .join(' + ');
       linjer.push(
-        [filnavn(p, pl), String(p.nummer), String(pl.variant.indeks + 1), farger, ...pl.variant.verdier]
+        [
+          filnavn(p, pl),
+          String(p.nummer),
+          String(pl.variant.indeks + 1),
+          farger,
+          filamentkombinasjon(pl.variant).join(' + '),
+          String(pl.variant.overstyrt?.length ?? 0),
+          ...pl.variant.verdier,
+        ]
           .map(esc)
           .join(';'),
       );
@@ -650,14 +779,26 @@ export async function byggBatch(
           ? r.deler.map((d) => ({ ...d, mesh: forskyvMesh(d.mesh, pl.dx, pl.dy) }))
           : r.deler;
       if (utdeling === 'plate') samlinger.push({ navn, deler });
-      else filer[variantFil(pl)] = tilTremfSamlinger([{ navn, deler }], { tittel: navn });
+      else {
+        const rekkefolge = amsRekkefolge(filamentkombinasjon(pl.variant));
+        filer[variantFil(pl)] = tilTremfSamlinger([{ navn, deler }], {
+          tittel: navn,
+          filamentrekkefolge: rekkefolge,
+          meta: { Filamenter: rekkefolge.join(', ') },
+        });
+      }
       fremdrift?.(++ferdig, totalt);
       // let the browser paint progress between signs
       await new Promise((r) => setTimeout(r, 0));
     }
     if (utdeling === 'plate') {
+      const rekkefolge = amsRekkefolge(
+        p.kombinasjon ?? [...new Set(p.plasseringer.flatMap((pl) => filamentkombinasjon(pl.variant)))],
+      );
       filer[`${base}-plate-${to(p.nummer)}.3mf`] = tilTremfSamlinger(samlinger, {
         tittel: `${prosjekt}, plate ${p.nummer}`,
+        filamentrekkefolge: rekkefolge,
+        meta: { Filamenter: rekkefolge.join(', ') },
       });
     }
   }

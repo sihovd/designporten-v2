@@ -157,7 +157,10 @@ describe('Organisation and plates', () => {
       dybde: 100,
     });
     const m = manifest(plater, ['navn'], () => 'fil.3mf');
-    expect(m.split('\r\n')).toEqual(['fil;plate;rad;farger;navn', 'fil.3mf;1;1;Lilla + Cyan;"Ola; N"']);
+    expect(m.split('\r\n')).toEqual([
+      'fil;plate;rad;farger;filamenter;overstyringer;navn',
+      'fil.3mf;1;1;Lilla + Cyan;pla-cyan + pla-lilla;0;"Ola; N"',
+    ]);
   });
 });
 

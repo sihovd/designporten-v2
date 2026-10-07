@@ -156,7 +156,7 @@
   --linje: var(--linje-mork);
   --linje-sterk: #6b6671;
   --handling: var(--dp-lilla);
-  --handling-hover: #9a58ff;
+  --handling-hover: var(--dp-lilla-mork);
   --lenke: var(--dp-lilla-lys);
   --fokus: var(--dp-cyan);
   color-scheme: dark;

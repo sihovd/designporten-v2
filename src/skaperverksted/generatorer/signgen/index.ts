@@ -13,6 +13,8 @@ import { Lagpanel } from './Lagpanel';
 import { SigngenInspektor } from './Inspektor';
 import { ARBEIDSROM, PANELER } from './paneler';
 import { signtilstand } from './tilstand';
+import { apneCsv } from './csvhandlinger';
+import { Csvbrett } from './Csvbrett';
 import { dupliserValgte, flyttValgte, slettValgte, velgAlle } from './handlinger';
 import { avsluttKurveredigering, dyttValgte, settKurve, slettKurveValg } from './kurver';
 import { angrePennpunkt, fullforPenn, pennPagar } from './Pennverktoy';
@@ -32,6 +34,7 @@ const plugin: GeneratorPlugin = {
     Paneler: PANELER,
     Arbeidsrom: ARBEIDSROM,
     Filvalg: Filvalg,
+    Bunnbrett: Csvbrett,
   },
   gjestelagring: { maksDager: 30 },
   hurtigtaster(e, benk) {
@@ -173,7 +176,7 @@ const plugin: GeneratorPlugin = {
         {
           navn: 'Eksporter via CSV',
           hjelp: 'Lag ett skilt per rad i en CSV-fil, med forhåndsvisning av byggeplatene',
-          kjor: () => signtilstand(benk).sett({ batch: true }),
+          kjor: () => apneCsv(benk),
         },
       ],
     };
