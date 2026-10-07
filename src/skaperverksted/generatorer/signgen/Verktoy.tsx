@@ -18,7 +18,7 @@ import { Startside } from './Startside';
 import { LagreSomMal, Malbibliotek } from './Maldialog';
 import { Dekorgalleri } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
-import { Batchdialog } from './Batch';
+import { Csvflyt } from './Csvflyt';
 
 export const VERKTOY: {
   id: VerktoyId;
@@ -180,7 +180,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {st.fontvindu && <Fontvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
       {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}
-      {st.batch && <Batchdialog benk={benk} lukk={() => signtilstand(benk).sett({ batch: false })} />}
+      <Csvflyt benk={benk} />
     </>
   );
 }

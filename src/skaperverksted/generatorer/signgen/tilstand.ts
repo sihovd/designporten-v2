@@ -9,6 +9,7 @@ import type { Boks, Vec2 } from '../../core/geometri2d';
 import type { Bane, NodeRef } from '../../geometri/bane';
 import type { ProfilId } from '../../geometri/strek';
 import type { SvgDeler } from './svgdeler';
+import type { Csvsteg } from './csvflyt';
 
 export type VerktoyId =
   | 'velg'
@@ -142,8 +143,10 @@ export interface Signtilstand {
   fontvindu: boolean;
   /** The decoration gallery is open. */
   dekor: boolean;
-  /** The CSV window («Lag skilt fra CSV») is open. */
-  batch: boolean;
+  /** The CSV workflow's step on screen (null: the workflow is closed). */
+  csv: Csvsteg | null;
+  /** The generated sign shown in the plates view (CSV row index). */
+  csvrad: number | null;
   /** The SVG part picker is open for this file. */
   svgdeler: SvgOppgave | null;
   /** The vector whose curves are being edited. */
@@ -175,7 +178,8 @@ class Lager {
     malvindu: null,
     fontvindu: false,
     dekor: false,
-    batch: false,
+    csv: null,
+    csvrad: null,
     svgdeler: null,
     kurve: null,
     penn: null,

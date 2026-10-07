@@ -40,6 +40,7 @@ import {
 import { erOye, lokalGeometri, MIN_OMRISSBREDDE, objektStorrelse, STANDARD_RINGBREDDE } from './modell';
 import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
+import { apneCsv } from './csvhandlinger';
 import { Kurvepanel, Pennpanel } from './Kurvepanel';
 import { antallAapne } from '../../geometri/bane';
 import { hentBaner, settKurve, startKurveredigering } from './kurver';
@@ -1246,7 +1247,7 @@ function BatchInngang({ benk }: { benk: Arbeidsbenk }) {
       <p class="tom-melding">
         Lag ett skilt per rad i en CSV-fil, for eksempel navneskilt til et arrangement.
       </p>
-      <button type="button" class="kontroll-knapp" onClick={() => signtilstand(benk).sett({ batch: true })}>
+      <button type="button" class="kontroll-knapp" onClick={() => apneCsv(benk)}>
         Lag skilt fra CSV …
       </button>
     </Panel>
