@@ -25,6 +25,7 @@ import { narmesteFarge, rensFarger, STANDARD_PROFIL } from './fargeprofiler';
 import { lastFontbibliotek, type LagretFont, registrerProsjektfonter } from './fontbibliotek';
 import { filamenterForProsjekt, lastEgneFilamenter, registrerProsjektfilamenter } from './filamenter';
 import type { Materiale } from '../../core/materialer';
+import type { Malopphav } from './maler';
 
 export const SIGNGEN_ID = 'signgen';
 
@@ -39,6 +40,8 @@ export interface SigngenParametre {
   startvalgt?: boolean;
   /** The user's own filaments this project uses, so it opens with the same colours anywhere. */
   filamenter?: Materiale[];
+  /** The template this project was made from, so credit and licence follow the copy. */
+  malopphav?: Malopphav;
   /** Added fonts (Google Fonts) the text uses, as files, so the project builds without a network. */
   fonter?: LagretFont[];
 }

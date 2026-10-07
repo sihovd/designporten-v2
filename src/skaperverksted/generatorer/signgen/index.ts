@@ -4,6 +4,7 @@ import { finnMateriale } from '../../core/materialer';
 import { tall } from '../../core/enheter';
 import { mal } from '../../shell/mal';
 import { meta } from './meta';
+import { Filvalg } from './Maldialog';
 import { fargeplasser, lesInnSigngen, nyttSigngenDokument } from './dokument';
 import { byggSigngen } from './modell';
 import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
@@ -30,7 +31,9 @@ const plugin: GeneratorPlugin = {
     Inspektor: SigngenInspektor,
     Paneler: PANELER,
     Arbeidsrom: ARBEIDSROM,
+    Filvalg: Filvalg,
   },
+  gjestelagring: { maksDager: 30 },
   hurtigtaster(e, benk) {
     const mod = e.ctrlKey || e.metaKey;
     const tast = e.key.toLowerCase();

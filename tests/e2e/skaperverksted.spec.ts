@@ -8,6 +8,16 @@ const ARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="60mm" height="20
 <path fill="#22aa22" fill-rule="evenodd" d="M44 0h16v16h-16zM48 4v8h8v-8z"/>
 </svg>`;
 
+/** After a reload the sign may still be on the start page (the autosave had not run yet): get past it if so. */
+async function startPaaNytt(page: import('@playwright/test').Page): Promise<void> {
+  const tomt = page.getByRole('button', { name: /Tomt dokument/ });
+  const start = page.getByRole('button', { name: 'Start skiltet' });
+  await expect(tomt.or(start).or(page.locator('.statuslinje')).first()).toBeVisible();
+  if (await tomt.isVisible()) await tomt.click();
+  if (await start.isVisible()) await start.click();
+  await expect(page.locator('.statuslinje')).toContainText('mm');
+}
+
 test.describe('Skaperverksted', () => {
   test('huben viser generatorene', async ({ page }) => {
     await page.goto('/skaperverksted/');
@@ -23,7 +33,11 @@ test.describe('Signgen', () => {
     await page.goto('/skaperverksted/signgen/');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
-    // a new sign opens with the start window: pick the colours
+    // a new sign opens on the start page: an empty document, then the colours
+    await page
+      .getByRole('dialog', { name: 'Hva vil du lage?' })
+      .getByRole('button', { name: /Tomt dokument/ })
+      .click();
     const start = page.getByRole('dialog', { name: 'Velg fargene til skiltet' });
     await start.getByRole('button', { name: 'Start skiltet' }).click();
     await expect(start).toBeHidden();
@@ -33,6 +47,7 @@ test.describe('Signgen', () => {
   test('startvinduet lar deg velge og lagre en fargeprofil', async ({ page, isMobile }) => {
     await page.evaluate(() => localStorage.clear());
     await page.reload();
+    await page.getByRole('button', { name: /Tomt dokument/ }).click();
     const start = page.getByRole('dialog', { name: 'Velg fargene til skiltet' });
     await expect(start.getByText('Fargene i profilen (4)')).toBeVisible();
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
@@ -46,6 +61,101 @@ test.describe('Signgen', () => {
     await start.getByRole('button', { name: 'Start skiltet' }).click();
     await expect(page.locator('.statuslinje')).toContainText('mm');
     if (!isMobile) await expect(page.locator('.lagrad').first()).toContainText('Lys tre');
+  });
+
+  test('startsiden har tre innganger, og Fra mal åpner malbiblioteket', async ({ page }) => {
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    const side = page.getByRole('dialog', { name: 'Hva vil du lage?' });
+    await expect(side.getByRole('button')).toHaveCount(4); // three entries and «Lukk»
+    for (const navn of [/Tomt dokument/, /Fra mal/, /Fra CSV/])
+      await expect(side.getByRole('button', { name: navn })).toBeVisible();
+    await expect(side).toContainText('slettes hvis du ikke åpner det på 30 dager');
+    const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await side.getByRole('button', { name: /Fra mal/ }).click();
+    const bibliotek = page.getByRole('dialog', { name: 'Fra mal' });
+    await expect(bibliotek).toContainText('Navneskilt');
+    await expect(bibliotek).toContainText('Ingen ennå');
+    await bibliotek.getByRole('button', { name: /Bruk malen Navneskilt/ }).click();
+    await expect(page.locator('.statuslinje')).toContainText('mm');
+    await expect(page.getByLabel('Prosjektnavn')).toHaveValue('Navneskilt');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('gjestelagring: et skilt som ikke er åpnet på over en måned slettes, et aktivt beholdes', async ({
+    page,
+  }) => {
+    await page.waitForTimeout(900); // autosave
+    const dag = 24 * 60 * 60 * 1000;
+    await page.evaluate(
+      (t) => localStorage.setItem('dp-verksted:signgen:sist-brukt', String(t)),
+      Date.now() - 10 * dag,
+    );
+    await page.reload();
+    // 10 days away: kept, straight into the editor
+    await expect(page.locator('.statuslinje')).toContainText('mm');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.waitForTimeout(900);
+    await page.evaluate(
+      (t) => localStorage.setItem('dp-verksted:signgen:sist-brukt', String(t)),
+      Date.now() - 31 * dag,
+    );
+    await page.reload();
+    // 31 days away: deleted, the start page returns and the reason is given
+    await expect(page.getByRole('dialog', { name: 'Hva vil du lage?' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'er slettet' })).toContainText(
+      'mer enn 30 dager',
+    );
+  });
+
+  test('Fra CSV starter et skilt og åpner CSV-vinduet', async ({ page }) => {
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.getByRole('button', { name: /Fra CSV/ }).click();
+    await page.getByRole('button', { name: 'Start skiltet' }).click();
+    await expect(page.getByRole('dialog', { name: /CSV/ })).toBeVisible();
+  });
+
+  test('et skilt kan lagres som mal med eierskap, og brukes uten at malen endres', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Fil-menyen testes på brede skjermer');
+    await page.locator('summary', { hasText: 'Fil' }).click();
+    await page.getByRole('menuitem', { name: 'Lagre som mal …' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Lagre som mal' });
+    await vindu.getByLabel('Navn', { exact: true }).fill('Min mal');
+    await vindu.getByLabel('Skaper').fill('Sivert');
+    await vindu.getByRole('radio', { name: /Kommersiell/ }).check();
+    await vindu.getByLabel('Pris (NOK)').fill('99');
+    await vindu.getByLabel('Kreditering').fill('Design: Sivert');
+    await vindu.getByRole('button', { name: 'Lagre som mal', exact: true }).click();
+    await expect(vindu.getByRole('status')).toContainText('«Min mal» er lagret som mal');
+    await vindu.getByRole('button', { name: 'Lukk', exact: true }).first().click();
+
+    // the sign is changed afterwards; the template must not follow
+    await page.getByLabel('Prosjektnavn').fill('Noe annet');
+    await page.locator('summary', { hasText: 'Fil' }).click();
+    page.once('dialog', (d) => void d.accept());
+    await page.getByRole('menuitem', { name: 'Nytt prosjekt fra mal …' }).click();
+    const bibliotek = page.getByRole('dialog', { name: 'Fra mal' });
+    await expect(bibliotek.getByRole('list', { name: 'Mine maler' })).toContainText('Min mal');
+    await expect(bibliotek.getByRole('list', { name: 'Mine maler' })).toContainText('Kommersiell · Sivert');
+    await bibliotek.getByRole('button', { name: /Bruk malen Min mal/ }).click();
+    await expect(page.getByLabel('Prosjektnavn')).toHaveValue('Min mal');
+    const lagret = await page.evaluate(() => JSON.parse(localStorage.getItem('designporten:signgen:maler')!));
+    expect(lagret).toHaveLength(1);
+    expect(lagret[0]).toMatchObject({
+      navn: 'Min mal',
+      synlighet: 'kommersiell',
+      skaper: 'Sivert',
+      eier: 'Sivert',
+      pris: { belop: 99, valuta: 'NOK' },
+      kreditering: 'Design: Sivert',
+    });
+    // renamed after saving: the template still has the name the sign had then
+    expect(lagret[0].dokument.navn).toBe('Mitt skilt');
   });
 
   test('legger et nytt lag rundt teksten', async ({ page, isMobile }) => {
@@ -389,12 +499,7 @@ test.describe('Signgen', () => {
     await expect(page.locator('.dokkolonne.venstre')).toHaveCount(0);
     // the layout is remembered (the project may ask for its start colours again if the autosave had not run yet)
     await page.reload();
-    const startvindu = page.getByRole('dialog', { name: 'Velg fargene til skiltet' });
-    await startvindu
-      .getByRole('button', { name: 'Start skiltet' })
-      .click({ timeout: 3000 })
-      .catch(() => {});
-    await expect(startvindu).toBeHidden();
+    await startPaaNytt(page);
     await expect(page.getByRole('tablist', { name: 'Paneler i gruppen' }).getByRole('tab')).toHaveCount(2);
     // minimise, close and reopen from the menu
     await page.getByRole('button', { name: /^Minimer / }).click();
@@ -604,7 +709,7 @@ test.describe('Signgen', () => {
     await kanter.click();
     await expect(kanter).toHaveAttribute('aria-checked', for_ === 'true' ? 'false' : 'true');
     await page.reload();
-    await page.getByRole('button', { name: 'Start skiltet' }).click();
+    await startPaaNytt(page);
     await page.getByRole('button', { name: 'Snap', exact: true }).click({ button: 'right' });
     await expect(
       page

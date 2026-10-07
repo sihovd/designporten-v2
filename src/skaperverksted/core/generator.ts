@@ -49,6 +49,8 @@ export interface GeneratorUi {
   Paneler?: PanelDef[];
   /** Workspaces (panel arrangements) shipped with the generator; the first is the default. */
   Arbeidsrom?: Romspek[];
+  /** Extra entries in the Fil menu (for example «Lagre som mal»). Rendered as menu items. */
+  Filvalg?: ComponentType<{ benk: Arbeidsbenk }>;
 }
 
 export interface PanelDef {
@@ -129,6 +131,12 @@ export interface GeneratorPlugin {
    * their sheets.
    */
   lerretForst?: boolean;
+  /**
+   * Without an account the open project is kept in this browser, one per
+   * tool. With this set it is deleted when it has not been opened for
+   * `maksDager` days, and the user is told so (Sivert, 2026-10-06, §23).
+   */
+  gjestelagring?: { maksDager: number };
   /** Development-geometry notice (e.g. dragon parts not final). */
   utviklingsgeometri?: string;
   /**

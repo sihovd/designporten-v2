@@ -8,7 +8,14 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Arbeidsbenk } from '../core/arbeidsbenk';
 import type { GeneratorPlugin } from '../core/generator';
 import { fraJson, tilJson, DokumentFeil } from '../core/dokument';
-import { autolagre, hentAutolagret, lastNed, slettAutolagret } from '../core/lagring';
+import {
+  autolagre,
+  hentAutolagret,
+  lastNed,
+  ryddGjestelagring,
+  slettAutolagret,
+  type Gjestestatus,
+} from '../core/lagring';
 import { lastGenerator } from '../generatorer';
 import { forhandslast3d, Visning3d } from '../render3d/Lat3d';
 import { filnavn } from '../eksport/tremf';
@@ -73,7 +80,11 @@ function erSkrivefelt(t: EventTarget | null): boolean {
 
 function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   const gjenopprettet = useRef(false);
+  const gjest = useRef<Gjestestatus | null>(null);
   const benk = useMemo(() => {
+    gjest.current = plugin.gjestelagring
+      ? ryddGjestelagring(plugin.id, plugin.gjestelagring.maksDager)
+      : null;
     const lagret = hentAutolagret(plugin.id);
     gjenopprettet.current = !!lagret;
     return new Arbeidsbenk(plugin, lagret ?? plugin.nyttDokument());
@@ -133,7 +144,17 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   }, [benk, harPaneler, ui]);
 
   useEffect(() => {
-    if (gjenopprettet.current) benk.melde('Prosjektet ditt fra forrige gang er hentet fram.');
+    const g = gjest.current;
+    const dager = plugin.gjestelagring?.maksDager;
+    if (g?.utfall === 'slettet' && dager)
+      benk.melde(
+        `Det lagrede prosjektet fra forrige gang er slettet: det var ikke åpnet på mer enn ${dager} dager. Uten konto lagres ett prosjekt, og bare så lenge du bruker det.`,
+      );
+    else if (g?.utfall === 'beholdt' && dager && g.dagerUbrukt >= 14)
+      benk.melde(
+        `Prosjektet ditt lå ubrukt i ${g.dagerUbrukt} dager. Uten konto slettes det etter ${dager} dager uten bruk. Last det ned som fil for å ta vare på det.`,
+      );
+    else if (gjenopprettet.current) benk.melde('Prosjektet ditt fra forrige gang er hentet fram.');
     forhandslast3d();
   }, [benk]);
 
@@ -313,7 +334,12 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             <button type="button" role="menuitem" onClick={lagreFil}>
               Lagre som fil <kbd>Ctrl+S</kbd>
             </button>
-            <p class="meny-merknad">Prosjektet lagres også automatisk i denne nettleseren.</p>
+            {ui.Filvalg && <ui.Filvalg benk={benk} />}
+            <p class="meny-merknad">
+              {plugin.gjestelagring
+                ? `Uten konto lagres ett prosjekt i denne nettleseren. Det slettes hvis du ikke åpner det på ${plugin.gjestelagring.maksDager} dager. «Lagre som fil» tar vare på det.`
+                : 'Prosjektet lagres også automatisk i denne nettleseren.'}
+            </p>
           </div>
         </details>
         <input

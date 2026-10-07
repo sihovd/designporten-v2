@@ -72,12 +72,15 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
         'Fargeprofilen er oppdatert. Farger som ble tatt ut, er byttet med den nærmeste i profilen.',
       );
     }
-    signtilstand(benk).sett({ fargeprofil: false });
+    // «Fra CSV» was chosen on the start page: the batch window follows the new sign
+    const csv = start && signtilstand(benk).t.startCsv;
+    signtilstand(benk).sett({ fargeprofil: false, startsteg: 'valg', startCsv: false, batch: csv });
   };
   const lukk = () => {
-    // closing the start window keeps the profile the sign already has
-    if (start) benk.endre({ navn: 'Fargeprofil', anvend: (d) => settPalett(d, palett(d)) });
-    signtilstand(benk).sett({ fargeprofil: false });
+    // closing the colours at the start goes back to the start page; later it just closes
+    signtilstand(benk).sett(
+      start ? { fargeprofil: false, startsteg: 'valg', startCsv: false } : { fargeprofil: false },
+    );
   };
   const lagre = () => {
     const n = navn.trim();
