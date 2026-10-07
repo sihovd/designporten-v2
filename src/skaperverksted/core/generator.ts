@@ -58,6 +58,8 @@ export interface PanelDef {
   /** Size when the panel floats and the workspace says nothing else. */
   flytB?: number;
   flytH?: number;
+  /** When opened by name (not from the Paneler menu) it joins this panel's group as a tab. */
+  fane?: string;
 }
 
 /**

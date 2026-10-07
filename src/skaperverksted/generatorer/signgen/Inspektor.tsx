@@ -15,7 +15,6 @@ import {
   type TekstKilde,
 } from '../../core/dokument';
 import { finnMateriale, materialer, standardPrinter } from '../../core/materialer';
-import { forhandsvalg, type ProfilType } from '../../core/profil';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { tall } from '../../core/enheter';
@@ -45,20 +44,10 @@ import { Kurvepanel, Pennpanel } from './Kurvepanel';
 import { antallAapne } from '../../geometri/bane';
 import { hentBaner, settKurve, startKurveredigering } from './kurver';
 import { nyttOmrissI } from './Lagpanel';
-import { Profilredigerer } from './Profilredigerer';
+import { PROFILER, Profilseksjon } from './Profilseksjon';
+import { brukPanelKontekst } from '../../shell/paneler/kontekst';
 import { folgerNavnet, hullanker, settHullavstand } from './batch';
 import { plangrenser } from '../../core/plangrenser';
-
-const PROFILER: { id: Exclude<ProfilType, 'egendefinert'> | 'egendefinert'; navn: string }[] = [
-  { id: 'rett', navn: 'Rett' },
-  { id: 'konveks', navn: 'Bue' },
-  { id: 'avrundet', navn: 'Avrundet kant' },
-  { id: 'konkav', navn: 'Konkav' },
-  { id: 'fas', navn: 'Knekk (fas)' },
-  { id: 's-kurve', navn: 'S-kurve' },
-  { id: 'trapp', navn: 'Trapp' },
-  { id: 'egendefinert', navn: 'Egendefinert' },
-];
 
 /**
  * Colour picker: the sign's colour profile first (Sivert, 2026-10-05).
@@ -764,7 +753,7 @@ function FlereObjekter({ benk, antall }: { benk: Arbeidsbenk; antall: number }) 
 
 function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
   const t = brukBenk(benk);
-  const [redigerProfil, settRedigerProfil] = useState(false);
+  const iPaneler = brukPanelKontekst();
   const auto = parametre(t.dok).autoZ;
   const endre = (navn: string, endring: Partial<Lag>, slaSammen?: string) =>
     benk.endre({ navn, slaSammen, anvend: (d) => oppdaterLag(d, lag.id, endring) });
@@ -856,82 +845,18 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
       </Panel>
 
       <Panel tittel="Sideprofil">
-        <label class="felt" for="signgen-profil">
-          <span>Profil</span>
-          <select
-            id="signgen-profil"
-            value={lag.profil.type}
-            onChange={(e) => {
-              const type = (e.target as HTMLSelectElement).value as ProfilType;
-              if (type === 'egendefinert') {
-                settRedigerProfil(true);
-                endre('Egendefinert profil', {
-                  profil: { ...lag.profil, type, bredde: lag.profil.bredde || 1.5 },
-                });
-                return;
-              }
-              endre('Bytt profil', {
-                profil: forhandsvalg(type, lag.profil.bredde || 1.5, lag.profil.trinn || 3),
-              });
-            }}
-          >
-            {PROFILER.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.navn}
-              </option>
-            ))}
-          </select>
-        </label>
-        {lag.profil.type !== 'rett' && (
+        {iPaneler ? (
           <>
-            <TallFelt
-              etikett="Profilbredde"
-              verdi={lag.profil.bredde}
-              min={0.1}
-              maks={30}
-              steg={0.1}
-              endre={(v, k) =>
-                endre(
-                  'Profilbredde',
-                  { profil: { ...lag.profil, bredde: v } },
-                  k === 'pil' ? 'pb' : undefined,
-                )
-              }
-            />
-            {lag.profil.type === 'trapp' && (
-              <TallFelt
-                etikett="Trinn"
-                enhet=""
-                verdi={lag.profil.trinn}
-                min={2}
-                maks={12}
-                desimaler={0}
-                endre={(v) =>
-                  endre('Antall trinn', { profil: forhandsvalg('trapp', lag.profil.bredde, Math.round(v)) })
-                }
-              />
-            )}
-            <button
-              type="button"
-              class="kontroll-knapp"
-              aria-expanded={redigerProfil}
-              onClick={() => settRedigerProfil(!redigerProfil)}
-            >
-              {redigerProfil ? 'Skjul kurven' : 'Rediger kurven'}
-            </button>
-            {redigerProfil && (
-              <Profilredigerer
-                profil={lag.profil}
-                hoyde={lag.hoyde}
-                farge={finnMateriale(lag.materialId).hex}
-                endre={(p, s) => endre('Endre profil', { profil: p }, s)}
-                ferdig={() => benk.historikk.avsluttSammenslaing()}
-              />
-            )}
             <p class="merknad">
-              Profilen blir ekte geometri: 3D-visningen og filen viser det som blir printet, lag for lag.
+              Veggen: {PROFILER.find((x) => x.id === lag.profil.type)?.navn.toLowerCase()}. Formen og
+              tverrsnittet av laget redigerer du i Profil-panelet.
             </p>
+            <button type="button" class="kontroll-knapp" onClick={() => benk.kommando('panel:profil')}>
+              Åpne Profil-panelet
+            </button>
           </>
+        ) : (
+          <Profilseksjon benk={benk} lag={lag} />
         )}
       </Panel>
 

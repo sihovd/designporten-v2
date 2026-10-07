@@ -8,11 +8,14 @@ import type { PanelDef } from '../../core/generator';
 import { tall } from '../../core/enheter';
 import { finnMateriale } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
+import { Panel } from '../../shell/kontroller';
 import { mal } from '../../shell/mal';
 import type { Romspek } from '../../shell/paneler/modell';
 import { fargeplasser } from './dokument';
 import { Lagpanel } from './Lagpanel';
 import { SigngenInspektor } from './Inspektor';
+import { Profilseksjon } from './Profilseksjon';
+import { finnLag } from '../../core/dokument';
 
 /** What was done, newest last. Click a step to go back (or forward) to it. */
 export function Historikkpanel({ benk }: { benk: Arbeidsbenk }) {
@@ -65,6 +68,18 @@ export function Historikkpanel({ benk }: { benk: Arbeidsbenk }) {
         </ol>
       )}
     </div>
+  );
+}
+
+/** The side profile of the selected layer: wall shape, bottom and top edge, and the cross-section. */
+export function Profilpanel({ benk }: { benk: Arbeidsbenk }) {
+  const t = brukBenk(benk);
+  const lag = t.utvalg.lag ? finnLag(t.dok, t.utvalg.lag) : undefined;
+  if (!lag) return <p class="dempet panel-tom">Velg et lag for å se og redigere profilen.</p>;
+  return (
+    <Panel tittel={`Profil: ${lag.navn}`}>
+      <Profilseksjon benk={benk} lag={lag} key={lag.id} />
+    </Panel>
   );
 }
 
@@ -130,6 +145,7 @@ export function Produksjonspanel({ benk }: { benk: Arbeidsbenk }) {
 export const PANELER: PanelDef[] = [
   { id: 'lag', navn: 'Lag', Innhold: Lagpanel, flytB: 320, flytH: 520 },
   { id: 'egenskaper', navn: 'Egenskaper', Innhold: SigngenInspektor, flytB: 320, flytH: 560 },
+  { id: 'profil', navn: 'Profil', Innhold: Profilpanel, flytB: 320, flytH: 520, fane: 'egenskaper' },
   { id: 'historikk', navn: 'Historikk', Innhold: Historikkpanel, flytB: 280, flytH: 340 },
   { id: 'produksjon', navn: 'Produksjon', Innhold: Produksjonspanel, flytB: 300, flytH: 380 },
 ];
@@ -153,10 +169,10 @@ export const ARBEIDSROM: Romspek[] = [
     grupper: [
       { paneler: ['lag'], side: 'venstre', vekt: 3 },
       { paneler: ['historikk'], side: 'venstre', vekt: 2 },
-      { paneler: ['egenskaper'], side: 'hoyre' },
+      { paneler: ['egenskaper', 'profil'], side: 'hoyre' },
     ],
     smal: [
-      { paneler: ['egenskaper'], side: 'hoyre', vekt: 3 },
+      { paneler: ['egenskaper', 'profil'], side: 'hoyre', vekt: 3 },
       { paneler: ['lag', 'historikk'], side: 'hoyre', vekt: 2 },
     ],
   },

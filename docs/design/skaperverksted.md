@@ -53,7 +53,7 @@ A generator that lists `ui.Paneler` gets dockable panels on screens of 1024 px a
 - **Tool rail** (Sign Forge): icon only, no permanent labels (small screens keep labels). A hint with the name appears after a short hover and adds the description and shortcut after about three seconds; keyboard focus shows it at once; Esc dismisses it. Icons come from `shell/ikoner.tsx`, one entry per icon: Sivert's own 92-icon set ([signgen-ikoner](signgen-ikoner/README.md)), inlined as SVG so the UI controls size, colour and state, and swappable one by one without touching the toolbar. The few icons the set lacks (rectangle, ellipse, polygon, hole, decoration, panel chrome) are temporary line icons. **Former** is one tool for rectangle, ellipse and polygon (click again, right-click, long press or ↓ opens the list; R, E and P still pick a shape directly).
 - **Number fields** keep typing and the arrow keys and get a **scrubber**: while the field is hovered or focused, a short millimetre scale appears along its bottom edge with a triangle that can be dragged (Shift = fine). One drag is one undo step. It is hidden on touch screens.
 
-The larger Sign Forge UI update (Sivert, 2026-10-06) is delivered in phases, each its own change; the plan and data model are in the project folder `sign-forge-ui/plan.md`: 1 workspace and panels (this section), 2 layers panel and per-layer cross-section profile, 3 shapes, pen, paint, boolean bar, rulers, guides and snapping, 4 filament registry, colour profiles and fonts, 5 start page, templates and guest saves, 6 CSV workflow with master, instances and overrides.
+The larger Sign Forge UI update (Sivert, 2026-10-06) is delivered in phases, each its own change; the plan and data model are in the project folder `sign-forge-ui/plan.md`: 1 workspace and panels (this section), 2 layers panel and per-layer cross-section profile (done: see «Layers panel» and «Side profile and Bézier editing»), 3 shapes, pen, paint, boolean bar, rulers, guides and snapping, 4 filament registry, colour profiles and fonts, 5 start page, templates and guest saves, 6 CSV workflow with master, instances and overrides.
 
 ### Tablet and mobile
 
@@ -175,6 +175,8 @@ The Layers panel makes the physical construction understandable. For every layer
 - which objects belong to it (expand to list; drag objects between layers).
 - for a text layer: its texts and its outlines (inside out), each outline with its type, width, height, colour and visibility, and «+ Omriss».
 
+Phase 2 of the UI update (2026-10-07) refines the rows without changing what they do: a **thumbnail** of the layer's own shape in its colour (thinned outline of the region, functional geometry), visibility and lock as pack icons with names kept for screen readers (`aria-pressed`), **derived geometry as child rows** (outlines as before; a layer's influences are read-only rows «Kuttet av …» / «Utvidet med …» that follow their source layer), a **neutral selection** (lighter surface, no purple frame), **rename in place** (double-click, or in the menu; Enter saves, Esc cancels) and a **context menu** on right-click, the menu key or Shift+F10 (rename, edit profile, duplicate, hide, lock, move up and down, delete; arrow keys, Esc closes). Drag between layers is unchanged.
+
 The stack diagram (an exploded side view) was removed at Sivert's request on 2026-10-05; Z ranges stay in each row. Selecting a layer highlights it in 3D.
 
 ### Editing vectors: points, curves, pen and repair
@@ -191,13 +193,13 @@ Sivert, 2026-10-05 («dobbeltklikke på svg og redigere de, legge til eller fjer
 
 ### Side profile and Bézier editing
 
-A layer is not limited to a vertical extrusion. Its **side profile** describes how the edge rises from the layer's bottom (Z₀) to its top (Z₁) across a profile width.
+A layer is not limited to a vertical extrusion. Its **side profile** describes how the edge rises from the layer's bottom (Z₀) to its top (Z₁) as an inset from the layer's outline.
 
-- **Presets:** Rett (straight), Bue (rounded/convex), Konkav, Knekk, Trapp (stepped), S-kurve, Egendefinert.
-- **Profile editor:** a 2D graph with the layer's inside/outside on the horizontal axis (profile width in mm) and height on the vertical axis (bottom Z to top Z in mm). Anchor points and Bézier handles can be dragged; values are also editable numerically. Symmetric profile toggle. Other layers can be shown as reference.
-- **Profile reference:** the profile follows the selected object's outline, or the projection of the layer below («følger toppen av Lag N»), or another geometric reference.
-- **This is geometry, not a visual effect.** The profile produces real sloped/curved walls in the mesh and in the export, and the 3D preview shows exactly what will print.
-- Printability warnings when a profile creates overhangs beyond the material's limit.
+- **Profil panel** (Sign Forge, wide screens; on small screens the same editor sits under «Sideprofil» in Egenskaper). It follows the selected layer. Egenskaper has a button that opens it as a tab next to Egenskaper; the Design workspace has it there from the start.
+- **Cross-section editor.** A graph with the inset from the outline (mm, outside left) across and the layer's thickness up, limited to the layer: nothing can leave the layer's bottom and top. **Anchors sit only on the bottom edge and the top edge** and move sideways along them (or by the «Bunnkant» and «Toppkant» fields, in mm, with the scrubber). The wall between the two anchors has one shape: **Rett**, **Bue ut**, **Bue inn**, **S-kurve**, **Trapp** (steps, count adjustable), the older **Avrundet kant** and **Knekk**, or **Egendefinert kurve**, where the Bézier handles of the wall appear, can be dragged, and a point can be made smooth or a corner. Moving an anchor on a ready-made shape rebuilds the shape around the anchors, so «Bue ut» stays a bue. A wall rises in one direction in print, so a layer has exactly one wall segment; the bottom and top edges are flat.
+- **Older profiles** from before this phase load unchanged. Ones with points between the edges (chamfer, rounded edge, steps, hand-made curves) keep them; they can still be moved or removed and the panel says so, but new points are never added between the edges.
+- **Support from the layer below** is drawn as a read-only strip under the graph, from the layer under it (its own top edge and profile counted): «byggeplaten» when the layer sits on the plate, hatched red where the bottom edge rests on nothing, with a dashed line at the inset where it starts to rest fully. The text says how far the bottom hangs out and how deep it must start. The layer below is never edited from here. The same footprints drive the «henger i lufta» warning, so a layer resting on a rounded top is flagged.
+- **This is geometry, not a visual effect.** The profile produces real sloped/curved walls in the mesh and in the export (slabs at the print layer height), and the 3D preview shows exactly what will print. Warnings: overhang beyond the material's limit; a profile wider than the shape tolerates.
 
 ### Batch (CSV)
 

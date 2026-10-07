@@ -25,7 +25,7 @@ import {
 } from '../../core/geometri2d';
 import { finnMateriale, materialtyper } from '../../core/materialer';
 import { mm } from '../../core/enheter';
-import { profilOverheng } from '../../core/profil';
+import { bunnInset, profilOverheng, toppInset } from '../../core/profil';
 import {
   areal,
   differanse,
@@ -685,6 +685,108 @@ function flytendeAreal(region: Region, under: Region[]): number {
   return a;
 }
 
+/** A printed slab as the printer sees it: its footprint at the bottom and at the top, after the side profile. */
+interface Stotteskive {
+  lagId: string;
+  navn: string;
+  zBunn: number;
+  hoyde: number;
+  bunn: Region;
+  topp: Region;
+}
+
+const stotteBuffer = new WeakMap<Dokument, Stotteskive[]>();
+
+/**
+ * Every visible slab with its bottom and top footprint. A side profile that
+ * starts inside the outline or ends inside it shrinks what the layer above
+ * can rest on, so support is judged on these, not on the plain outline.
+ */
+function stotteskiver(dok: Dokument): Stotteskive[] {
+  const b = stotteBuffer.get(dok);
+  if (b) return b;
+  const ut: Stotteskive[] = [];
+  let fullstendig = true;
+  for (const lag of dok.lag) {
+    if (!lag.synlig) continue;
+    const region = lagRegion(dok, lag.id);
+    if (!region) fullstendig = false;
+    const omriss = lag.tekstlag ? omrissRegioner(dok, lag.id) : null;
+    if (region?.length && lag.tekstvisning !== 'kutt') {
+      ut.push({
+        lagId: lag.id,
+        navn: lag.navn,
+        zBunn: lag.zBunn,
+        hoyde: lag.hoyde,
+        bunn: forskyv(region, -bunnInset(lag.profil), lag.kontur.hjorne),
+        topp: forskyv(region, -toppInset(lag.profil), lag.kontur.hjorne),
+      });
+    }
+    for (const o of lag.omriss ?? []) {
+      const r = omriss?.get(o.id);
+      if (o.synlig && r?.length) {
+        ut.push({
+          lagId: lag.id,
+          navn: `${lag.navn}: ${o.navn}`,
+          zBunn: lag.zBunn,
+          hoyde: o.hoyde,
+          bunn: r,
+          topp: r,
+        });
+      }
+    }
+  }
+  if (fullstendig) stotteBuffer.set(dok, ut);
+  return ut;
+}
+
+/** The slabs a slab starting at `zBunn` rests on. */
+const under = (alle: Stotteskive[], s: Stotteskive) =>
+  alle.filter((u) => u !== s && u.zBunn < s.zBunn - 1e-6 && u.zBunn + u.hoyde >= s.zBunn - 0.01);
+
+export interface Stotte {
+  /** plate: sits on the build plate. ingen: nothing under it. delvis / full: what is under it covers part / all of it. */
+  niva: 'plate' | 'ingen' | 'delvis' | 'full';
+  /** Area of the bottom edge with nothing under it (mm²). */
+  uforstottMm2: number;
+  /**
+   * How far in from the outline the layer's bottom edge must start to rest
+   * fully on what is under it (mm). Null when nothing under it reaches that far.
+   */
+  trengtInset: number | null;
+}
+
+/**
+ * What the layer rests on, for the profile editor: layers under it count with
+ * their own top edge (their side profile included). Read-only; it changes
+ * nothing about the layer below.
+ */
+export function lagStotte(dok: Dokument, lagId: string): Stotte {
+  const lag = finnLag(dok, lagId);
+  const alle = stotteskiver(dok);
+  const meg = alle.find((s) => s.lagId === lagId);
+  if (!lag || !meg || lag.zBunn < 0.01) return { niva: 'plate', uforstottMm2: 0, trengtInset: 0 };
+  const stotte = unionAlle(under(alle, meg).map((u) => u.topp));
+  if (!stotte.length) return { niva: 'ingen', uforstottMm2: areal(meg.bunn), trengtInset: null };
+  const region = lagRegion(dok, lagId) ?? [];
+  const mangler = (inset: number) => areal(differanse(forskyv(region, -inset, lag.kontur.hjorne), stotte));
+  const uforstott = areal(differanse(meg.bunn, stotte));
+  // smallest inset (mm) whose footprint lies on the support, by bisection within 12 mm
+  let trengt: number | null = null;
+  if (mangler(0) < 1e-3) trengt = 0;
+  else if (mangler(12) < 1e-3) {
+    let lav = 0;
+    let hoy = 12;
+    for (let i = 0; i < 9; i++) {
+      const mid = (lav + hoy) / 2;
+      if (mangler(mid) < 1e-3) hoy = mid;
+      else lav = mid;
+    }
+    trengt = hoy;
+  }
+  return { niva: uforstott < 1 ? 'full' : 'delvis', uforstottMm2: uforstott, trengtInset: trengt };
+}
+
 export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
   const advarsler: Advarsel[] = [];
   const fontFeil = await lastFonter(dok);
@@ -834,15 +936,14 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     });
   }
 
-  // unsupported material: parts that start above the plate with nothing under them
-  for (const s of skiver) {
+  // unsupported material: parts that start above the plate with nothing under them;
+  // the side profile counts, so a layer resting on a rounded top lacks support at the edge
+  const stotte = stotteskiver(dok);
+  for (const s of stotte) {
     if (s.zBunn < 0.01) continue;
-    const under = skiver.filter(
-      (u) => u !== s && u.zBunn < s.zBunn - 1e-6 && u.zBunn + u.hoyde >= s.zBunn - 0.01,
-    );
     const flyter = flytendeAreal(
-      s.region,
-      under.map((u) => u.region),
+      s.bunn,
+      under(stotte, s).map((u) => u.topp),
     );
     if (flyter > 1) {
       advarsler.push({

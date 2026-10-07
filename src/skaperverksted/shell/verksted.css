@@ -1261,9 +1261,10 @@
   border-radius: var(--radius-felt);
 }
 
+/* selection is neutral: a lighter surface and a quiet edge, no purple frame */
 .lagrad.aktiv {
-  border-color: var(--handling);
-  background: color-mix(in srgb, var(--handling) 10%, transparent);
+  border-color: var(--linje);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
 }
 
 .lagrad.skjult .lag-navn {
@@ -1320,10 +1321,13 @@
 }
 
 .minibryter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
   min-height: 26px;
   min-width: 26px;
-  padding: 0 5px;
+  padding: 0 4px;
   border: 1px solid var(--linje);
   border-radius: var(--radius-felt);
   background: transparent;
@@ -1338,8 +1342,8 @@
 }
 
 .minibryter.synlighet[aria-pressed='false'] {
-  text-decoration: line-through;
   border-style: dashed;
+  opacity: 0.55;
 }
 
 .minibryter.las[aria-pressed='false'] {
@@ -1363,7 +1367,7 @@
 
 .objektliste li.valgt .objekt-navn {
   color: var(--fg);
-  background: color-mix(in srgb, var(--handling) 28%, transparent);
+  background: color-mix(in srgb, var(--fg) 13%, transparent);
 }
 
 .objekt-navn {
@@ -1439,7 +1443,8 @@
 }
 
 .omrissrad.aktiv {
-  border-color: color-mix(in srgb, var(--handling) 60%, transparent);
+  border-color: var(--linje);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
 }
 
 .omrissrad.skjult .lag-tittel {
@@ -1531,9 +1536,51 @@
   touch-action: none;
 }
 
-.profil-rutenett line {
+.profil-rutenett-linje {
   stroke: var(--linje);
   stroke-width: 0.6;
+}
+
+.profil-kant {
+  stroke: var(--fg-dempet);
+  stroke-width: 1;
+}
+
+.profil-under {
+  fill: var(--linje);
+  opacity: 0.8;
+}
+
+.profil-henger {
+  fill: none;
+  stroke: var(--feil-mork);
+  stroke-width: 0.8;
+  stroke-dasharray: 3 2;
+}
+
+.profil-skravur {
+  stroke: var(--feil-mork);
+  stroke-width: 1.2;
+  opacity: 0.7;
+}
+
+.profil-stottekant {
+  stroke: var(--feil-mork);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.profil-anker.kant {
+  rx: 2;
+}
+
+.profil-advarsel {
+  color: var(--fg);
+}
+
+.panel-tom {
+  padding: 14px;
+  margin: 0;
 }
 
 .profil-kurve {
@@ -2735,4 +2782,90 @@
   .panelmeny-linje summary span {
     display: none;
   }
+}
+
+/* ---------- Sign Forge: layers panel, phase 2 ---------- */
+
+.lag-miniatyr {
+  flex: none;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--bg);
+}
+
+.lag-omdop {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+.minibryter .ikon {
+  display: block;
+}
+
+.utledet {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 4px 6px 34px;
+  list-style: none;
+}
+
+.utledetrad {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 6px;
+  color: var(--fg-dempet);
+  font-size: 12px;
+}
+
+.utledetrad .lag-tittel {
+  flex: 1;
+  min-width: 0;
+  font-weight: 400;
+}
+
+.lagmeny {
+  position: fixed;
+  z-index: 80;
+  display: grid;
+  min-width: 190px;
+  padding: 4px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--overflate);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 45%);
+}
+
+.lagmeny button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lagmeny button:hover:not(:disabled),
+.lagmeny button:focus-visible {
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+}
+
+.lagmeny button:disabled {
+  color: var(--fg-dempet);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.lagmeny button.farlig {
+  color: var(--feil-mork);
 }

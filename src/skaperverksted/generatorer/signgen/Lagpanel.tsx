@@ -5,12 +5,16 @@
  * outlines, each its own row (Sivert, 2026-10-05). The stack diagram was
  * removed on Sivert's request the same day.
  */
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { finnLag, objekterILag, type Dokument, type Lag, type Omriss } from '../../core/dokument';
 import { finnMateriale } from '../../core/materialer';
 import { tall } from '../../core/enheter';
 import { brukBenk } from '../../shell/bruk-benk';
+import { Ikon, type IkonId } from '../../shell/ikoner';
+import type { Region } from '../../geometri/polygon';
+import { regionBoks } from '../../geometri/polygon';
+import { lagRegion } from './modell';
 import {
   dupliserLag,
   flyttLagInnI,
@@ -30,6 +34,173 @@ import {
 } from './dokument';
 import { signtilstand, brukSigntilstand } from './tilstand';
 import { importerSvgSom, nyttLagRundtTeksten, nyttTomtTekstlag, type Svgrolle } from './handlinger';
+
+// ---------- thumbnails ----------
+
+const miniatyrBuffer = new WeakMap<Region, string>();
+const MB = 30;
+const MH = 22;
+
+/** Outline path of a region scaled into the thumbnail box; rings are thinned to keep it light. */
+function miniatyrSti(region: Region): string {
+  const hit = miniatyrBuffer.get(region);
+  if (hit !== undefined) return hit;
+  let d = '';
+  if (region.length) {
+    const b = regionBoks(region);
+    const w = Math.max(b.maksX - b.minX, 1e-6);
+    const h = Math.max(b.maksY - b.minY, 1e-6);
+    const k = Math.min((MB - 4) / w, (MH - 4) / h);
+    const ox = (MB - w * k) / 2;
+    const oy = (MH - h * k) / 2;
+    for (const f of region) {
+      for (const r of [f.ytre, ...f.hull]) {
+        const steg = Math.max(1, Math.ceil(r.length / 120));
+        let i = 0;
+        for (let n = 0; n < r.length; n += steg, i++) {
+          const p = r[n]!;
+          d += `${i === 0 ? 'M' : 'L'}${(ox + (p.x - b.minX) * k).toFixed(1)} ${(oy + (b.maksY - p.y) * k).toFixed(1)}`;
+        }
+        d += 'Z';
+      }
+    }
+  }
+  miniatyrBuffer.set(region, d);
+  return d;
+}
+
+/** The layer's shape in its own colour: functional geometry, not decoration. */
+function Miniatyr({ dok, lag, farge }: { dok: Dokument; lag: Lag; farge: string }) {
+  const region = lagRegion(dok, lag.id);
+  const sti = region ? miniatyrSti(region) : '';
+  return (
+    <svg
+      class="lag-miniatyr"
+      width={MB}
+      height={MH}
+      viewBox={`0 0 ${MB} ${MH}`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      {sti ? (
+        <path d={sti} fill={farge} fill-rule="evenodd" stroke="var(--linje-sterk)" stroke-width="0.6" />
+      ) : (
+        <rect x="9" y="6" width="12" height="10" rx="1.5" fill={farge} opacity="0.5" />
+      )}
+    </svg>
+  );
+}
+
+/** Visibility and lock buttons share one look: pack icons, state in aria-pressed. */
+function Bryter({
+  type,
+  paa,
+  navn,
+  tittel,
+  onClick,
+}: {
+  type: 'synlighet' | 'las';
+  paa: boolean;
+  navn: string;
+  tittel: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" class={`minibryter ${type}`} aria-pressed={paa} title={tittel} onClick={onClick}>
+      <Ikon id={type === 'synlighet' ? 'visible' : paa ? 'lock' : 'unlock'} storrelse={16} />
+      <span class="visuelt-skjult">
+        {type === 'synlighet' ? 'Synlig' : 'Låst'} {navn}
+      </span>
+    </button>
+  );
+}
+
+/** What a layer's influences turn into: derived rows under it (read-only, they follow their source layer). */
+function Utledet({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
+  const t = brukBenk(benk);
+  if (!lag.pavirkninger.length) return null;
+  return (
+    <ul class="utledet" role="list" aria-label={`Utledet geometri i ${lag.navn}`}>
+      {lag.pavirkninger.map((p, i) => {
+        const kilde = finnLag(t.dok, p.kildeLagId);
+        return (
+          <li key={i} class="utledetrad">
+            <Ikon id={p.handling === 'kutt' ? 'subtract' : 'union'} storrelse={14} />
+            <span class="lag-tittel">
+              {p.handling === 'kutt' ? 'Kuttet av' : 'Utvidet med'} «{kilde?.navn ?? 'ukjent lag'}»
+            </span>
+            <span class="mono lag-z">{tall(p.avstand)} mm</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// ---------- context menu ----------
+
+interface MenyValg {
+  id: string;
+  navn: string;
+  ikon?: IkonId;
+  av?: boolean;
+  farlig?: boolean;
+  gjor: () => void;
+}
+
+/** Right-click (or the menu key, or Shift+F10) on a layer. Arrow keys move, Esc closes. */
+function Lagmeny({ x, y, valg, lukk }: { x: number; y: number; valg: MenyValg[]; lukk: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    const utenfor = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) lukk();
+    };
+    window.addEventListener('pointerdown', utenfor, true);
+    return () => window.removeEventListener('pointerdown', utenfor, true);
+  }, [lukk]);
+  const pos = {
+    left: `${Math.min(x, window.innerWidth - 220)}px`,
+    top: `${Math.min(y, window.innerHeight - valg.length * 38 - 16)}px`,
+  };
+  return (
+    <div
+      ref={ref}
+      class="lagmeny"
+      role="menu"
+      aria-label="Lag"
+      style={pos}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          lukk();
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const k = [...(ref.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])];
+          const i = k.indexOf(document.activeElement as HTMLButtonElement);
+          k[(i + (e.key === 'ArrowDown' ? 1 : -1) + k.length) % k.length]?.focus();
+        } else if (e.key === 'Tab') lukk();
+      }}
+    >
+      {valg.map((v) => (
+        <button
+          key={v.id}
+          type="button"
+          role="menuitem"
+          class={v.farlig ? 'farlig' : ''}
+          disabled={v.av}
+          onClick={() => {
+            lukk();
+            v.gjor();
+          }}
+        >
+          {v.ikon && <Ikon id={v.ikon} storrelse={16} />}
+          {v.navn}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /** One outline of a text layer: a row of its own in the layers panel. */
 function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss }) {
@@ -56,16 +227,13 @@ function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss })
           {o.type === 'fyll' ? 'Fyll' : 'Omriss'} {tall(o.bredde)} mm · {tall(o.hoyde)} mm høy · {mat.navn}
         </span>
       </button>
-      <button
-        type="button"
-        class="minibryter synlighet"
-        aria-pressed={o.synlig}
-        title={o.synlig ? 'Skjul omrisset' : 'Vis omrisset'}
+      <Bryter
+        type="synlighet"
+        paa={o.synlig}
+        navn={o.navn}
+        tittel={o.synlig ? 'Skjul omrisset' : 'Vis omrisset'}
         onClick={() => endre(o.synlig ? 'Skjul omriss' : 'Vis omriss', { synlig: !o.synlig })}
-      >
-        Synlig
-        <span class="visuelt-skjult"> {o.navn}</span>
-      </button>
+      />
     </li>
   );
 }
@@ -97,6 +265,11 @@ interface Dnd {
   /** Whether the dragged thing may be dropped on this layer. */
   kan: (lag: Lag) => boolean;
   slipp: (lagId: string) => void;
+  /** Rename in place: the layer being renamed, and the menu opening on a layer. */
+  omdop: string | null;
+  ferdigOmdop: () => void;
+  apneMeny: (lagId: string, x: number, y: number) => void;
+  startOmdop: (lagId: string) => void;
 }
 
 function Lagrad({
@@ -150,49 +323,73 @@ function Lagrad({
           <span class="visuelt-skjult">{apen ? 'Skjul innholdet i' : 'Vis innholdet i'} </span>
           <span aria-hidden="true">{apen ? '▾' : '▸'}</span>
         </button>
-        <span class="fargeprove" style={{ background: mat.hex }} aria-hidden="true" />
-        <button
-          type="button"
-          class="lag-navn"
-          aria-current={aktiv ? 'true' : undefined}
-          onClick={() => {
-            signtilstand(benk).sett({ omriss: null });
-            benk.velg({ lag: lag.id, objekter: [] });
-          }}
-        >
-          <span class="lag-tittel">
-            {lag.navn}
-            {lag.tekstlag && (
-              <span class="merke lag-merke">
-                {objekter.length > 1 ? `Gruppe · ${objekter.length}` : 'Tekst'}
-              </span>
-            )}
-          </span>
-          <span class="mono lag-z">
-            {tall(lag.zBunn)}–{tall(lag.zBunn + lag.hoyde)} mm ·{' '}
-            {lag.tekstvisning === 'kutt' ? 'skåret ut' : mat.navn}
-          </span>
-        </button>
-        <button
-          type="button"
-          class="minibryter synlighet"
-          aria-pressed={lag.synlig}
-          title={lag.synlig ? 'Skjul laget' : 'Vis laget'}
+        <Miniatyr dok={t.dok} lag={lag} farge={mat.hex} />
+        {dnd.omdop === lag.id ? (
+          <input
+            class="lag-omdop"
+            type="text"
+            aria-label="Nytt navn på laget"
+            defaultValue={lag.navn}
+            ref={(el) => el?.focus()}
+            onFocus={(e) => (e.target as HTMLInputElement).select()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') dnd.ferdigOmdop();
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+            onBlur={(e) => {
+              const nytt = (e.target as HTMLInputElement).value.trim();
+              if (dnd.omdop === lag.id && nytt && nytt !== lag.navn)
+                endreLag('Gi laget nytt navn', { navn: nytt });
+              dnd.ferdigOmdop();
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            class="lag-navn"
+            aria-current={aktiv ? 'true' : undefined}
+            onClick={() => {
+              signtilstand(benk).sett({ omriss: null });
+              benk.velg({ lag: lag.id, objekter: [] });
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              signtilstand(benk).sett({ omriss: null });
+              benk.velg({ lag: lag.id, objekter: [] });
+              dnd.apneMeny(lag.id, e.clientX, e.clientY);
+            }}
+            onDblClick={() => {
+              if (!lag.last) dnd.startOmdop(lag.id);
+            }}
+          >
+            <span class="lag-tittel">
+              {lag.navn}
+              {lag.tekstlag && (
+                <span class="merke lag-merke">
+                  {objekter.length > 1 ? `Gruppe · ${objekter.length}` : 'Tekst'}
+                </span>
+              )}
+            </span>
+            <span class="mono lag-z">
+              {tall(lag.zBunn)}–{tall(lag.zBunn + lag.hoyde)} mm ·{' '}
+              {lag.tekstvisning === 'kutt' ? 'skåret ut' : mat.navn}
+            </span>
+          </button>
+        )}
+        <Bryter
+          type="synlighet"
+          paa={lag.synlig}
+          navn={lag.navn}
+          tittel={lag.synlig ? 'Skjul laget' : 'Vis laget'}
           onClick={() => endreLag(lag.synlig ? 'Skjul lag' : 'Vis lag', { synlig: !lag.synlig })}
-        >
-          Synlig
-          <span class="visuelt-skjult"> {lag.navn}</span>
-        </button>
-        <button
-          type="button"
-          class="minibryter las"
-          aria-pressed={lag.last}
-          title={lag.last ? 'Lås opp laget' : 'Lås laget'}
+        />
+        <Bryter
+          type="las"
+          paa={lag.last}
+          navn={lag.navn}
+          tittel={lag.last ? 'Lås opp laget' : 'Lås laget'}
           onClick={() => endreLag(lag.last ? 'Lås opp lag' : 'Lås lag', { last: !lag.last })}
-        >
-          Låst
-          <span class="visuelt-skjult"> {lag.navn}</span>
-        </button>
+        />
       </div>
       {apen && (
         <ul class="objektliste" role="list">
@@ -230,39 +427,36 @@ function Lagrad({
                   {o.navn}
                   {o.operasjon === 'trekk-fra' && <span class="mono merke"> kutter</span>}
                 </button>
-                <button
-                  type="button"
-                  class="minibryter synlighet"
-                  aria-pressed={o.synlig}
+                <Bryter
+                  type="synlighet"
+                  paa={o.synlig}
+                  navn={o.navn}
+                  tittel={o.synlig ? 'Skjul objektet' : 'Vis objektet'}
                   onClick={() =>
                     benk.endre({
                       navn: o.synlig ? 'Skjul objekt' : 'Vis objekt',
                       anvend: (d) => oppdaterObjekter(d, [o.id], (x) => ({ ...x, synlig: !x.synlig })),
                     })
                   }
-                >
-                  Synlig
-                  <span class="visuelt-skjult"> {o.navn}</span>
-                </button>
-                <button
-                  type="button"
-                  class="minibryter las"
-                  aria-pressed={o.last}
+                />
+                <Bryter
+                  type="las"
+                  paa={o.last}
+                  navn={o.navn}
+                  tittel={o.last ? 'Lås opp objektet' : 'Lås objektet'}
                   onClick={() =>
                     benk.endre({
                       navn: o.last ? 'Lås opp objekt' : 'Lås objekt',
                       anvend: (d) => oppdaterObjekter(d, [o.id], (x) => ({ ...x, last: !x.last })),
                     })
                   }
-                >
-                  Låst
-                  <span class="visuelt-skjult"> {o.navn}</span>
-                </button>
+                />
               </li>
             );
           })}
         </ul>
       )}
+      {apen && <Utledet benk={benk} lag={lag} />}
       {apen && lag.tekstlag && (
         <div class="omrissliste">
           {(lag.omriss ?? []).length > 0 && (
@@ -388,7 +582,106 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
     !!finnLag(t.dok, draObjekt.lagId)?.tekstlag &&
     (t.dok.rekkefolge[draObjekt.lagId]?.length ?? 0) > 1 &&
     draObjekt.kilde.type !== 'form';
-  const dnd: Dnd = { dra, start, slutt, over, settOver, kan, slipp };
+  const [omdop, settOmdop] = useState<string | null>(null);
+  const [lagmeny, settLagmeny] = useState<{ lagId: string; x: number; y: number } | null>(null);
+  const lukkMeny = () => settLagmeny(null);
+  const dnd: Dnd = {
+    dra,
+    start,
+    slutt,
+    over,
+    settOver,
+    kan,
+    slipp,
+    omdop,
+    ferdigOmdop: () => settOmdop(null),
+    apneMeny: (lagId, x, y) => settLagmeny({ lagId, x, y }),
+    startOmdop: settOmdop,
+  };
+  const menyLag = lagmeny ? finnLag(t.dok, lagmeny.lagId) : undefined;
+  const menyIndeks = menyLag ? t.dok.lag.findIndex((l) => l.id === menyLag.id) : -1;
+  const menyValg: MenyValg[] = menyLag
+    ? [
+        {
+          id: 'navn',
+          navn: 'Gi nytt navn',
+          ikon: 'properties',
+          av: menyLag.last,
+          gjor: () => settOmdop(menyLag.id),
+        },
+        {
+          id: 'profil',
+          navn: 'Rediger profil …',
+          ikon: 'width',
+          gjor: () => {
+            benk.velg({ lag: menyLag.id, objekter: [] });
+            benk.kommando('panel:profil');
+          },
+        },
+        {
+          id: 'dupliser',
+          navn: 'Dupliser',
+          ikon: 'duplicate',
+          gjor: () => {
+            let ny = menyLag.id;
+            benk.endre({
+              navn: 'Dupliser lag',
+              anvend: (d) => {
+                const r = dupliserLag(d, menyLag.id);
+                ny = r.nyId;
+                return r.dok;
+              },
+            });
+            benk.velg({ lag: ny, objekter: [] });
+          },
+        },
+        {
+          id: 'synlig',
+          navn: menyLag.synlig ? 'Skjul' : 'Vis',
+          ikon: 'visible',
+          gjor: () =>
+            benk.endre({
+              navn: menyLag.synlig ? 'Skjul lag' : 'Vis lag',
+              anvend: (d) => oppdaterLag(d, menyLag.id, { synlig: !menyLag.synlig }),
+            }),
+        },
+        {
+          id: 'las',
+          navn: menyLag.last ? 'Lås opp' : 'Lås',
+          ikon: menyLag.last ? 'unlock' : 'lock',
+          gjor: () =>
+            benk.endre({
+              navn: menyLag.last ? 'Lås opp lag' : 'Lås lag',
+              anvend: (d) => oppdaterLag(d, menyLag.id, { last: !menyLag.last }),
+            }),
+        },
+        {
+          id: 'opp',
+          navn: 'Flytt opp',
+          ikon: 'bring-forward',
+          av: menyIndeks >= t.dok.lag.length - 1,
+          gjor: () => benk.endre({ navn: 'Flytt lag opp', anvend: (d) => flyttLag(d, menyLag.id, 1) }),
+        },
+        {
+          id: 'ned',
+          navn: 'Flytt ned',
+          ikon: 'send-backward',
+          av: menyIndeks <= 0,
+          gjor: () => benk.endre({ navn: 'Flytt lag ned', anvend: (d) => flyttLag(d, menyLag.id, -1) }),
+        },
+        {
+          id: 'slett',
+          navn: 'Slett',
+          ikon: 'delete',
+          farlig: true,
+          av: t.dok.lag.length <= 1,
+          gjor: () => {
+            benk.endre({ navn: 'Slett lag', anvend: (d) => slettLag(d, menyLag.id) });
+            benk.melde(`Laget «${menyLag.navn}» er slettet. Angre med Ctrl+Z.`);
+          },
+        },
+      ]
+    : [];
 
   const svg = (rolle: Svgrolle) => {
     settMeny(false);
@@ -398,6 +691,7 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
 
   return (
     <div class="lagpanel">
+      {lagmeny && menyLag && <Lagmeny x={lagmeny.x} y={lagmeny.y} valg={menyValg} lukk={lukkMeny} />}
       <div class="panel">
         <h2 class="panel-tittel">
           <span>Lag, øverst først</span>

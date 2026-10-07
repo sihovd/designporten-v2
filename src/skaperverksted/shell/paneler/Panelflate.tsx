@@ -293,6 +293,12 @@ export function Panelflate({ benk, defs, lager, send, children }: Props) {
                   role="separator"
                   aria-orientation="horizontal"
                   aria-label={`Endre høyden mellom ${tittelAv(forrige)} og ${tittelAv(g)}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(
+                    (100 * (levendeVekt?.[forrige.id] ?? forrige.vekt)) /
+                      ((levendeVekt?.[forrige.id] ?? forrige.vekt) + (levendeVekt?.[g.id] ?? g.vekt)),
+                  )}
                   tabIndex={0}
                   onPointerDown={(e) => startDeling(e, forrige, g)}
                   onKeyDown={(e) => {
