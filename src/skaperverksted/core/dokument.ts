@@ -9,6 +9,7 @@
  * go to workers and into undo history cheaply.
  */
 import type { Transform2D } from './geometri2d';
+import type { Strek } from '../geometri/strek';
 import type { Profil } from './profil';
 
 export const DOKUMENT_VERSJON = 1;
@@ -43,6 +44,11 @@ export interface SvgKilde {
   dekorId?: string;
   /** Marks the vector as a batch variable (CSV column name): the cell names the gallery element. */
   felt?: string;
+  /**
+   * A Paint stroke: the centre line and width profile `stier` was drawn from, so the width can be
+   * changed afterwards. Editing the outline's points turns it into an ordinary vector (this is dropped).
+   */
+  strek?: Strek;
 }
 
 export interface FormKilde {

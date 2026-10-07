@@ -6,7 +6,7 @@ import { mal } from '../../shell/mal';
 import { meta } from './meta';
 import { fargeplasser, nyttSigngenDokument, ordneTekstlag } from './dokument';
 import { byggSigngen } from './modell';
-import { SigngenLerret } from './SigngenLerret';
+import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
 import { Lagpanel } from './Lagpanel';
 import { SigngenInspektor } from './Inspektor';
@@ -35,6 +35,10 @@ const plugin: GeneratorPlugin = {
     const mod = e.ctrlKey || e.metaKey;
     const tast = e.key.toLowerCase();
     const lager = signtilstand(benk);
+    if (lager.t.utkastForm?.form === 'polygon' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      endreUtkastSider(benk, e.key === 'ArrowUp' ? 1 : -1);
+      return true;
+    }
     if (lager.t.verktoy === 'penn') {
       if (e.key === 'Enter' || e.key === 'Escape') {
         if (pennPagar(benk)) fullforPenn(benk, false);
@@ -137,7 +141,8 @@ const plugin: GeneratorPlugin = {
     return false;
   },
   hurtigtastListe: [
-    ['V T R E P B H M', 'Velg, Tekst, Rektangel, Ellipse, Polygon, Penn, Hull, Mål'],
+    ['V T R E P B F H M', 'Velg, Tekst, Rektangel, Ellipse, Polygon, Penn, Paint, Hull, Mål'],
+    ['Mangekant: musehjul, ↑ ↓ mens du drar', 'Flere eller færre sider (3 sider = trekant)'],
     ['Shift + klikk, dra rundt', 'Velg flere'],
     ['Ctrl/Cmd + A', 'Velg alt i laget'],
     ['Piltaster', 'Flytt 1 mm (Shift: 10 mm)'],
@@ -148,6 +153,9 @@ const plugin: GeneratorPlugin = {
     ['Dobbeltklikk på tekst', 'Rediger teksten'],
     ['Dobbeltklikk på en SVG', 'Rediger punkter og kurver'],
     ['Penn: klikk / dra', 'Hjørnepunkt / jevn kurve (Alt: bare neste håndtak)'],
+    ['Penn: hold Space mens du setter punktet', 'Flytt punktet i stedet for å dra ut håndtak'],
+    ['Penn: Shift', 'Neste segment (eller håndtaket) låses til 45°'],
+    ['Paint: dra', 'Mal et strøk; bredde, breddepunkter, Smooth og tupp endres etterpå'],
     ['Penn: Enter, dobbeltklikk', 'Fullfør åpen bane (klikk første punkt lukker)'],
     ['Punkter: Delete, piler', 'Slett punkt, kurve eller form · flytt 0,1 mm (Shift: 1 mm)'],
     ['Dobbeltklikk på kurve / punkt', 'Legg til punkt / bytt mellom hjørne og jevn'],

@@ -7,10 +7,21 @@ import { useEffect, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Boks, Vec2 } from '../../core/geometri2d';
 import type { Bane, NodeRef } from '../../geometri/bane';
+import type { ProfilId } from '../../geometri/strek';
 import type { SvgDeler } from './svgdeler';
 
 export type VerktoyId =
-  'velg' | 'tekst' | 'rektangel' | 'ellipse' | 'polygon' | 'hull' | 'penn' | 'mal' | 'panorer';
+  | 'velg'
+  | 'tekst'
+  | 'rektangel'
+  | 'ellipse'
+  | 'polygon'
+  | 'trekant'
+  | 'hull'
+  | 'penn'
+  | 'paint'
+  | 'mal'
+  | 'panorer';
 
 /** A line shown while dragging to say what the edge snapped to (transient). */
 export interface Snaplinje {
@@ -89,6 +100,18 @@ export interface GuideDra {
   tilbake: boolean;
 }
 
+/** What a new Paint stroke is drawn with (changed on the bar above the canvas; each stroke keeps its own copy). */
+export interface Paintvalg {
+  /** Base width (mm). */
+  bredde: number;
+  profil: ProfilId;
+  /** Smoothing of the centre line, 0 to 1. */
+  glatt: number;
+  /** Taper at the start and end, as a share of the stroke (0 = round). */
+  tuppStart: number;
+  tuppSlutt: number;
+}
+
 export interface Signtilstand {
   verktoy: VerktoyId;
   snaplinjer: Snaplinje[];
@@ -96,6 +119,13 @@ export interface Signtilstand {
   maling: { a: Vec2; b: Vec2 } | null;
   /** Form being drawn with a shape tool. */
   utkast: Boks | null;
+  /** What the draft is (the wheel changes the number of sides of a polygon while drawing). */
+  utkastForm: { form: 'rektangel' | 'ellipse' | 'polygon'; sider: number } | null;
+  /** The number of sides last used for polygons (the mouse wheel changes it while drawing). */
+  formSider: number;
+  paint: Paintvalg;
+  /** The Paint stroke being drawn: the points so far (model coordinates). */
+  paintUtkast: Vec2[] | null;
   /** Live dimension label while dragging (screen anchored in mm space). */
   maletikett: { p: Vec2; tekst: string } | null;
   /** The outline last chosen in the layers panel (highlighted in the inspector). */
@@ -125,6 +155,10 @@ class Lager {
     markering: null,
     maling: null,
     utkast: null,
+    utkastForm: null,
+    formSider: 6,
+    paint: { bredde: 3, profil: 'jevn', glatt: 0.5, tuppStart: 0, tuppSlutt: 0 },
+    paintUtkast: null,
     maletikett: null,
     omriss: null,
     fargeprofil: false,

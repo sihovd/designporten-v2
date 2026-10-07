@@ -28,13 +28,35 @@ export const VERKTOY: {
   { id: 'tekst', navn: 'Tekst', tast: 'T', ikon: 'text', hjelp: 'Klikk på lerretet for å skrive' },
   { id: 'rektangel', navn: 'Rektangel', tast: 'R', ikon: 'rektangel', hjelp: 'Dra for å tegne et rektangel' },
   { id: 'ellipse', navn: 'Ellipse', tast: 'E', ikon: 'ellipse', hjelp: 'Dra for å tegne en ellipse' },
-  { id: 'polygon', navn: 'Polygon', tast: 'P', ikon: 'polygon', hjelp: 'Dra for å tegne en mangekant' },
+  {
+    id: 'polygon',
+    navn: 'Polygon',
+    tast: 'P',
+    ikon: 'polygon',
+    hjelp: 'Dra for å tegne en mangekant. Musehjulet endrer antall sider mens du drar',
+  },
+  {
+    id: 'trekant',
+    navn: 'Trekant',
+    tast: '',
+    ikon: 'trekant',
+    hjelp: 'Dra for å tegne en trekant. Musehjulet gir flere sider mens du drar',
+  },
   {
     id: 'penn',
     navn: 'Penn',
     tast: 'B',
     ikon: 'pen',
-    hjelp: 'Tegn en kurve: klikk for hjørne, dra for jevn kurve, klikk første punkt for å lukke',
+    hjelp:
+      'Tegn en kurve: klikk for hjørne, dra for jevn kurve, klikk første punkt for å lukke. Hold Space mens du setter et punkt for å flytte det, Shift låser til 45°',
+  },
+  {
+    id: 'paint',
+    navn: 'Paint',
+    tast: 'F',
+    ikon: 'paint',
+    hjelp:
+      'Mal et strøk frihånd. Bredden, breddepunkter, Smooth og tupp kan endres etterpå. Strøket blir en vektor',
   },
   {
     id: 'hull',
@@ -47,7 +69,7 @@ export const VERKTOY: {
   { id: 'panorer', navn: 'Panorer', tast: 'Space', ikon: 'pan', hjelp: 'Dra for å flytte visningen' },
 ];
 
-const FORMER: VerktoyId[] = ['rektangel', 'ellipse', 'polygon'];
+const FORMER: VerktoyId[] = ['rektangel', 'ellipse', 'trekant', 'polygon'];
 const verktoyInfo = (id: VerktoyId) => VERKTOY.find((v) => v.id === id)!;
 
 /** The tool rail's SVG button: a decoration in a layer of its own. */
@@ -106,7 +128,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
     <>
       {enkle(['velg', 'tekst'])}
       <Formverktoy benk={benk} aktiv={i2d ? st.verktoy : null} velg={velg} />
-      {enkle(['penn', 'hull', 'mal', 'panorer'])}
+      {enkle(['penn', 'paint', 'hull', 'mal', 'panorer'])}
       <span class="skinne-skille" aria-hidden="true" />
       {hjelpeknapp(
         'SVG',
@@ -290,7 +312,7 @@ function Snapverktoy({ benk }: { benk: Arbeidsbenk }) {
 }
 
 /**
- * «Former»: one tool for rectangle, ellipse and polygon. A click picks the
+ * «Former»: one tool for rectangle, ellipse, triangle and polygon. A click picks the
  * last used shape; a click on the active tool, a right-click, a long press or
  * the Down arrow opens the list. R, E and P still pick a shape directly.
  */
@@ -314,7 +336,7 @@ function Formverktoy({
     <>
       <Tips
         navn="Former"
-        hjelp="Rektangel, ellipse og polygon. Klikk igjen, høyreklikk eller hold inne for å velge form"
+        hjelp="Rektangel, ellipse, trekant og polygon. Klikk igjen, høyreklikk eller hold inne for å velge form. Musehjulet endrer antall sider mens du tegner en mangekant"
         tast="R E P"
       >
         {(p) => (
@@ -375,7 +397,7 @@ function Formverktoy({
               >
                 <Ikon id={f.ikon} storrelse={18} />
                 {f.navn}
-                <kbd>{f.tast}</kbd>
+                {f.tast && <kbd>{f.tast}</kbd>}
               </button>
             );
           })}

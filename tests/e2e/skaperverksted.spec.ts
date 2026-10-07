@@ -551,6 +551,103 @@ test.describe('Signgen', () => {
     await expect(page.locator('.statuslinje')).toContainText('mm');
   });
 
+  test('trekant fra Former-menyen, og musehjulet gir flere sider mens man drar', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Musehjul brukes på brede skjermer');
+    const former = page.getByRole('button', { name: 'Former', exact: true });
+    await former.click();
+    await former.click();
+    await page.getByRole('menuitemradio', { name: /Trekant/ }).click();
+    const b = (await page.locator('canvas').first().boundingBox())!;
+    await page.mouse.move(b.x + b.width * 0.2, b.y + b.height * 0.2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.35, b.y + b.height * 0.35, { steps: 4 });
+    await page.mouse.wheel(0, -100); // one notch up: one side more
+    await page.mouse.wheel(0, -100);
+    await page.mouse.up();
+    const sider = page.getByLabel('Antall sider');
+    await expect(sider).toHaveValue('5');
+    // without the wheel the triangle tool makes a triangle
+    await former.click();
+    await former.click();
+    await page.getByRole('menuitemradio', { name: /Trekant/ }).click();
+    await page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.65, b.y + b.height * 0.35, { steps: 4 });
+    await page.mouse.up();
+    await expect(sider).toHaveValue('3');
+    await expect(page.locator('.objektliste li').filter({ hasText: 'Trekant' })).toHaveCount(1);
+  });
+
+  test('Paint lager et strøk med breddepunkter som kan endres etterpå', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Frihåndstegning testes på brede skjermer');
+    await page.getByRole('button', { name: 'Paint', exact: true }).click();
+    await page.getByRole('radio', { name: 'Penselstrøk' }).click();
+    const b = (await page.locator('canvas').first().boundingBox())!;
+    await page.mouse.move(b.x + b.width * 0.2, b.y + b.height * 0.25);
+    await page.mouse.down();
+    for (let i = 1; i <= 20; i++)
+      await page.mouse.move(
+        b.x + b.width * (0.2 + i * 0.02),
+        b.y + b.height * (0.25 + 0.08 * Math.sin(i / 4)),
+      );
+    await page.mouse.up();
+    await expect(page.locator('.objektliste li').filter({ hasText: 'Strek' })).toHaveCount(1);
+    const insp = page.getByRole('region', { name: 'Strek' });
+    await expect(insp).toBeVisible();
+    await expect(insp.getByRole('radio', { name: 'Penselstrøk' })).toBeChecked();
+    await expect(page.getByRole('list', { name: 'Breddepunkter' }).locator('li')).toHaveCount(4);
+    // a new width point, then a ready-made profile again
+    await insp.getByRole('button', { name: '+ Breddepunkt' }).click();
+    await expect(page.getByRole('list', { name: 'Breddepunkter' }).locator('li')).toHaveCount(5);
+    await expect(insp.getByRole('radio', { name: 'Egen' })).toBeChecked();
+    await insp.getByRole('radio', { name: 'Spiss' }).click();
+    await expect(page.getByRole('list', { name: 'Breddepunkter' }).locator('li')).toHaveCount(3);
+    // the width can be changed
+    const bredde = insp.getByLabel('Bredde på strøket');
+    await bredde.fill('6');
+    await bredde.press('Enter');
+    await expect(bredde).toHaveValue('6');
+    // undo goes back one step at a time
+    await page.keyboard.press('Control+z');
+    await expect(bredde).toHaveValue('3');
+    // turned into an ordinary vector: the stroke settings go, curve editing stays
+    await insp.getByRole('button', { name: 'Gjør om til vektor' }).click();
+    await expect(page.getByRole('region', { name: 'Strek' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Rediger kurver' }).first()).toBeVisible();
+  });
+
+  test('den boolske linjen slår sammen og trekker fra former', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Linjen testes på brede skjermer');
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    for (const [x0, x1] of [
+      [0.2, 0.32],
+      [0.28, 0.4],
+    ] as const) {
+      await page.keyboard.press('r');
+      await page.mouse.move(b.x + b.width * x0, b.y + b.height * 0.2);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width * x1, b.y + b.height * 0.3, { steps: 4 });
+      await page.mouse.up();
+    }
+    const antall = await page.locator('.objektliste li').count();
+    await page.keyboard.press('v');
+    await page.keyboard.press('Control+a'); // both rectangles are in the same layer
+    const linje = page.getByRole('toolbar', { name: 'Kombiner former' });
+    await expect(linje).toBeVisible();
+    for (const navn of ['Union', 'Subtract', 'Intersect', 'Exclude'])
+      await expect(linje.getByRole('button', { name: navn, exact: true })).toBeEnabled();
+    await linje.getByRole('button', { name: 'Union', exact: true }).click();
+    await expect(page.locator('.objektliste li').filter({ hasText: 'Union' })).toHaveCount(1);
+    expect(await page.locator('.objektliste li').count()).toBeLessThan(antall);
+    // one step back restores both rectangles
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('.objektliste li').filter({ hasText: 'Union' })).toHaveCount(0);
+  });
+
   test('verktøyene har bare ikon, med navn og forklaring etter litt hover, og Former har en meny', async ({
     page,
     isMobile,

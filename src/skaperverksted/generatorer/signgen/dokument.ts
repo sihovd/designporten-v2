@@ -182,6 +182,7 @@ export function nyttObjekt(
 export function standardNavn(k: ObjektKilde): string {
   if (k.type === 'tekst') return `Tekst «${k.tekst.split('\n')[0]!.slice(0, 18)}»`;
   if (k.type === 'svg') return k.filnavn.replace(/\.svg$/i, '');
+  if (k.form === 'polygon' && Math.round(k.sider) === 3) return 'Trekant';
   return { rektangel: 'Rektangel', ellipse: 'Ellipse', polygon: 'Polygon', hull: 'Opphengshull' }[k.form];
 }
 
@@ -319,7 +320,12 @@ export function oppdaterObjekter(dok: Dokument, ider: ObjektId[], fn: (o: Objekt
 }
 
 export function oppdaterKilde(dok: Dokument, id: ObjektId, endring: Partial<ObjektKilde>): Dokument {
-  return oppdaterObjekter(dok, [id], (o) => ({ ...o, kilde: { ...o.kilde, ...endring } as ObjektKilde }));
+  return oppdaterObjekter(dok, [id], (o) => {
+    const kilde = { ...o.kilde, ...endring } as ObjektKilde;
+    // editing the outline's points of a Paint stroke makes it an ordinary vector
+    if (kilde.type === 'svg' && 'stier' in endring && !('strek' in endring)) delete kilde.strek;
+    return { ...o, kilde };
+  });
 }
 
 export function slettObjekter(dok: Dokument, ider: ObjektId[]): Dokument {

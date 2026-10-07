@@ -45,6 +45,7 @@ import { antallAapne } from '../../geometri/bane';
 import { hentBaner, settKurve, startKurveredigering } from './kurver';
 import { nyttOmrissI } from './Lagpanel';
 import { PROFILER, Profilseksjon } from './Profilseksjon';
+import { Strekseksjon } from './Strekpanel';
 import { brukPanelKontekst } from '../../shell/paneler/kontekst';
 import { folgerNavnet, hullanker, settHullavstand } from './batch';
 import { plangrenser } from '../../core/plangrenser';
@@ -270,7 +271,17 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
 
   return (
     <>
-      <Panel tittel={o.kilde.type === 'tekst' ? 'Tekst' : o.kilde.type === 'svg' ? 'SVG' : 'Form'}>
+      <Panel
+        tittel={
+          o.kilde.type === 'tekst'
+            ? 'Tekst'
+            : o.kilde.type === 'svg'
+              ? o.kilde.strek
+                ? 'Strek'
+                : 'SVG'
+              : 'Form'
+        }
+      >
         {tekst && (
           <>
             <label class="felt stablet" for="signgen-tekst">
@@ -388,7 +399,8 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
           />
         )}
         {o.kilde.type === 'form' && o.kilde.form === 'hull' && <Hullvalg benk={benk} o={o} endre={endre} />}
-        {o.kilde.type === 'svg' && (
+        {o.kilde.type === 'svg' && o.kilde.strek && <Strekseksjon benk={benk} o={o} />}
+        {o.kilde.type === 'svg' && !o.kilde.strek && (
           <>
             <p class="merknad">
               {o.kilde.dekorId ? `Dekor: ${o.kilde.filnavn}.` : `Importert fra «${o.kilde.filnavn}».`}

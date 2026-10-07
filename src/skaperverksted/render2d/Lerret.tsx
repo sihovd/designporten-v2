@@ -17,6 +17,8 @@ export interface Pekerhendelse {
   skjerm: Vec2;
   e: PointerEvent;
   visning: Visning;
+  /** Space is held (a tool may use it, as the pen does to move the point being placed). */
+  mellomrom: boolean;
 }
 
 export interface Verktoyhandler {
@@ -27,6 +29,11 @@ export interface Verktoyhandler {
   opp?(h: Pekerhendelse): void;
   /** Pointer left the canvas or was cancelled. */
   avbryt?(): void;
+  /**
+   * The wheel turned while a drag with this tool is in progress. Return true to use it (the view
+   * then does not zoom), for example to change the number of sides of a polygon being drawn.
+   */
+  hjul?(e: WheelEvent): boolean;
 }
 
 export interface Farger {
@@ -238,7 +245,7 @@ export function Lerret({
     const hendelse = (e: PointerEvent): Pekerhendelse => {
       const v = visning();
       const s = pos(e);
-      return { modell: v.tilModell(s), skjerm: s, e, visning: v };
+      return { modell: v.tilModell(s), skjerm: s, e, visning: v, mellomrom };
     };
     const oppdaterMarkor = () => {
       c.style.cursor = pan
@@ -344,6 +351,7 @@ export function Lerret({
     };
     const hjul = (e: WheelEvent) => {
       e.preventDefault();
+      if (verktoyAktiv && aktivtVerktoy()?.hjul?.(e)) return;
       if (e.shiftKey && !e.ctrlKey) {
         const px = visning().pxPerMm;
         benk.settUtsnitt({ senterX: benk.tilstand.utsnitt.senterX + (e.deltaY || e.deltaX) / px });

@@ -129,3 +129,12 @@ export function snapPunkt(
   }
   return ut;
 }
+
+/** The point on the nearest 45° line from `fra` (Shift while drawing): the part of the movement along it. */
+export function laas45Punkt(fra: Vec2, til: Vec2): Vec2 {
+  const dx = til.x - fra.x,
+    dy = til.y - fra.y;
+  const a = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  const lengde = dx * Math.cos(a) + dy * Math.sin(a);
+  return { x: fra.x + lengde * Math.cos(a), y: fra.y + lengde * Math.sin(a) };
+}
