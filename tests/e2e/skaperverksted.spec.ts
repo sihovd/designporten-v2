@@ -501,6 +501,72 @@ test.describe('Signgen', () => {
     await expect(felt).toHaveValue('5,2');
   });
 
+  test('Profil-panelet viser tverrsnittet, flytter ankrene på bunn og topp og viser støtten', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    // the inspector points to the panel, which is closed in this workspace
+    await page.locator('.lagrad .lag-navn').first().click();
+    await page.getByRole('button', { name: 'Åpne Profil-panelet' }).click();
+    const panel = page.getByRole('region', { name: /^Profil: / });
+    await expect(panel).toBeVisible();
+    // the layer sits on the build plate
+    await expect(panel.locator('.profilgraf')).toContainText('byggeplaten');
+    await panel.getByLabel('Veggen').selectOption('konveks');
+    const topp = panel.getByLabel('Toppkant, innover');
+    await expect(topp).toHaveValue('1,5');
+    await topp.fill('2,5');
+    await topp.press('Enter');
+    await expect(topp).toHaveValue('2,5');
+    // dragging the top anchor along the top edge changes it, and one drag is one undo step
+    const anker = panel.locator('.profil-anker.kant').last();
+    const b = (await anker.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x - 40, b.y + 60, { steps: 6 }); // the pointer leaves the edge: still on the edge
+    await page.mouse.up();
+    const etter = Number((await topp.inputValue()).replace(',', '.'));
+    expect(etter).toBeLessThan(2.5);
+    // an older profile type stays selectable
+    await panel.getByLabel('Veggen').selectOption('egendefinert');
+    await expect(panel.getByRole('button', { name: /Gjør (glatt|til hjørne)/ })).toBeVisible();
+    const r = await new AxeBuilder({ page }).exclude('canvas').analyze();
+    expect(
+      r.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.html.slice(0, 120)).join(' | ')}`),
+    ).toEqual([]);
+  });
+
+  test('høyreklikk på et lag gir en meny, og laget kan få nytt navn på stedet', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Lagpanelet testes på desktop');
+    const navn = page.locator('.lagrad .lag-navn').first();
+    await navn.click({ button: 'right' });
+    const meny = page.getByRole('menu', { name: 'Lag' });
+    await expect(meny).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(meny).toBeHidden();
+    await navn.click({ button: 'right' });
+    await meny.getByRole('menuitem', { name: 'Gi nytt navn' }).click();
+    const felt = page.getByLabel('Nytt navn på laget');
+    await felt.fill('Hovedtekst');
+    await felt.press('Enter');
+    await expect(page.locator('.lagrad .lag-tittel').first()).toContainText('Hovedtekst');
+    // Rediger profil opens the Profil panel for that layer
+    await page.locator('.lagrad .lag-navn').first().click({ button: 'right' });
+    await meny.getByRole('menuitem', { name: /Rediger profil/ }).click();
+    await expect(page.getByRole('region', { name: 'Profil: Hovedtekst' })).toBeVisible();
+    // visibility and lock are icon buttons with names, and the thumbnail is there
+    await expect(page.locator('.lagrad .lag-miniatyr').first()).toBeVisible();
+    await page.getByRole('button', { name: 'Synlig Hovedtekst' }).click();
+    await expect(page.getByRole('button', { name: 'Synlig Hovedtekst' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
   test('har ingen tilgjengelighetsfeil i verkstedet', async ({ page }) => {
     const r = await new AxeBuilder({ page }).exclude('canvas').analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);

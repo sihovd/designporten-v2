@@ -188,7 +188,7 @@ export function planleggSkiver(
   hoyde: number,
   lagHoyde: number,
 ): { z0: number; z1: number; inset: number }[] {
-  if (profil.bredde <= 0 || profil.type === 'rett') return [{ z0: 0, z1: hoyde, inset: 0 }];
+  if (profil.bredde <= 0) return [{ z0: 0, z1: hoyde, inset: 0 }];
   const prover = samplerProfil(profil, 16);
   const n = Math.max(1, Math.round(hoyde / Math.max(0.05, lagHoyde)));
   const ut: { z0: number; z1: number; inset: number }[] = [];

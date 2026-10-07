@@ -19,6 +19,8 @@ import { Statuslinje } from './Statuslinje';
 import { Ark } from './Ark';
 import { Ikon } from './ikoner';
 import { Panelflate } from './paneler/Panelflate';
+import { PanelKontekst } from './paneler/kontekst';
+import { apnePanel, finnGruppe, loft, settAktiv, slaaSammen } from './paneler/modell';
 import { Panelmeny } from './paneler/Panelmeny';
 import { brukPaneler } from './paneler/bruk-paneler';
 import { logomerke } from '../../lib/ressurser';
@@ -107,6 +109,28 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
       if (benk.kommandoer.get('vis-venstrepanel') === vis) benk.kommandoer.delete('vis-venstrepanel');
     };
   }, [benk]);
+
+  // «panel:<id>» opens (or brings forward) a panel, for example from a tool or a button in the inspector
+  const apneForPanel = useRef<(id: string) => void>(() => {});
+  apneForPanel.current = (id) =>
+    paneler.send({
+      t: 'endre',
+      f: (o) => {
+        const g = finnGruppe(o, id);
+        if (g) return loft(settAktiv(o, g.id, id), g.id);
+        const o2 = apnePanel(o, id, paneler.standardPlass(id));
+        const nabo = ui.Paneler?.find((p) => p.id === id)?.fane;
+        const m = nabo ? finnGruppe(o2, nabo) : undefined;
+        const ny = finnGruppe(o2, id);
+        return m && ny && m.id !== ny.id ? slaaSammen(o2, ny.id, m.id) : o2;
+      },
+    });
+  useEffect(() => {
+    if (!harPaneler) return;
+    const navn = (ui.Paneler ?? []).map((p) => `panel:${p.id}`);
+    navn.forEach((n) => benk.kommandoer.set(n, () => apneForPanel.current(n.slice(6))));
+    return () => navn.forEach((n) => benk.kommandoer.delete(n));
+  }, [benk, harPaneler, ui]);
 
   useEffect(() => {
     if (gjenopprettet.current) benk.melde('Prosjektet ditt fra forrige gang er hentet fram.');
@@ -366,9 +390,11 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
           {plugin.navn}: {t.dok.navn}
         </h1>
         {harPaneler ? (
-          <Panelflate benk={benk} defs={ui.Paneler!} lager={paneler.lager} send={paneler.send}>
-            {lerretInnhold}
-          </Panelflate>
+          <PanelKontekst.Provider value={true}>
+            <Panelflate benk={benk} defs={ui.Paneler!} lager={paneler.lager} send={paneler.send}>
+              {lerretInnhold}
+            </Panelflate>
+          </PanelKontekst.Provider>
         ) : (
           <>
             {lerretInnhold}

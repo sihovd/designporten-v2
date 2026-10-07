@@ -4,7 +4,7 @@ import path from 'node:path';
 import { settFontHenter } from '../../geometri/tekst';
 import { sjekkManifold, volum } from '../../geometri/mesh';
 import { areal } from '../../geometri/polygon';
-import { forhandsvalg } from '../../core/profil';
+import { byggProfil, forhandsvalg } from '../../core/profil';
 import { finnLag } from '../../core/dokument';
 import {
   dupliserObjekter,
@@ -18,7 +18,7 @@ import {
   slettLag,
   slettObjekter,
 } from './dokument';
-import { byggSigngen, lagRegion, lastFonter } from './modell';
+import { byggSigngen, lagRegion, lagStotte, lastFonter } from './modell';
 
 beforeAll(() => {
   settFontHenter(async (fil) => {
@@ -121,5 +121,35 @@ describe('Signgen model', () => {
     d = leggTilObjekt(d, nyttObjekt(d.lag[1]!.id, nyForm('rektangel', 20, 0.4), { y: -15 }));
     const r = await byggSigngen(d);
     expect(r.advarsler.some((a) => a.tekst.includes('tynnere enn'))).toBe(true);
+  });
+
+  it('støtten fra laget under følger profilen på laget under', async () => {
+    let d = skiltMedPlate();
+    await lastFonter(d);
+    const [bunn, tekst] = d.lag;
+    expect(lagStotte(d, bunn!.id).niva).toBe('plate');
+    // the text sits well inside the plate
+    expect(lagStotte(d, tekst!.id)).toMatchObject({ niva: 'full', trengtInset: 0 });
+    // a second slab as big as the plate, resting on it
+    const topp = nyttLag('Topp', 'pla-kritthvit', 1);
+    d = leggTilLag(d, topp, bunn!.id);
+    d = leggTilObjekt(d, nyttObjekt(topp.id, nyForm('rektangel', 120, 42, 6), {}, 'Topp'));
+    expect(lagStotte(d, topp.id)).toMatchObject({ niva: 'full', trengtInset: 0 });
+    // the plate's wall leans in 1,5 mm towards the top: the slab above overhangs by that much
+    d = oppdaterLag(d, bunn!.id, { profil: byggProfil('rett', 0, 1.5) });
+    const st = lagStotte(d, topp.id);
+    expect(st.niva).toBe('delvis');
+    expect(st.trengtInset).toBeGreaterThan(1.45);
+    expect(st.trengtInset).toBeLessThan(1.6);
+    expect(st.uforstottMm2).toBeGreaterThan(100);
+    expect((await byggSigngen(d)).advarsler.some((a) => a.tekst.includes('«Topp» henger i lufta'))).toBe(
+      true,
+    );
+    // starting the slab 1,5 mm in resolves it
+    d = oppdaterLag(d, topp.id, { profil: byggProfil('rett', 1.5, 1.5) });
+    expect(lagStotte(d, topp.id).niva).toBe('full');
+    expect((await byggSigngen(d)).advarsler.some((a) => a.tekst.includes('«Topp» henger i lufta'))).toBe(
+      false,
+    );
   });
 });
