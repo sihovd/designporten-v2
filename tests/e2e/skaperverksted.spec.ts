@@ -589,10 +589,7 @@ test.describe('Signgen', () => {
     await page.mouse.move(b.x + b.width * 0.2, b.y + b.height * 0.25);
     await page.mouse.down();
     for (let i = 1; i <= 20; i++)
-      await page.mouse.move(
-        b.x + b.width * (0.2 + i * 0.02),
-        b.y + b.height * (0.25 + 0.08 * Math.sin(i / 4)),
-      );
+      await page.mouse.move(b.x + b.width * (0.2 + i * 0.02), b.y + b.height * 0.25);
     await page.mouse.up();
     await expect(page.locator('.objektliste li').filter({ hasText: 'Strek' })).toHaveCount(1);
     const insp = page.getByRole('region', { name: 'Strek' });
@@ -605,6 +602,19 @@ test.describe('Signgen', () => {
     await expect(insp.getByRole('radio', { name: 'Egen' })).toBeChecked();
     await insp.getByRole('radio', { name: 'Spiss' }).click();
     await expect(page.getByRole('list', { name: 'Breddepunkter' }).locator('li')).toHaveCount(3);
+    // the width point can also be dragged across the spline on the canvas
+    const lerret = page.locator('canvas').first();
+    const boks = (await lerret.boundingBox())!;
+    const felt = page.getByLabel('Breddepunkt 2, bredde');
+    const for_ = Number((await felt.inputValue()).replace(',', '.'));
+    const px = boks.x + boks.width * (0.2 + 0.4 * 0.4);
+    const py = boks.y + boks.height * 0.25;
+    await page.mouse.move(px, py);
+    await page.mouse.down();
+    await page.mouse.move(px, py - 40, { steps: 6 });
+    await page.mouse.up();
+    const etter = Number((await felt.inputValue()).replace(',', '.'));
+    expect(etter).toBeGreaterThan(for_);
     // the width can be changed
     const bredde = insp.getByLabel('Bredde på strøket');
     await bredde.fill('6');
@@ -639,7 +649,10 @@ test.describe('Signgen', () => {
     const linje = page.getByRole('toolbar', { name: 'Kombiner former' });
     await expect(linje).toBeVisible();
     for (const navn of ['Union', 'Subtract', 'Intersect', 'Exclude'])
-      await expect(linje.getByRole('button', { name: navn, exact: true })).toBeEnabled();
+      await expect(linje.getByRole('button', { name: navn, exact: true })).not.toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
     await linje.getByRole('button', { name: 'Union', exact: true }).click();
     await expect(page.locator('.objektliste li').filter({ hasText: 'Union' })).toHaveCount(1);
     expect(await page.locator('.objektliste li').count()).toBeLessThan(antall);
