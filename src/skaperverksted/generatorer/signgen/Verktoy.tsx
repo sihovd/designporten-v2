@@ -14,6 +14,8 @@ import { importerSvgSom } from './handlinger';
 import { startErValgt } from './dokument';
 import { Fargeprofilvindu } from './Fargeprofilvindu';
 import { Fontvindu } from './Fontvindu';
+import { Startside } from './Startside';
+import { LagreSomMal, Malbibliotek } from './Maldialog';
 import { Dekorgalleri } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
 import { Batchdialog } from './Batch';
@@ -167,7 +169,14 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
         () => benk.settInnstillinger({ hjelpelinjer: !t.innstillinger.hjelpelinjer }),
         t.innstillinger.hjelpelinjer,
       )}
-      {(!startErValgt(t.dok) || st.fargeprofil) && <Fargeprofilvindu benk={benk} />}
+      {!startErValgt(t.dok) && st.startsteg === 'valg' && !st.malvindu && (
+        <Startside benk={benk} maksDager={30} />
+      )}
+      {((!startErValgt(t.dok) && st.startsteg === 'farger') || st.fargeprofil) && (
+        <Fargeprofilvindu benk={benk} />
+      )}
+      {st.malvindu === 'bibliotek' && <Malbibliotek benk={benk} />}
+      {st.malvindu === 'lagre' && <LagreSomMal benk={benk} />}
       {st.fontvindu && <Fontvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
       {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}

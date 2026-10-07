@@ -182,6 +182,17 @@ Sivert, 2026-10-06 (§16 to §20 of the Sign Forge prompt).
 - **Google Fonts.** The text inspector has «Flere fonter fra Google Fonts …»: search the families, pick a weight, add. Google's own list needs an API key, so the list and file addresses come from the open **Fontsource** mirror (api.fontsource.org, files from the jsDelivr CDN), Latin subset only (it has æ, ø, å) and WOFF/TTF (WOFF2 cannot be read). The font file is kept in the browser's font library and copied into the project that uses it (`parametre.fonter`), so the 3D model builds offline. The network is needed to add a font, not to use it.
 
 
+### Start page, templates and guest storage
+
+Sivert, 2026-10-06 (§21 to §23 of the Sign Forge prompt).
+
+- **Start page.** A new sign opens a page with three large entries instead of an empty editor: **Tomt dokument** (on to the colour choice, then the editor), **Fra mal** (the template library) and **Fra CSV** (the colour choice, then a sign to use as the master, and the CSV window opens; a dedicated CSV workflow follows in a later phase). Esc starts an empty sign in the standard colours, so nobody is left without an editor. Closing the colour choice goes back to the page.
+- **Templates** (`generatorer/signgen/maler.ts`). A template is a deep copy of a sign plus: name, description, visibility (**privat**, **gratis**, **kommersiell**), creator, owner, licence (words), price (only for commercial, NOK), credit line and usage rights. Only private templates in this browser exist; **there is no marketplace, no payment and no sharing**. The fields are stored so those can be added without changing the model. «Lagre som mal …» is in the Fil menu; «Nytt prosjekt fra mal …» asks first, because it replaces the open project.
+- **Using a template** copies it into a new project (new id, named after the template, `parametre.malopphav` remembers the template, creator, licence and credit) and never changes the original. A template made from a project that came from a template does not inherit the source.
+- **Shipped template.** One: «Navneskilt» from Designporten. Its licence says «Ikke avklart ennå» because no terms have been decided.
+- **Guest storage.** Without an account one project per tool is kept in the browser. For Sign Forge it is deleted when it has not been opened for **more than 30 days**. Every opening and every autosave renews the time, so working in it keeps it; the check runs once when the tool opens, and a missing, unreadable or future time counts as «used now», so a clock or storage oddity never deletes a project. The user is told on the start page and in the Fil menu, warned on opening if it lay unused for 14 days or more, and told why if it was deleted. Downloading the project as a file («Lagre som fil») keeps it for good.
+
+
 ### Layers panel
 
 The Layers panel makes the physical construction understandable. For every layer the user sees:

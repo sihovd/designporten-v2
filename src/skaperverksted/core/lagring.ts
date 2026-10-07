@@ -8,6 +8,9 @@ import { fraJson, tilJson, type Dokument } from './dokument';
 
 const AUTOLAGRING = (generator: string) => `dp-verksted:${generator}`;
 const DESIGN = (id: string) => `dp-design:${id}`;
+const SIST_BRUKT = (generator: string) => `dp-verksted:${generator}:sist-brukt`;
+
+const DAG = 24 * 60 * 60 * 1000;
 
 function lager(): Storage | null {
   try {
@@ -20,6 +23,7 @@ function lager(): Storage | null {
 export function autolagre(dok: Dokument): boolean {
   try {
     lager()?.setItem(AUTOLAGRING(dok.generator), tilJson(dok));
+    merkBrukt(dok.generator);
     return true;
   } catch {
     return false;
@@ -40,6 +44,7 @@ export function hentAutolagret(generator: string): Dokument | null {
 export function slettAutolagret(generator: string): void {
   try {
     lager()?.removeItem(AUTOLAGRING(generator));
+    lager()?.removeItem(SIST_BRUKT(generator));
   } catch {
     /* storage unavailable: nothing to delete */
   }
@@ -86,4 +91,48 @@ export function lastNed(data: Uint8Array | string, filnavn: string, type: string
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+// ---------- guest storage: one project per tool, deleted after a month unused ----------
+
+/** Mark the saved project as in use now. Opening and every autosave do this. */
+export function merkBrukt(generator: string, naa = Date.now()): void {
+  try {
+    lager()?.setItem(SIST_BRUKT(generator), String(naa));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export interface Gjestestatus {
+  /** What happened to the saved project at start. */
+  utfall: 'ingen' | 'beholdt' | 'slettet';
+  /** Days since it was last used (0 for a new one). */
+  dagerUbrukt: number;
+}
+
+/**
+ * Called once when a tool opens, before the saved project is read. A saved
+ * project that has not been opened for more than `maksDager` days is deleted.
+ * Deliberately careful: a project is only deleted when its last-used time is
+ * a valid time in the past and older than the limit. A missing, unreadable
+ * or future time counts as «used now», so a project is never deleted because
+ * of a clock or storage oddity. Every opening and every autosave renews the
+ * time, so someone who works in it cannot lose it.
+ */
+export function ryddGjestelagring(generator: string, maksDager: number, naa = Date.now()): Gjestestatus {
+  try {
+    if (!lager()?.getItem(AUTOLAGRING(generator))) return { utfall: 'ingen', dagerUbrukt: 0 };
+    const rå = Number(lager()?.getItem(SIST_BRUKT(generator)));
+    const sist = Number.isFinite(rå) && rå > 0 && rå <= naa ? rå : naa;
+    const dager = Math.floor((naa - sist) / DAG);
+    if (naa - sist > maksDager * DAG) {
+      slettAutolagret(generator);
+      return { utfall: 'slettet', dagerUbrukt: dager };
+    }
+    merkBrukt(generator, naa);
+    return { utfall: 'beholdt', dagerUbrukt: dager };
+  } catch {
+    return { utfall: 'ingen', dagerUbrukt: 0 };
+  }
 }
