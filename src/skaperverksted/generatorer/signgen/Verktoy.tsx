@@ -9,7 +9,7 @@ import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Ikon, type IkonId } from '../../shell/ikoner';
 import { Tips } from '../../shell/Tips';
-import { brukSigntilstand, signtilstand, type VerktoyId } from './tilstand';
+import { brukSigntilstand, signtilstand, type Snapmal, type VerktoyId } from './tilstand';
 import { importerSvgSom } from './handlinger';
 import { startErValgt } from './dokument';
 import { Fargeprofilvindu } from './Fargeprofilvindu';
@@ -129,19 +129,20 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
         signtilstand(benk).sett({ dekor: true }),
       )}
       <span class="skinne-skille" aria-hidden="true" />
-      {hjelpeknapp(
-        'Snap',
-        'Snapping av eller på (hold Alt for å slå av midlertidig)',
-        'snap',
-        () => benk.settInnstillinger({ snap: !t.innstillinger.snap }),
-        t.innstillinger.snap,
-      )}
+      <Snapverktoy benk={benk} />
       {hjelpeknapp(
         'Rutenett',
         'Rutenett av eller på',
         'grid',
         () => benk.settInnstillinger({ rutenett: !t.innstillinger.rutenett }),
         t.innstillinger.rutenett,
+      )}
+      {hjelpeknapp(
+        'Hjelpelinjer',
+        'Vis eller skjul hjelpelinjer. Dra ut fra linjalen for å lage en ny, dra den tilbake for å fjerne den',
+        'guides',
+        () => benk.settInnstillinger({ hjelpelinjer: !t.innstillinger.hjelpelinjer }),
+        t.innstillinger.hjelpelinjer,
       )}
       {(!startErValgt(t.dok) || st.fargeprofil) && <Fargeprofilvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
@@ -151,28 +152,12 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
   );
 }
 
-/**
- * «Former»: one tool for rectangle, ellipse and polygon. A click picks the
- * last used shape; a click on the active tool, a right-click, a long press or
- * the Down arrow opens the list. R, E and P still pick a shape directly.
- */
-function Formverktoy({
-  benk,
-  aktiv,
-  velg,
-}: {
-  benk: Arbeidsbenk;
-  aktiv: VerktoyId | null;
-  velg: (id: VerktoyId) => void;
-}) {
-  const [sist, settSist] = useState<VerktoyId>('rektangel');
+/** Menu state shared by tool buttons with a list behind them: right-click, long press or the Down arrow opens it. */
+function brukVerktoymeny() {
   const [meny, settMeny] = useState<{ x: number; y: number } | null>(null);
   const knapp = useRef<HTMLButtonElement>(null);
   const holdt = useRef<number>(0);
   const langt = useRef(false);
-  useEffect(() => {
-    if (aktiv && FORMER.includes(aktiv)) settSist(aktiv);
-  }, [aktiv]);
   useEffect(() => {
     if (!meny) return;
     const utenfor = (e: PointerEvent) => {
@@ -195,6 +180,134 @@ function Formverktoy({
     const r = knapp.current?.getBoundingClientRect();
     if (r) settMeny({ x: r.right + 6, y: r.top });
   };
+  const knappHendelser = {
+    onContextMenu: (e: MouseEvent) => {
+      e.preventDefault();
+      apne();
+    },
+    onPointerDown: (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      langt.current = false;
+      clearTimeout(holdt.current);
+      holdt.current = window.setTimeout(() => {
+        langt.current = true;
+        apne();
+      }, 500);
+    },
+    onPointerUp: () => clearTimeout(holdt.current),
+    onPointerLeave: () => clearTimeout(holdt.current),
+    onKeyDown: (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        apne();
+      }
+    },
+  };
+  /** True once for the click that ends a long press (it must not also act). */
+  const slukLangtrykk = () => {
+    if (!langt.current) return false;
+    langt.current = false;
+    return true;
+  };
+  return { meny, settMeny, knapp, apne, knappHendelser, slukLangtrykk };
+}
+
+/** The Snap tool: click switches snapping on or off; the list picks what it snaps to. */
+function Snapverktoy({ benk }: { benk: Arbeidsbenk }) {
+  const t = brukBenk(benk);
+  const st = brukSigntilstand(benk);
+  const m = brukVerktoymeny();
+  const valg: { id: keyof Snapmal; navn: string }[] = [
+    { id: 'rutenett', navn: 'Rutenett' },
+    { id: 'hjelpelinjer', navn: 'Hjelpelinjer' },
+    { id: 'objekter', navn: 'Kanter og hjørner' },
+    { id: 'sentre', navn: 'Midtpunkter' },
+  ];
+  return (
+    <>
+      <Tips
+        navn="Snap"
+        hjelp="Snapping av eller på (hold Alt for å slå av midlertidig). Høyreklikk eller hold inne for å velge hva det snapper til"
+      >
+        {(p) => (
+          <button
+            type="button"
+            class="verktoy"
+            ref={m.knapp}
+            aria-label="Snap"
+            aria-haspopup="menu"
+            aria-expanded={!!m.meny}
+            aria-pressed={t.innstillinger.snap}
+            onClick={() => {
+              if (m.slukLangtrykk()) return;
+              benk.settInnstillinger({ snap: !t.innstillinger.snap });
+            }}
+            {...m.knappHendelser}
+            {...p}
+          >
+            <Ikon id="snap" />
+            <span class="verktoy-flere" aria-hidden="true" />
+            <span class="verktoy-etikett">Snap</span>
+          </button>
+        )}
+      </Tips>
+      {m.meny && (
+        <div
+          class="verktoymeny"
+          role="menu"
+          aria-label="Snap til"
+          style={{ left: `${m.meny.x}px`, top: `${m.meny.y}px` }}
+          ref={(el) => el?.querySelector<HTMLElement>('[role="menuitemcheckbox"]')?.focus()}
+          onKeyDown={(e) => {
+            const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+            if (!d) return;
+            e.preventDefault();
+            const alle = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')];
+            const i = alle.indexOf(document.activeElement as HTMLElement);
+            alle[(i + d + alle.length) % alle.length]?.focus();
+          }}
+        >
+          {valg.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={st.snapmal[v.id]}
+              onClick={() =>
+                signtilstand(benk).sett({ snapmal: { ...st.snapmal, [v.id]: !st.snapmal[v.id] } })
+              }
+            >
+              <span class="menyhake" aria-hidden="true">
+                {st.snapmal[v.id] ? '✓' : ''}
+              </span>
+              {v.navn}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * «Former»: one tool for rectangle, ellipse and polygon. A click picks the
+ * last used shape; a click on the active tool, a right-click, a long press or
+ * the Down arrow opens the list. R, E and P still pick a shape directly.
+ */
+function Formverktoy({
+  benk,
+  aktiv,
+  velg,
+}: {
+  benk: Arbeidsbenk;
+  aktiv: VerktoyId | null;
+  velg: (id: VerktoyId) => void;
+}) {
+  const [sist, settSist] = useState<VerktoyId>('rektangel');
+  const { meny, settMeny, knapp, apne, knappHendelser, slukLangtrykk } = brukVerktoymeny();
+  useEffect(() => {
+    if (aktiv && FORMER.includes(aktiv)) settSist(aktiv);
+  }, [aktiv]);
   const erAktiv = !!aktiv && FORMER.includes(aktiv);
   void benk;
   return (
@@ -214,10 +327,7 @@ function Formverktoy({
             aria-expanded={!!meny}
             aria-pressed={erAktiv}
             onClick={() => {
-              if (langt.current) {
-                langt.current = false;
-                return;
-              }
+              if (slukLangtrykk()) return;
               if (erAktiv) {
                 if (meny) settMeny(null);
                 else apne();
@@ -225,27 +335,7 @@ function Formverktoy({
                 velg(sist);
               }
             }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              apne();
-            }}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return;
-              langt.current = false;
-              clearTimeout(holdt.current);
-              holdt.current = window.setTimeout(() => {
-                langt.current = true;
-                apne();
-              }, 500);
-            }}
-            onPointerUp={() => clearTimeout(holdt.current)}
-            onPointerLeave={() => clearTimeout(holdt.current)}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-                e.preventDefault();
-                apne();
-              }
-            }}
+            {...knappHendelser}
             {...p}
           >
             <Ikon id="shapes" />

@@ -15,6 +15,7 @@ import { fargeplasser } from './dokument';
 import { Lagpanel } from './Lagpanel';
 import { SigngenInspektor } from './Inspektor';
 import { Profilseksjon } from './Profilseksjon';
+import { Justerpanel, Transformpanel } from './justerpaneler';
 import { finnLag } from '../../core/dokument';
 
 /** What was done, newest last. Click a step to go back (or forward) to it. */
@@ -146,6 +147,8 @@ export const PANELER: PanelDef[] = [
   { id: 'lag', navn: 'Lag', Innhold: Lagpanel, flytB: 320, flytH: 520 },
   { id: 'egenskaper', navn: 'Egenskaper', Innhold: SigngenInspektor, flytB: 320, flytH: 560 },
   { id: 'profil', navn: 'Profil', Innhold: Profilpanel, flytB: 320, flytH: 520, fane: 'egenskaper' },
+  { id: 'transform', navn: 'Transform', Innhold: Transformpanel, flytB: 300, flytH: 360 },
+  { id: 'justering', navn: 'Justér', Innhold: Justerpanel, flytB: 300, flytH: 480 },
   { id: 'historikk', navn: 'Historikk', Innhold: Historikkpanel, flytB: 280, flytH: 340 },
   { id: 'produksjon', navn: 'Produksjon', Innhold: Produksjonspanel, flytB: 300, flytH: 380 },
 ];
@@ -169,10 +172,11 @@ export const ARBEIDSROM: Romspek[] = [
     grupper: [
       { paneler: ['lag'], side: 'venstre', vekt: 3 },
       { paneler: ['historikk'], side: 'venstre', vekt: 2 },
-      { paneler: ['egenskaper', 'profil'], side: 'hoyre' },
+      { paneler: ['egenskaper', 'profil'], side: 'hoyre', vekt: 3 },
+      { paneler: ['transform', 'justering'], side: 'hoyre', vekt: 2 },
     ],
     smal: [
-      { paneler: ['egenskaper', 'profil'], side: 'hoyre', vekt: 3 },
+      { paneler: ['egenskaper', 'profil', 'transform', 'justering'], side: 'hoyre', vekt: 3 },
       { paneler: ['lag', 'historikk'], side: 'hoyre', vekt: 2 },
     ],
   },

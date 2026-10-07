@@ -12,7 +12,8 @@ import type { SvgDeler } from './svgdeler';
 export type VerktoyId =
   'velg' | 'tekst' | 'rektangel' | 'ellipse' | 'polygon' | 'hull' | 'penn' | 'mal' | 'panorer';
 
-export interface Hjelpelinje {
+/** A line shown while dragging to say what the edge snapped to (transient). */
+export interface Snaplinje {
   akse: 'x' | 'y';
   /** Position on the axis (mm). */
   verdi: number;
@@ -55,9 +56,42 @@ export interface PennUtkast {
   peker: Vec2 | null;
 }
 
+/** What dragging and drawing snap to (Sivert, 2026-10-06 §8); the master switch is «Snap» in the tool rail. */
+export interface Snapmal {
+  rutenett: boolean;
+  hjelpelinjer: boolean;
+  objekter: boolean;
+  sentre: boolean;
+}
+
+const SNAP_NOKKEL = 'dp-verksted:snap:signgen';
+
+function lesSnapmal(): Snapmal {
+  const std: Snapmal = { rutenett: true, hjelpelinjer: true, objekter: true, sentre: true };
+  try {
+    const r = JSON.parse(localStorage.getItem(SNAP_NOKKEL) ?? 'null') as Partial<Snapmal> | null;
+    if (r && typeof r === 'object') {
+      for (const k of Object.keys(std) as (keyof Snapmal)[]) if (typeof r[k] === 'boolean') std[k] = r[k];
+    }
+  } catch {
+    /* blocked or damaged storage: the defaults stand */
+  }
+  return std;
+}
+
+/** A guide being dragged (from a ruler or from the canvas); it is saved once, when the pointer is released. */
+export interface GuideDra {
+  /** The saved guide that is moved; null for a new one. */
+  id: string | null;
+  akse: 'x' | 'y';
+  verdi: number;
+  /** The pointer is back over the ruler: letting go deletes (or never creates) it. */
+  tilbake: boolean;
+}
+
 export interface Signtilstand {
   verktoy: VerktoyId;
-  hjelpelinjer: Hjelpelinje[];
+  snaplinjer: Snaplinje[];
   markering: Boks | null;
   maling: { a: Vec2; b: Vec2 } | null;
   /** Form being drawn with a shape tool. */
@@ -78,12 +112,16 @@ export interface Signtilstand {
   kurve: KurveRedigering | null;
   /** The pen tool's path in progress. */
   penn: PennUtkast | null;
+  snapmal: Snapmal;
+  /** The guide line chosen on the canvas or in the Justér panel. */
+  valgtGuide: string | null;
+  guideDra: GuideDra | null;
 }
 
 class Lager {
   t: Signtilstand = {
     verktoy: 'velg',
-    hjelpelinjer: [],
+    snaplinjer: [],
     markering: null,
     maling: null,
     utkast: null,
@@ -95,11 +133,21 @@ class Lager {
     svgdeler: null,
     kurve: null,
     penn: null,
+    snapmal: lesSnapmal(),
+    valgtGuide: null,
+    guideDra: null,
   };
   private lyttere = new Set<(t: Signtilstand) => void>();
   constructor(private benk: Arbeidsbenk) {}
   sett(d: Partial<Signtilstand>) {
     this.t = { ...this.t, ...d };
+    if (d.snapmal) {
+      try {
+        localStorage.setItem(SNAP_NOKKEL, JSON.stringify(d.snapmal));
+      } catch {
+        /* storage is optional */
+      }
+    }
     for (const f of this.lyttere) f(this.t);
     this.benk.kommando('tegn');
   }

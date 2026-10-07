@@ -455,6 +455,102 @@ test.describe('Signgen', () => {
     await expect(page.locator('.objektliste li')).toHaveCount(antall - 1);
   });
 
+  test('hjelpelinjer dras ut fra linjalen, kan flyttes med piltaster, skjules og slettes', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Linjaldrag brukes på brede skjermer');
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    await page.getByRole('button', { name: 'Justér', exact: true }).click();
+    await page.locator('summary', { hasText: 'Paneler' }).click(); // close the menu
+    const liste = page.locator('.guideliste li');
+    await expect(liste).toHaveCount(0);
+    const b = (await page.locator('canvas').first().boundingBox())!;
+    // down from the left ruler: a vertical guide that follows the pointer
+    await page.mouse.move(b.x + 10, b.y + b.height * 0.5);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.4, b.y + b.height * 0.5, { steps: 6 });
+    await page.mouse.up();
+    await expect(liste).toHaveCount(1);
+    const bar = page.getByRole('toolbar', { name: 'Valgt hjelpelinje' });
+    await expect(bar).toBeVisible();
+    const felt = bar.getByLabel('Hjelpelinje, vannrett posisjon');
+    const for_ = Number((await felt.inputValue()).replace(',', '.'));
+    await felt.fill('20');
+    await felt.press('Enter');
+    await expect(felt).toHaveValue('20');
+    expect(for_).not.toBe(20);
+    // locked guides cannot be deleted
+    await bar.getByRole('button', { name: 'Lås', exact: true }).click();
+    await expect(bar.getByRole('button', { name: 'Slett' })).toBeDisabled();
+    await bar.getByRole('button', { name: 'Lås opp' }).click();
+    // hide all: the guides are still in the project, but not drawn or snapped to
+    const vis = page.getByRole('button', { name: 'Hjelpelinjer', exact: true }).first();
+    await vis.click();
+    await expect(bar).toBeHidden();
+    await vis.click();
+    await expect(liste).toHaveCount(1);
+    // Delete removes the selected guide, and undo brings it back
+    await page.locator('canvas').first().focus();
+    await page.keyboard.press('Delete');
+    await expect(liste).toHaveCount(0);
+    await page.keyboard.press('Control+z');
+    await expect(liste).toHaveCount(1);
+  });
+
+  test('Snap-menyen har valgbare mål som huskes', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Menyen testes på brede skjermer');
+    await page.getByRole('button', { name: 'Snap', exact: true }).click({ button: 'right' });
+    const meny = page.getByRole('menu', { name: 'Snap til' });
+    const kanter = meny.getByRole('menuitemcheckbox', { name: /Kanter og hjørner/ });
+    const for_ = await kanter.getAttribute('aria-checked');
+    await kanter.click();
+    await expect(kanter).toHaveAttribute('aria-checked', for_ === 'true' ? 'false' : 'true');
+    await page.reload();
+    await page.getByRole('button', { name: 'Start skiltet' }).click();
+    await page.getByRole('button', { name: 'Snap', exact: true }).click({ button: 'right' });
+    await expect(
+      page
+        .getByRole('menu', { name: 'Snap til' })
+        .getByRole('menuitemcheckbox', { name: /Kanter og hjørner/ }),
+    ).toHaveAttribute('aria-checked', for_ === 'true' ? 'false' : 'true');
+  });
+
+  test('Transform setter størrelsen på utvalget, og Justér kan legge kantene mot hverandre', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    await page.getByRole('button', { name: 'Transform', exact: true }).click();
+    await page.getByRole('button', { name: 'Justér', exact: true }).click();
+    await page.locator('summary', { hasText: 'Paneler' }).click(); // close the menu
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    // two rectangles
+    for (const [x0, y0, x1, y1] of [
+      [0.2, 0.2, 0.3, 0.3],
+      [0.6, 0.5, 0.75, 0.7],
+    ] as const) {
+      await page.keyboard.press('r');
+      await page.mouse.move(b.x + b.width * x0, b.y + b.height * y0);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width * x1, b.y + b.height * y1, { steps: 5 });
+      await page.mouse.up();
+    }
+    await page.keyboard.press('v');
+    await page.keyboard.press('Control+a');
+    const transform = page.getByRole('region', { name: 'Transform' });
+    const bredde = transform.getByLabel('Total bredde');
+    await bredde.fill('33');
+    await bredde.press('Enter');
+    await expect(bredde).toHaveValue('33');
+    // both are selected: align the left edges
+    const just = page.getByRole('region', { name: 'Justér' });
+    await just.getByRole('button', { name: 'Venstre', exact: true }).click();
+    await expect(page.locator('.statuslinje')).toContainText('mm');
+  });
+
   test('verktøyene har bare ikon, med navn og forklaring etter litt hover, og Former har en meny', async ({
     page,
     isMobile,

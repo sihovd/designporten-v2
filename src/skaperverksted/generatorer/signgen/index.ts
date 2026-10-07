@@ -15,6 +15,7 @@ import { signtilstand } from './tilstand';
 import { dupliserValgte, flyttValgte, slettValgte, velgAlle } from './handlinger';
 import { avsluttKurveredigering, dyttValgte, settKurve, slettKurveValg } from './kurver';
 import { angrePennpunkt, fullforPenn, pennPagar } from './Pennverktoy';
+import { flyttHjelpelinjeTil, hjelpelinjerAv, slettHjelpelinjeI } from './hjelpelinjer';
 
 const plugin: GeneratorPlugin = {
   ...meta,
@@ -69,6 +70,32 @@ const plugin: GeneratorPlugin = {
         if (dyttValgte(benk, r[0] * s, r[1] * s)) return true;
       }
     }
+    // a guide line chosen on the canvas or in the Justér panel takes the keys while no object is
+    const guide = lager.t.valgtGuide
+      ? hjelpelinjerAv(benk.dok).find((g) => g.id === lager.t.valgtGuide)
+      : undefined;
+    if (guide && !benk.tilstand.utvalg.objekter.length) {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (!guide.last) {
+          slettHjelpelinjeI(benk, guide.id);
+          lager.sett({ valgtGuide: null });
+          benk.melde('Hjelpelinjen er slettet.');
+        }
+        return true;
+      }
+      const pil: Record<string, number> = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 };
+      const retning = e.key.startsWith('Arrow') ? pil[e.key] : undefined;
+      const lodd = e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+      if (retning !== undefined && lodd === (guide.akse === 'x')) {
+        if (!guide.last)
+          flyttHjelpelinjeTil(benk, guide.id, guide.verdi + retning * (e.shiftKey ? 10 : 1), 'guide-pil');
+        return true;
+      }
+      if (e.key === 'Escape') {
+        lager.sett({ valgtGuide: null });
+        return true;
+      }
+    }
     if (e.key === 'Delete' || e.key === 'Backspace') {
       slettValgte(benk);
       return true;
@@ -116,7 +143,7 @@ const plugin: GeneratorPlugin = {
     ['Piltaster', 'Flytt 1 mm (Shift: 10 mm)'],
     ['Ctrl/Cmd + D', 'Dupliser'],
     ['Delete', 'Slett'],
-    ['Shift mens du drar', 'Lås retning / fri skalering'],
+    ['Shift mens du drar', 'Lås retningen til 45° / fri skalering'],
     ['Alt mens du drar', 'Uten snapping'],
     ['Dobbeltklikk på tekst', 'Rediger teksten'],
     ['Dobbeltklikk på en SVG', 'Rediger punkter og kurver'],
@@ -124,6 +151,8 @@ const plugin: GeneratorPlugin = {
     ['Penn: Enter, dobbeltklikk', 'Fullfør åpen bane (klikk første punkt lukker)'],
     ['Punkter: Delete, piler', 'Slett punkt, kurve eller form · flytt 0,1 mm (Shift: 1 mm)'],
     ['Dobbeltklikk på kurve / punkt', 'Legg til punkt / bytt mellom hjørne og jevn'],
+    ['Dra ut fra linjalen', 'Ny hjelpelinje (dra tilbake på linjalen for å fjerne den)'],
+    ['Valgt hjelpelinje: piler, Delete', 'Flytt 1 mm (Shift: 10 mm) · slett'],
     ['Esc', 'Tilbake til Velg / fjern utvalg'],
   ],
   eksport(_dok, _modell, benk) {

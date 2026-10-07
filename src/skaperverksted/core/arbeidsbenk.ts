@@ -25,6 +25,8 @@ export interface Utvalg {
 export interface Innstillinger {
   snap: boolean;
   rutenett: boolean;
+  /** Guide lines are shown (the lines stay in the project when hidden). */
+  hjelpelinjer: boolean;
   visning: '2d' | '3d';
   /** Which mobile sheet is open. */
   ark: 'ingen' | 'lag' | 'egenskaper' | 'bibliotek';
@@ -77,6 +79,7 @@ export class Arbeidsbenk {
       innstillinger: {
         snap: true,
         rutenett: true,
+        hjelpelinjer: true,
         visning: generator.visninger[0] ?? '2d',
         ark: 'ingen',
         inspektor: !generator.lerretForst,

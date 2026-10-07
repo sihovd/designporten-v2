@@ -39,6 +39,13 @@ import { modellBoks, verdensBoks } from './modell';
 import type { Flerfarget, SvgDeler } from './svgdeler';
 import { delerTilKilde, lesSvgDeler, SvgFeil } from './svgimport';
 import { signtilstand } from './tilstand';
+import {
+  fordelingsforskyvninger,
+  justeringGjelder,
+  justeringsforskyvning,
+  type Justering,
+  type Justeringsmal,
+} from './justering';
 
 export function valgte(benk: Arbeidsbenk): Objekt[] {
   const d = benk.dok;
@@ -196,14 +203,31 @@ export function velgAlle(benk: Arbeidsbenk): void {
   benk.melde(`${kandidater.length} objekter valgt.`);
 }
 
-export type Justering = 'venstre' | 'midtX' | 'hoyre' | 'topp' | 'midtY' | 'bunn';
+export type { Justering } from './justering';
 
-export function juster(benk: Arbeidsbenk, j: Justering): void {
+/** The plate as a box, centred on the origin: the reference for a single object. */
+export function plateboks(dok: Dokument): Boks {
+  return {
+    minX: -dok.plate.bredde / 2,
+    maksX: dok.plate.bredde / 2,
+    minY: -dok.plate.dybde / 2,
+    maksY: dok.plate.dybde / 2,
+  };
+}
+
+/**
+ * Line the selected objects up. Without `mal` several objects line up against their common box and
+ * one object against the build plate.
+ */
+export function juster(benk: Arbeidsbenk, j: Justering, mal?: Justeringsmal): void {
   const obj = redigerbare(benk);
   const boks = utvalgsboks(obj);
   if (!boks) return;
-  // one object aligns to the plate centre; several align to their common box
-  const mal: Boks = obj.length === 1 ? { minX: 0, maksX: 0, minY: 0, maksY: 0 } : boks;
+  const m: Justeringsmal = mal ?? { type: 'boks', boks: obj.length === 1 ? plateboks(benk.dok) : boks };
+  if (!justeringGjelder(j, m)) {
+    benk.melde('Den hjelpelinjen justerer bare den andre veien.');
+    return;
+  }
   benk.endre({
     navn: 'Juster',
     anvend: (d) =>
@@ -211,15 +235,7 @@ export function juster(benk: Arbeidsbenk, j: Justering): void {
         d,
         obj.map((o) => o.id),
         (o) => {
-          const b = verdensBoks(o);
-          let dx = 0,
-            dy = 0;
-          if (j === 'venstre') dx = (obj.length === 1 ? -(b.maksX - b.minX) / 2 : mal.minX) - b.minX;
-          if (j === 'hoyre') dx = (obj.length === 1 ? (b.maksX - b.minX) / 2 : mal.maksX) - b.maksX;
-          if (j === 'midtX') dx = (mal.minX + mal.maksX) / 2 - (b.minX + b.maksX) / 2;
-          if (j === 'bunn') dy = (obj.length === 1 ? -(b.maksY - b.minY) / 2 : mal.minY) - b.minY;
-          if (j === 'topp') dy = (obj.length === 1 ? (b.maksY - b.minY) / 2 : mal.maksY) - b.maksY;
-          if (j === 'midtY') dy = (mal.minY + mal.maksY) / 2 - (b.minY + b.maksY) / 2;
+          const { dx, dy } = justeringsforskyvning(verdensBoks(o), j, m);
           return dx || dy
             ? { ...o, transform: { ...o.transform, x: o.transform.x + dx, y: o.transform.y + dy } }
             : o;
@@ -228,27 +244,23 @@ export function juster(benk: Arbeidsbenk, j: Justering): void {
   });
 }
 
-/** Spread three or more objects evenly between the outermost ones. */
-export function fordel(benk: Arbeidsbenk, akse: 'x' | 'y'): void {
+/**
+ * Spread the objects evenly: between the outermost ones, or between `grenser` (the plate edges or
+ * two guide lines). Needs three objects without limits and two with.
+ */
+export function fordel(benk: Arbeidsbenk, akse: 'x' | 'y', grenser?: { start: number; slutt: number }): void {
   const obj = redigerbare(benk);
-  if (obj.length < 3) {
-    benk.melde('Velg minst tre objekter for å fordele dem.');
+  if (obj.length < (grenser ? 2 : 3)) {
+    benk.melde(
+      grenser ? 'Velg minst to objekter for å fordele dem.' : 'Velg minst tre objekter for å fordele dem.',
+    );
     return;
   }
-  const med = obj
-    .map((o) => ({ o, b: verdensBoks(o) }))
-    .sort((a, b) => (akse === 'x' ? a.b.minX - b.b.minX : a.b.minY - b.b.minY));
-  const storrelse = (b: Boks) => (akse === 'x' ? b.maksX - b.minX : b.maksY - b.minY);
-  const start = akse === 'x' ? med[0]!.b.minX : med[0]!.b.minY;
-  const slutt = akse === 'x' ? med.at(-1)!.b.maksX : med.at(-1)!.b.maksY;
-  const sum = med.reduce((s, x) => s + storrelse(x.b), 0);
-  const gap = (slutt - start - sum) / (med.length - 1);
-  const flytt = new Map<string, number>();
-  let pos = start;
-  for (const { o, b } of med) {
-    flytt.set(o.id, pos - (akse === 'x' ? b.minX : b.minY));
-    pos += storrelse(b) + gap;
-  }
+  const flytt = fordelingsforskyvninger(
+    obj.map((o) => ({ id: o.id, boks: verdensBoks(o) })),
+    akse,
+    grenser,
+  );
   benk.endre({
     navn: 'Fordel',
     anvend: (d) =>
