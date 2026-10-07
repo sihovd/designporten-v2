@@ -10,6 +10,7 @@ import { SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
 import { Lagpanel } from './Lagpanel';
 import { SigngenInspektor } from './Inspektor';
+import { ARBEIDSROM, PANELER } from './paneler';
 import { signtilstand } from './tilstand';
 import { dupliserValgte, flyttValgte, slettValgte, velgAlle } from './handlinger';
 import { avsluttKurveredigering, dyttValgte, settKurve, slettKurveValg } from './kurver';
@@ -26,6 +27,8 @@ const plugin: GeneratorPlugin = {
     Verktoy: SigngenVerktoy,
     Venstrepanel: Lagpanel,
     Inspektor: SigngenInspektor,
+    Paneler: PANELER,
+    Arbeidsrom: ARBEIDSROM,
   },
   hurtigtaster(e, benk) {
     const mod = e.ctrlKey || e.metaKey;

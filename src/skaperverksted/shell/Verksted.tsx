@@ -17,6 +17,10 @@ import { Eksportdialog } from './Eksportdialog';
 import { Hjelp } from './Hjelp';
 import { Statuslinje } from './Statuslinje';
 import { Ark } from './Ark';
+import { Ikon } from './ikoner';
+import { Panelflate } from './paneler/Panelflate';
+import { Panelmeny } from './paneler/Panelmeny';
+import { brukPaneler } from './paneler/bruk-paneler';
 import { logomerke } from '../../lib/ressurser';
 
 export function Verksted({ generatorId }: { generatorId: string }) {
@@ -84,6 +88,13 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   );
   const filvelger = useRef<HTMLInputElement>(null);
   const ui = plugin.ui;
+  // generators with dockable panels get the panel system on wide screens; the rest keep the fixed layout
+  const smalDesktop = useMemo(
+    () => typeof matchMedia !== 'undefined' && !matchMedia('(min-width: 1280px)').matches,
+    [],
+  );
+  const paneler = brukPaneler(plugin.id, ui, smalDesktop);
+  const harPaneler = bred && !!ui.Paneler?.length;
 
   // generators can ask for the left panel (for example «Legg til del» in a menu)
   useEffect(() => {
@@ -194,10 +205,22 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   const venstre = ui.Venstrepanel ? <ui.Venstrepanel benk={benk} /> : null;
   const hoyre = <ui.Inspektor benk={benk} />;
   const lerretForst = !!plugin.lerretForst;
+  const lerretInnhold = (
+    <>
+      {plugin.utviklingsgeometri && (
+        <p class="utviklingsmerke" role="note">
+          {plugin.utviklingsgeometri}
+        </p>
+      )}
+      {visning === '2d' && Lerret2d ? <Lerret2d benk={benk} /> : <Visning3d benk={benk} />}
+    </>
+  );
   const inspektorApen = t.innstillinger.inspektor;
 
   return (
-    <div class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}`}>
+    <div
+      class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}${harPaneler ? ' med-paneler' : ''}`}
+    >
       <header class="verkstedlinje">
         <a class="hjem" href="/" aria-label="Designporten, til forsiden">
           <img src={logomerke.src} alt="" width={logomerke.bredde} height={logomerke.hoyde} />
@@ -235,7 +258,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             }
           >
             <span aria-hidden="true" class="kort">
-              ↶
+              <Ikon id="undo" storrelse={18} />
             </span>
             <span class="lang">Angre</span>
             <span class="visuelt-skjult kortetikett">Angre</span>
@@ -248,7 +271,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             title="Gjør om (Ctrl+Shift+Z)"
           >
             <span aria-hidden="true" class="kort">
-              ↷
+              <Ikon id="redo" storrelse={18} />
             </span>
             <span class="lang">Gjør om</span>
             <span class="visuelt-skjult kortetikett">Gjør om</span>
@@ -309,6 +332,15 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             Egenskaper
           </button>
         )}
+        {harPaneler && (
+          <Panelmeny
+            defs={ui.Paneler!}
+            lager={paneler.lager}
+            kontekst={paneler.kontekst}
+            send={paneler.send}
+            standardPlass={paneler.standardPlass}
+          />
+        )}
         <button type="button" class="ikonknapp" onClick={() => settHjelp(true)} title="Hurtigtaster (?)">
           ?<span class="visuelt-skjult"> Hjelp og hurtigtaster</span>
         </button>
@@ -333,49 +365,52 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
         <h1 class="visuelt-skjult">
           {plugin.navn}: {t.dok.navn}
         </h1>
-        {plugin.utviklingsgeometri && (
-          <p class="utviklingsmerke" role="note">
-            {plugin.utviklingsgeometri}
-          </p>
-        )}
-        {visning === '2d' && Lerret2d ? <Lerret2d benk={benk} /> : <Visning3d benk={benk} />}
-        {bred && venstre && (
-          <section
-            class={`flytpanel venstre${panelApent ? '' : ' lukket'}`}
-            aria-label={plugin.venstrepanelNavn ?? 'Lag og deler'}
-          >
-            <button
-              type="button"
-              class="panelbryter"
-              aria-expanded={panelApent}
-              onClick={() => {
-                settPanelApent(!panelApent);
-                requestAnimationFrame(() => benk.kommando('tegn'));
-              }}
-            >
-              {panelApent ? 'Skjul panel' : 'Vis panel'}
-            </button>
-            {panelApent && venstre}
-          </section>
-        )}
-        {bred && lerretForst && inspektorApen && (
-          <aside id="verksted-inspektor" class="flytpanel hoyre" aria-label="Egenskaper">
-            <button
-              type="button"
-              class="panelbryter"
-              onClick={() => {
-                benk.settInnstillinger({ inspektor: false });
-                requestAnimationFrame(() => benk.kommando('tegn'));
-              }}
-            >
-              Lukk egenskaper
-            </button>
-            <div class="flytpanel-innhold">{hoyre}</div>
-          </aside>
+        {harPaneler ? (
+          <Panelflate benk={benk} defs={ui.Paneler!} lager={paneler.lager} send={paneler.send}>
+            {lerretInnhold}
+          </Panelflate>
+        ) : (
+          <>
+            {lerretInnhold}
+            {bred && venstre && (
+              <section
+                class={`flytpanel venstre${panelApent ? '' : ' lukket'}`}
+                aria-label={plugin.venstrepanelNavn ?? 'Lag og deler'}
+              >
+                <button
+                  type="button"
+                  class="panelbryter"
+                  aria-expanded={panelApent}
+                  onClick={() => {
+                    settPanelApent(!panelApent);
+                    requestAnimationFrame(() => benk.kommando('tegn'));
+                  }}
+                >
+                  {panelApent ? 'Skjul panel' : 'Vis panel'}
+                </button>
+                {panelApent && venstre}
+              </section>
+            )}
+            {bred && lerretForst && inspektorApen && (
+              <aside id="verksted-inspektor" class="flytpanel hoyre" aria-label="Egenskaper">
+                <button
+                  type="button"
+                  class="panelbryter"
+                  onClick={() => {
+                    benk.settInnstillinger({ inspektor: false });
+                    requestAnimationFrame(() => benk.kommando('tegn'));
+                  }}
+                >
+                  Lukk egenskaper
+                </button>
+                <div class="flytpanel-innhold">{hoyre}</div>
+              </aside>
+            )}
+          </>
         )}
       </main>
 
-      {bred && !lerretForst ? (
+      {bred && !lerretForst && !harPaneler ? (
         <aside class="inspektor" aria-label="Egenskaper">
           {hoyre}
         </aside>

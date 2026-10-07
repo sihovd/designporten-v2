@@ -1,0 +1,554 @@
+[
+  {
+    "id": "select",
+    "label": "Velg",
+    "group": "Tegneverktøy",
+    "file": "icons/select.svg"
+  },
+  {
+    "id": "text",
+    "label": "Tekst",
+    "group": "Tegneverktøy",
+    "file": "icons/text.svg"
+  },
+  {
+    "id": "shapes",
+    "label": "Former",
+    "group": "Tegneverktøy",
+    "file": "icons/shapes.svg"
+  },
+  {
+    "id": "pen",
+    "label": "Penn",
+    "group": "Tegneverktøy",
+    "file": "icons/pen.svg"
+  },
+  {
+    "id": "paint",
+    "label": "Paint (vektor)",
+    "group": "Tegneverktøy",
+    "file": "icons/paint.svg"
+  },
+  {
+    "id": "svg-import",
+    "label": "SVG",
+    "group": "Tegneverktøy",
+    "file": "icons/svg-import.svg"
+  },
+  {
+    "id": "image",
+    "label": "Bilde",
+    "group": "Tegneverktøy",
+    "file": "icons/image.svg"
+  },
+  {
+    "id": "ruler",
+    "label": "Mål",
+    "group": "Tegneverktøy",
+    "file": "icons/ruler.svg"
+  },
+  {
+    "id": "pan",
+    "label": "Panorer",
+    "group": "Tegneverktøy",
+    "file": "icons/pan.svg"
+  },
+  {
+    "id": "snap",
+    "label": "Snap",
+    "group": "Snapping og hjelp",
+    "file": "icons/snap.svg"
+  },
+  {
+    "id": "grid",
+    "label": "Rutenett",
+    "group": "Snapping og hjelp",
+    "file": "icons/grid.svg"
+  },
+  {
+    "id": "guides",
+    "label": "Guides",
+    "group": "Snapping og hjelp",
+    "file": "icons/guides.svg"
+  },
+  {
+    "id": "snap-object",
+    "label": "Snap til objekt",
+    "group": "Snapping og hjelp",
+    "file": "icons/snap-object.svg"
+  },
+  {
+    "id": "snap-guide",
+    "label": "Snap til guide",
+    "group": "Snapping og hjelp",
+    "file": "icons/snap-guide.svg"
+  },
+  {
+    "id": "layers",
+    "label": "Lag",
+    "group": "Lag og organisering",
+    "file": "icons/layers.svg"
+  },
+  {
+    "id": "group",
+    "label": "Grupper",
+    "group": "Lag og organisering",
+    "file": "icons/group.svg"
+  },
+  {
+    "id": "ungroup",
+    "label": "Ungrupper",
+    "group": "Lag og organisering",
+    "file": "icons/ungroup.svg"
+  },
+  {
+    "id": "duplicate",
+    "label": "Dupliser",
+    "group": "Lag og organisering",
+    "file": "icons/duplicate.svg"
+  },
+  {
+    "id": "copy",
+    "label": "Kopier",
+    "group": "Lag og organisering",
+    "file": "icons/copy.svg"
+  },
+  {
+    "id": "paste",
+    "label": "Lim inn",
+    "group": "Lag og organisering",
+    "file": "icons/paste.svg"
+  },
+  {
+    "id": "bring-forward",
+    "label": "Flytt frem",
+    "group": "Lag og organisering",
+    "file": "icons/bring-forward.svg"
+  },
+  {
+    "id": "send-backward",
+    "label": "Flytt bak",
+    "group": "Lag og organisering",
+    "file": "icons/send-backward.svg"
+  },
+  {
+    "id": "align",
+    "label": "Juster",
+    "group": "Lag og organisering",
+    "file": "icons/align.svg"
+  },
+  {
+    "id": "distribute",
+    "label": "Fordel",
+    "group": "Lag og organisering",
+    "file": "icons/distribute.svg"
+  },
+  {
+    "id": "union",
+    "label": "Slå sammen",
+    "group": "Boolean (ved markering)",
+    "file": "icons/union.svg"
+  },
+  {
+    "id": "subtract",
+    "label": "Trekk fra",
+    "group": "Boolean (ved markering)",
+    "file": "icons/subtract.svg"
+  },
+  {
+    "id": "intersect",
+    "label": "Snitt",
+    "group": "Boolean (ved markering)",
+    "file": "icons/intersect.svg"
+  },
+  {
+    "id": "exclude",
+    "label": "Ekskluder",
+    "group": "Boolean (ved markering)",
+    "file": "icons/exclude.svg"
+  },
+  {
+    "id": "undo",
+    "label": "Angre",
+    "group": "Redigering og historikk",
+    "file": "icons/undo.svg"
+  },
+  {
+    "id": "redo",
+    "label": "Gjør om",
+    "group": "Redigering og historikk",
+    "file": "icons/redo.svg"
+  },
+  {
+    "id": "delete",
+    "label": "Slett",
+    "group": "Redigering og historikk",
+    "file": "icons/delete.svg"
+  },
+  {
+    "id": "cut",
+    "label": "Klipp ut",
+    "group": "Redigering og historikk",
+    "file": "icons/cut.svg"
+  },
+  {
+    "id": "properties",
+    "label": "Egenskaper",
+    "group": "Redigering og historikk",
+    "file": "icons/properties.svg"
+  },
+  {
+    "id": "history",
+    "label": "Historikk",
+    "group": "Redigering og historikk",
+    "file": "icons/history.svg"
+  },
+  {
+    "id": "transform",
+    "label": "Transformer",
+    "group": "Redigering og historikk",
+    "file": "icons/transform.svg"
+  },
+  {
+    "id": "lock",
+    "label": "Lås",
+    "group": "Redigering og historikk",
+    "file": "icons/lock.svg"
+  },
+  {
+    "id": "unlock",
+    "label": "Lås opp",
+    "group": "Redigering og historikk",
+    "file": "icons/unlock.svg"
+  },
+  {
+    "id": "visible",
+    "label": "Vis/skjul",
+    "group": "Redigering og historikk",
+    "file": "icons/visible.svg"
+  },
+  {
+    "id": "zoom-in",
+    "label": "Zoom inn",
+    "group": "Visning",
+    "file": "icons/zoom-in.svg"
+  },
+  {
+    "id": "zoom-out",
+    "label": "Zoom ut",
+    "group": "Visning",
+    "file": "icons/zoom-out.svg"
+  },
+  {
+    "id": "fit",
+    "label": "Tilpass",
+    "group": "Visning",
+    "file": "icons/fit.svg"
+  },
+  {
+    "id": "actual-size",
+    "label": "Faktisk størrelse",
+    "group": "Visning",
+    "file": "icons/actual-size.svg"
+  },
+  {
+    "id": "cube",
+    "label": "3D visning",
+    "group": "Visning",
+    "file": "icons/cube.svg"
+  },
+  {
+    "id": "color",
+    "label": "Farge",
+    "group": "Fyll og farger",
+    "file": "icons/color.svg"
+  },
+  {
+    "id": "eyedropper",
+    "label": "Fargeplukker",
+    "group": "Fyll og farger",
+    "file": "icons/eyedropper.svg"
+  },
+  {
+    "id": "fill",
+    "label": "Fyll",
+    "group": "Fyll og farger",
+    "file": "icons/fill.svg"
+  },
+  {
+    "id": "stroke",
+    "label": "Strek",
+    "group": "Fyll og farger",
+    "file": "icons/stroke.svg"
+  },
+  {
+    "id": "gradient",
+    "label": "Gradient",
+    "group": "Fyll og farger",
+    "file": "icons/gradient.svg"
+  },
+  {
+    "id": "palette",
+    "label": "Fargeprofil",
+    "group": "Fyll og farger",
+    "file": "icons/palette.svg"
+  },
+  {
+    "id": "filaments",
+    "label": "Filamentfarger",
+    "group": "Fyll og farger",
+    "file": "icons/filaments.svg"
+  },
+  {
+    "id": "color-library",
+    "label": "Fargebibliotek",
+    "group": "Fyll og farger",
+    "file": "icons/color-library.svg"
+  },
+  {
+    "id": "settings",
+    "label": "Rediger profil",
+    "group": "Fyll og farger",
+    "file": "icons/settings.svg"
+  },
+  {
+    "id": "smooth",
+    "label": "Smooth",
+    "group": "Modifikatorer (Paint/Penn)",
+    "file": "icons/smooth.svg"
+  },
+  {
+    "id": "taper",
+    "label": "Taper",
+    "group": "Modifikatorer (Paint/Penn)",
+    "file": "icons/taper.svg"
+  },
+  {
+    "id": "width",
+    "label": "Bredde",
+    "group": "Modifikatorer (Paint/Penn)",
+    "file": "icons/width.svg"
+  },
+  {
+    "id": "pressure",
+    "label": "Trykkfølsomhet",
+    "group": "Modifikatorer (Paint/Penn)",
+    "file": "icons/pressure.svg"
+  },
+  {
+    "id": "edit-point",
+    "label": "Rediger punkt",
+    "group": "Modifikatorer (Paint/Penn)",
+    "file": "icons/edit-point.svg"
+  },
+  {
+    "id": "add-point",
+    "label": "Legg til punkt",
+    "group": "Modifikatorer (Paint/Penn)",
+    "file": "icons/add-point.svg"
+  },
+  {
+    "id": "remove-point",
+    "label": "Fjern punkt",
+    "group": "Modifikatorer (Paint/Penn)",
+    "file": "icons/remove-point.svg"
+  },
+  {
+    "id": "new",
+    "label": "Nytt",
+    "group": "Fil og prosjekt",
+    "file": "icons/new.svg"
+  },
+  {
+    "id": "open",
+    "label": "Åpne",
+    "group": "Fil og prosjekt",
+    "file": "icons/open.svg"
+  },
+  {
+    "id": "save",
+    "label": "Lagre",
+    "group": "Fil og prosjekt",
+    "file": "icons/save.svg"
+  },
+  {
+    "id": "save-as",
+    "label": "Lagre som",
+    "group": "Fil og prosjekt",
+    "file": "icons/save-as.svg"
+  },
+  {
+    "id": "save-template",
+    "label": "Lagre som mal",
+    "group": "Fil og prosjekt",
+    "file": "icons/save-template.svg"
+  },
+  {
+    "id": "share-template",
+    "label": "Del mal",
+    "group": "Fil og prosjekt",
+    "file": "icons/share-template.svg"
+  },
+  {
+    "id": "export",
+    "label": "Eksporter",
+    "group": "Fil og prosjekt",
+    "file": "icons/export.svg"
+  },
+  {
+    "id": "csv",
+    "label": "CSV",
+    "group": "Fil og prosjekt",
+    "file": "icons/csv.svg"
+  },
+  {
+    "id": "three-mf",
+    "label": "3MF",
+    "group": "Fil og prosjekt",
+    "file": "icons/three-mf.svg"
+  },
+  {
+    "id": "print-preview",
+    "label": "Forhåndsvis plater",
+    "group": "Fil og prosjekt",
+    "file": "icons/print-preview.svg"
+  },
+  {
+    "id": "templates",
+    "label": "Maler",
+    "group": "Maler og bibliotek",
+    "file": "icons/templates.svg"
+  },
+  {
+    "id": "favorites",
+    "label": "Mine maler",
+    "group": "Maler og bibliotek",
+    "file": "icons/favorites.svg"
+  },
+  {
+    "id": "store",
+    "label": "Malbibliotek",
+    "group": "Maler og bibliotek",
+    "file": "icons/store.svg"
+  },
+  {
+    "id": "premium",
+    "label": "Premium",
+    "group": "Maler og bibliotek",
+    "file": "icons/premium.svg"
+  },
+  {
+    "id": "license",
+    "label": "Lisens",
+    "group": "Maler og bibliotek",
+    "file": "icons/license.svg"
+  },
+  {
+    "id": "search",
+    "label": "Søk",
+    "group": "Maler og bibliotek",
+    "file": "icons/search.svg"
+  },
+  {
+    "id": "filter",
+    "label": "Filter",
+    "group": "Maler og bibliotek",
+    "file": "icons/filter.svg"
+  },
+  {
+    "id": "import-csv",
+    "label": "Importer CSV",
+    "group": "CSV / Batch",
+    "file": "icons/import-csv.svg"
+  },
+  {
+    "id": "columns",
+    "label": "Velg kolonner",
+    "group": "CSV / Batch",
+    "file": "icons/columns.svg"
+  },
+  {
+    "id": "rows",
+    "label": "Velg rader",
+    "group": "CSV / Batch",
+    "file": "icons/rows.svg"
+  },
+  {
+    "id": "rules",
+    "label": "Regler",
+    "group": "CSV / Batch",
+    "file": "icons/rules.svg"
+  },
+  {
+    "id": "link-fields",
+    "label": "Koble felter",
+    "group": "CSV / Batch",
+    "file": "icons/link-fields.svg"
+  },
+  {
+    "id": "preview",
+    "label": "Forhåndsvis",
+    "group": "CSV / Batch",
+    "file": "icons/preview.svg"
+  },
+  {
+    "id": "generate",
+    "label": "Generer",
+    "group": "CSV / Batch",
+    "file": "icons/generate.svg"
+  },
+  {
+    "id": "plates-sorted",
+    "label": "Plater (sortert)",
+    "group": "CSV / Batch",
+    "file": "icons/plates-sorted.svg"
+  },
+  {
+    "id": "adjustments",
+    "label": "Innstillinger",
+    "group": "CSV / Batch",
+    "file": "icons/adjustments.svg"
+  },
+  {
+    "id": "generate-stl",
+    "label": "Generer STL",
+    "group": "Produksjon og eksport",
+    "file": "icons/generate-stl.svg"
+  },
+  {
+    "id": "plate-layout",
+    "label": "Platefordeling",
+    "group": "Produksjon og eksport",
+    "file": "icons/plate-layout.svg"
+  },
+  {
+    "id": "color-groups",
+    "label": "Fargegrupper",
+    "group": "Produksjon og eksport",
+    "file": "icons/color-groups.svg"
+  },
+  {
+    "id": "export-three-mf",
+    "label": "Eksporter 3MF",
+    "group": "Produksjon og eksport",
+    "file": "icons/export-three-mf.svg"
+  },
+  {
+    "id": "printer-profile",
+    "label": "Printerprofil",
+    "group": "Produksjon og eksport",
+    "file": "icons/printer-profile.svg"
+  },
+  {
+    "id": "send-printer",
+    "label": "Send til printer",
+    "group": "Produksjon og eksport",
+    "file": "icons/send-printer.svg"
+  },
+  {
+    "id": "print-queue",
+    "label": "Utskriftskø",
+    "group": "Produksjon og eksport",
+    "file": "icons/print-queue.svg"
+  }
+]

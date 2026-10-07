@@ -10,6 +10,7 @@ import type * as THREE from 'three';
 import type { Dokument } from './dokument';
 import type { ModellDel } from '../geometri/mesh';
 import type { Arbeidsbenk } from './arbeidsbenk';
+import type { Romspek } from '../shell/paneler/modell';
 
 export type GeneratorStatus = 'tilgjengelig' | 'under-utvikling';
 
@@ -39,6 +40,24 @@ export interface GeneratorUi {
   Bunnbrett?: ComponentType<{ benk: Arbeidsbenk }>;
   /** Overlays on the 3D view (e.g. direct-manipulation handles). */
   Overlegg3d?: ComponentType<{ benk: Arbeidsbenk; scene: Scene3d }>;
+  /**
+   * Dockable panels (wide screens). With these the shell replaces the fixed
+   * left panel and inspector by a panel system: dock left or right, float,
+   * tabs, minimise, close and reopen, and saved workspaces. Small screens
+   * keep the bottom sheets built from `Venstrepanel` and `Inspektor`.
+   */
+  Paneler?: PanelDef[];
+  /** Workspaces (panel arrangements) shipped with the generator; the first is the default. */
+  Arbeidsrom?: Romspek[];
+}
+
+export interface PanelDef {
+  id: string;
+  navn: string;
+  Innhold: ComponentType<{ benk: Arbeidsbenk }>;
+  /** Size when the panel floats and the workspace says nothing else. */
+  flytB?: number;
+  flytH?: number;
 }
 
 /**

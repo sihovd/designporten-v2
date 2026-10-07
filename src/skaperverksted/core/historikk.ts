@@ -54,6 +54,14 @@ export class Historikk<T> {
     return this.gjorOmStabel.at(-1)?.navn;
   }
 
+  /** The steps by name: what can be undone (oldest first) and what can be redone (next first). */
+  get trinn(): { angre: string[]; gjorOm: string[] } {
+    return {
+      angre: this.angreStabel.map((s) => s.navn),
+      gjorOm: this.gjorOmStabel.map((s) => s.navn).reverse(),
+    };
+  }
+
   utfor(e: Endring<T>): T {
     const for_ = this.tilstand;
     const etter = e.anvend(for_);
