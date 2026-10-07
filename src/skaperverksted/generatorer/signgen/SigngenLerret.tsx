@@ -12,7 +12,7 @@ import { rutenettnivaa, snapTil } from '../../core/rutenett';
 import { mm, tall } from '../../core/enheter';
 import type { Region } from '../../geometri/polygon';
 import { Lerret, type Farger, type Verktoyhandler } from '../../render2d/Lerret';
-import { lagVisning, type Visning } from '../../render2d/visning';
+import { LINJAL, lagVisning, type Visning } from '../../render2d/visning';
 import { brukBenk } from '../../shell/bruk-benk';
 import { nyForm, nyTekst, oppdaterObjekter } from './dokument';
 import {
@@ -25,10 +25,19 @@ import {
   verdensBoks,
   verdensRegion,
 } from './modell';
-import { signtilstand, brukSigntilstand, type Hjelpelinje, type VerktoyId } from './tilstand';
+import { signtilstand, brukSigntilstand, type Snaplinje, type VerktoyId } from './tilstand';
 import { dupliserValgte, leggTil, redigerbare, slettValgte, utvalgsboks, valgte } from './handlinger';
 import { snapPunkt, treff } from './plukk';
 import { erDobbeltklikk } from './dobbeltklikk';
+import {
+  flyttHjelpelinjeTil,
+  hjelpelinjerAv,
+  laasHjelpelinje,
+  leggTilHjelpelinjeI,
+  narmesteHjelpelinje,
+  slettHjelpelinjeI,
+} from './hjelpelinjer';
+import { TallFelt } from '../../shell/kontroller';
 import { kurveObjekt, startKurveredigering } from './kurver';
 import { lagKurveverktoy } from './Kurveverktoy';
 import { tegnKurver } from './Kurveoverlegg';
@@ -120,6 +129,42 @@ function roterPunktSkjerm(v: Visning, h: NonNullable<ReturnType<typeof handtakFo
   return { x: topp.x + (dx / l) * ROTER_AVSTAND, y: topp.y + (dy / l) * ROTER_AVSTAND };
 }
 
+/** Guide lines across the whole canvas: cyan, dashed when locked, brighter when chosen. */
+function tegnHjelpelinjer(
+  ctx: CanvasRenderingContext2D,
+  v: Visning,
+  f: Farger,
+  benk: Arbeidsbenk,
+  st: ReturnType<typeof signtilstand>['t'],
+): void {
+  if (!benk.tilstand.innstillinger.hjelpelinjer) return;
+  const dra = st.guideDra;
+  const linjer = hjelpelinjerAv(benk.dok)
+    .filter((g) => g.id !== dra?.id)
+    .map((g) => ({ id: g.id, akse: g.akse, verdi: g.verdi, last: !!g.last }));
+  if (dra && !dra.tilbake) linjer.push({ id: dra.id ?? 'ny', akse: dra.akse, verdi: dra.verdi, last: false });
+  ctx.save();
+  for (const g of linjer) {
+    const valgt = g.id === st.valgtGuide || (dra && g.id === (dra.id ?? 'ny'));
+    ctx.beginPath();
+    if (g.akse === 'x') {
+      const x = Math.round(v.tilSkjerm({ x: g.verdi, y: 0 }).x) + 0.5;
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, v.hoyde);
+    } else {
+      const y = Math.round(v.tilSkjerm({ x: 0, y: g.verdi }).y) + 0.5;
+      ctx.moveTo(0, y);
+      ctx.lineTo(v.bredde, y);
+    }
+    ctx.strokeStyle = valgt ? f.tekst : f.cyan;
+    ctx.lineWidth = valgt ? 1.5 : 1;
+    ctx.globalAlpha = valgt ? 0.95 : 0.7;
+    ctx.setLineDash(g.last ? [6, 4] : []);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, benk: Arbeidsbenk): void {
   const d = benk.dok;
   const st = signtilstand(benk).t;
@@ -152,6 +197,8 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
       ctx.globalAlpha = 1;
     }
   }
+
+  tegnHjelpelinjer(ctx, v, f, benk, st);
 
   // object outlines: the active layer's objects, and all cutting objects
   ctx.lineWidth = 1;
@@ -217,7 +264,7 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
   // guides
   ctx.strokeStyle = f.cyan;
   ctx.lineWidth = 1;
-  for (const g of st.hjelpelinjer) {
+  for (const g of st.snaplinjer) {
     ctx.beginPath();
     if (g.akse === 'x') {
       const a = v.tilSkjerm({ x: g.verdi, y: g.fra });
@@ -284,7 +331,7 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
 interface Snapresultat {
   dx: number;
   dy: number;
-  linjer: Hjelpelinje[];
+  linjer: Snaplinje[];
 }
 
 function snapBoks(
@@ -295,39 +342,46 @@ function snapBoks(
   deaktivert: boolean,
 ): Snapresultat {
   if (deaktivert || !benk.tilstand.innstillinger.snap) return { dx: 0, dy: 0, linjer: [] };
+  const mal = signtilstand(benk).t.snapmal;
   const terskel = 7 / v.pxPerMm;
   const andre = Object.values(benk.dok.objekter)
     .filter((o) => o.synlig && !utelat.has(o.id))
     .map(verdensBoks);
   const plate: Boks = { minX: 0, maksX: 0, minY: 0, maksY: 0 };
+  const guider = mal.hjelpelinjer && benk.tilstand.innstillinger.hjelpelinjer ? hjelpelinjerAv(benk.dok) : [];
   const mine = {
     x: [b.minX, (b.minX + b.maksX) / 2, b.maksX],
     y: [b.minY, (b.minY + b.maksY) / 2, b.maksY],
   };
   const res: Snapresultat = { dx: 0, dy: 0, linjer: [] };
   for (const akse of ['x', 'y'] as const) {
-    let best: { d: number; mal: Boks; verdi: number } | null = null;
-    for (const m of [plate, ...andre]) {
-      const deres =
-        akse === 'x' ? [m.minX, (m.minX + m.maksX) / 2, m.maksX] : [m.minY, (m.minY + m.maksY) / 2, m.maksY];
-      for (const a of mine[akse]) {
-        for (const t of deres) {
-          const d = t - a;
-          if (Math.abs(d) <= terskel && (!best || Math.abs(d) < Math.abs(best.d)))
-            best = { d, mal: m, verdi: t };
-        }
-      }
+    let best: { d: number; mal: Boks | null; verdi: number } | null = null;
+    const prov = (a: number, t: number, m: Boks | null) => {
+      const d = t - a;
+      if (Math.abs(d) <= terskel && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, mal: m, verdi: t };
+    };
+    // edges and centres of the other objects (and the plate centre), as the Snap menu allows
+    for (const m of mal.objekter || mal.sentre ? [plate, ...andre] : []) {
+      const lav = akse === 'x' ? m.minX : m.minY;
+      const hoy = akse === 'x' ? m.maksX : m.maksY;
+      const deres = [...(mal.objekter ? [lav, hoy] : []), ...(mal.sentre ? [(lav + hoy) / 2] : [])];
+      for (const a of mine[akse]) for (const t of deres) prov(a, t, m);
     }
-    if (best) {
-      if (akse === 'x') res.dx = best.d;
-      else res.dy = best.d;
-      const [fra, til] =
-        akse === 'x'
-          ? [Math.min(b.minY, best.mal.minY), Math.max(b.maksY, best.mal.maksY)]
-          : [Math.min(b.minX, best.mal.minX), Math.max(b.maksX, best.mal.maksX)];
-      const pad = 6 / v.pxPerMm;
-      res.linjer.push({ akse, verdi: best.verdi, fra: fra - pad, til: til + pad });
-    } else {
+    // guide lines: any edge or the centre of the dragged box
+    for (const g of guider) if (g.akse === akse) for (const a of mine[akse]) prov(a, g.verdi, null);
+    const treff = best as { d: number; mal: Boks | null; verdi: number } | null;
+    if (treff) {
+      if (akse === 'x') res.dx = treff.d;
+      else res.dy = treff.d;
+      if (treff.mal) {
+        const [fra, til] =
+          akse === 'x'
+            ? [Math.min(b.minY, treff.mal.minY), Math.max(b.maksY, treff.mal.maksY)]
+            : [Math.min(b.minX, treff.mal.minX), Math.max(b.maksX, treff.mal.maksX)];
+        const pad = 6 / v.pxPerMm;
+        res.linjer.push({ akse, verdi: treff.verdi, fra: fra - pad, til: til + pad });
+      }
+    } else if (mal.rutenett) {
       // grid: put the leading edge on the minor grid
       const steg = Math.max(0.1, rutenettnivaa(v.pxPerMm).liten);
       const a = mine[akse][0]!;
@@ -339,6 +393,15 @@ function snapBoks(
   return res;
 }
 
+/** Keep a movement on the nearest 45° line (Shift): the part of the movement along it. */
+function laasTil45(dx: number, dy: number): { x: number; y: number; retning: Vec2 } {
+  const a = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  const rx = Math.abs(Math.cos(a)) < 1e-9 ? 0 : Math.cos(a);
+  const ry = Math.abs(Math.sin(a)) < 1e-9 ? 0 : Math.sin(a);
+  const lengde = dx * rx + dy * ry;
+  return { x: lengde * rx, y: lengde * ry, retning: { x: rx, y: ry } };
+}
+
 // ---------- tools ----------
 
 type Drag =
@@ -347,7 +410,8 @@ type Drag =
   | { type: 'roter'; orig: Objekt; senter: Vec2; start: number }
   | { type: 'marker'; start: Vec2; legg: boolean; for: string[] }
   | { type: 'utkast'; start: Vec2 }
-  | { type: 'maal'; a: Vec2 };
+  | { type: 'maal'; a: Vec2 }
+  | { type: 'guide'; id: string; akse: 'x' | 'y'; start: number; flyttet: boolean };
 
 function skalerEnkelt(o: Objekt, indeks: number, p: Vec2, proporsjonal: boolean): Objekt {
   const g = lokalGeometri(o.kilde)!;
@@ -391,6 +455,45 @@ function skalerEnkelt(o: Objekt, indeks: number, p: Vec2, proporsjonal: boolean)
   const m1 = tilMatrise({ ...ny.transform, x: 0, y: 0 });
   const a1 = anvend(m1, nyttAnker);
   return { ...ny, transform: { ...ny.transform, x: verdensAnker.x - a1.x, y: verdensAnker.y - a1.y } };
+}
+
+/** Where a guide being dragged lands: on the grid or another object's edge, unless Alt is held. */
+function snapGuide(benk: Arbeidsbenk, akse: 'x' | 'y', p: Vec2, v: Visning, deaktivert: boolean): number {
+  const f = snapPunkt(benk, p, v, deaktivert);
+  return Math.round((akse === 'x' ? f.x : f.y) * 100) / 100;
+}
+
+/** Dragging out of a ruler: a new guide, kept when it is let go on the canvas. */
+function lagGuideverktoy(benk: Arbeidsbenk, side: 'topp' | 'venstre'): Verktoyhandler {
+  const lager = signtilstand(benk);
+  const akse = side === 'topp' ? 'y' : 'x';
+  return {
+    markor: 'default',
+    ned({ modell, visning }) {
+      benk.velg({ objekter: [] });
+      lager.sett({
+        valgtGuide: null,
+        guideDra: { id: null, akse, verdi: snapGuide(benk, akse, modell, visning, true), tilbake: true },
+      });
+    },
+    flytt({ modell, skjerm, e, visning }) {
+      const tilbake = (akse === 'x' ? skjerm.x : skjerm.y) < LINJAL;
+      lager.sett({
+        guideDra: { id: null, akse, verdi: snapGuide(benk, akse, modell, visning, e.altKey), tilbake },
+      });
+    },
+    opp() {
+      const dra = lager.t.guideDra;
+      lager.sett({ guideDra: null });
+      if (!dra || dra.tilbake) return;
+      if (!benk.tilstand.innstillinger.hjelpelinjer) benk.settInnstillinger({ hjelpelinjer: true });
+      const g = leggTilHjelpelinjeI(benk, dra.akse, dra.verdi);
+      lager.sett({ valgtGuide: g.id });
+    },
+    avbryt() {
+      lager.sett({ guideDra: null });
+    },
+  };
 }
 
 function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
@@ -438,6 +541,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         const utvalg = benk.tilstand.utvalg.objekter;
         const dobbel = erDobbeltklikk(skjerm);
         if (o) {
+          if (lager.t.valgtGuide) lager.sett({ valgtGuide: null });
           if (e.shiftKey) {
             const ny = utvalg.includes(o.id) ? utvalg.filter((x) => x !== o.id) : [...utvalg, o.id];
             benk.velg({ objekter: ny, lag: o.lagId });
@@ -463,19 +567,43 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
           };
           return;
         }
+        // a guide line (not under an object): choose it, and drag it unless it is locked
+        if (benk.tilstand.innstillinger.hjelpelinjer && !e.shiftKey) {
+          const g = narmesteHjelpelinje(hjelpelinjerAv(benk.dok), modell, 5 / v.pxPerMm, true);
+          if (g) {
+            benk.velg({ objekter: [] });
+            lager.sett({ valgtGuide: g.id });
+            if (!g.last) {
+              drag = { type: 'guide', id: g.id, akse: g.akse, start: g.verdi, flyttet: false };
+              lager.sett({ guideDra: { id: g.id, akse: g.akse, verdi: g.verdi, tilbake: false } });
+            }
+            return;
+          }
+        }
+        if (lager.t.valgtGuide) lager.sett({ valgtGuide: null });
         drag = { type: 'marker', start: modell, legg: e.shiftKey, for: e.shiftKey ? utvalg : [] };
         if (!e.shiftKey) benk.velg({ objekter: [] });
       },
-      flytt({ modell, e, visning: v }) {
+      flytt({ modell, skjerm, e, visning: v }) {
         if (!drag) return;
+        if (drag.type === 'guide') {
+          const verdi = snapGuide(benk, drag.akse, modell, v, e.altKey);
+          const tilbake = (drag.akse === 'x' ? skjerm.x : skjerm.y) < LINJAL;
+          drag.flyttet = true;
+          lager.sett({ guideDra: { id: drag.id, akse: drag.akse, verdi, tilbake } });
+          return;
+        }
         if (drag.type === 'flytt') {
           let dx = modell.x - drag.start.x,
             dy = modell.y - drag.start.y;
           if (!drag.flyttet && Math.hypot(dx, dy) * v.pxPerMm < 3) return;
           drag.flyttet = true;
+          let retning: Vec2 | null = null;
           if (e.shiftKey) {
-            if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-            else dx = 0;
+            const l = laasTil45(dx, dy);
+            dx = l.x;
+            dy = l.y;
+            retning = l.retning;
           }
           const b = drag.boks;
           const flyttetBoks = {
@@ -485,8 +613,15 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
             maksY: b.maksY + dy,
           };
           const s = snapBoks(benk, flyttetBoks, new Set(drag.orig.keys()), v, e.altKey);
-          dx += s.dx;
-          dy += s.dy;
+          if (retning) {
+            // snapping only moves the box along the locked line
+            const langs = s.dx * retning.x + s.dy * retning.y;
+            dx += langs * retning.x;
+            dy += langs * retning.y;
+          } else {
+            dx += s.dx;
+            dy += s.dy;
+          }
           const orig = drag.orig;
           benk.endre({
             navn: 'Flytt',
@@ -498,7 +633,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
               }),
           });
           lager.sett({
-            hjelpelinjer: s.linjer,
+            snaplinjer: s.linjer,
             maletikett: {
               p: { x: b.maksX + dx, y: b.minY + dy },
               tekst: `x ${tall((b.minX + b.maksX) / 2 + dx)}  y ${tall((b.minY + b.maksY) / 2 + dy)} mm`,
@@ -553,7 +688,8 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         } else if (drag.type === 'roter') {
           const vinkel = Math.atan2(modell.y - drag.senter.y, modell.x - drag.senter.x);
           let rot = drag.orig.transform.rotasjon + ((vinkel - drag.start) * 180) / Math.PI;
-          if ((benk.tilstand.innstillinger.snap && !e.altKey) || e.shiftKey) rot = Math.round(rot / 15) * 15;
+          if (e.shiftKey) rot = Math.round(rot / 45) * 45;
+          else if (benk.tilstand.innstillinger.snap && !e.altKey) rot = Math.round(rot / 15) * 15;
           rot = (((rot % 360) + 540) % 360) - 180;
           const o0 = drag.orig;
           const g = lokalGeometri(o0.kilde)!;
@@ -594,18 +730,32 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         }
       },
       opp() {
+        if (drag?.type === 'guide') {
+          const dra = lager.t.guideDra;
+          if (dra?.tilbake) {
+            slettHjelpelinjeI(benk, drag.id);
+            lager.sett({ valgtGuide: null });
+            benk.melde('Hjelpelinjen er fjernet.');
+          } else if (dra && drag.flyttet && dra.verdi !== drag.start) {
+            flyttHjelpelinjeTil(benk, drag.id, dra.verdi);
+          }
+          drag = null;
+          lager.sett({ guideDra: null });
+          return;
+        }
         if (drag && drag.type !== 'marker') benk.historikk.avsluttSammenslaing();
         if (drag?.type === 'marker') {
           const n = benk.tilstand.utvalg.objekter.length;
           if (n) benk.melde(n === 1 ? '1 objekt valgt.' : `${n} objekter valgt.`);
         }
         drag = null;
-        lager.sett({ hjelpelinjer: [], markering: null, maletikett: null });
+        lager.sett({ snaplinjer: [], markering: null, maletikett: null });
       },
       avbryt() {
+        if (drag?.type === 'guide') lager.sett({ guideDra: null });
         if (drag && drag.type !== 'marker') benk.historikk.avsluttSammenslaing();
         drag = null;
-        lager.sett({ hjelpelinjer: [], markering: null, maletikett: null });
+        lager.sett({ snaplinjer: [], markering: null, maletikett: null });
       },
     };
   }
@@ -769,6 +919,67 @@ function Flytlinje({ benk }: { benk: Arbeidsbenk }) {
   );
 }
 
+// ---------- guide bar ----------
+
+/** The chosen guide line: its position, lock and delete, at the edge of the canvas. */
+function Guidebar({ benk }: { benk: Arbeidsbenk }) {
+  const t = brukBenk(benk);
+  const st = brukSigntilstand(benk);
+  const ref = useRef<HTMLDivElement>(null);
+  const [str, settStr] = useState({ b: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current?.parentElement;
+    if (!el) return;
+    const ro = new ResizeObserver(() => settStr({ b: el.clientWidth, h: el.clientHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const g = hjelpelinjerAv(t.dok).find((x) => x.id === st.valgtGuide);
+  if (!g || !str.b || !t.innstillinger.hjelpelinjer) return <div ref={ref} hidden />;
+  const v = lagVisning(t.utsnitt, str.b, str.h);
+  const pos =
+    g.akse === 'x'
+      ? {
+          left: `${Math.min(Math.max(v.tilSkjerm({ x: g.verdi, y: 0 }).x + 8, LINJAL + 4), str.b - 230)}px`,
+          top: `${LINJAL + 8}px`,
+        }
+      : {
+          left: `${LINJAL + 8}px`,
+          top: `${Math.min(Math.max(v.tilSkjerm({ x: 0, y: g.verdi }).y + 8, LINJAL + 4), str.h - 50)}px`,
+        };
+  return (
+    <div ref={ref} class="flytlinje guidebar" style={pos} role="toolbar" aria-label="Valgt hjelpelinje">
+      <TallFelt
+        etikett={g.akse === 'x' ? 'Hjelpelinje, vannrett posisjon' : 'Hjelpelinje, loddrett posisjon'}
+        kortEtikett={g.akse === 'x' ? 'X' : 'Y'}
+        verdi={g.verdi}
+        steg={1}
+        deaktivert={!!g.last}
+        endre={(v2, k) => flyttHjelpelinjeTil(benk, g.id, v2, k === 'pil' ? 'guide-pil' : undefined)}
+      />
+      <button
+        type="button"
+        aria-pressed={!!g.last}
+        onClick={() => laasHjelpelinje(benk, g.id, !g.last)}
+        title={g.last ? 'Lås opp hjelpelinjen' : 'Lås hjelpelinjen'}
+      >
+        {g.last ? 'Lås opp' : 'Lås'}
+      </button>
+      <button
+        type="button"
+        disabled={!!g.last}
+        onClick={() => {
+          slettHjelpelinjeI(benk, g.id);
+          signtilstand(benk).sett({ valgtGuide: null });
+        }}
+        title="Slett hjelpelinjen (Delete)"
+      >
+        Slett
+      </button>
+    </div>
+  );
+}
+
 // ---------- component ----------
 
 export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
@@ -808,9 +1019,11 @@ export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
       markering={markering}
       innhold={() => innholdsboks(benk.dok)}
       panorer={st.verktoy === 'panorer'}
+      linjalverktoy={(side) => lagGuideverktoy(benk, side)}
       etikett={`Skiltet sett ovenfra, ${t.dok.lag.length} lag og ${antall} objekter. Velg objekter i lagpanelet med tastatur. Piltaster flytter valgte objekter.`}
     >
       {st.verktoy === 'velg' && !st.kurve && <Flytlinje benk={benk} />}
+      {st.valgtGuide && <Guidebar benk={benk} />}
     </Lerret>
   );
 }

@@ -2869,3 +2869,65 @@
 .lagmeny button.farlig {
   color: var(--feil-mork);
 }
+
+/* ---------- Guides, snap menu and the Transform / Justér panels ---------- */
+
+.guidebar {
+  translate: 0 0;
+}
+
+.menyhake {
+  display: inline-grid;
+  width: 16px;
+  place-items: center;
+  color: var(--dp-lilla);
+  font-weight: 700;
+}
+
+.guideliste {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guideliste li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px;
+  border-radius: var(--radius-felt);
+}
+
+.guideliste li > :nth-child(2) {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.guideliste li.valgt {
+  background: var(--panel-2);
+  outline: 1px solid var(--dp-lilla);
+}
+
+.guidenavn {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.guidebar .felt {
+  grid-template-columns: auto 110px;
+  margin: 0;
+  padding-left: 6px;
+}
+
+.guideliste .felt {
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  margin: 0;
+}

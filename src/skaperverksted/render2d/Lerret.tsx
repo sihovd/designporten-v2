@@ -51,6 +51,11 @@ export interface LerretProps {
   innhold?: () => Boks | null;
   /** Pan with a plain drag (the pan tool). */
   panorer?: boolean;
+  /**
+   * Dragging out of a ruler: `topp` is the ruler along the top (it makes horizontal guides), `venstre`
+   * the one down the left side. The handler gets the pointer until it is released.
+   */
+  linjalverktoy?: (side: 'topp' | 'venstre') => Verktoyhandler | null;
   etikett: string;
   children?: ComponentChildren;
 }
@@ -68,11 +73,21 @@ function lesFarger(el: Element): Farger {
   };
 }
 
-export function Lerret({ benk, tegn, verktoy, markering, innhold, panorer, etikett, children }: LerretProps) {
+export function Lerret({
+  benk,
+  tegn,
+  verktoy,
+  markering,
+  innhold,
+  panorer,
+  linjalverktoy,
+  etikett,
+  children,
+}: LerretProps) {
   const vert = useRef<HTMLDivElement>(null);
   const lerret = useRef<HTMLCanvasElement>(null);
-  const siste = useRef({ tegn, verktoy, markering, innhold, panorer });
-  siste.current = { tegn, verktoy, markering, innhold, panorer };
+  const siste = useRef({ tegn, verktoy, markering, innhold, panorer, linjalverktoy });
+  siste.current = { tegn, verktoy, markering, innhold, panorer, linjalverktoy };
   const planlagt = useRef(false);
   const tegnNa = useRef<() => void>(() => {});
 
@@ -212,6 +227,9 @@ export function Lerret({ benk, tegn, verktoy, markering, innhold, panorer, etike
     let klype: { avstand: number; midt: Vec2; zoom: number } | null = null;
     let mellomrom = false;
     let verktoyAktiv = false;
+    /** A ruler drag: this handler has the pointer instead of the active tool. */
+    let linjalHandler: Verktoyhandler | null = null;
+    const aktivtVerktoy = () => linjalHandler ?? siste.current.verktoy;
 
     const pos = (e: PointerEvent | WheelEvent): Vec2 => {
       const r = c.getBoundingClientRect();
@@ -236,8 +254,9 @@ export function Lerret({ benk, tegn, verktoy, markering, innhold, panorer, etike
       c.setPointerCapture(e.pointerId);
       if (pekere.size === 2) {
         // second finger: switch to pinch, cancel any tool drag
-        if (verktoyAktiv) siste.current.verktoy?.avbryt?.();
+        if (verktoyAktiv) aktivtVerktoy()?.avbryt?.();
         verktoyAktiv = false;
+        linjalHandler = null;
         pan = null;
         const [a, bb] = [...pekere.values()] as [Vec2, Vec2];
         klype = {
@@ -257,8 +276,12 @@ export function Lerret({ benk, tegn, verktoy, markering, innhold, panorer, etike
         return;
       }
       if (e.button !== 0) return;
+      const s = pos(e);
+      const side = s.y < LINJAL && s.x >= LINJAL ? 'topp' : s.x < LINJAL && s.y >= LINJAL ? 'venstre' : null;
+      linjalHandler =
+        side && e.pointerType !== 'touch' ? (siste.current.linjalverktoy?.(side) ?? null) : null;
       verktoyAktiv = true;
-      siste.current.verktoy?.ned?.(hendelse(e));
+      aktivtVerktoy()?.ned?.(hendelse(e));
     };
     const flytt = (e: PointerEvent) => {
       if (pekere.has(e.pointerId)) pekere.set(e.pointerId, pos(e));
@@ -291,7 +314,7 @@ export function Lerret({ benk, tegn, verktoy, markering, innhold, panorer, etike
         });
         return;
       }
-      siste.current.verktoy?.flytt?.(hendelse(e));
+      aktivtVerktoy()?.flytt?.(hendelse(e));
     };
     const opp = (e: PointerEvent) => {
       pekere.delete(e.pointerId);
@@ -306,15 +329,18 @@ export function Lerret({ benk, tegn, verktoy, markering, innhold, panorer, etike
       }
       if (verktoyAktiv) {
         verktoyAktiv = false;
-        siste.current.verktoy?.opp?.(hendelse(e));
+        const h = aktivtVerktoy();
+        linjalHandler = null;
+        h?.opp?.(hendelse(e));
       }
     };
     const avbryt = (e: PointerEvent) => {
       pekere.delete(e.pointerId);
       pan = null;
       klype = null;
-      if (verktoyAktiv) siste.current.verktoy?.avbryt?.();
+      if (verktoyAktiv) aktivtVerktoy()?.avbryt?.();
       verktoyAktiv = false;
+      linjalHandler = null;
     };
     const hjul = (e: WheelEvent) => {
       e.preventDefault();

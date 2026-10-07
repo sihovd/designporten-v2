@@ -154,6 +154,18 @@ export interface Plate {
   printerProfilId: string;
 }
 
+/**
+ * A guide line on the 2D canvas (Sign Forge): vertical (`akse` «x», at x = verdi) or horizontal
+ * («y»). Saved with the project; never part of the model, so it is not in the 3D view or the export.
+ */
+export interface Hjelpelinje {
+  id: string;
+  akse: 'x' | 'y';
+  /** Position on the axis (mm, plate centre = 0). */
+  verdi: number;
+  last?: boolean;
+}
+
 export interface Dokument {
   versjon: number;
   id: string;
@@ -167,6 +179,8 @@ export interface Dokument {
   rekkefolge: Record<LagId, ObjektId[]>;
   /** Parametric generator state. */
   parametre: Record<string, unknown>;
+  /** Sign Forge: guide lines (older projects have none). */
+  hjelpelinjer?: Hjelpelinje[];
   meta: { opprettet: string; endret: string };
 }
 
