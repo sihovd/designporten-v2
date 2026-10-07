@@ -6,7 +6,7 @@
  * confirmed (`bekreftet: false`); your own profiles are kept in this
  * browser only.
  */
-import { finnMateriale, materialer } from '../../core/materialer';
+import { erKjentMateriale, finnMateriale } from '../../core/materialer';
 
 /** How many colours a new profile has by default. */
 export const STANDARD_ANTALL_FARGER = 4;
@@ -38,7 +38,7 @@ const NOKKEL = 'designporten:signgen:fargeprofiler';
 
 /** Only colours the catalogue knows, each once. */
 export function rensFarger(farger: readonly string[]): string[] {
-  return [...new Set(farger)].filter((id) => materialer.some((m) => m.id === id));
+  return [...new Set(farger)].filter(erKjentMateriale);
 }
 
 export function hentEgneProfiler(): Fargeprofil[] {

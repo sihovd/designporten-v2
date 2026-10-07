@@ -16,6 +16,7 @@ import { Lagpanel } from './Lagpanel';
 import { SigngenInspektor } from './Inspektor';
 import { Profilseksjon } from './Profilseksjon';
 import { Justerpanel, Transformpanel } from './justerpaneler';
+import { Fargepanel } from './Fargepanel';
 import { finnLag } from '../../core/dokument';
 
 /** What was done, newest last. Click a step to go back (or forward) to it. */
@@ -149,6 +150,7 @@ export const PANELER: PanelDef[] = [
   { id: 'profil', navn: 'Profil', Innhold: Profilpanel, flytB: 320, flytH: 520, fane: 'egenskaper' },
   { id: 'transform', navn: 'Transform', Innhold: Transformpanel, flytB: 300, flytH: 360 },
   { id: 'justering', navn: 'Justér', Innhold: Justerpanel, flytB: 300, flytH: 480 },
+  { id: 'fargeprofil', navn: 'Fargeprofil', Innhold: Fargepanel, flytB: 340, flytH: 560, fane: 'egenskaper' },
   { id: 'historikk', navn: 'Historikk', Innhold: Historikkpanel, flytB: 280, flytH: 340 },
   { id: 'produksjon', navn: 'Produksjon', Innhold: Produksjonspanel, flytB: 300, flytH: 380 },
 ];
@@ -173,10 +175,10 @@ export const ARBEIDSROM: Romspek[] = [
       { paneler: ['lag'], side: 'venstre', vekt: 3 },
       { paneler: ['historikk'], side: 'venstre', vekt: 2 },
       { paneler: ['egenskaper', 'profil'], side: 'hoyre', vekt: 3 },
-      { paneler: ['transform', 'justering'], side: 'hoyre', vekt: 2 },
+      { paneler: ['transform', 'justering', 'fargeprofil'], side: 'hoyre', vekt: 2 },
     ],
     smal: [
-      { paneler: ['egenskaper', 'profil', 'transform', 'justering'], side: 'hoyre', vekt: 3 },
+      { paneler: ['egenskaper', 'profil', 'transform', 'justering', 'fargeprofil'], side: 'hoyre', vekt: 3 },
       { paneler: ['lag', 'historikk'], side: 'hoyre', vekt: 2 },
     ],
   },
@@ -186,7 +188,7 @@ export const ARBEIDSROM: Romspek[] = [
     dokkB: { venstre: 280, hoyre: 320 },
     grupper: [
       { paneler: ['lag'], side: 'venstre' },
-      { paneler: ['produksjon'], side: 'hoyre', vekt: 2 },
+      { paneler: ['produksjon', 'fargeprofil'], side: 'hoyre', vekt: 2 },
       { paneler: ['egenskaper'], side: 'hoyre', vekt: 3 },
     ],
     smal: [{ paneler: ['produksjon', 'egenskaper', 'lag'], side: 'hoyre' }],

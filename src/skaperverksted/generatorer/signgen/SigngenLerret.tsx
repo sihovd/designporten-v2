@@ -28,7 +28,7 @@ import {
 } from './modell';
 import { signtilstand, brukSigntilstand, type Snaplinje, type VerktoyId } from './tilstand';
 import { dupliserValgte, leggTil, redigerbare, slettValgte, utvalgsboks, valgte } from './handlinger';
-import { snapPunkt, treff } from './plukk';
+import { laas45Punkt, snapPunkt, treff } from './plukk';
 import { erDobbeltklikk } from './dobbeltklikk';
 import {
   flyttHjelpelinjeTil,
@@ -42,10 +42,20 @@ import { TallFelt } from '../../shell/kontroller';
 import { kurveObjekt, startKurveredigering } from './kurver';
 import { lagKurveverktoy } from './Kurveverktoy';
 import { tegnKurver } from './Kurveoverlegg';
+import {
+  fjernBreddepunkt,
+  leggTilBreddepunkt,
+  settBreddeVed,
+  strekvisning,
+  tegnBreddehandtak,
+  treffBreddehandtak,
+  treffSenterlinje,
+} from './Strekverktoy';
 import { lagPennverktoy } from './Pennverktoy';
 import { leggTilStrek, strekFraPunkter } from './paint';
 import { Paintbar } from './Strekpanel';
 import { BOOLSKE, boolskHinder, kombinerValgte } from './boolsk';
+import { Tips } from '../../shell/Tips';
 import { Ikon } from '../../shell/ikoner';
 import { strekRing } from '../../geometri/strek';
 
@@ -362,6 +372,7 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
     etikett(ctx, f, { x: s.x + 12, y: s.y + 12 }, st.maletikett.tekst);
   }
   tegnKurver(ctx, v, f, benk);
+  if (st.verktoy === 'velg') tegnBreddehandtak(ctx, v, f, benk);
 }
 
 // ---------- hit testing ----------
@@ -469,6 +480,7 @@ type Drag =
   | { type: 'marker'; start: Vec2; legg: boolean; for: string[] }
   | { type: 'utkast'; start: Vec2 }
   | { type: 'paint' }
+  | { type: 'bredde'; id: string; indeks: number }
   | { type: 'maal'; a: Vec2 }
   | { type: 'guide'; id: string; akse: 'x' | 'y'; start: number; flyttet: boolean };
 
@@ -562,12 +574,29 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
   if (id === 'panorer') return { markor: 'grab' };
 
   if (id === 'velg') {
+    let ventendeBredde: { id: string; t: number } | null = null;
     return {
       markor: 'default',
       ned({ modell, skjerm, e, visning: v }) {
         const tol = (e.pointerType === 'touch' ? 14 : 8) / v.pxPerMm;
         const h = handtakFor(benk);
         const kanEndre = redigerbare(benk).length === valgte(benk).length;
+        ventendeBredde = null;
+        const sv = kanEndre ? strekvisning(benk) : null;
+        if (sv && !e.shiftKey) {
+          const hit = treffBreddehandtak(sv, modell, (e.pointerType === 'touch' ? 14 : 9) / v.pxPerMm);
+          if (hit !== null) {
+            if (erDobbeltklikk(skjerm) && hit > 0 && hit < sv.handtak.length - 1) {
+              fjernBreddepunkt(benk, sv.o.id, hit);
+              return;
+            }
+            drag = { type: 'bredde', id: sv.o.id, indeks: hit };
+            return;
+          }
+          // a click on the spline (not a drag) adds a width point
+          const t = treffSenterlinje(sv, modell, tol);
+          if (t !== null) ventendeBredde = { id: sv.o.id, t };
+        }
         if (h && kanEndre) {
           const r = roterPunktSkjerm(v, h);
           if (
@@ -650,6 +679,10 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
           const tilbake = (drag.akse === 'x' ? skjerm.x : skjerm.y) < LINJAL;
           drag.flyttet = true;
           lager.sett({ guideDra: { id: drag.id, akse: drag.akse, verdi, tilbake } });
+          return;
+        }
+        if (drag.type === 'bredde') {
+          settBreddeVed(benk, drag.id, drag.indeks, modell);
           return;
         }
         if (drag.type === 'flytt') {
@@ -803,6 +836,10 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
           return;
         }
         if (drag && drag.type !== 'marker') benk.historikk.avsluttSammenslaing();
+        if (drag?.type === 'flytt' && !drag.flyttet && ventendeBredde) {
+          leggTilBreddepunkt(benk, ventendeBredde.id, ventendeBredde.t);
+        }
+        ventendeBredde = null;
         if (drag?.type === 'marker') {
           const n = benk.tilstand.utvalg.objekter.length;
           if (n) benk.melde(n === 1 ? '1 objekt valgt.' : `${n} objekter valgt.`);
@@ -855,6 +892,8 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
 
   if (id === 'paint') {
     let punkter: Vec2[] = [];
+    /** Where Shift was pressed: the stroke runs on from there along a 45° line. */
+    let laasAnker: Vec2 | null = null;
     return {
       markor: 'crosshair',
       ned({ modell }) {
@@ -862,9 +901,13 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         punkter = [modell];
         lager.sett({ paintUtkast: punkter });
       },
-      flytt({ modell }) {
+      flytt({ modell: rå, e }) {
         if (drag?.type !== 'paint') return;
         const sist = punkter[punkter.length - 1]!;
+        // Shift: the direction from where it was pressed is kept to steps of 45°
+        if (!e.shiftKey) laasAnker = null;
+        else laasAnker ??= sist;
+        const modell = laasAnker ? laas45Punkt(laasAnker, rå) : rå;
         if (Math.hypot(modell.x - sist.x, modell.y - sist.y) < 0.2) return;
         punkter = [...punkter, modell];
         lager.sett({ paintUtkast: punkter });
@@ -872,6 +915,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
       opp() {
         if (drag?.type !== 'paint') return;
         drag = null;
+        laasAnker = null;
         const strek = strekFraPunkter(punkter, lager.t.paint);
         punkter = [];
         lager.sett({ paintUtkast: null });
@@ -1069,16 +1113,23 @@ function Boolskbar({ benk }: { benk: Arbeidsbenk }) {
       aria-label="Kombiner former"
     >
       {BOOLSKE.map((b) => (
-        <button
-          key={b.id}
-          type="button"
-          disabled={!!hinder}
-          title={hinder ?? b.hjelp}
-          onClick={() => kombinerValgte(benk, b.id)}
-        >
-          <Ikon id={b.ikon} storrelse={16} />
-          {b.navn}
-        </button>
+        <Tips key={b.id} navn={b.navn} hjelp={hinder ?? b.hjelp} side="under">
+          {(p) => (
+            <button
+              type="button"
+              class="ikonknapp"
+              aria-label={b.navn}
+              aria-disabled={!!hinder}
+              onClick={() => {
+                if (hinder) benk.melde(hinder);
+                else kombinerValgte(benk, b.id);
+              }}
+              {...p}
+            >
+              <Ikon id={b.ikon} storrelse={18} />
+            </button>
+          )}
+        </Tips>
       ))}
     </div>
   );

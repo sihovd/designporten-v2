@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { finnLag, objekterILag, type Dokument, type Lag, type Omriss } from '../../core/dokument';
 import { finnMateriale } from '../../core/materialer';
+import { Fargevelger } from './Fargevelger';
 import { tall } from '../../core/enheter';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Ikon, type IkonId } from '../../shell/ikoner';
@@ -212,7 +213,12 @@ function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss })
     benk.endre({ navn, anvend: (d) => oppdaterOmriss(d, lag.id, o.id, endring) });
   return (
     <li class={`omrissrad${aktiv ? ' aktiv' : ''}${o.synlig ? '' : ' skjult'}`}>
-      <span class="fargeprove" style={{ background: mat.hex }} aria-hidden="true" />
+      <Fargevelger
+        benk={benk}
+        verdi={o.materialId}
+        etikett={`Farge på ${o.navn}`}
+        endre={(id) => endre('Bytt farge', { materialId: id })}
+      />
       <button
         type="button"
         class="lag-navn"

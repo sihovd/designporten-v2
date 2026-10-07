@@ -19,6 +19,8 @@ export interface FontInfo {
   fil: string;
   /** Short description of the character, for the picker. */
   preg: string;
+  /** Added by the user (for example from Google Fonts): its bytes are kept in the project, not fetched from the site. */
+  ekstra?: boolean;
 }
 
 /** Curated sign fonts (all SIL Open Font License 1.1; licence texts alongside). */
@@ -42,8 +44,37 @@ export const fonter: FontInfo[] = [
 
 export const standardFont = 'archivo-800';
 
+/** Fonts added at run time, with their bytes. A font is a file; the project keeps a copy so it builds offline. */
+const ekstraFonter = new Map<string, { info: FontInfo; data: ArrayBuffer }>();
+
+/** Make an added font known (or replace it). The curated set cannot be replaced. */
+export function registrerFont(info: FontInfo, data: ArrayBuffer): void {
+  if (fonter.some((f) => f.id === info.id)) return;
+  ekstraFonter.set(info.id, { info: { ...info, ekstra: true }, data });
+  lastede.delete(info.id);
+}
+
+export function fjernRegistrertFont(id: string): void {
+  ekstraFonter.delete(id);
+  lastede.delete(id);
+}
+
+export function erKjentFont(id: string): boolean {
+  return ekstraFonter.has(id) || fonter.some((f) => f.id === id);
+}
+
+/** The curated set, then the fonts added at run time. */
+export function alleFonter(): FontInfo[] {
+  return [...fonter, ...[...ekstraFonter.values()].map((e) => e.info)];
+}
+
+/** The bytes of an added font, if it is one. */
+export function ekstraFontData(id: string): ArrayBuffer | undefined {
+  return ekstraFonter.get(id)?.data;
+}
+
 export function finnFont(id: string): FontInfo {
-  return fonter.find((f) => f.id === id) ?? fonter[0]!;
+  return ekstraFonter.get(id)?.info ?? fonter.find((f) => f.id === id) ?? fonter[0]!;
 }
 
 export type FontHenter = (fil: string) => Promise<ArrayBuffer>;
@@ -67,7 +98,8 @@ export function lastFont(id: string): Promise<Font> {
   const info = finnFont(id);
   let p = lastede.get(info.id);
   if (!p) {
-    p = henter(info.fil).then((b) => parse(b));
+    const ekstra = ekstraFonter.get(info.id);
+    p = (ekstra ? Promise.resolve(ekstra.data.slice(0)) : henter(info.fil)).then((b) => parse(b));
     p.catch(() => lastede.delete(info.id));
     lastede.set(info.id, p);
   }

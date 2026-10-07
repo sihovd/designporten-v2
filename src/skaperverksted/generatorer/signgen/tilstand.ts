@@ -132,6 +132,8 @@ export interface Signtilstand {
   omriss: string | null;
   /** The colour profile window is open (it also opens by itself for a new sign). */
   fargeprofil: boolean;
+  /** The window for adding fonts (Google Fonts) is open. */
+  fontvindu: boolean;
   /** The decoration gallery is open. */
   dekor: boolean;
   /** The CSV window («Lag skilt fra CSV») is open. */
@@ -162,6 +164,7 @@ class Lager {
     maletikett: null,
     omriss: null,
     fargeprofil: false,
+    fontvindu: false,
     dekor: false,
     batch: false,
     svgdeler: null,

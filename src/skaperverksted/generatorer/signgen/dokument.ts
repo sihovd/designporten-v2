@@ -22,6 +22,9 @@ import { rettProfil } from '../../core/profil';
 import { standardPrinter } from '../../core/materialer';
 import { standardFont } from '../../geometri/tekst';
 import { narmesteFarge, rensFarger, STANDARD_PROFIL } from './fargeprofiler';
+import { lastFontbibliotek, type LagretFont, registrerProsjektfonter } from './fontbibliotek';
+import { filamenterForProsjekt, lastEgneFilamenter, registrerProsjektfilamenter } from './filamenter';
+import type { Materiale } from '../../core/materialer';
 
 export const SIGNGEN_ID = 'signgen';
 
@@ -34,6 +37,10 @@ export interface SigngenParametre {
   farger?: string[];
   /** False until the start window has been answered for this project. */
   startvalgt?: boolean;
+  /** The user's own filaments this project uses, so it opens with the same colours anywhere. */
+  filamenter?: Materiale[];
+  /** Added fonts (Google Fonts) the text uses, as files, so the project builds without a network. */
+  fonter?: LagretFont[];
 }
 
 export function parametre(dok: Dokument): SigngenParametre {
@@ -61,6 +68,28 @@ export function palett(dok: Dokument): string[] {
 }
 
 /**
+ * Keep the project's copy of the user's own filaments in step with the
+ * colours it uses. Returns the same document when nothing changes.
+ */
+export function synkFilamenter(dok: Dokument): Dokument {
+  const bruk = filamenterForProsjekt([...palett(dok), ...brukteFarger(dok)]);
+  const naa = parametre(dok).filamenter ?? [];
+  if (JSON.stringify(bruk) === JSON.stringify(naa)) return dok;
+  const { filamenter: _bort, ...rest } = dok.parametre as Record<string, unknown>;
+  void _bort;
+  return { ...dok, parametre: bruk.length ? { ...rest, filamenter: bruk } : rest };
+}
+
+/** Opening a project: its own filaments become known, then the text layers are brought up to date. */
+export function lesInnSigngen(dok: Dokument): Dokument {
+  lastEgneFilamenter();
+  registrerProsjektfilamenter(dok);
+  lastFontbibliotek();
+  registrerProsjektfonter(dok);
+  return ordneTekstlag(dok);
+}
+
+/**
  * Use a new colour profile. Colours the sign uses that are not in it are
  * swapped for the closest colour in it.
  */
@@ -75,13 +104,15 @@ export function settPalett(dok: Dokument, farger: string[]): Dokument {
     const endret = !ny.includes(l.materialId) || omriss?.some((o, i) => o !== l.omriss![i]);
     return endret ? { ...l, materialId: bytt(l.materialId), ...(omriss ? { omriss } : {}) } : l;
   });
-  return settParametre({ ...dok, lag }, { farger: ny, startvalgt: true });
+  return synkFilamenter(settParametre({ ...dok, lag }, { farger: ny, startvalgt: true }));
 }
 
 /** Add a catalogue colour to the sign's profile. */
 export function leggTilFarge(dok: Dokument, materialId: string): Dokument {
   const naa = palett(dok);
-  return naa.includes(materialId) ? dok : settParametre(dok, { farger: rensFarger([...naa, materialId]) });
+  return naa.includes(materialId)
+    ? dok
+    : synkFilamenter(settParametre(dok, { farger: rensFarger([...naa, materialId]) }));
 }
 
 /** The first colour in the profile that the sign does not use yet (else the first one). */
@@ -214,7 +245,7 @@ export function nyttSigngenDokument(farger: string[] = STANDARD_PROFIL.farger): 
       startvalgt: false,
     } satisfies SigngenParametre,
   };
-  return stable(d);
+  return stable(synkFilamenter(d));
 }
 
 /** Recompute Z positions from the layer order when autoZ is on. */

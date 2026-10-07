@@ -455,6 +455,103 @@ test.describe('Signgen', () => {
     await expect(page.locator('.objektliste li')).toHaveCount(antall - 1);
   });
 
+  test('fargeprøver åpner en meny med filamentene, og egne filamenter legges til i Fargeprofil-panelet', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    // the layer's colour is a swatch that opens the profile's filaments
+    const farge = page.getByRole('button', { name: /^Farge: Kritthvit/ });
+    await farge.click();
+    const meny = page.getByRole('menu', { name: /filamentene i fargeprofilen/ });
+    await expect(meny.getByRole('menuitemradio')).toHaveCount(4);
+    await expect(meny.getByRole('menuitemradio', { name: /Kritthvit/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await meny.getByRole('menuitemradio', { name: /Lilla/ }).click();
+    await expect(page.getByRole('button', { name: /^Farge: Lilla/ })).toBeVisible();
+    await page.keyboard.press('Control+z');
+    await expect(page.getByRole('button', { name: /^Farge: Kritthvit/ })).toBeVisible();
+
+    // «Flere filamenter» opens the Fargeprofil panel
+    await page.getByRole('button', { name: /^Farge: Kritthvit/ }).click();
+    await page.getByRole('menuitem', { name: 'Flere filamenter …' }).click();
+    const panel = page.locator('.fargepanel');
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText('Fargene i prosjektet (4)')).toBeVisible();
+
+    // a new filament of your own, with a manufacturer, joins the profile
+    await panel.getByRole('button', { name: '+ Nytt filament' }).click();
+    await panel.getByLabel('Produsent').fill('Polymaker');
+    await panel.getByLabel('Produktserie').fill('PolyTerra');
+    await panel.getByLabel('Fargenavn').fill('Havblå');
+    await panel.getByLabel('AMS-plass').fill('2');
+    await panel.getByRole('button', { name: 'Lagre filament' }).click();
+    await expect(panel.getByText('Fargene i prosjektet (5)')).toBeVisible();
+    await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText('Havblå');
+    await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText('AMS 2');
+
+    // the registry can be browsed by manufacturer and searched
+    await panel.locator('.registerfilter select').first().selectOption('Polymaker');
+    await expect(panel.getByRole('list', { name: 'Filamentregister' }).locator('li')).toHaveCount(1);
+    await panel.locator('.registerfilter select').first().selectOption('');
+    await panel.getByLabel('Søk').fill('sølv');
+    await expect(panel.getByRole('list', { name: 'Filamentregister' }).locator('li')).toHaveCount(1);
+
+    // the new filament is now one of the swatch menu's choices, and the project keeps it after a reload
+    await page.getByRole('tab', { name: 'Egenskaper' }).click();
+    await page.getByRole('button', { name: /^Farge: Kritthvit/ }).click();
+    await expect(page.getByRole('menuitemradio')).toHaveCount(5);
+    await page.getByRole('menuitemradio', { name: /Havblå/ }).click();
+    await expect(page.getByRole('button', { name: /^Farge: Havblå/ })).toBeVisible();
+    await page.waitForTimeout(800); // autosave
+    await page.reload();
+    await expect(page.getByRole('button', { name: /^Farge: Havblå/ })).toBeVisible();
+  });
+
+  test('Google Fonts: søk, legg til en font og bruk den på teksten', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Fontvinduet testes på brede skjermer');
+    const fil = await (await page.request.get('/skaperverksted/fonter/caveat-700.woff')).body();
+    await page.route('https://api.fontsource.org/**', async (route) => {
+      const url = route.request().url();
+      if (url.includes('/v1/fonts/lobster'))
+        return route.fulfill({
+          json: {
+            variants: { '400': { normal: { latin: { url: { woff: 'https://cdn.test/lobster.woff' } } } } },
+          },
+          headers: { 'access-control-allow-origin': '*' },
+        });
+      return route.fulfill({
+        json: [
+          {
+            id: 'lobster',
+            family: 'Lobster',
+            subsets: ['latin'],
+            weights: [400],
+            category: 'display',
+            type: 'google',
+          },
+        ],
+        headers: { 'access-control-allow-origin': '*' },
+      });
+    });
+    await page.route('https://cdn.test/**', (route) =>
+      route.fulfill({ body: fil, headers: { 'access-control-allow-origin': '*' } }),
+    );
+    await page.locator('.objektliste li').first().click();
+    await page.getByRole('button', { name: 'Flere fonter fra Google Fonts …' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Flere fonter fra Google Fonts' });
+    await vindu.getByLabel('Søk etter font').fill('lobs');
+    await expect(vindu.getByText('1 fonter.')).toBeVisible();
+    await vindu.getByRole('button', { name: /Legg til og bruk Lobster 400|Legg til Lobster 400/ }).click();
+    await expect(vindu.getByText(/Lobster 400. er lagt til/)).toBeVisible();
+    await expect(vindu.getByRole('list', { name: /Mine fonter/ })).toContainText('Lobster 400');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#signgen-font')).toHaveValue('gf-lobster-400');
+    await expect(page.locator('.statuslinje')).not.toContainText('font');
+  });
+
   test('hjelpelinjer dras ut fra linjalen, kan flyttes med piltaster, skjules og slettes', async ({
     page,
     isMobile,
@@ -589,10 +686,7 @@ test.describe('Signgen', () => {
     await page.mouse.move(b.x + b.width * 0.2, b.y + b.height * 0.25);
     await page.mouse.down();
     for (let i = 1; i <= 20; i++)
-      await page.mouse.move(
-        b.x + b.width * (0.2 + i * 0.02),
-        b.y + b.height * (0.25 + 0.08 * Math.sin(i / 4)),
-      );
+      await page.mouse.move(b.x + b.width * (0.2 + i * 0.02), b.y + b.height * 0.25);
     await page.mouse.up();
     await expect(page.locator('.objektliste li').filter({ hasText: 'Strek' })).toHaveCount(1);
     const insp = page.getByRole('region', { name: 'Strek' });
@@ -605,6 +699,19 @@ test.describe('Signgen', () => {
     await expect(insp.getByRole('radio', { name: 'Egen' })).toBeChecked();
     await insp.getByRole('radio', { name: 'Spiss' }).click();
     await expect(page.getByRole('list', { name: 'Breddepunkter' }).locator('li')).toHaveCount(3);
+    // the width point can also be dragged across the spline on the canvas
+    const lerret = page.locator('canvas').first();
+    const boks = (await lerret.boundingBox())!;
+    const felt = page.getByLabel('Breddepunkt 2, bredde');
+    const for_ = Number((await felt.inputValue()).replace(',', '.'));
+    const px = boks.x + boks.width * (0.2 + 0.4 * 0.4);
+    const py = boks.y + boks.height * 0.25;
+    await page.mouse.move(px, py);
+    await page.mouse.down();
+    await page.mouse.move(px, py - 40, { steps: 6 });
+    await page.mouse.up();
+    const etter = Number((await felt.inputValue()).replace(',', '.'));
+    expect(etter).toBeGreaterThan(for_);
     // the width can be changed
     const bredde = insp.getByLabel('Bredde på strøket');
     await bredde.fill('6');
@@ -639,7 +746,10 @@ test.describe('Signgen', () => {
     const linje = page.getByRole('toolbar', { name: 'Kombiner former' });
     await expect(linje).toBeVisible();
     for (const navn of ['Union', 'Subtract', 'Intersect', 'Exclude'])
-      await expect(linje.getByRole('button', { name: navn, exact: true })).toBeEnabled();
+      await expect(linje.getByRole('button', { name: navn, exact: true })).not.toHaveAttribute(
+        'aria-disabled',
+        'true',
+      );
     await linje.getByRole('button', { name: 'Union', exact: true }).click();
     await expect(page.locator('.objektliste li').filter({ hasText: 'Union' })).toHaveCount(1);
     expect(await page.locator('.objektliste li').count()).toBeLessThan(antall);
