@@ -339,6 +339,12 @@ export function skiveDeler(prover: { inset: number; t: number }[], t: number): [
   return ut.length ? ut : [[prover.at(-1)?.inset ?? 0, null]];
 }
 
+/** The wall goes back down at some point (a groove or ridge in the top). */
+export function harSpor(p: Profil): boolean {
+  const s = samplerProfil(p);
+  return s.some((x, i) => i > 0 && x.t < s[i - 1]!.t - 1e-6);
+}
+
 /**
  * Steepest outward overhang of a profile, in degrees from vertical
  * (0 = vertical or leaning in, 90 = a horizontal ledge sticking out).

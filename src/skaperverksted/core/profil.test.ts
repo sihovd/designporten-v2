@@ -4,6 +4,7 @@ import {
   byggProfil,
   flyttAnker,
   forhandsvalg,
+  harSpor,
   medBredde,
   mellomPunkter,
   narmestePaaKurve,
@@ -168,6 +169,11 @@ describe('vegg som går ned igjen', () => {
     expect(validerProfil(spor)).toBeNull();
     const s = samplerProfil(spor);
     expect(s.some((x, i) => i > 0 && x.t < s[i - 1]!.t)).toBe(true);
+  });
+
+  it('harSpor sier fra bare når veggen går ned igjen', () => {
+    expect(harSpor(spor)).toBe(true);
+    expect(harSpor(forhandsvalg('konveks', 1.5))).toBe(false);
   });
 
   it('gir en ring over sporet og full flate under det', () => {
