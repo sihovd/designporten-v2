@@ -1839,8 +1839,8 @@
 }
 
 /* decoration gallery (Sivert, 2026-10-05) */
-.dekorgalleri .dialog-innhold {
-  width: min(720px, 100%);
+.verksted-dialog.dekorgalleri {
+  width: min(720px, calc(100vw - 24px));
 }
 
 .dekor-innhold {
@@ -1892,8 +1892,8 @@
 }
 
 /* the SVG part picker */
-.svgdeler .dialog-innhold {
-  width: min(1040px, 100%);
+.verksted-dialog.svgdeler {
+  width: min(1040px, calc(100vw - 24px));
 }
 
 .svgdeler-innhold,
@@ -3113,7 +3113,8 @@ button.profilfarger.fargeknapp {
 
 .fargepanel .profilfargeliste,
 .fargepanel .registerliste,
-.fargepanel .profilliste {
+.fargepanel .profilliste,
+.fontvindu .registerliste {
   display: grid;
   gap: 0;
   margin: 0;
@@ -3123,7 +3124,8 @@ button.profilfarger.fargeknapp {
 
 .fargepanel .profilfargeliste li,
 .fargepanel .registerliste li,
-.fargepanel .profilliste li {
+.fargepanel .profilliste li,
+.fontvindu .registerliste li {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3177,8 +3179,9 @@ button.profilfarger.fargeknapp {
   background: transparent;
 }
 
-.fontvindu .dialog-innhold {
-  width: min(560px, 100%);
+/* The dialog itself takes the width, so no empty frame shows beside the content. */
+.verksted-dialog.fontvindu {
+  width: min(560px, calc(100vw - 24px));
 }
 
 .fontvindu-innhold {

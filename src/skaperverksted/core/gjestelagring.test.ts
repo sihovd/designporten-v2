@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { tomtDokument } from './dokument';
-import { autolagre, hentAutolagret, merkBrukt, ryddGjestelagring } from './lagring';
+import {
+  apningFullfort,
+  autolagre,
+  hentAutolagret,
+  hentReserve,
+  merkBrukt,
+  nullstillVerksted,
+  ryddGjestelagring,
+  startApning,
+} from './lagring';
 
 const DAG = 24 * 60 * 60 * 1000;
 const NA = Date.UTC(2026, 9, 7);
@@ -89,5 +98,44 @@ describe('Guest storage: one project, deleted after a month unused', () => {
       },
     };
     expect(ryddGjestelagring('signgen', 30, NA)).toEqual({ utfall: 'ingen', dagerUbrukt: 0 });
+  });
+});
+
+describe('A saved project that froze the page', () => {
+  beforeEach(() => {
+    lagring();
+  });
+  afterEach(() => {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  });
+
+  it('opens normally when the last opening finished', () => {
+    autolagre(dok());
+    expect(startApning('signgen')).toBe(false);
+    apningFullfort('signgen');
+    expect(startApning('signgen')).toBe(false);
+    expect(hentAutolagret('signgen')).not.toBeNull();
+  });
+
+  it('is set aside when the last opening never finished, and can be downloaded', () => {
+    autolagre(dok());
+    expect(startApning('signgen')).toBe(false);
+    // the page froze: apningFullfort never ran
+    expect(startApning('signgen')).toBe(true);
+    expect(hentAutolagret('signgen')).toBeNull();
+    expect(JSON.parse(hentReserve('signgen')!).navn).toBe('Mitt skilt');
+    // the next opening starts clean
+    expect(startApning('signgen')).toBe(false);
+  });
+
+  it('«nullstill» forgets the project, the set-aside copy and the panels', () => {
+    const data = lagring();
+    autolagre(dok());
+    startApning('signgen');
+    startApning('signgen');
+    data.set('dp-verksted:paneler:signgen', '{}');
+    data.set('designporten:signgen:fontbibliotek', '[]');
+    nullstillVerksted('signgen');
+    expect([...data.keys()]).toEqual(['designporten:signgen:fontbibliotek']);
   });
 });

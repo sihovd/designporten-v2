@@ -142,6 +142,34 @@ test.describe('Signgen', () => {
     );
   });
 
+  test('et prosjekt som frøs siden legges til side, og ?nullstill gir et tomt verksted', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Fil-menyen testes på brede skjermer');
+    await page.waitForTimeout(900); // autosave
+    // the last opening never finished: the page froze while loading the project, so its mark is still there
+    await page.addInitScript(() => localStorage.setItem('dp-verksted:signgen:apner', '1'));
+    await page.reload();
+    await expect(page.getByRole('dialog', { name: 'Hva vil du lage?' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'ikke ferdig åpnet' })).toBeVisible();
+    await page
+      .getByRole('dialog', { name: 'Hva vil du lage?' })
+      .getByRole('button', { name: /Tomt dokument/ })
+      .click();
+    await page.getByRole('button', { name: 'Start skiltet' }).click();
+    await page.locator('summary', { hasText: 'Fil' }).click();
+    const nedlasting = page.waitForEvent('download');
+    await page.getByRole('menuitem', { name: 'Last ned forrige prosjekt' }).click();
+    expect((await nedlasting).suggestedFilename()).toBe('forrige-signgen.skaperverksted.json');
+
+    await page.goto('/skaperverksted/signgen/?nullstill=1');
+    await expect(page.getByRole('dialog', { name: 'Hva vil du lage?' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'er nullstilt' })).toBeVisible();
+    expect(new URL(page.url()).search).toBe('');
+    expect(await page.evaluate(() => localStorage.getItem('dp-verksted:signgen:reserve'))).toBeNull();
+  });
+
   test('Fra CSV starter et skilt og åpner CSV-vinduet', async ({ page }) => {
     await page.evaluate(() => localStorage.clear());
     await page.reload();
