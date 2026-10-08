@@ -1493,6 +1493,7 @@
   gap: 8px;
   min-height: 32px;
   margin-bottom: 8px;
+  padding: 0 4px;
   font-size: 13px;
   cursor: pointer;
 }
@@ -1983,7 +1984,7 @@
   height: var(--kontroll-h);
   padding: 0;
   border: 2px solid var(--linje-sterk, var(--linje));
-  border-radius: 50%;
+  border-radius: 3px;
   cursor: pointer;
 }
 
@@ -2461,7 +2462,7 @@
   min-width: 0;
 }
 
-.avkryssing {
+.panelmeny-linje .avkryssing {
   display: inline-block;
   width: 14px;
   color: var(--fg);
@@ -3077,7 +3078,7 @@ button.profilfarger.fargeknapp {
 .fargeprove.stor {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
+  border-radius: 3px;
 }
 
 .fargemeny {
@@ -3985,7 +3986,8 @@ button.profilfarger.fargeknapp {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 36px;
+  aspect-ratio: 1 / 1;
+  min-height: 0;
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-felt);

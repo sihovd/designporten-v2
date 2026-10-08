@@ -69,7 +69,6 @@ export const VERKTOY: {
     hjelp: 'Klikk for å lage et opphengshull gjennom skiltet',
   },
   { id: 'mal', navn: 'Mål', tast: 'M', ikon: 'ruler', hjelp: 'Dra for å måle avstander' },
-  { id: 'panorer', navn: 'Panorer', tast: 'Space', ikon: 'pan', hjelp: 'Dra for å flytte visningen' },
 ];
 
 const FORMER: VerktoyId[] = ['rektangel', 'ellipse', 'trekant', 'polygon'];
@@ -131,7 +130,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
     <>
       {enkle(['velg', 'tekst'])}
       <Formverktoy benk={benk} aktiv={i2d ? st.verktoy : null} velg={velg} />
-      {enkle(['penn', 'paint', 'hull', 'mal', 'panorer'])}
+      {enkle(['penn', 'paint', 'hull', 'mal'])}
       <span class="skinne-skille" aria-hidden="true" />
       {hjelpeknapp(
         'SVG',

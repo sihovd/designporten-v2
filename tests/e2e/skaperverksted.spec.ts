@@ -279,6 +279,50 @@ test.describe('Signgen', () => {
     await expect(page.locator('.objektliste li')).toHaveCount(antallFor);
   });
 
+  test('menyer lukkes ved klikk på lerretet, markering velger ved berøring, og lagnavnet velger alle', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tegning og menyer med mus testes på desktop');
+    // the pan tool has no button: Space and the middle button pan
+    await expect(page.getByRole('button', { name: 'Panorer', exact: true })).toHaveCount(0);
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    const tegn = async (x0: number, y0: number, x1: number, y1: number) => {
+      await page.keyboard.press('r');
+      await page.mouse.move(b.x + b.width * x0, b.y + b.height * y0);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width * x1, b.y + b.height * y1, { steps: 5 });
+      await page.mouse.up();
+    };
+    await tegn(0.6, 0.4, 0.7, 0.5);
+    await tegn(0.3, 0.4, 0.4, 0.5);
+    await page.keyboard.press('v');
+    // a marquee that only touches the first rectangle picks it up
+    await page.mouse.click(b.x + b.width * 0.1, b.y + b.height * 0.1);
+    await expect(page.getByLabel('Posisjon X')).toHaveCount(0);
+    await page.mouse.move(b.x + b.width * 0.55, b.y + b.height * 0.3);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.65, b.y + b.height * 0.45, { steps: 5 });
+    await page.mouse.up();
+    await expect(page.getByLabel('Posisjon X')).toBeVisible();
+    // the layer name selects every object in the layer
+    await page.mouse.click(b.x + b.width * 0.1, b.y + b.height * 0.1);
+    await page.locator('.lagrad .lag-navn').first().click();
+    await expect(page.getByText(/\d+ objekter valgt/)).toBeVisible();
+    // the menus close on a click on the canvas
+    const paneler = page.locator('details.panelmeny-linje');
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    await expect(paneler).toHaveAttribute('open', '');
+    await page.mouse.click(b.x + b.width * 0.1, b.y + b.height * 0.8);
+    await expect(paneler).not.toHaveAttribute('open', '');
+    const fil = page.locator('details.filmeny').first();
+    await fil.locator('summary').click();
+    await expect(fil).toHaveAttribute('open', '');
+    await page.keyboard.press('Escape');
+    await expect(fil).not.toHaveAttribute('open', '');
+  });
+
   test('legger et omriss rundt teksten og viser byggeplaten ved eksport', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Lagpanelet testes på desktop');
     const tekstlag = page.locator('.lagrad', { hasText: 'Tekst' }).first();

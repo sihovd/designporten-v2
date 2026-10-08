@@ -27,6 +27,7 @@ import { filnavn } from '../eksport/tremf';
 import { brukBenk } from './bruk-benk';
 import { Eksportdialog } from './Eksportdialog';
 import { Hjelp } from './Hjelp';
+import { useLukkMeny } from './lukk-meny';
 import { Statuslinje } from './Statuslinje';
 import { Ark } from './Ark';
 import { Ikon } from './ikoner';
@@ -126,6 +127,8 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
     () => typeof matchMedia === 'undefined' || matchMedia('(min-width: 1280px)').matches,
   );
   const filvelger = useRef<HTMLInputElement>(null);
+  const filmeny = useRef<HTMLDetailsElement>(null);
+  useLukkMeny(filmeny);
   const ui = plugin.ui;
   // generators with dockable panels get the panel system on wide screens; the rest keep the fixed layout
   const smalDesktop = useMemo(
@@ -360,7 +363,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             <span class="visuelt-skjult kortetikett">Gjør om</span>
           </button>
         </div>
-        <details class="filmeny">
+        <details class="filmeny" ref={filmeny}>
           <summary class="med-ikon fil-sammendrag">
             <Ikon id="open" storrelse={16} />
             Fil

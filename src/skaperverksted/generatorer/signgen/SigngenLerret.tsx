@@ -24,6 +24,7 @@ import {
   omrissRegioner,
   lokalGeometri,
   nårFontLastes,
+  beroererBoks,
   verdensBoks,
   verdensRegion,
 } from './modell';
@@ -573,8 +574,6 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
   const lager = signtilstand(benk);
   let drag: Drag | null = null;
 
-  if (id === 'panorer') return { markor: 'grab' };
-
   if (id === 'velg') {
     let ventendeBredde: { id: string; t: number } | null = null;
     return {
@@ -816,8 +815,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
               !finnLag(benk.dok, o.lagId)?.synlig
             )
               return false;
-            const ob = verdensBoks(o);
-            return ob.minX >= b.minX && ob.maksX <= b.maksX && ob.minY >= b.minY && ob.maksY <= b.maksY;
+            return beroererBoks(o, b);
           });
           benk.velg({ objekter: [...new Set([...drag.for, ...inni.map((o) => o.id)])] });
           lager.sett({ markering: b });
@@ -1236,7 +1234,6 @@ export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
       verktoy={verktoy}
       markering={markering}
       innhold={() => innholdsboks(benk.dok)}
-      panorer={st.verktoy === 'panorer'}
       linjalverktoy={(side) => lagGuideverktoy(benk, side)}
       etikett={`Skiltet sett ovenfra, ${t.dok.lag.length} lag og ${antall} objekter. Velg objekter i lagpanelet med tastatur. Piltaster flytter valgte objekter.`}
     >

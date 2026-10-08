@@ -207,10 +207,15 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                   <p class="dempet">
                     {regler.stlPerDel
                       ? '3MF holder delene og fargene hver for seg. STL lastes ned som én fil per del.'
-                      : '3MF holder fargene som egne deler, hver på sin filamentplass (nummerert ved forhåndsvisningen), og ligger midt på platen slik som i verkstedet. STL er én samlet form uten farger.'}
+                      : '3MF holder fargene som egne deler (nummerert ved forhåndsvisningen) og ligger midt på platen slik som i verkstedet. Sjekk i slicer at fargene havner på riktige filamentplasser. STL er én samlet form uten farger.'}
                   </p>
                   <div class="knapperad">
-                    <button type="button" class="primar med-ikon" onClick={tremf}>
+                    <button
+                      type="button"
+                      class="primar med-ikon"
+                      title="Geometri med fargeinformasjon"
+                      onClick={tremf}
+                    >
                       <Ikon id="export-three-mf" storrelse={18} />
                       Last ned 3MF
                     </button>
@@ -221,7 +226,12 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                         </button>
                       ))
                     ) : (
-                      <button type="button" class="sekundar med-ikon" onClick={stl}>
+                      <button
+                        type="button"
+                        class="sekundar med-ikon"
+                        title="Geometri uten fargeinformasjon"
+                        onClick={stl}
+                      >
                         <Ikon id="generate-stl" storrelse={18} />
                         Last ned STL
                       </button>

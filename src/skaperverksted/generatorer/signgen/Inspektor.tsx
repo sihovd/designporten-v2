@@ -336,7 +336,7 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
         {tekst && (
           <>
             <label class="felt stablet" for="signgen-tekst">
-              <span>Tekst</span>
+              <span class="visuelt-skjult">Tekst</span>
               <textarea
                 id="signgen-tekst"
                 ref={tekstfelt}
@@ -383,14 +383,14 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
               }
             />
             <TallFelt
-              etikett="Sperring"
+              etikett="Bokstavavstand"
               enhet="%"
               verdi={tekst.sperring * 100}
               min={-20}
               maks={200}
               steg={1}
               desimaler={0}
-              endre={(v) => endreTekst('Sperring', { sperring: v / 100 })}
+              endre={(v) => endreTekst('Bokstavavstand', { sperring: v / 100 })}
             />
             {tekst.tekst.includes('\n') && (
               <TallFelt
@@ -562,9 +562,6 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
             endre={(v, k) => settStr(null, v, k)}
           />
         </div>
-        <label class="avkryssing">
-          <input type="checkbox" checked={laas} onChange={() => settLaas(!laas)} /> Behold proporsjoner
-        </label>
         <TallFelt
           etikett="Rotasjon"
           enhet="°"
@@ -595,6 +592,9 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
               Tilbakestill skala
             </button>
           )}
+        <label class="avkryssing">
+          <input type="checkbox" checked={laas} onChange={() => settLaas(!laas)} /> Behold proporsjoner
+        </label>
       </Panel>
 
       <Panel tittel="Lag og rolle">

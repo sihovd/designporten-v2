@@ -202,6 +202,29 @@ export function verdensBoks(o: Objekt): Boks {
   return hjorner(o).reduce(utvidBoks, tomBoks());
 }
 
+/**
+ * Does the rectangle touch the object? A box that only overlaps the object's
+ * bounding box is checked against the real outline, so a rectangle dragged
+ * through the hole of a ring does not pick it up. Objects without an outline
+ * (nothing printed yet) fall back to their box.
+ */
+export function beroererBoks(o: Objekt, b: Boks): boolean {
+  const ob = verdensBoks(o);
+  if (ob.maksX < b.minX || ob.minX > b.maksX || ob.maksY < b.minY || ob.minY > b.maksY) return false;
+  if (ob.minX >= b.minX && ob.maksX <= b.maksX && ob.minY >= b.minY && ob.maksY <= b.maksY) return true;
+  const r = verdensRegion(o);
+  if (!r?.length) return true;
+  const rekt = regionFraRinger([
+    [
+      { x: b.minX, y: b.minY },
+      { x: b.maksX, y: b.minY },
+      { x: b.maksX, y: b.maksY },
+      { x: b.minX, y: b.maksY },
+    ],
+  ]);
+  return rekt.length > 0 && snitt(r, rekt).length > 0;
+}
+
 const blekkLokal = new WeakMap<object, Boks>();
 
 /**

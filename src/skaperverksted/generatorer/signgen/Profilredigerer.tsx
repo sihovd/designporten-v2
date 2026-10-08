@@ -10,13 +10,12 @@
  * read-only strip, so you see where this layer rests on something.
  * The drawing is functional technical geometry (D-3).
  */
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Profil, ProfilPunkt } from '../../core/profil';
 import {
   ankere,
   flyttAnker,
   medBredde,
-  mellomPunkter,
   narmestePaaKurve,
   samplerProfil,
   settInnPunkt,
@@ -53,6 +52,16 @@ export function Profilredigerer({
   ferdig: () => void;
 }) {
   const svg = useRef<SVGSVGElement>(null);
+  // The graph scales with the panel; the grab points keep one size on screen (SVG units per pixel)
+  const [px, settPx] = useState(B);
+  useEffect(() => {
+    const el = svg.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => settPx(Math.max(60, el.getBoundingClientRect().width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const ek = B / px;
   const [valgt, settValgt] = useState(0);
   const [grep, settGrep] = useState<Grep | null>(null);
   const pk = profil.punkter;
@@ -122,7 +131,6 @@ export function Profilredigerer({
   const fyll = `${kurve} ${tilX(akse)},${tilY(1)} ${tilX(akse)},${tilY(0)}`;
   const p = pk[Math.min(valgt, pk.length - 1)] ?? pk[0]!;
   const bredde = Math.max(profil.bredde, 1e-6);
-  const mellom = mellomPunkter(profil);
   const erKant = valgt === 0 || valgt === pk.length - 1;
 
   const fjernPunkt = () => {
@@ -301,10 +309,10 @@ export function Profilredigerer({
                     class="profil-hank"
                   />
                   <rect
-                    x={tilX(h.u * profil.bredde) - 4}
-                    y={tilY(h.t) - 4}
-                    width={8}
-                    height={8}
+                    x={tilX(h.u * profil.bredde) - 4 * ek}
+                    y={tilY(h.t) - 4 * ek}
+                    width={8 * ek}
+                    height={8 * ek}
                     class="profil-handtak"
                     onPointerDown={(e) => start(e, i, del)}
                   />
@@ -319,10 +327,10 @@ export function Profilredigerer({
           return kant ? (
             <rect
               key={i}
-              x={x - (i === valgt ? 6 : 5)}
-              y={y - (i === valgt ? 6 : 5)}
-              width={i === valgt ? 12 : 10}
-              height={i === valgt ? 12 : 10}
+              x={x - (i === valgt ? 6 : 5) * ek}
+              y={y - (i === valgt ? 6 : 5) * ek}
+              width={(i === valgt ? 12 : 10) * ek}
+              height={(i === valgt ? 12 : 10) * ek}
               class={`profil-anker kant${i === valgt ? ' valgt' : ''}`}
               onPointerDown={(e) => start(e, i, 'anker')}
             />
@@ -331,7 +339,7 @@ export function Profilredigerer({
               key={i}
               cx={x}
               cy={y}
-              r={i === valgt ? 7 : 5.5}
+              r={(i === valgt ? 7 : 5.5) * ek}
               class={`profil-anker${i === valgt ? ' valgt' : ''}`}
               onPointerDown={(e) => start(e, i, 'anker')}
             />
@@ -407,12 +415,6 @@ export function Profilredigerer({
             />
           </div>
         )}
-        <p class="merknad">
-          {mellom > 0
-            ? `${mellom === 1 ? 'Et punkt' : `${mellom} punkter`} på veggen. Dra dem sideveis og opp og ned. Veggen kan gå ned igjen så lenge den går innover; går den utover, blir det overheng. `
-            : 'Dobbeltklikk på kurven, eller trykk «Legg til punkt», for å få et punkt som kan dras både sideveis og opp og ned. '}
-          Bunn og topp flyttes bare sideveis.
-        </p>
       </>
     </div>
   );

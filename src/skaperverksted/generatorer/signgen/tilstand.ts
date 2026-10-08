@@ -12,17 +12,7 @@ import type { SvgDeler } from './svgdeler';
 import type { Csvsteg } from './csvflyt';
 
 export type VerktoyId =
-  | 'velg'
-  | 'tekst'
-  | 'rektangel'
-  | 'ellipse'
-  | 'polygon'
-  | 'trekant'
-  | 'hull'
-  | 'penn'
-  | 'paint'
-  | 'mal'
-  | 'panorer';
+  'velg' | 'tekst' | 'rektangel' | 'ellipse' | 'polygon' | 'trekant' | 'hull' | 'penn' | 'paint' | 'mal';
 
 /** A line shown while dragging to say what the edge snapped to (transient). */
 export interface Snaplinje {

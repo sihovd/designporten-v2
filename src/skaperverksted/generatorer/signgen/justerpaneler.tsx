@@ -63,9 +63,6 @@ export function Transformpanel({ benk }: { benk: Arbeidsbenk }) {
           endre={(v, k) => skalerUtvalgTil(benk, null, v, laas, k === 'pil' ? 'tf-h' : undefined)}
         />
       </div>
-      <label class="avkryssing">
-        <input type="checkbox" checked={laas} onChange={() => settLaas(!laas)} /> Behold proporsjoner
-      </label>
       {enkelt && (
         <TallFelt
           etikett="Rotasjon, transform"
@@ -77,6 +74,9 @@ export function Transformpanel({ benk }: { benk: Arbeidsbenk }) {
           endre={(v, k) => roterUtvalgTil(benk, v, k === 'pil' ? 'tf-rot' : undefined)}
         />
       )}
+      <label class="avkryssing">
+        <input type="checkbox" checked={laas} onChange={() => settLaas(!laas)} /> Behold proporsjoner
+      </label>
       <p class="merknad">
         Målene er for hele utvalget, målt rundt formen. Rotasjonen dreier objektet om midten.
       </p>
