@@ -9,8 +9,15 @@ import { useEffect, useId, useRef, useState } from 'preact/hooks';
 import { klem, tall, tolkLengde } from '../core/enheter';
 import { startDra } from './paneler/dra';
 
-/** Scrubber: how many pixels of dragging change the value by one `steg`. */
+/**
+ * Scrubber: how many pixels of dragging change the value by one `steg`. The ruler uses the same scale,
+ * so a tick every `SKRUBB_PX_PER_STEG` pixels is one `steg` and the marker follows the pointer.
+ */
 const SKRUBB_PX_PER_STEG = 8;
+/** Ticks: a small one every step, a large one every fifth. */
+const SKRUBB_STOR = SKRUBB_PX_PER_STEG * 5;
+/** The marker never sits closer to the ends than this (px); the scale scrolls instead. */
+const SKRUBB_KANT = 6;
 
 export interface TallFeltProps {
   etikett: string;
@@ -44,12 +51,28 @@ export function TallFelt({
   const [redigerer, settRedigerer] = useState(false);
   const [ugyldig, settUgyldig] = useState(false);
   const [skrubber, settSkrubber] = useState(false);
-  const [skalaX, settSkalaX] = useState(0);
+  // The ruler is a window onto the number line: `vinduStart` is the value at its left edge, so the
+  // marker always sits where the current value is on the ruler, also after the mouse button is released.
+  const pp = SKRUBB_PX_PER_STEG / steg;
+  const [bredde, settBredde] = useState(100);
+  const [vinduStart, settVinduStart] = useState(() => verdi - bredde / 2 / pp);
+  const skala = useRef<HTMLSpanElement>(null);
   const felt = useRef<HTMLInputElement>(null);
   const dratt = useRef(false);
+  const vinduStartRef = useRef(0);
   useEffect(() => {
     if (!redigerer) settTekst(tall(verdi, desimaler));
   }, [verdi, desimaler, redigerer]);
+  useEffect(() => {
+    const w = skala.current?.offsetWidth;
+    if (w && w !== bredde) settBredde(w);
+  }, [skrubber, redigerer]);
+  // a value that leaves the window (typed, arrow keys, undo) brings the window along, centred on it
+  useEffect(() => {
+    if (skrubber) return;
+    const x = (verdi - vinduStart) * pp;
+    if (x < SKRUBB_KANT || x > bredde - SKRUBB_KANT) settVinduStart(verdi - bredde / 2 / pp);
+  }, [verdi, bredde, pp, skrubber, vinduStart]);
 
   const bekreft = () => {
     const v = enhet === 'mm' ? tolkLengde(tekst) : tolkLengde(tekst.replace(/[°%]/g, ''));
@@ -68,6 +91,7 @@ export function TallFelt({
     if (e.button !== 0) return;
     dratt.current = false;
     const v0 = verdi;
+    vinduStartRef.current = vinduStart;
     const faktor = 10 ** desimaler;
     let siste = v0;
     startDra(e, {
@@ -79,7 +103,11 @@ export function TallFelt({
       flytt: (dx, _dy, ev) => {
         const perPx = (steg / SKRUBB_PX_PER_STEG) * (ev.shiftKey ? 0.1 : 1);
         const v = klem(Math.round((v0 + dx * perPx) * faktor) / faktor, min, maks);
-        settSkalaX(dx);
+        // keep the marker on the ruler: past the ends the scale scrolls under it
+        const x = (v - vinduStartRef.current) * pp;
+        if (x < SKRUBB_KANT) vinduStartRef.current = v - SKRUBB_KANT / pp;
+        else if (x > bredde - SKRUBB_KANT) vinduStartRef.current = v - (bredde - SKRUBB_KANT) / pp;
+        settVinduStart(vinduStartRef.current);
         settTekst(tall(v, desimaler));
         if (v !== siste) {
           siste = v;
@@ -88,7 +116,6 @@ export function TallFelt({
       },
       slutt: () => {
         settSkrubber(false);
-        settSkalaX(0);
       },
     });
   };
@@ -150,8 +177,13 @@ export function TallFelt({
         )}
         {!deaktivert && (
           <span
+            ref={skala}
             class={`skrubber${skrubber ? ' drar' : ''}`}
             aria-hidden="true"
+            style={{
+              '--sm': `${((((-vinduStart * pp) % SKRUBB_STOR) + SKRUBB_STOR) % SKRUBB_STOR).toFixed(2)}px`,
+              '--sn': `${((((-vinduStart * pp) % SKRUBB_PX_PER_STEG) + SKRUBB_PX_PER_STEG) % SKRUBB_PX_PER_STEG).toFixed(2)}px`,
+            }}
             onPointerDown={skrubb}
             onClick={(e) => {
               e.preventDefault();
@@ -159,7 +191,12 @@ export function TallFelt({
             }}
           >
             <span class="skala" />
-            <span class="pil" style={{ left: `clamp(5px, calc(50% + ${skalaX}px), calc(100% - 5px))` }} />
+            <span
+              class="pil"
+              style={{
+                left: `${Math.min(bredde - 5, Math.max(5, (verdi - vinduStart) * pp)).toFixed(1)}px`,
+              }}
+            />
           </span>
         )}
       </span>

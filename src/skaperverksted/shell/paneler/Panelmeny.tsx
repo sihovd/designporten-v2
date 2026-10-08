@@ -2,6 +2,7 @@
 import { useRef, useState } from 'preact/hooks';
 import type { PanelDef } from '../../core/generator';
 import { Ikon, type IkonId } from '../ikoner';
+import { useLukkMeny } from '../lukk-meny';
 import { EGENDEFINERT, egetId, type PanelHandling, type PanelLager, type RomKontekst } from './lager';
 import { apnePanel, erApen, lukkPanel, type Plassering } from './modell';
 
@@ -20,6 +21,7 @@ export function Panelmeny({
 }) {
   const [navn, settNavn] = useState('');
   const rot = useRef<HTMLDetailsElement>(null);
+  useLukkMeny(rot);
   const erStandard = kontekst.rom.some((r) => r.id === lager.rom);
   const lagreEget = () => {
     const n = navn.trim();

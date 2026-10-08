@@ -63,23 +63,30 @@ export function Transformpanel({ benk }: { benk: Arbeidsbenk }) {
           endre={(v, k) => skalerUtvalgTil(benk, null, v, laas, k === 'pil' ? 'tf-h' : undefined)}
         />
       </div>
-      <label class="avkryssing">
-        <input type="checkbox" checked={laas} onChange={() => settLaas(!laas)} /> Behold proporsjoner
-      </label>
-      {enkelt && (
-        <TallFelt
-          etikett="Rotasjon, transform"
-          enhet="°"
-          verdi={enkelt.transform.rotasjon}
-          min={-360}
-          maks={360}
-          steg={15}
-          endre={(v, k) => roterUtvalgTil(benk, v, k === 'pil' ? 'tf-rot' : undefined)}
-        />
-      )}
-      <p class="merknad">
-        Målene er for hele utvalget, målt rundt formen. Rotasjonen dreier objektet om midten.
-      </p>
+      <div class="transform-rad">
+        {enkelt && (
+          <TallFelt
+            etikett="Rotasjon, transform"
+            kortEtikett="↻"
+            enhet="°"
+            verdi={enkelt.transform.rotasjon}
+            min={-360}
+            maks={360}
+            steg={15}
+            endre={(v, k) => roterUtvalgTil(benk, v, k === 'pil' ? 'tf-rot' : undefined)}
+          />
+        )}
+        <button
+          type="button"
+          class="minibryter las"
+          aria-pressed={laas}
+          title="Behold proporsjoner"
+          onClick={() => settLaas(!laas)}
+        >
+          <Ikon id={laas ? 'lock' : 'unlock'} storrelse={16} />
+          <span class="visuelt-skjult">Behold proporsjoner</span>
+        </button>
+      </div>
     </Panel>
   );
 }

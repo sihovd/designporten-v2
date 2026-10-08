@@ -357,7 +357,10 @@ function Lagrad({
             aria-current={aktiv ? 'true' : undefined}
             onClick={() => {
               signtilstand(benk).sett({ omriss: null });
-              benk.velg({ lag: lag.id, objekter: [] });
+              // a layer with several objects selects them all, so they can be moved together (locked and
+              // hidden ones stay out); a layer with one keeps showing the layer's own properties
+              const alle = lag.last || !lag.synlig ? [] : objekter.filter((o) => o.synlig && !o.last);
+              benk.velg({ lag: lag.id, objekter: alle.length > 1 ? alle.map((o) => o.id) : [] });
             }}
             onContextMenu={(e) => {
               e.preventDefault();
