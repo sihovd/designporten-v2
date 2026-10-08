@@ -11,7 +11,7 @@ import plugin from './index';
 import { DEKOR, dekorKilde, lagreEgetFlerfarget, hentEgneDekor, dekorValg } from './dekor';
 import { leggTilLag, nyttLag, nyttSigngenDokument, oppdaterLag } from './dokument';
 import { leggTilFlerfarget } from './handlinger';
-import { byggSigngen, lastFonter } from './modell';
+import { byggSigngen, lastFonter, omrissRegioner } from './modell';
 import {
   byggFlerfarget,
   delOppIOyer,
@@ -265,6 +265,35 @@ describe('A picture in several colours on the sign', () => {
     for (const del of modell.deler) expect(sjekkManifold(del.mesh).lukket).toBe(true);
     for (const o of objekter) expect(o.kilde.type).toBe('svg');
     benk.avslutt();
+  });
+
+  it('can join the text layer in several colours without changing the outline round it', async () => {
+    const lag = (farge: (id: number) => string) => {
+      const benk = new Arbeidsbenk(plugin, plugin.nyttDokument());
+      const d = ark();
+      const ff = byggFlerfarget('Hest', d.deler, (id) => farge(id), d.filnavn)!;
+      const antallFor = benk.dok.lag.length;
+      leggTilFlerfarget(benk, ff, 'pynt', 'gruppe');
+      return { benk, antallFor };
+    };
+    const flere = lag((id) => (id === 1 ? 'pla-svart' : 'pla-kritthvit'));
+    const en = lag(() => 'pla-kritthvit');
+    await lastFonter(flere.benk.dok);
+    // no layer of its own: the pieces are objects of the text layer
+    expect(flere.benk.dok.lag.length).toBe(flere.antallFor);
+    const tekstlag = flere.benk.dok.lag.find((l) => l.tekstlag)!;
+    const objekter = objekterILag(flere.benk.dok, tekstlag.id);
+    expect(objekter.some((o) => o.materialId && o.materialId !== tekstlag.materialId)).toBe(true);
+    // the outline round text and picture is the same whatever the colours of the pieces
+    const omriss = (b: Arbeidsbenk) => {
+      const l = b.dok.lag.find((x) => x.tekstlag)!;
+      return [...omrissRegioner(b.dok, l.id)!.values()].map((r) => areal(r));
+    };
+    expect(omriss(flere.benk)).toEqual(omriss(en.benk));
+    const modell = await byggSigngen(flere.benk.dok);
+    for (const del of modell.deler) expect(sjekkManifold(del.mesh).lukket).toBe(true);
+    flere.benk.avslutt();
+    en.benk.avslutt();
   });
 
   it('keeps the colours of a vector saved in the gallery', () => {

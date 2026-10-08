@@ -145,14 +145,36 @@ export function Produksjonspanel({ benk }: { benk: Arbeidsbenk }) {
 }
 
 export const PANELER: PanelDef[] = [
-  { id: 'lag', navn: 'Lag', Innhold: Lagpanel, flytB: 320, flytH: 520 },
-  { id: 'egenskaper', navn: 'Egenskaper', Innhold: SigngenInspektor, flytB: 320, flytH: 560 },
+  { id: 'lag', navn: 'Lag', ikon: 'layers', Innhold: Lagpanel, flytB: 320, flytH: 520 },
+  {
+    id: 'egenskaper',
+    navn: 'Egenskaper',
+    ikon: 'properties',
+    Innhold: SigngenInspektor,
+    flytB: 320,
+    flytH: 560,
+  },
   { id: 'profil', navn: 'Profil', Innhold: Profilpanel, flytB: 320, flytH: 520, fane: 'egenskaper' },
-  { id: 'transform', navn: 'Transform', Innhold: Transformpanel, flytB: 300, flytH: 360 },
-  { id: 'justering', navn: 'Justér', Innhold: Justerpanel, flytB: 300, flytH: 480 },
-  { id: 'fargeprofil', navn: 'Fargeprofil', Innhold: Fargepanel, flytB: 340, flytH: 560, fane: 'egenskaper' },
-  { id: 'historikk', navn: 'Historikk', Innhold: Historikkpanel, flytB: 280, flytH: 340 },
-  { id: 'produksjon', navn: 'Produksjon', Innhold: Produksjonspanel, flytB: 300, flytH: 380 },
+  { id: 'transform', navn: 'Transform', ikon: 'transform', Innhold: Transformpanel, flytB: 300, flytH: 360 },
+  { id: 'justering', navn: 'Justér', ikon: 'align', Innhold: Justerpanel, flytB: 300, flytH: 480 },
+  {
+    id: 'fargeprofil',
+    navn: 'Fargeprofil',
+    ikon: 'palette',
+    Innhold: Fargepanel,
+    flytB: 340,
+    flytH: 560,
+    fane: 'egenskaper',
+  },
+  { id: 'historikk', navn: 'Historikk', ikon: 'history', Innhold: Historikkpanel, flytB: 280, flytH: 340 },
+  {
+    id: 'produksjon',
+    navn: 'Produksjon',
+    ikon: 'plate-layout',
+    Innhold: Produksjonspanel,
+    flytB: 300,
+    flytH: 380,
+  },
 ];
 
 /** Arrangements of the panels. Only the arrangement differs: «Egendefinert» is whatever you made yourself. */

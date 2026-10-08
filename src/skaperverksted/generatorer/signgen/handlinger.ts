@@ -461,6 +461,11 @@ export function leggTilDekor(
   const nyttPynt = tekstlag ? null : nyttLag(lagNavn, tilPalett(d, valg.farge), 1);
   const lagId = tekstlag ? tekstlag.id : nyttPynt!.id;
   const o = nyttObjekt(lagId, r.kilde, { skalaX: s, skalaY: s, x, y }, navn);
+  // in the text layer the element keeps its own colour when it differs from the text's
+  if (tekstlag && valg.farge) {
+    const eget = tilPalett(d, valg.farge);
+    if (eget !== tekstlag.materialId) o.materialId = eget;
+  }
   const over = benk.tilstand.utvalg.lag ?? undefined;
   benk.endre({
     navn: `Legg til dekor ${navn}`,
@@ -503,12 +508,47 @@ export function leggTilFlerfarget(
     return;
   }
   const d = benk.dok;
+  const tekstlag = plass === 'gruppe' ? tekstlagForDekor(benk) : null;
   const skilt = modellBoks(d);
-  const maal = skilt ? Math.max(10, (skilt.maksY - skilt.minY) / 3) : 30;
-  const x = skilt ? skilt.maksX - maal / 2 : 0;
-  const y = skilt ? skilt.maksY - maal / 2 : 0;
+  let maal = skilt ? Math.max(10, (skilt.maksY - skilt.minY) / 3) : 30;
+  let x = skilt ? skilt.maksX - maal / 2 : 0;
+  let y = skilt ? skilt.maksY - maal / 2 : 0;
+  if (tekstlag) {
+    // beside the text group, as tall as the text, a little apart (as for a single-colour element)
+    const gruppe = objekterILag(d, tekstlag.id)
+      .filter((o) => o.synlig)
+      .map(verdensBoks)
+      .reduce(slaSammen, tomBoks());
+    const hoyde = erTom(gruppe) ? 14 : gruppe.maksY - gruppe.minY;
+    maal = Math.min(40, Math.max(10, hoyde * 1.3));
+    if (!erTom(gruppe)) {
+      x = gruppe.maksX + 3 + maal / 2;
+      y = (gruppe.minY + gruppe.maksY) / 2;
+    }
+  }
   const plate = Math.min(d.plate.bredde, d.plate.dybde) * 0.8;
   const s = Math.min(maal, plate) / Math.max(ff.bredde, ff.hoyde);
+  if (tekstlag) {
+    // every colour is an object of the text layer: the text's outlines go round the whole picture, whatever its colours
+    const farger = ff.grupper.map((g) => tilPalett(d, g.farge || undefined));
+    const objekter: Objekt[] = ff.grupper.map((g, i) => ({
+      ...nyttObjekt(
+        tekstlag.id,
+        g.kilde,
+        { skalaX: s, skalaY: s, x: x + g.dx * s, y: y + g.dy * s },
+        `${ff.navn} · ${fargekode(finnMateriale(farger[i]!))}`,
+      ),
+      ...(farger[i] !== tekstlag.materialId ? { materialId: farger[i]! } : {}),
+    }));
+    benk.endre({
+      navn: `Legg til ${ff.navn}`,
+      anvend: (x0) => objekter.reduce((dok, o) => leggTilObjekt(dok, o), x0),
+    });
+    benk.velg({ lag: tekstlag.id, objekter: objekter.map((o) => o.id) });
+    const tekst = `${ff.navn} er lagt til i «${tekstlag.navn}» med ${new Set(farger).size} farger. Omrisset går rundt hele bildet, uansett farge`;
+    benk.melde(`${ekstra ? `${tekst}. ${ekstra}` : tekst}.`);
+    return;
+  }
   const grunn = ledigNavn(d, ff.navn);
   const over = benk.tilstand.utvalg.lag ?? undefined;
   // one layer for the whole picture: every colour is an object of its own with its own colour, so the

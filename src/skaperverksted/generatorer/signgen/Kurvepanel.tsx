@@ -6,6 +6,7 @@
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { fargekode, finnMateriale } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
+import { Ikon, type IkonId } from '../../shell/ikoner';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { oppdaterKilde, palett } from './dokument';
 import {
@@ -32,14 +33,23 @@ function Knapp({
   hjelp,
   deaktivert,
   klikk,
+  ikon,
 }: {
   navn: string;
   hjelp?: string;
   deaktivert?: boolean;
   klikk: () => void;
+  ikon?: IkonId;
 }) {
   return (
-    <button type="button" class="kontroll-knapp" title={hjelp} disabled={deaktivert} onClick={klikk}>
+    <button
+      type="button"
+      class={`kontroll-knapp${ikon ? ' med-ikon' : ''}`}
+      title={hjelp}
+      disabled={deaktivert}
+      onClick={klikk}
+    >
+      {ikon && <Ikon id={ikon} storrelse={16} />}
       {navn}
     </button>
   );
@@ -88,34 +98,49 @@ export function Kurvepanel({ benk }: { benk: Arbeidsbenk }) {
       <div class="knapperad" role="group" aria-label="Punkter">
         <Knapp
           navn="Hjørnepunkt"
+          ikon="edit-point"
           deaktivert={!harPunkter}
           hjelp="Håndtakene beveger seg hver for seg"
           klikk={() => settValgteNodetype(benk, false)}
         />
         <Knapp
           navn="Jevnt punkt"
+          ikon="smooth"
           deaktivert={!harPunkter}
           hjelp="Håndtakene ligger på linje, så kurven ikke knekker"
           klikk={() => settValgteNodetype(benk, true)}
         />
         <Knapp
           navn="Legg til punkt med penn"
+          ikon="add-point"
           hjelp="Tegn en ny bane i denne vektoren (B)"
           klikk={() => signtilstand(benk).sett({ verktoy: 'penn' })}
         />
       </div>
 
       <div class="knapperad" role="group" aria-label="Slett">
-        <Knapp navn="Slett punkt" deaktivert={!harPunkter} klikk={() => slettValgtePunkter(benk)} />
-        <Knapp navn="Slett kurve" deaktivert={!c.k.segment} klikk={() => slettValgtSegment(benk)} />
+        <Knapp
+          navn="Slett punkt"
+          ikon="remove-point"
+          deaktivert={!harPunkter}
+          klikk={() => slettValgtePunkter(benk)}
+        />
+        <Knapp
+          navn="Slett kurve"
+          ikon="delete"
+          deaktivert={!c.k.segment}
+          klikk={() => slettValgtSegment(benk)}
+        />
         <Knapp
           navn="Slett bane"
+          ikon="delete"
           deaktivert={!harForm && !c.k.segment && !harPunkter}
           hjelp="Tar bort hele banen, men lar hullene stå"
           klikk={() => slettValgteBaner(benk, false)}
         />
         <Knapp
           navn="Slett form"
+          ikon="delete"
           deaktivert={!harForm && !c.k.segment && !harPunkter}
           hjelp="Tar bort banen og hullene inni den (Delete)"
           klikk={() => slettValgteBaner(benk, true)}

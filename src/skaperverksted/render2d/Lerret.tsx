@@ -9,7 +9,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { Arbeidsbenk } from '../core/arbeidsbenk';
 import type { Boks, Vec2 } from '../core/geometri2d';
 import { linjalEtikett, rutenettnivaa } from '../core/rutenett';
-import { cssFarge } from '../shell/tema';
+import { cssFarge, horisontStopp, lesHorisont, type Horisont } from '../shell/tema';
 import { LINJAL, lagVisning, tilpass, zoomRundt, type Visning } from './visning';
 
 export interface Pekerhendelse {
@@ -45,6 +45,10 @@ export interface Farger {
   dempet: string;
   lilla: string;
   cyan: string;
+  /** The surface of the plate (a mid-tone from the horizon gradient when there is one). */
+  bord: string;
+  /** The horizon gradient behind the plate, when the workshop has one (stops from top to bottom). */
+  horisont: Horisont | null;
 }
 
 export interface LerretProps {
@@ -77,6 +81,8 @@ function lesFarger(el: Element): Farger {
     dempet: cssFarge(el, '--fg-dempet', '#a7a3a0'),
     lilla: cssFarge(el, '--dp-lilla', '#883dff'),
     cyan: cssFarge(el, '--dp-cyan', '#00c4d6'),
+    bord: cssFarge(el, '--bord', cssFarge(el, '--grafitt', '#1c1b1f')),
+    horisont: lesHorisont(el),
   };
 }
 
@@ -97,6 +103,7 @@ export function Lerret({
   siste.current = { tegn, verktoy, markering, innhold, panorer, linjalverktoy };
   const planlagt = useRef(false);
   const tegnNa = useRef<() => void>(() => {});
+  const markor = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const el = vert.current!;
@@ -114,13 +121,17 @@ export function Lerret({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const v = visning();
       const { dok } = benk.tilstand;
-      ctx.fillStyle = farger.bakgrunn;
+      if (farger.horisont) {
+        const g = ctx.createLinearGradient(0, 0, 0, h);
+        horisontStopp(g, farger.horisont);
+        ctx.fillStyle = g;
+      } else ctx.fillStyle = farger.bakgrunn;
       ctx.fillRect(0, 0, b, h);
 
       // printable plate
       const p0 = v.tilSkjerm({ x: -dok.plate.bredde / 2, y: dok.plate.dybde / 2 });
       const p1 = v.tilSkjerm({ x: dok.plate.bredde / 2, y: -dok.plate.dybde / 2 });
-      ctx.fillStyle = farger.plate;
+      ctx.fillStyle = farger.bord;
       ctx.fillRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
 
       // adaptive grid
@@ -248,12 +259,15 @@ export function Lerret({
       return { modell: v.tilModell(s), skjerm: s, e, visning: v, mellomrom };
     };
     const oppdaterMarkor = () => {
-      c.style.cursor = pan
-        ? 'grabbing'
-        : mellomrom || siste.current.panorer
-          ? 'grab'
-          : (siste.current.verktoy?.markor ?? 'default');
+      // the closed hand stays for as long as the wheel button or Space is held, not only while dragging
+      c.style.cursor =
+        pan || mellomrom
+          ? 'grabbing'
+          : siste.current.panorer
+            ? 'grab'
+            : (siste.current.verktoy?.markor ?? 'default');
     };
+    markor.current = oppdaterMarkor;
 
     const ned = (e: PointerEvent) => {
       c.focus({ preventScroll: true });
@@ -384,6 +398,11 @@ export function Lerret({
     c.addEventListener('wheel', hjul, { passive: false });
     window.addEventListener('keydown', tastNed);
     window.addEventListener('keyup', tastOpp);
+    const mistetFokus = () => {
+      mellomrom = false;
+      oppdaterMarkor();
+    };
+    window.addEventListener('blur', mistetFokus);
     const markorLytter = benk.lytt(oppdaterMarkor);
     oppdaterMarkor();
 
@@ -400,15 +419,15 @@ export function Lerret({
       c.removeEventListener('wheel', hjul);
       window.removeEventListener('keydown', tastNed);
       window.removeEventListener('keyup', tastOpp);
+      window.removeEventListener('blur', mistetFokus);
+      markor.current = null;
     };
   }, [benk]);
 
   // props changed (tool, selection): redraw
   useEffect(() => {
     tegnNa.current();
-    if (lerret.current) {
-      lerret.current.style.cursor = panorer ? 'grab' : (verktoy?.markor ?? 'default');
-    }
+    markor.current?.();
   });
 
   return (

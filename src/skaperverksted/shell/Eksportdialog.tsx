@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../core/arbeidsbenk';
 import { fargekode, finnMateriale } from '../core/materialer';
+import { Ikon } from './ikoner';
 import { nyId } from '../core/dokument';
 import { lagreDesign, lastNed } from '../core/lagring';
 import { sjekkManifold } from '../geometri/mesh';
@@ -80,7 +81,7 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
     const designId = nyId('design');
     const sammendrag = [
       `Mål: ${tall(m.bredde)} × ${tall(m.dybde)} × ${tall(m.hoyde)} mm`,
-      `Deler: ${deler.map((d) => `${d.navn} (${finnMateriale(d.materialId).navn})`).join(', ')}`,
+      `Deler: ${deler.map((d) => `${d.navn} (${fargekode(finnMateriale(d.materialId))})`).join(', ')}`,
     ];
     lagreDesign({
       id: designId,
@@ -209,7 +210,8 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                       : '3MF holder fargene som egne deler, hver på sin filamentplass (nummerert ved forhåndsvisningen), og ligger midt på platen slik som i verkstedet. STL er én samlet form uten farger.'}
                   </p>
                   <div class="knapperad">
-                    <button type="button" class="primar" onClick={tremf}>
+                    <button type="button" class="primar med-ikon" onClick={tremf}>
+                      <Ikon id="export-three-mf" storrelse={18} />
                       Last ned 3MF
                     </button>
                     {regler.stlPerDel ? (
@@ -219,7 +221,8 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                         </button>
                       ))
                     ) : (
-                      <button type="button" class="sekundar" onClick={stl}>
+                      <button type="button" class="sekundar med-ikon" onClick={stl}>
+                        <Ikon id="generate-stl" storrelse={18} />
                         Last ned STL
                       </button>
                     )}

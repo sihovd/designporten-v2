@@ -62,6 +62,8 @@ export interface PanelDef {
   flytH?: number;
   /** When opened by name (not from the Paneler menu) it joins this panel's group as a tab. */
   fane?: string;
+  /** Icon from the workspace set, shown beside the name (the name stays). */
+  ikon?: string;
 }
 
 /**
@@ -131,6 +133,11 @@ export interface GeneratorPlugin {
    * their sheets.
    */
   lerretForst?: boolean;
+  /**
+   * A lighter workshop: light panels and tool rail, with the canvas on a dark horizon gradient
+   * (Sign Forge, Sivert 2026-10-08). Without it the workshop is the dark graphite surface.
+   */
+  flate?: 'lys';
   /**
    * Without an account the open project is kept in this browser, one per
    * tool. With this set it is deleted when it has not been opened for

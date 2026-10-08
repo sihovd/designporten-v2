@@ -460,6 +460,32 @@ test.describe('Signgen', () => {
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
 
+  test('hånden er lukket så lenge Space holdes nede, og hullet kan få egen høyde', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Space og museplassering krever tastatur og mus');
+    const lerret = page.locator('canvas').first();
+    const markor = () => lerret.evaluate((el) => (el as HTMLCanvasElement).style.cursor);
+    await lerret.focus();
+    expect(await markor()).not.toBe('grabbing');
+    await page.keyboard.down('Space');
+    await expect.poll(markor).toBe('grabbing');
+    await page.keyboard.up('Space');
+    await expect.poll(markor).not.toBe('grabbing');
+
+    const bb = (await lerret.boundingBox())!;
+    await page.getByRole('button', { name: 'Hull', exact: true }).click();
+    await page.mouse.click(bb.x + bb.width * 0.62, bb.y + bb.height * 0.3);
+    // the click lands beside the sign, so the hole is an eye
+    const gruppe = page.getByRole('radiogroup', { name: /Høyde på øyet|Hvor langt hullet går/ });
+    await expect(gruppe).toBeVisible();
+    await expect(page.getByText(/Øyet er like høyt som laget|Hullet går gjennom alle lag/)).toBeVisible();
+    await gruppe.getByRole('radio', { name: 'Egen høyde' }).click();
+    await expect(page.getByLabel(/Øyets høyde|Hullet går opp til/)).toBeVisible();
+    await expect(page.getByText(/Resten av skiltet endres ikke|Lagene over blir som de er/)).toBeVisible();
+  });
+
   test('ny tekst går i det valgte tekstlaget og blir gruppert, «Tekstlag» gir et eget lag', async ({
     page,
     isMobile,
@@ -555,9 +581,9 @@ test.describe('Signgen', () => {
     await expect(dialog).toBeHidden();
     await expect(page.locator('.statuslinje')).toContainText('4 deler');
     if (!isMobile) {
-      // one layer for the whole picture: both colours share its outline and height
-      await expect(page.locator('.lagrad')).toHaveCount(2);
-      await expect(page.locator('.lagrad', { hasText: 'ark' })).toHaveCount(1);
+      // the picture joins the text layer, so both colours share the text's outlines and no layer is added
+      await expect(page.locator('.lagrad')).toHaveCount(1);
+      await expect(page.locator('.lagrad', { hasText: 'Tekst' })).toHaveCount(1);
     }
   });
 
@@ -582,7 +608,7 @@ test.describe('Signgen', () => {
     await egen.click();
     await expect(tilbake).toBeHidden();
     await expect(page.locator('.statuslinje')).toContainText('5 deler');
-    if (!isMobile) await expect(page.locator('.lagrad')).toHaveCount(2);
+    if (!isMobile) await expect(page.locator('.lagrad')).toHaveCount(1);
   });
 
   /** Draw a closed shape with the pen at points relative to the canvas centre. */
@@ -1024,9 +1050,13 @@ test.describe('Signgen', () => {
     const objektfarge = page.getByRole('button', { name: /^Farge på objektet:/ });
     await objektfarge.click();
     const meny = page.getByRole('menu', { name: /filamentene i fargeprofilen/ });
-    await expect(meny.getByText(/^#[0-9A-F]{6}$/)).toHaveCount(4);
+    await expect(meny.getByRole('menuitemradio')).toHaveCount(4);
+    await expect(meny.locator('.fargebeskrivelse')).toContainText(/#[0-9A-F]{6}/);
+    // no colour name is visible until the pointer is over a swatch
     for (const navn of ['Kritthvit', 'Lilla', 'Cyan', 'Grafitt'])
       await expect(meny.getByText(navn, { exact: true })).toHaveCount(0);
+    await meny.getByRole('menuitemradio', { name: /Grafitt/ }).hover();
+    await expect(meny.locator('.fargebeskrivelse')).toContainText('Grafitt');
     await meny.getByRole('menuitemradio', { name: /Cyan/ }).click();
     await expect(page.getByText('følger laget')).toHaveCount(0);
     // still the same layers: the object is coloured, not moved

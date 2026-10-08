@@ -63,6 +63,12 @@ export interface FormKilde {
   /** Hanging holes outside the model become an eye: the ring's width around the hole (mm). */
   ringBredde?: number;
   /**
+   * Own height of a hanging hole (mm from the underside of the sign), without touching the rest of the
+   * model. A hole over the model cuts the layers that start below this height (whole layers); an eye
+   * becomes its own ring of this height. Unset: through everything, and an eye as tall as the layer it joins.
+   */
+  hullHoyde?: number;
+  /**
    * Hanging holes in a CSV batch: keep the distance to the printed letters
    * («navn»), keep the place on the sign («fast») or decide from the sign
    * («auto»: follow the name unless the hole lies on a fixed plate).

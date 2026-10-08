@@ -130,6 +130,53 @@ describe('Hanging holes and eyes', () => {
   });
 });
 
+describe('Own height on a hanging hole', () => {
+  const medHoyde = (d: Dokument, id: string, hullHoyde?: number) =>
+    oppdaterObjekter(d, [id], (o) => ({ ...o, kilde: { ...(o.kilde as FormKilde), hullHoyde } }));
+
+  it('cuts only the layers it reaches and leaves the rest of the model alone', async () => {
+    let d = skiltMedPlate();
+    const bunn = d.lag[0]!;
+    const tekst = d.lag[1]!;
+    await lastFonter(d);
+    const utenHull = { bunn: areal(lagRegion(d, bunn.id)!), tekst: areal(lagRegion(d, tekst.id)!) };
+    const hull = nyttObjekt(bunn.id, nyForm('hull', 6, 6), { x: 0, y: 0 });
+    d = leggTilObjekt(d, hull);
+    // through everything: both layers lose area
+    expect(areal(lagRegion(d, bunn.id)!)).toBeLessThan(utenHull.bunn - 20);
+    expect(areal(lagRegion(d, tekst.id)!)).toBeLessThan(utenHull.tekst);
+    // reaching 2 mm: only the plate (0–3 mm) is cut, the text (from 3 mm) is as it was
+    const kort = medHoyde(d, hull.id, 2);
+    expect(areal(lagRegion(kort, bunn.id)!)).toBeLessThan(utenHull.bunn - 20);
+    expect(areal(lagRegion(kort, tekst.id)!)).toBeCloseTo(utenHull.tekst, 3);
+    expect(kort.lag.map((l) => [l.zBunn, l.hoyde])).toEqual(d.lag.map((l) => [l.zBunn, l.hoyde]));
+    // reaching above the text: both are cut again
+    const hoy = medHoyde(d, hull.id, 8);
+    expect(areal(lagRegion(hoy, tekst.id)!)).toBeLessThan(utenHull.tekst);
+  });
+
+  it('prints an eye with an own height as a ring of its own, closed and as tall as asked', async () => {
+    let d = skiltMedPlate();
+    const bunn = d.lag[0]!;
+    await lastFonter(d);
+    const kant = regionBoks(lagRegion(d, bunn.id)!);
+    const hull = nyttObjekt(bunn.id, nyForm('hull', 5, 5), { x: kant.minX - 4, y: 0 });
+    d = leggTilObjekt(d, hull);
+    expect(erOye(d, hull.id)).toBe(true);
+    const festet = await byggSigngen(d);
+    expect(festet.deler.some((x) => x.id === hull.id)).toBe(false);
+    const egen = medHoyde(d, hull.id, 1.2);
+    const m = await byggSigngen(egen);
+    const ring = m.deler.find((x) => x.id === hull.id)!;
+    expect(ring).toBeDefined();
+    expect(sjekkManifold(ring.mesh).lukket).toBe(true);
+    const z = [...ring.mesh.posisjoner].filter((_, i) => i % 3 === 2);
+    expect(Math.max(...z)).toBeCloseTo(bunn.zBunn + 1.2, 3);
+    // the plate itself is as tall and as wide as before the eye got its own height
+    expect(areal(lagRegion(egen, bunn.id)!)).toBeLessThanOrEqual(areal(lagRegion(d, bunn.id)!) + 1e-6);
+  });
+});
+
 describe('CSV fields on a sign without a plate', () => {
   it('lets the text and its outlines grow instead of calling the name too long', async () => {
     const start = nyttSigngenDokument();

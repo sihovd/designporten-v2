@@ -100,7 +100,27 @@ export type PakkeIkon =
   | 'print-preview'
   | 'templates'
   | 'favorites'
-  | 'store';
+  | 'store'
+  | 'adjustments'
+  | 'color-groups'
+  | 'columns'
+  | 'export-three-mf'
+  | 'filter'
+  | 'generate'
+  | 'generate-stl'
+  | 'import-csv'
+  | 'license'
+  | 'link-fields'
+  | 'plate-layout'
+  | 'plates-sorted'
+  | 'premium'
+  | 'preview'
+  | 'print-queue'
+  | 'printer-profile'
+  | 'rows'
+  | 'rules'
+  | 'search'
+  | 'send-printer';
 
 /** Temporary line icons for what the set does not cover (D-3: functional glyphs only). */
 export type MidlertidigIkon =

@@ -1,6 +1,6 @@
 /** Signgen plug-in: 3D-printed signs and nameplates, built layer by layer. */
 import type { GeneratorPlugin } from '../../core/generator';
-import { finnMateriale } from '../../core/materialer';
+import { fargekode, finnMateriale } from '../../core/materialer';
 import { tall } from '../../core/enheter';
 import { mal } from '../../shell/mal';
 import { meta } from './meta';
@@ -23,6 +23,7 @@ import { flyttHjelpelinjeTil, hjelpelinjerAv, slettHjelpelinjeI } from './hjelpe
 const plugin: GeneratorPlugin = {
   ...meta,
   visninger: ['2d', '3d'],
+  flate: 'lys',
   nyttDokument: nyttSigngenDokument,
   lesInn: lesInnSigngen,
   byggModell: byggSigngen,
@@ -183,7 +184,7 @@ const plugin: GeneratorPlugin = {
   },
   bestilling(dok, modell) {
     const m = mal(modell.deler);
-    const farger = [...new Set(modell.deler.map((d) => finnMateriale(d.materialId).navn))];
+    const farger = [...new Set(modell.deler.map((d) => fargekode(finnMateriale(d.materialId))))];
     return {
       produktId: 'skaperverksted-signgen',
       navn: `Skilt fra Sign Forge: ${dok.navn}`,

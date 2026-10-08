@@ -8,7 +8,7 @@ import { Fragment, type ComponentChildren, type JSX } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { PanelDef } from '../../core/generator';
-import { Ikon } from '../ikoner';
+import { Ikon, type IkonId } from '../ikoner';
 import { Tips } from '../Tips';
 import { startDra } from './dra';
 import type { PanelHandling, PanelLager } from './lager';
@@ -459,12 +459,14 @@ function Gruppevisning({
                   );
                 }}
               >
+                {def.get(p)?.ikon && <Ikon id={def.get(p)!.ikon as IkonId} storrelse={14} />}
                 {def.get(p)?.navn ?? p}
               </button>
             ))}
           </div>
         ) : (
           <h2 class="panelnavn" id={hodeId}>
+            {aktivDef?.ikon && <Ikon id={aktivDef.ikon as IkonId} storrelse={14} />}
             {navn}
           </h2>
         )}

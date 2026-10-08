@@ -37,6 +37,7 @@ export function Fargevelger({
 }) {
   const t = brukBenk(benk);
   const [apen, settApen] = useState(false);
+  const [hover, settHover] = useState<string | null>(null);
   const knapp = useRef<HTMLButtonElement>(null);
   const meny = useRef<HTMLDivElement>(null);
   const m = finnMateriale(verdi);
@@ -61,7 +62,7 @@ export function Fargevelger({
   }, [apen]);
 
   const r = apen ? knapp.current?.getBoundingClientRect() : undefined;
-  const hoyde = valg.length * 36 + 52;
+  const hoyde = Math.ceil(valg.length / 6) * 40 + 96;
   const stil = r
     ? {
         left: `${Math.max(8, Math.min(r.left, window.innerWidth - 248))}px`,
@@ -97,42 +98,51 @@ export function Fargevelger({
               e.stopPropagation();
               lukk();
             } else if (e.key === 'Tab') lukk(false);
-            else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            else if (['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].includes(e.key)) {
               e.preventDefault();
               const k = [...(meny.current?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
               const i = k.indexOf(document.activeElement as HTMLButtonElement);
-              k[(i + (e.key === 'ArrowDown' ? 1 : -1) + k.length) % k.length]?.focus();
+              k[
+                (i + (e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1) + k.length) % k.length
+              ]?.focus();
             }
           }}
         >
-          {valg.map((id) => {
-            const f = finnMateriale(id);
-            return (
-              <button
-                key={id}
-                type="button"
-                role="menuitemradio"
-                aria-checked={id === verdi}
-                title={filamentLinje(f)}
-                aria-label={filamentLinje(f)}
-                onClick={() => {
-                  lukk();
-                  if (id !== verdi) endre(id);
-                }}
-              >
-                <span class="fargeprove stor" style={{ background: f.hex }} aria-hidden="true" />
-                <span class="fargemeny-navn">
-                  <span class="mono">{fargekode(f)}</span>
-                  <span class="dempet"> {f.produsent ? `${f.produsent} ${f.type}` : f.type}</span>
-                </span>
-                {id === verdi && (
-                  <span class="menyhake" aria-hidden="true">
-                    ✓
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          <div class="fargepalett" role="presentation">
+            {valg.map((id) => {
+              const f = finnMateriale(id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="menuitemradio"
+                  class="fargerute"
+                  aria-checked={id === verdi}
+                  title={filamentLinje(f)}
+                  aria-label={filamentLinje(f)}
+                  onPointerEnter={() => settHover(id)}
+                  onPointerLeave={() => settHover(null)}
+                  onFocus={() => settHover(id)}
+                  onBlur={() => settHover(null)}
+                  onClick={() => {
+                    lukk();
+                    if (id !== verdi) endre(id);
+                  }}
+                >
+                  <span class="fargeprove stor" style={{ background: f.hex }} aria-hidden="true" />
+                  {id === verdi && (
+                    <span class="menyhake" aria-hidden="true">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p class="fargebeskrivelse" aria-hidden="true">
+            <span class="mono">{fargekode(finnMateriale(hover ?? verdi))}</span>
+            {hover && hover !== verdi && <span class="dempet"> {visningsnavn(finnMateriale(hover))}</span>}
+          </p>
           <button
             type="button"
             role="menuitem"
