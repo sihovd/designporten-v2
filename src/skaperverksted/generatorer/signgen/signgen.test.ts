@@ -116,6 +116,31 @@ describe('Signgen model', () => {
     expect(r.advarsler.some((a) => a.tekst.includes('utenfor byggeplaten'))).toBe(true);
   });
 
+  it('warns when the side profile goes back down (a groove in the top)', async () => {
+    let d = skiltMedPlate();
+    const bunn = d.lag[0]!;
+    d = oppdaterLag(d, bunn.id, {
+      profil: {
+        type: 'egendefinert',
+        bredde: 3,
+        trinn: 2,
+        punkter: [
+          { u: 0, t: 0 },
+          { u: 0, t: 1 },
+          { u: 1 / 3, t: 1 },
+          { u: 2 / 3, t: 0.5 },
+          { u: 1, t: 1 },
+        ],
+      },
+    });
+    const r = await byggSigngen(d);
+    expect(r.advarsler.some((a) => a.tekst.includes('lager et spor i toppen') && a.lagId === bunn.id)).toBe(
+      true,
+    );
+    const rett = await byggSigngen(skiltMedPlate());
+    expect(rett.advarsler.some((a) => a.tekst.includes('spor i toppen'))).toBe(false);
+  });
+
   it('flags details thinner than the material minimum', async () => {
     let d = skiltMedPlate();
     d = leggTilObjekt(d, nyttObjekt(d.lag[1]!.id, nyForm('rektangel', 20, 0.4), { y: -15 }));

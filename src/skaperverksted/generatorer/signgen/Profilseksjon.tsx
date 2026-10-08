@@ -8,7 +8,7 @@ import { useMemo } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Lag } from '../../core/dokument';
 import { materialtyper, finnMateriale } from '../../core/materialer';
-import { ankere, byggProfil, flyttAnker, profilOverheng, type ProfilType } from '../../core/profil';
+import { ankere, byggProfil, flyttAnker, harSpor, profilOverheng, type ProfilType } from '../../core/profil';
 import { brukBenk } from '../../shell/bruk-benk';
 import { TallFelt } from '../../shell/kontroller';
 import { oppdaterLag } from './dokument';
@@ -35,6 +35,7 @@ export function Profilseksjon({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
   const stotte = useMemo(() => lagStotte(t.dok, lag.id), [t.dok, lag.id]);
   const maks = materialtyper[finnMateriale(lag.materialId).type].maksOverheng;
   const overheng = profilOverheng(profil, lag.hoyde);
+  const spor = harSpor(profil);
 
   const byttType = (type: ProfilType) => {
     if (type === 'egendefinert') {
@@ -113,6 +114,12 @@ export function Profilseksjon({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
         <p class="merknad profil-advarsel" role="status">
           Veggen heller utover med {Math.round(overheng)}°. Over {maks}° kan den henge ned uten
           støttemateriale.
+        </p>
+      )}
+      {spor && (
+        <p class="merknad profil-advarsel" role="status">
+          Veggen går ned igjen og lager et spor i toppen. Et lag som ligger oppå, kan henge over sporet uten
+          støtte. Det sjekkes ikke, så se over profilen selv.
         </p>
       )}
       <p class="merknad">

@@ -25,7 +25,7 @@ import {
 } from '../../core/geometri2d';
 import { finnMateriale, materialtyper } from '../../core/materialer';
 import { mm } from '../../core/enheter';
-import { bunnInset, profilOverheng, toppInset } from '../../core/profil';
+import { bunnInset, harSpor, profilOverheng, toppInset } from '../../core/profil';
 import {
   areal,
   differanse,
@@ -1057,6 +1057,13 @@ export async function byggSigngen(
         advarsler.push({
           niva: 'advarsel',
           tekst: `Profilen på «${lag.navn}» heller utover med ${Math.round(overheng)}°. Over ${maksOverheng}° kan veggen henge ned uten støttemateriale.`,
+          lagId: lag.id,
+        });
+      }
+      if (harSpor(lag.profil)) {
+        advarsler.push({
+          niva: 'advarsel',
+          tekst: `Profilen på «${lag.navn}» går ned igjen og lager et spor i toppen. Et lag oppå kan henge over sporet uten støtte. Det er ikke sjekket.`,
           lagId: lag.id,
         });
       }

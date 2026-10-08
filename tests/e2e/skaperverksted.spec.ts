@@ -1292,6 +1292,7 @@ test.describe('Signgen', () => {
     await hoydeFelt.fill('0,2');
     await hoydeFelt.press('Enter');
     await expect(hoydeFelt).toHaveValue('0,2');
+    await expect(panel.getByText('Veggen går ned igjen og lager et spor')).toBeVisible();
     await panel.getByRole('button', { name: 'Fjern punkt' }).click();
     await expect(panel.locator('#profil-punkt option')).toHaveCount(3);
     // an older profile type stays selectable
