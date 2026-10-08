@@ -629,7 +629,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
       )}
 
       {ui.Bunnbrett && (
-        <section class="bunnbrett" aria-label="Varianter">
+        <section class="bunnbrett" aria-label={plugin.bunnbrettNavn ?? 'Varianter'}>
           <ui.Bunnbrett benk={benk} />
         </section>
       )}

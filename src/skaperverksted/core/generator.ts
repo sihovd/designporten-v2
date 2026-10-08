@@ -178,6 +178,8 @@ export interface GeneratorPlugin {
   hurtigtastListe?: [string, string][];
   /** Short answers to «how do I …», found by the small search field at the top. */
   hjelpeemner?: Hjelpeemne[];
+  /** Name of the bottom tray for screen readers (default «Varianter»). */
+  bunnbrettNavn?: string;
   /** Optional 3D material per part (default: material colour, PBR from the material type). */
   material3d?: (del: ModellDel, three: typeof THREE) => THREE.Material;
   /** Optional scene setup (lights, helpers). Return a cleanup function. */

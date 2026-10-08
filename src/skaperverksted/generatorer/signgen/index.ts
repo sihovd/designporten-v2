@@ -17,7 +17,7 @@ import { SigngenInspektor } from './Inspektor';
 import { ARBEIDSROM, PANELER } from './paneler';
 import { signtilstand } from './tilstand';
 import { apneCsv } from './csvhandlinger';
-import { Csvbrett } from './Csvbrett';
+import { SigngenBunnbrett } from './Bunnbrett';
 import { dupliserValgte, flyttValgte, slettValgte, velgAlle } from './handlinger';
 import { avsluttKurveredigering, dyttValgte, settKurve, slettKurveValg } from './kurver';
 import { angrePennpunkt, fullforPenn, pennPagar } from './Pennverktoy';
@@ -40,11 +40,12 @@ const plugin: GeneratorPlugin = {
     Arbeidsrom: ARBEIDSROM,
     Filvalg: Filvalg,
     Innstillingsvalg: Innstillingsvalg,
-    Bunnbrett: Csvbrett,
+    Bunnbrett: SigngenBunnbrett,
     Kontekstlinje: Kontekstlinje,
   },
   gjestelagring: { maksDager: 30 },
   hjelpeemner: HJELPEEMNER,
+  bunnbrettNavn: 'Nederst i editoren',
   hurtigtaster(e, benk) {
     const mod = e.ctrlKey || e.metaKey;
     const tast = e.key.toLowerCase();

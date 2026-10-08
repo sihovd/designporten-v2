@@ -4525,3 +4525,169 @@ button.profilfarger.fargeknapp {
 .kontekstlinje .segment button {
   white-space: nowrap;
 }
+
+/* the three export buttons under the plate image */
+.eksport-knapper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nedlasting {
+  position: relative;
+}
+
+.nedlasting summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--kontroll-h);
+  padding: 0 12px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.nedlasting summary::-webkit-details-marker {
+  display: none;
+}
+
+.nedlasting .meny {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  min-width: 340px;
+  padding: 6px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  box-shadow: var(--skygge-flyt);
+}
+
+.nedlasting .meny button {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nedlasting .meny button:hover {
+  background: var(--panel-2);
+}
+
+.nedlasting-hjelp {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+/* history timeline along the bottom */
+.tidslinje {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 10px;
+}
+
+.tidslinje-tittel {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  width: 190px;
+  color: var(--fg-dempet);
+  font-size: 13px;
+}
+
+.tidslinje-naa {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tidslinje-rad {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.tidslinje-rad li {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.tidslinje-rad li + li::before {
+  width: 8px;
+  height: 1px;
+  background: var(--linje-sterk);
+  content: '';
+}
+
+.tidstrinn {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-felt);
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.tidstrinn:hover:not(:disabled) {
+  border-color: var(--linje-sterk);
+  background: var(--panel-2);
+}
+
+.tidstrinn[aria-current='step'] {
+  border-color: var(--fokus);
+  background: var(--fokus);
+  color: #fff;
+}
+
+.tidstrinn.gjort-om {
+  opacity: 0.45;
+}
+
+.tidstrinn:disabled {
+  cursor: default;
+}
+
+.tidspunkt {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (max-width: 760px) {
+  .tidslinje-tittel {
+    width: auto;
+  }
+
+  .tidslinje-naa {
+    display: none;
+  }
+}

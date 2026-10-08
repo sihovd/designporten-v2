@@ -342,14 +342,31 @@ test.describe('Signgen', () => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
     await expect(dialog.getByText('Mål')).toBeVisible({ timeout: 20_000 });
+    // the three buttons sit under the plate image: Last ned (3MF, STL), Eksporter via CSV, Legg i handlekurven
+    const knapper = dialog.getByRole('group', { name: 'Eksporter eller bestill' });
+    await expect(knapper.locator(':scope > details > summary, :scope > button')).toHaveText([
+      /Last ned/,
+      /Eksporter via CSV/,
+      /Legg i handlekurven/,
+    ]);
+    await knapper.locator('summary', { hasText: 'Last ned' }).click();
+    await expect(dialog.getByRole('menuitem', { name: 'Last ned 3MF' })).toHaveAttribute(
+      'title',
+      'Geometri med fargeinformasjon',
+    );
+    await expect(dialog.getByRole('menuitem', { name: 'Last ned STL' })).toHaveAttribute(
+      'title',
+      'Geometri uten fargeinformasjon',
+    );
     const [tremf] = await Promise.all([
       page.waitForEvent('download'),
-      dialog.getByRole('button', { name: 'Last ned 3MF' }).click(),
+      dialog.getByRole('menuitem', { name: 'Last ned 3MF' }).click(),
     ]);
     expect(tremf.suggestedFilename()).toMatch(/\.3mf$/);
+    await knapper.locator('summary', { hasText: 'Last ned' }).click();
     const [stl] = await Promise.all([
       page.waitForEvent('download'),
-      dialog.getByRole('button', { name: 'Last ned STL' }).click(),
+      dialog.getByRole('menuitem', { name: 'Last ned STL' }).click(),
     ]);
     expect(stl.suggestedFilename()).toMatch(/\.stl$/);
   });
@@ -931,12 +948,15 @@ test.describe('Signgen', () => {
     await page.getByRole('button', { name: /^Meny for / }).click();
     await page.getByRole('menuitem', { name: /^Lukk «/ }).click();
     await page.locator('summary', { hasText: 'Paneler' }).click();
-    await page.getByRole('button', { name: 'Historikk', exact: true }).click();
-    await expect(page.getByRole('region', { name: 'Historikk' })).toBeVisible();
+    await page
+      .getByRole('group', { name: 'Paneler og arbeidsrom' })
+      .getByRole('button', { name: 'Hjelpelinjer', exact: true })
+      .click();
+    await expect(page.getByRole('region', { name: 'Hjelpelinjer' }).first()).toBeVisible();
     // choosing a workspace puts everything back
     await page.getByRole('button', { name: 'Enkel', exact: true }).click();
     await expect(page.locator('.dokkolonne.venstre')).toHaveCount(1);
-    await expect(page.getByRole('region', { name: 'Historikk' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Hjelpelinjer' })).toHaveCount(0);
   });
 
   test('et panel kan gjøres flytende fra menyen, og et eget arbeidsrom kan lagres', async ({
@@ -962,13 +982,17 @@ test.describe('Signgen', () => {
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
 
-  test('Historikk-panelet viser endringene og kan gå tilbake til et trinn', async ({ page, isMobile }) => {
-    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+  test('historikken er en tidslinje nederst som kan gå tilbake til et trinn, og Historikk og Produksjon er ikke paneler lenger', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tegning med mus brukes på brede skjermer');
     await page.locator('summary', { hasText: 'Paneler' }).click();
-    await page.getByRole('button', { name: 'Historikk', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Historikk', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Produksjon', exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
-    const hist = page.getByRole('region', { name: 'Historikk' });
-    await expect(hist).toContainText('Ingenting er gjort ennå');
+    const tid = page.getByRole('region', { name: 'Historikk' });
+    await expect(tid).toContainText('Ingen endringer ennå');
     await page.getByRole('button', { name: 'Rutenett', exact: true }).click(); // not a document change
     const lerret = page.locator('canvas').first();
     const b = (await lerret.boundingBox())!;
@@ -977,10 +1001,14 @@ test.describe('Signgen', () => {
     await page.mouse.down();
     await page.mouse.move(b.x + b.width * 0.8, b.y + b.height * 0.35, { steps: 5 });
     await page.mouse.up();
-    await expect(hist.getByRole('button', { name: 'Utgangspunkt' })).toBeEnabled();
+    await expect(tid.getByRole('button', { name: 'Utgangspunkt' })).toBeEnabled();
+    await expect(tid.locator('.tidstrinn[aria-current="step"]')).toContainText('Legg til');
     const antall = await page.locator('.objektliste li').count();
-    await hist.getByRole('button', { name: 'Utgangspunkt' }).click();
+    await tid.getByRole('button', { name: 'Utgangspunkt' }).click();
     await expect(page.locator('.objektliste li')).toHaveCount(antall - 1);
+    // the undone step stays on the strip and can be done again
+    await tid.locator('.tidstrinn.gjort-om').click();
+    await expect(page.locator('.objektliste li')).toHaveCount(antall);
   });
 
   test('fargeprøver åpner en meny med filamentene, og egne filamenter legges til i Fargeprofil-panelet', async ({

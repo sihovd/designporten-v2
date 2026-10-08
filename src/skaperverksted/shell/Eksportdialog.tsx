@@ -4,7 +4,7 @@
  * downloads (D-4: real STL/3MF, no invented limits) and «Bestill», which
  * adds an order request line to the cart. No price is shown or invented.
  */
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../core/arbeidsbenk';
 import { fargekode, finnMateriale } from '../core/materialer';
 import { Ikon } from './ikoner';
@@ -17,9 +17,54 @@ import { leggTil } from '../../lib/handel/kurv';
 import { tall } from '../core/enheter';
 import { Visning3d } from '../render3d/Lat3d';
 import { brukBenk } from './bruk-benk';
+import { useLukkMeny } from './lukk-meny';
 import { Dialog } from './Dialog';
 import { mal } from './mal';
 import { Plateforhandsvisning } from './Plateforhandsvisning';
+
+interface Nedlasting {
+  navn: string;
+  etikett: string;
+  hjelp: string;
+  ikon: 'export-three-mf' | 'generate-stl' | 'export';
+  kjor: () => void;
+}
+
+/** «Last ned» with the file types in a small menu; each type says in a few words what it holds. */
+function Nedlastingsmeny({ valg }: { valg: Nedlasting[] }) {
+  const rot = useRef<HTMLDetailsElement>(null);
+  useLukkMeny(rot);
+  if (!valg.length) return null;
+  return (
+    <details class="nedlasting" ref={rot}>
+      <summary class="sekundar med-ikon">
+        <Ikon id="export" storrelse={18} />
+        Last ned
+        <span aria-hidden="true">▾</span>
+      </summary>
+      <div class="meny" role="menu">
+        {valg.map((v) => (
+          <button
+            key={v.navn}
+            type="button"
+            role="menuitem"
+            class="med-ikon"
+            aria-label={v.etikett}
+            title={v.hjelp}
+            onClick={() => {
+              rot.current?.removeAttribute('open');
+              v.kjor();
+            }}
+          >
+            <Ikon id={v.ikon} storrelse={16} />
+            <span>{v.navn}</span>
+            <span class="dempet nedlasting-hjelp">{v.hjelp}</span>
+          </button>
+        ))}
+      </div>
+    </details>
+  );
+}
 
 export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => void }) {
   const t = brukBenk(benk);
@@ -131,6 +176,78 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
               <Visning3d benk={benk} kompakt etikett="Modellen som eksporteres" />
             </div>
           )}
+          {modell && m && (
+            <div class="eksport-knapper" role="group" aria-label="Eksporter eller bestill">
+              {(!regler.sperret || regler.vedlegg) && (
+                <Nedlastingsmeny
+                  valg={[
+                    ...(regler.sperret
+                      ? []
+                      : [
+                          {
+                            navn: '3MF',
+                            etikett: 'Last ned 3MF',
+                            hjelp: 'Geometri med fargeinformasjon',
+                            ikon: 'export-three-mf',
+                            kjor: tremf,
+                          } satisfies Nedlasting,
+                        ]),
+                    ...(regler.sperret
+                      ? []
+                      : regler.stlPerDel
+                        ? deler.map((d): Nedlasting => ({
+                            navn: `STL: ${d.navn}`,
+                            etikett: `Last ned STL: ${d.navn}`,
+                            hjelp: 'Geometri uten fargeinformasjon',
+                            ikon: 'generate-stl',
+                            kjor: () => stlDel(d),
+                          }))
+                        : [
+                            {
+                              navn: 'STL',
+                              etikett: 'Last ned STL',
+                              hjelp: 'Geometri uten fargeinformasjon',
+                              ikon: 'generate-stl',
+                              kjor: stl,
+                            } satisfies Nedlasting,
+                          ]),
+                    ...(regler.vedlegg
+                      ? [
+                          {
+                            navn: regler.vedlegg.navn,
+                            etikett: `Last ned ${regler.vedlegg.navn.charAt(0).toLowerCase() + regler.vedlegg.navn.slice(1)}`,
+                            hjelp: 'Rapport fra modellen som eksporteres',
+                            ikon: 'export',
+                            kjor: vedlegg,
+                          } satisfies Nedlasting,
+                        ]
+                      : []),
+                  ]}
+                />
+              )}
+              {regler.handlinger?.map((h) => (
+                <button
+                  key={h.navn}
+                  type="button"
+                  class="sekundar med-ikon"
+                  title={h.hjelp}
+                  onClick={() => {
+                    lukk();
+                    h.kjor();
+                  }}
+                >
+                  <Ikon id="csv" storrelse={18} />
+                  {h.navn}
+                </button>
+              ))}
+              {plugin.bestilling && !bestilt && (
+                <button type="button" class="primar med-ikon" onClick={bestill}>
+                  <Ikon id="store" storrelse={18} />
+                  Legg i handlekurven
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div class="eksport-fakta">
           {!modell && <p role="status">Bygger modellen …</p>}
@@ -196,94 +313,23 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
                   </ul>
                 </>
               )}
-              <h3>Last ned</h3>
               {regler.merknad && <p class="merknad">{regler.merknad}</p>}
-              {regler.sperret ? (
+              {regler.sperret && (
                 <p class="advarsel" role="status">
                   {regler.sperret}
                 </p>
-              ) : (
-                <>
-                  <p class="dempet">
-                    {regler.stlPerDel
-                      ? '3MF holder delene og fargene hver for seg. STL lastes ned som én fil per del.'
-                      : '3MF holder fargene som egne deler (nummerert ved forhåndsvisningen) og ligger midt på platen slik som i verkstedet. Sjekk i slicer at fargene havner på riktige filamentplasser. STL er én samlet form uten farger.'}
-                  </p>
-                  <div class="knapperad">
-                    <button
-                      type="button"
-                      class="primar med-ikon"
-                      title="Geometri med fargeinformasjon"
-                      onClick={tremf}
-                    >
-                      <Ikon id="export-three-mf" storrelse={18} />
-                      Last ned 3MF
-                    </button>
-                    {regler.stlPerDel ? (
-                      deler.map((d) => (
-                        <button key={d.id} type="button" class="sekundar" onClick={() => stlDel(d)}>
-                          STL: {d.navn}
-                        </button>
-                      ))
-                    ) : (
-                      <button
-                        type="button"
-                        class="sekundar med-ikon"
-                        title="Geometri uten fargeinformasjon"
-                        onClick={stl}
-                      >
-                        <Ikon id="generate-stl" storrelse={18} />
-                        Last ned STL
-                      </button>
-                    )}
-                  </div>
-                </>
               )}
-              {regler.handlinger && regler.handlinger.length > 0 && (
-                <div class="knapperad">
-                  {regler.handlinger.map((h) => (
-                    <button
-                      key={h.navn}
-                      type="button"
-                      class="sekundar"
-                      title={h.hjelp}
-                      onClick={() => {
-                        lukk();
-                        h.kjor();
-                      }}
-                    >
-                      {h.navn}
-                    </button>
-                  ))}
-                </div>
+              {plugin.bestilling && !bestilt && (
+                <p class="dempet">
+                  Å legge designet i handlekurven sender ikke noe ennå: du sender en forespørsel, og vi svarer
+                  med pris og leveringstid før noe blir laget.
+                </p>
               )}
-              {regler.vedlegg && (
-                <div class="knapperad">
-                  <button type="button" class="sekundar" onClick={vedlegg}>
-                    Last ned {regler.vedlegg.navn.charAt(0).toLowerCase() + regler.vedlegg.navn.slice(1)}
-                  </button>
-                </div>
-              )}
-              {plugin.bestilling && (
-                <>
-                  <h3>Bestill utskrift</h3>
-                  {bestilt ? (
-                    <p role="status">
-                      Lagt i handlekurven. <a href="/handlekurv/">Gå til handlekurven</a> for å sende
-                      forespørselen.
-                    </p>
-                  ) : (
-                    <>
-                      <p class="dempet">
-                        Vi skriver ut designet for deg. Du sender en forespørsel, og vi svarer med pris og
-                        leveringstid før noe blir laget.
-                      </p>
-                      <button type="button" class="primar" onClick={bestill}>
-                        Legg i handlekurven
-                      </button>
-                    </>
-                  )}
-                </>
+              {bestilt && (
+                <p role="status">
+                  Lagt i handlekurven. <a href="/handlekurv/">Gå til handlekurven</a> for å sende
+                  forespørselen.
+                </p>
               )}
             </>
           )}
