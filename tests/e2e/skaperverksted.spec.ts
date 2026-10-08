@@ -608,7 +608,7 @@ test.describe('Signgen', () => {
     await expect(page.getByRole('radio', { name: 'Egen farge' })).toHaveAttribute('aria-checked', 'true');
     await expect(rot).not.toHaveClass(/lerret-lys/);
     // clicking the canvas closes the menu
-    await page.locator('.lerret canvas').click({ position: { x: 300, y: 200 } });
+    await page.locator('.lerret canvas').click({ position: { x: 300, y: 650 } });
     await expect(page.locator('.innstillinger')).not.toHaveAttribute('open', '');
     // it is remembered
     await page.reload();
@@ -1088,7 +1088,10 @@ test.describe('Signgen', () => {
   }) => {
     test.skip(isMobile, 'Linjaldrag brukes på brede skjermer');
     await page.locator('summary', { hasText: 'Paneler' }).click();
-    await page.getByRole('button', { name: 'Justér', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'Paneler og arbeidsrom' })
+      .getByRole('button', { name: 'Hjelpelinjer', exact: true })
+      .click();
     await page.locator('summary', { hasText: 'Paneler' }).click(); // close the menu
     const liste = page.locator('.guideliste li');
     await expect(liste).toHaveCount(0);
@@ -1143,14 +1146,15 @@ test.describe('Signgen', () => {
     ).toHaveAttribute('aria-checked', for_ === 'true' ? 'false' : 'true');
   });
 
-  test('Transform setter størrelsen på utvalget, og Justér kan legge kantene mot hverandre', async ({
+  test('Transform setter størrelsen på utvalget, og ikonene i kontekstlinjen legger kantene mot hverandre', async ({
     page,
     isMobile,
   }) => {
     test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
     await page.locator('summary', { hasText: 'Paneler' }).click();
     await page.getByRole('button', { name: 'Transform', exact: true }).click();
-    await page.getByRole('button', { name: 'Justér', exact: true }).click();
+    // the old Justér panel is gone from the menu: it is icons in the context bar now
+    await expect(page.getByRole('button', { name: 'Justér', exact: true })).toHaveCount(0);
     await page.locator('summary', { hasText: 'Paneler' }).click(); // close the menu
     const lerret = page.locator('canvas').first();
     const b = (await lerret.boundingBox())!;
@@ -1173,8 +1177,48 @@ test.describe('Signgen', () => {
     await bredde.press('Enter');
     await expect(bredde).toHaveValue('33');
     // both are selected: align the left edges
-    const just = page.getByRole('region', { name: 'Justér' });
-    await just.getByRole('button', { name: 'Venstre', exact: true }).click();
+    const linje = page.getByRole('toolbar', { name: 'Valg for verktøyet' });
+    await linje.getByRole('button', { name: 'Venstre kant', exact: true }).click();
+    await expect(page.locator('.statuslinje')).toContainText('mm');
+  });
+
+  test('kontekstlinjen følger verktøyet: hullform, Paint-valg og sider på mangekant', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Verktøy og lerret brukes på brede skjermer');
+    const linje = page.getByRole('toolbar', { name: 'Valg for verktøyet' });
+    await expect(linje).toContainText('Velg noe');
+    await page.getByRole('button', { name: 'Hull', exact: true }).click();
+    await linje.getByRole('radio', { name: 'Firkant' }).click();
+    await expect(linje.getByRole('radio', { name: 'Firkant' })).toHaveAttribute('aria-checked', 'true');
+    const b = (await page.locator('canvas').first().boundingBox())!;
+    await page.mouse.click(b.x + b.width * 0.5, b.y + b.height * 0.5);
+    // the new hole is square, and the shape can be changed on the object
+    await expect(page.getByRole('radio', { name: 'Firkant', exact: true }).last()).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await page.getByRole('radio', { name: 'Sekskant', exact: true }).last().click();
+    await expect(page.getByRole('radio', { name: 'Sekskant', exact: true }).last()).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await page.keyboard.press('f');
+    await expect(linje.getByLabel('Bredde på strøket')).toBeVisible();
+    await page.keyboard.press('p');
+    await expect(linje.getByLabel('Antall sider')).toBeVisible();
+  });
+
+  test('hjelpesøket finner korte svar, og Logg inn er en merket plassholder', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Menylinjen testes på desktop');
+    await page.getByPlaceholder('Søk i hjelp').fill('hull');
+    await expect(page.locator('.hjelpesok-treff')).toContainText('Lage hull til oppheng');
+    await page.getByPlaceholder('Søk i hjelp').fill('blablabla');
+    await expect(page.locator('.hjelpesok-treff')).toContainText('Ingen treff');
+    await page.locator('summary', { hasText: 'Logg inn' }).click();
+    await expect(page.locator('.brukerfelt')).toContainText('Innlogging er ikke laget ennå');
+    // the editor still works without logging in
     await expect(page.locator('.statuslinje')).toContainText('mm');
   });
 

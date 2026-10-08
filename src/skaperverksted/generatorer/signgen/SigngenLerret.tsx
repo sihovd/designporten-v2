@@ -55,7 +55,6 @@ import {
 } from './Strekverktoy';
 import { lagPennverktoy } from './Pennverktoy';
 import { leggTilStrek, strekFraPunkter } from './paint';
-import { Paintbar } from './Strekpanel';
 import { BOOLSKE, boolskHinder, kombinerValgte } from './boolsk';
 import { Tips } from '../../shell/Tips';
 import { Ikon } from '../../shell/ikoner';
@@ -953,7 +952,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
     ned({ modell, e, visning }) {
       const p = snapPunkt(benk, modell, visning, e.altKey);
       if (form === 'hull') {
-        leggTil(benk, nyForm('hull', 5, 5), { x: p.x, y: p.y });
+        leggTil(benk, { ...nyForm('hull', 5, 5), hullform: lager.t.hullform }, { x: p.x, y: p.y });
         lager.sett({ verktoy: 'velg' });
         return;
       }
@@ -1239,7 +1238,6 @@ export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
     >
       {st.verktoy === 'velg' && !st.kurve && <Flytlinje benk={benk} />}
       {st.verktoy === 'velg' && !st.kurve && <Boolskbar benk={benk} />}
-      {st.verktoy === 'paint' && <Paintbar benk={benk} />}
       {st.valgtGuide && <Guidebar benk={benk} />}
     </Lerret>
   );

@@ -1,5 +1,5 @@
 /**
- * Paint strokes: the bar above the canvas while the tool is active (what the
+ * Paint strokes: the choices in the context bar while the tool is active (what the
  * next stroke is drawn with), and the section in the inspector for a stroke
  * that is on the sign (width, smoothing, taper and the width points).
  */
@@ -35,14 +35,14 @@ function profilFor(punkter: Breddepunkt[]): ProfilId | 'egen' {
   return 'egen';
 }
 
-/** The bar shown while the Paint tool is active. */
-export function Paintbar({ benk }: { benk: Arbeidsbenk }) {
+/** The choices of the Paint tool, shown in the context bar while it is active. */
+export function Paintvalgbar({ benk }: { benk: Arbeidsbenk }) {
   const st = brukSigntilstand(benk);
   const lager = signtilstand(benk);
   const v = st.paint;
   const sett = (endring: Partial<typeof v>) => lager.sett({ paint: { ...v, ...endring } });
   return (
-    <div class="flytlinje paintbar" role="toolbar" aria-label="Paint-valg">
+    <div class="kontekst-gruppe paintbar" role="group" aria-label="Paint-valg">
       <TallFelt
         etikett="Bredde på strøket"
         kortEtikett="B"

@@ -74,7 +74,11 @@ export interface FormKilde {
    * («auto»: follow the name unless the hole lies on a fixed plate).
    */
   plass?: 'auto' | 'navn' | 'fast';
+  /** The shape of a hanging hole (unset: a circle). */
+  hullform?: Hullform;
 }
+
+export type Hullform = 'sirkel' | 'firkant' | 'trekant' | 'sekskant';
 
 export type ObjektKilde = TekstKilde | SvgKilde | FormKilde;
 

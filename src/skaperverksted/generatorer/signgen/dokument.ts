@@ -9,6 +9,7 @@ import {
   tomtDokument,
   type Dokument,
   type FormKilde,
+  type Hullform,
   type Lag,
   type LagId,
   type Objekt,
@@ -203,6 +204,18 @@ export function nyTekst(tekst = 'Tekst', storrelse = 16): TekstKilde {
     justering: 'midt',
   };
 }
+
+/** The shapes a hanging hole can have, with the icons of the shape tools. */
+export const HULLFORMER: {
+  id: Hullform;
+  navn: string;
+  ikon: 'ellipse' | 'rectangle' | 'triangle' | 'polygon';
+}[] = [
+  { id: 'sirkel', navn: 'Sirkel', ikon: 'ellipse' },
+  { id: 'firkant', navn: 'Firkant', ikon: 'rectangle' },
+  { id: 'trekant', navn: 'Trekant', ikon: 'triangle' },
+  { id: 'sekskant', navn: 'Sekskant', ikon: 'polygon' },
+];
 
 export function nyForm(form: FormKilde['form'], bredde: number, hoyde: number, hjorneradius = 0): FormKilde {
   return { type: 'form', form, bredde, hoyde, hjorneradius, sider: 6 };

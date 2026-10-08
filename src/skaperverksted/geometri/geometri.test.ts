@@ -81,6 +81,37 @@ describe('SVG path data', () => {
   });
 });
 
+describe('hull', () => {
+  const hull = (hullform?: 'sirkel' | 'firkant' | 'trekant' | 'sekskant') => ({
+    type: 'form' as const,
+    form: 'hull' as const,
+    bredde: 6,
+    hoyde: 6,
+    hjorneradius: 0,
+    sider: 6,
+    hullform,
+  });
+
+  it('er en sirkel som standard, og kan være firkant, trekant eller sekskant', () => {
+    const punkter = (f?: 'sirkel' | 'firkant' | 'trekant' | 'sekskant') => formTilRinger(hull(f))[0]!.length;
+    expect(punkter()).toBe(punkter('sirkel'));
+    expect(punkter('sirkel')).toBeGreaterThan(12);
+    expect(punkter('firkant')).toBe(4);
+    expect(punkter('trekant')).toBe(3);
+    expect(punkter('sekskant')).toBe(6);
+  });
+
+  it('fyller boksen like mye uansett form', () => {
+    for (const f of ['sirkel', 'firkant', 'trekant', 'sekskant'] as const) {
+      const r = formTilRinger(hull(f))[0]!;
+      const xs = r.map((p) => p.x);
+      const ys = r.map((p) => p.y);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(6, 3);
+      expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(6, 3);
+    }
+  });
+});
+
 describe('shapes', () => {
   it('builds rectangles, rounded rectangles and ellipses with the right area', () => {
     expect(Math.abs(ringAreal(rektangel(40, 20)))).toBeCloseTo(800, 6);

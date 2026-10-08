@@ -33,9 +33,10 @@
   --inspektor-b: 304px;
   display: grid;
   grid-template-columns: var(--skinne-b) minmax(0, 1fr) var(--inspektor-b);
-  grid-template-rows: 48px minmax(0, 1fr) auto 28px;
+  grid-template-rows: 48px auto minmax(0, 1fr) auto 28px;
   grid-template-areas:
     'linje linje linje'
+    'kontekst kontekst kontekst'
     'skinne arbeid inspektor'
     'skinne brett inspektor'
     'status status status';
@@ -48,10 +49,11 @@
 .verksted.smal {
   --kontroll-h: 44px;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 48px auto minmax(0, 1fr) auto auto 28px;
+  grid-template-rows: 48px auto auto minmax(0, 1fr) auto auto 28px;
   grid-template-areas:
     'linje'
     'skinne'
+    'kontekst'
     'arbeid'
     'brett'
     'arkvelger'
@@ -594,6 +596,7 @@
   --skinne-b: 0px;
   grid-template-areas:
     'linje linje linje'
+    'kontekst kontekst kontekst'
     'skinne arbeid arbeid'
     'skinne brett brett'
     'status status status';
@@ -603,6 +606,7 @@
   grid-template-areas:
     'linje'
     'skinne'
+    'kontekst'
     'arbeid'
     'brett'
     'arkvelger'
@@ -2122,6 +2126,7 @@
   grid-template-columns: var(--skinne-b) minmax(0, 1fr);
   grid-template-areas:
     'linje linje'
+    'kontekst kontekst'
     'skinne arbeid'
     'skinne brett'
     'status status';
@@ -2994,15 +2999,7 @@
 /* ---------- Paint strokes ---------- */
 
 .paintbar {
-  top: calc(var(--linjal, 22px) + 10px);
-  left: 50%;
-  align-items: center;
-  gap: 8px;
-  width: max-content;
-  max-width: calc(100% - 40px);
-  padding: 4px 8px;
-  flex-wrap: wrap;
-  justify-content: center;
+  gap: 10px;
 }
 
 .paintbar .felt {
@@ -4318,4 +4315,213 @@ button.profilfarger.fargeknapp {
 .prosjekt-innhold .felt-rad > span {
   color: var(--fg-dempet);
   font-size: 13px;
+}
+
+/* the context bar: what the active tool or the selection can do (Sign Forge) */
+.kontekstlinje {
+  grid-area: kontekst;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--linje);
+  background: var(--panel);
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.kontekstlinje-rad {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* help search */
+.hjelpesok {
+  position: relative;
+}
+
+.hjelpesok-felt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--kontroll-h);
+  padding: 0 8px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  color: var(--fg-dempet);
+}
+
+.hjelpesok-felt:focus-within {
+  outline: 2px solid var(--fokus);
+  outline-offset: 1px;
+}
+
+.hjelpesok-felt input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  outline: none;
+}
+
+.hjelpesok.i-linje {
+  width: 112px;
+  transition: width 0.15s ease;
+}
+
+.hjelpesok.i-linje:focus-within {
+  width: 220px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hjelpesok.i-linje {
+    transition: none;
+  }
+}
+
+.hjelpesok-treff {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: min(360px, calc(100vw - 24px));
+  max-height: 60dvh;
+  overflow-y: auto;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  box-shadow: var(--skygge-flyt);
+  color: var(--fg);
+}
+
+.hjelpesok-treff[hidden] {
+  display: none;
+}
+
+.hjelpesok-treff ul {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hjelpesok-treff li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--linje);
+}
+
+.hjelpesok-treff li:last-child {
+  border-bottom: 0;
+}
+
+.hjelpesok-treff li span {
+  color: var(--fg-dempet);
+  font-size: 13px;
+}
+
+.hjelpesok-tomt {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--fg-dempet);
+}
+
+.hjelpesok.i-dialog {
+  margin: 0 18px 8px;
+}
+
+.hjelpesok.i-dialog .hjelpesok-treff {
+  position: static;
+  width: auto;
+  margin-top: 6px;
+  box-shadow: none;
+}
+
+@media (max-width: 1180px) {
+  .hjelpesok.i-linje {
+    display: none;
+  }
+}
+
+.brukerfelt .meny {
+  min-width: 260px;
+}
+
+@media (max-width: 1180px) {
+  .verkstedlinje .brukerfelt {
+    display: none;
+  }
+}
+
+.kontekst-gruppe {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.kontekst-gruppe + .kontekst-gruppe,
+.kontekst-gruppe + .segment {
+  padding-left: 10px;
+  border-left: 1px solid var(--linje);
+}
+
+.kontekstlinje .felt {
+  grid-template-columns: auto 72px;
+  margin: 0;
+}
+
+.kontekst-hint {
+  color: var(--fg-dempet);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.kontekstknapp {
+  min-width: var(--kontroll-h);
+  padding: 0 6px;
+}
+
+.kontekstknapp[aria-checked='true'] {
+  background: var(--fokus);
+  color: #fff;
+}
+
+.verkstedlinje .visningsvalg,
+.verkstedlinje .filmeny,
+.verkstedlinje .primar {
+  flex: none;
+}
+
+.brukerfelt summary {
+  white-space: nowrap;
+}
+
+.kontekst-lag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-dempet);
+  font-size: 13px;
+}
+
+.kontekst-lag select {
+  max-width: 190px;
+  min-height: var(--kontroll-h);
+  padding: 0 8px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.kontekstlinje .segment button {
+  white-space: nowrap;
 }

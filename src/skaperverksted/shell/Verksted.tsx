@@ -26,7 +26,9 @@ import { forhandslast3d, Visning3d } from '../render3d/Lat3d';
 import { filnavn } from '../eksport/tremf';
 import { brukBenk } from './bruk-benk';
 import { Eksportdialog } from './Eksportdialog';
+import { Brukerfelt } from './Brukerfelt';
 import { Hjelp } from './Hjelp';
+import { Hjelpesok } from './Hjelpesok';
 import { Innstillingsmeny } from './Innstillingsmeny';
 import {
   bakgrunnErLys,
@@ -492,10 +494,17 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             standardPlass={paneler.standardPlass}
           />
         )}
-        <button type="button" class="ikonknapp" onClick={() => settHjelp(true)} title="Hurtigtaster (?)">
+        {plugin.hjelpeemner && <Hjelpesok emner={plugin.hjelpeemner} klasse="i-linje" />}
+        <button
+          type="button"
+          class="ikonknapp"
+          onClick={() => settHjelp(true)}
+          title="Hjelp og hurtigtaster (?)"
+        >
           <Ikon id="help" storrelse={18} />
           <span class="visuelt-skjult">Hjelp og hurtigtaster</span>
         </button>
+        {plugin.flate === 'lys' && <Brukerfelt />}
         <button type="button" class="primar med-ikon" onClick={() => settEksport(true)}>
           <Ikon id="export" storrelse={16} />
           <span>
@@ -509,6 +518,14 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
           </span>
         </button>
       </header>
+
+      {ui.Kontekstlinje && (
+        <section class="kontekstlinje" aria-label="Verktøyvalg">
+          <div class="kontekstlinje-rad" role="toolbar" aria-label="Valg for verktøyet">
+            <ui.Kontekstlinje benk={benk} />
+          </div>
+        </section>
+      )}
 
       {ui.Verktoy && (
         <nav class="verktoyskinne" aria-label="Verktøy">

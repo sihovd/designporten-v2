@@ -25,15 +25,12 @@ import {
   parametre,
   oppdaterLag,
   oppdaterObjekter,
-  flyttTilLag,
   flyttOmriss,
   grupperTekst,
-  losUtObjekt,
-  kanLiggeI,
   oppdaterOmriss,
   slettOmriss,
-  ordne,
   standardNavn,
+  HULLFORMER,
 } from './dokument';
 import {
   erOye,
@@ -43,7 +40,7 @@ import {
   objektStorrelse,
   STANDARD_RINGBREDDE,
 } from './modell';
-import { dupliserValgte, fordel, juster, settObjektFarge, slettValgte, valgte } from './handlinger';
+import { dupliserValgte, settObjektFarge, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
 import { Kurvepanel, Pennpanel } from './Kurvepanel';
 import { antallAapne } from '../../geometri/bane';
@@ -193,6 +190,19 @@ function Hullvalg({
           ? `Øye utenfor skiltet: en ring med hull på ${tall(kilde.bredde)} mm til nøkkelring. Dra det inn over skiltet for å gjøre det til et hull.`
           : `Hull gjennom skiltet, ${tall(kilde.bredde)} mm innvendig. Dra det utenfor kanten for å gjøre det til et øye til nøkkelring.`}
       </p>
+      <div class="felt">
+        <span>Form</span>
+        <Segment
+          etikett="Form på hullet"
+          valg={HULLFORMER.map((f) => ({ id: f.id, navn: f.navn }))}
+          verdi={kilde.hullform ?? 'sirkel'}
+          endre={(v) =>
+            endre('Form på hull', (x) =>
+              x.kilde.type === 'form' ? { ...x, kilde: { ...x.kilde, hullform: v } } : x,
+            )
+          }
+        />
+      </div>
       <HullReferanse benk={benk} o={o} endre={endre} />
       {oye && (
         <TallFelt
@@ -242,12 +252,10 @@ function Hullvalg({
 }
 
 /** Select value for «take the text out of its group». */
-const EGET = '__eget-tekstlag';
 
 function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
   const t = brukBenk(benk);
   const lagForObjekt = finnLag(t.dok, o.lagId);
-  const iGruppe = !!lagForObjekt?.tekstlag && (t.dok.rekkefolge[o.lagId]?.length ?? 0) > 1;
   const tekstfelt = useRef<HTMLTextAreaElement>(null);
   const [laas, settLaas] = useState(true);
   useEffect(() => {
@@ -592,179 +600,98 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
         </label>
       </Panel>
 
-      <Panel tittel="Lag og rolle">
-        <label class="felt" for="signgen-objektlag">
-          <span>
-            {o.kilde.type === 'tekst' ? 'Tekstlag' : o.kilde.type === 'svg' ? 'Lag eller gruppe' : 'Lag'}
-          </span>
-          <select
-            id="signgen-objektlag"
-            value={o.lagId}
-            onChange={(e) => {
-              const lag = (e.target as HTMLSelectElement).value;
-              if (lag === EGET) {
-                let ny: string | null = null;
-                benk.endre({
-                  navn: 'Løs ut av gruppen',
-                  anvend: (d) => {
-                    const r = losUtObjekt(d, o.id);
-                    ny = r.lagId;
-                    return r.dok;
-                  },
-                });
-                if (ny) benk.velg({ lag: ny });
-                return;
-              }
-              benk.endre({ navn: 'Flytt til lag', anvend: (d) => flyttTilLag(d, [o.id], lag) });
-              benk.velg({ lag });
-            }}
-          >
-            {[...t.dok.lag]
-              .reverse()
-              // text lives in text layers, a vector in any layer, shapes in plain layers
-              .filter((l) => l.id === o.lagId || kanLiggeI(o, l))
-              .map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.navn}
-                  {l.tekstlag && l.id !== o.lagId ? ' (grupper med)' : ''}
-                </option>
-              ))}
-            {o.kilde.type === 'tekst' && iGruppe && (
-              <option value={EGET}>Eget tekstlag (løs ut av gruppen)</option>
-            )}
-            {o.kilde.type === 'svg' && iGruppe && <option value={EGET}>Eget lag (løs ut av gruppen)</option>}
-          </select>
-        </label>
-        {o.kilde.type === 'tekst' && !lagForObjekt?.tekstlag && (
-          <p class="merknad">
-            Denne teksten ligger sammen med former (fra før tekstlagene). Velg et tekstlag for å gi den
-            omriss.
-          </p>
+      {o.kilde.type === 'tekst' && !lagForObjekt?.tekstlag && (
+        <p class="merknad panel-merknad">
+          Denne teksten ligger sammen med former (fra før tekstlagene). Flytt den til et tekstlag med valget
+          «Lag» i linjen øverst for å gi den omriss.
+        </p>
+      )}
+      {!(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
+        o.operasjon === 'legg-til' &&
+        lagForObjekt && (
+          <Panel tittel="Farge">
+            {
+              <div class="felt">
+                <span id="signgen-objektfarge-etikett">Farge</span>
+                <span class="materialvalg">
+                  <Fargevelger
+                    benk={benk}
+                    verdi={objektFarge(lagForObjekt, o)}
+                    endre={(m) => settObjektFarge(benk, o.id, m)}
+                    etikett="Farge på objektet"
+                    medNavn
+                    klasse="materialvelger"
+                  />
+                  {o.materialId ? (
+                    <button
+                      type="button"
+                      class="kontroll-knapp med-ikon"
+                      onClick={() => endre('Følg lagets farge', (x) => ({ ...x, materialId: undefined }))}
+                    >
+                      <Ikon id="color-follow-layer" storrelse={16} />
+                      Følg laget
+                    </button>
+                  ) : (
+                    <span class="dempet fargetype">følger laget</span>
+                  )}
+                </span>
+              </div>
+            }
+          </Panel>
         )}
-        {!(o.kilde.type === 'form' && o.kilde.form === 'hull') && (
-          <div class="felt">
-            <span>Rolle</span>
-            <Segment
-              etikett="Rolle i laget"
-              valg={[
-                { id: 'legg-til', navn: 'Legger til' },
-                { id: 'trekk-fra', navn: 'Kutter' },
-              ]}
-              verdi={o.operasjon}
-              endre={(op) =>
-                endre(op === 'trekk-fra' ? 'Gjør til kutt' : 'Gjør til fyll', (x) => ({
-                  ...x,
-                  operasjon: op,
-                }))
-              }
-            />
-          </div>
-        )}
-        {!(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
-          o.operasjon === 'legg-til' &&
-          lagForObjekt && (
-            <div class="felt">
-              <span id="signgen-objektfarge-etikett">Farge</span>
-              <span class="materialvalg">
-                <Fargevelger
-                  benk={benk}
-                  verdi={objektFarge(lagForObjekt, o)}
-                  endre={(m) => settObjektFarge(benk, o.id, m)}
-                  etikett="Farge på objektet"
-                  medNavn
-                  klasse="materialvelger"
-                />
-                {o.materialId ? (
-                  <button
-                    type="button"
-                    class="kontroll-knapp med-ikon"
-                    onClick={() => endre('Følg lagets farge', (x) => ({ ...x, materialId: undefined }))}
-                  >
-                    <Ikon id="color-follow-layer" storrelse={16} />
-                    Følg laget
-                  </button>
-                ) : (
-                  <span class="dempet fargetype">følger laget</span>
-                )}
-              </span>
-            </div>
+
+      {(tekst || o.kilde.type === 'svg') && (
+        <Panel tittel="Til CSV">
+          {o.kilde.type === 'svg' && (
+            <label class="felt" for="signgen-felt">
+              <span>Batchfelt (dekor)</span>
+              <input
+                id="signgen-felt"
+                type="text"
+                placeholder="f.eks. dekor"
+                value={o.kilde.felt ?? ''}
+                onChange={(e) => {
+                  const v = (e.target as HTMLInputElement).value
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9æøå_-]/g, '');
+                  endre('Batchfelt', (x) => ({
+                    ...x,
+                    kilde: { ...(x.kilde as SvgKilde), felt: v || undefined },
+                  }));
+                }}
+              />
+            </label>
           )}
-        <div class="knapperad">
-          <button
-            type="button"
-            class="kontroll-knapp"
-            onClick={() => benk.endre({ navn: 'Legg fremst', anvend: (d) => ordne(d, o.id, 'fremst') })}
-          >
-            Fremst
-          </button>
-          <button
-            type="button"
-            class="kontroll-knapp"
-            onClick={() => benk.endre({ navn: 'Legg bakerst', anvend: (d) => ordne(d, o.id, 'bakerst') })}
-          >
-            Bakerst
-          </button>
-          <button type="button" class="kontroll-knapp" onClick={() => dupliserValgte(benk)}>
-            Dupliser
-          </button>
-          <button
-            type="button"
-            class="kontroll-knapp farlig"
-            disabled={o.last}
-            onClick={() => slettValgte(benk)}
-          >
-            Slett
-          </button>
-        </div>
-        {o.kilde.type === 'svg' && (
-          <label class="felt" for="signgen-felt">
-            <span>Batchfelt (dekor)</span>
-            <input
-              id="signgen-felt"
-              type="text"
-              placeholder="f.eks. dekor"
-              value={o.kilde.felt ?? ''}
-              onChange={(e) => {
-                const v = (e.target as HTMLInputElement).value
-                  .trim()
-                  .toLowerCase()
-                  .replace(/[^a-z0-9æøå_-]/g, '');
-                endre('Batchfelt', (x) => ({
-                  ...x,
-                  kilde: { ...(x.kilde as SvgKilde), felt: v || undefined },
-                }));
-              }}
-            />
-          </label>
-        )}
-        {o.kilde.type === 'svg' && o.kilde.felt && (
-          <p class="merknad">
-            I CSV-filen skriver du navnet på dekoret i kolonnen «{o.kilde.felt}», for eksempel «Hest». Tom
-            celle eller «ingen» lar skiltet være uten dekor.
-          </p>
-        )}
-        {tekst && (
-          <label class="felt" for="signgen-felt">
-            <span>Batchfelt</span>
-            <input
-              id="signgen-felt"
-              type="text"
-              placeholder="f.eks. navn"
-              value={tekst.felt ?? ''}
-              onChange={(e) => {
-                const v = (e.target as HTMLInputElement).value
-                  .trim()
-                  .toLowerCase()
-                  .replace(/[^a-z0-9æøå_-]/g, '');
-                endre('Batchfelt', (x) => ({
-                  ...x,
-                  kilde: { ...(x.kilde as TekstKilde), felt: v || undefined },
-                }));
-              }}
-            />
-          </label>
-        )}
-      </Panel>
+          {o.kilde.type === 'svg' && o.kilde.felt && (
+            <p class="merknad">
+              I CSV-filen skriver du navnet på dekoret i kolonnen «{o.kilde.felt}», for eksempel «Hest». Tom
+              celle eller «ingen» lar skiltet være uten dekor.
+            </p>
+          )}
+          {tekst && (
+            <label class="felt" for="signgen-felt">
+              <span>Batchfelt</span>
+              <input
+                id="signgen-felt"
+                type="text"
+                placeholder="f.eks. navn"
+                value={tekst.felt ?? ''}
+                onChange={(e) => {
+                  const v = (e.target as HTMLInputElement).value
+                    .trim()
+                    .toLowerCase()
+                    .replace(/[^a-z0-9æøå_-]/g, '');
+                  endre('Batchfelt', (x) => ({
+                    ...x,
+                    kilde: { ...(x.kilde as TekstKilde), felt: v || undefined },
+                  }));
+                }}
+              />
+            </label>
+          )}
+        </Panel>
+      )}
     </>
   );
 }
@@ -806,43 +733,6 @@ function FlereObjekter({ benk, antall }: { benk: Arbeidsbenk; antall: number }) 
           <p class="merknad">Grupperte tekster ligger i samme tekstlag og får felles omriss.</p>
         </div>
       )}
-      <p class="tom-melding">Juster mot hverandre:</p>
-      <div class="justering" role="group" aria-label="Juster">
-        {(
-          [
-            ['venstre', 'Venstre'],
-            ['midtX', 'Midt ↔'],
-            ['hoyre', 'Høyre'],
-            ['topp', 'Topp'],
-            ['midtY', 'Midt ↕'],
-            ['bunn', 'Bunn'],
-          ] as const
-        ).map(([id, navn]) => (
-          <button key={id} type="button" class="kontroll-knapp" onClick={() => juster(benk, id)}>
-            {navn}
-          </button>
-        ))}
-      </div>
-      <div class="knapperad">
-        <button
-          type="button"
-          class="kontroll-knapp med-ikon"
-          onClick={() => fordel(benk, 'x')}
-          disabled={antall < 3}
-        >
-          <Ikon id="distribute-horizontal" storrelse={16} />
-          Fordel vannrett
-        </button>
-        <button
-          type="button"
-          class="kontroll-knapp med-ikon"
-          onClick={() => fordel(benk, 'y')}
-          disabled={antall < 3}
-        >
-          <Ikon id="distribute-vertical" storrelse={16} />
-          Fordel loddrett
-        </button>
-      </div>
       <div class="knapperad">
         <button type="button" class="kontroll-knapp" onClick={() => dupliserValgte(benk)}>
           Dupliser

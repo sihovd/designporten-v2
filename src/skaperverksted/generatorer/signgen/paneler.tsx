@@ -15,7 +15,7 @@ import { fargeplasser } from './dokument';
 import { Lagpanel } from './Lagpanel';
 import { SigngenInspektor } from './Inspektor';
 import { Profilseksjon } from './Profilseksjon';
-import { Justerpanel, Transformpanel } from './justerpaneler';
+import { Hjelpelinjepanel, Transformpanel } from './justerpaneler';
 import { Fargepanel } from './Fargepanel';
 import { finnLag } from '../../core/dokument';
 
@@ -159,7 +159,14 @@ export const PANELER: PanelDef[] = [
   },
   { id: 'profil', navn: 'Profil', Innhold: Profilpanel, flytB: 320, flytH: 520, fane: 'egenskaper' },
   { id: 'transform', navn: 'Transform', ikon: 'transform', Innhold: Transformpanel, flytB: 300, flytH: 360 },
-  { id: 'justering', navn: 'Justér', ikon: 'align', Innhold: Justerpanel, flytB: 300, flytH: 480 },
+  {
+    id: 'hjelpelinjer',
+    navn: 'Hjelpelinjer',
+    ikon: 'guides',
+    Innhold: Hjelpelinjepanel,
+    flytB: 300,
+    flytH: 400,
+  },
   {
     id: 'fargeprofil',
     navn: 'Fargeprofil',
@@ -200,10 +207,14 @@ export const ARBEIDSROM: Romspek[] = [
       { paneler: ['lag'], side: 'venstre', vekt: 3 },
       { paneler: ['historikk'], side: 'venstre', vekt: 2 },
       { paneler: ['egenskaper', 'profil'], side: 'hoyre', vekt: 3 },
-      { paneler: ['transform', 'justering', 'fargeprofil'], side: 'hoyre', vekt: 2 },
+      { paneler: ['transform', 'hjelpelinjer', 'fargeprofil'], side: 'hoyre', vekt: 2 },
     ],
     smal: [
-      { paneler: ['egenskaper', 'profil', 'transform', 'justering', 'fargeprofil'], side: 'hoyre', vekt: 3 },
+      {
+        paneler: ['egenskaper', 'profil', 'transform', 'hjelpelinjer', 'fargeprofil'],
+        side: 'hoyre',
+        vekt: 3,
+      },
       { paneler: ['lag', 'historikk'], side: 'hoyre', vekt: 2 },
     ],
   },

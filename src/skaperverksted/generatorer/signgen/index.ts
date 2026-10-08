@@ -11,6 +11,8 @@ import { byggSigngen, forelopigMal } from './modell';
 import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
 import { Lagpanel } from './Lagpanel';
+import { Kontekstlinje } from './Kontekstlinje';
+import { HJELPEEMNER } from './hjelpeemner';
 import { SigngenInspektor } from './Inspektor';
 import { ARBEIDSROM, PANELER } from './paneler';
 import { signtilstand } from './tilstand';
@@ -39,8 +41,10 @@ const plugin: GeneratorPlugin = {
     Filvalg: Filvalg,
     Innstillingsvalg: Innstillingsvalg,
     Bunnbrett: Csvbrett,
+    Kontekstlinje: Kontekstlinje,
   },
   gjestelagring: { maksDager: 30 },
+  hjelpeemner: HJELPEEMNER,
   hurtigtaster(e, benk) {
     const mod = e.ctrlKey || e.metaKey;
     const tast = e.key.toLowerCase();

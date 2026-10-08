@@ -75,3 +75,11 @@ De 24 ikonene fra «sign-forge-icons-round-2» er tatt i bruk (116 ikonfiler i a
 - Ikonene i seksjon 2 (zoom, kopier/lim inn osv.) venter fortsatt på at funksjonene finnes som knapper.
 - Rotasjon i Transform-panelet bruker tegnet «↻» (ingen SVG tegnet): et rotasjonsikon mangler i pakken. Lås-ikonet for «Behold proporsjoner» bruker `lock`/`unlock`.
 - Drahåndtaket i lagpanelet er tegnet med CSS-prikker (ingen SVG): et eget håndtak-ikon med riller mangler i pakken.
+
+## Midlertidige (fase 4, 2026-10-08)
+
+Funksjonsglyfer tegnet i kode til de ferdige ikonene kommer (D-3: bare funksjonelle glyfer). Bytt ved å legge SVG-filer med samme id i `shell/ikonsvg/`.
+
+| id | Brukes til |
+| --- | --- |
+| `juster-venstre`, `juster-midt-x`, `juster-hoyre`, `juster-topp`, `juster-midt-y`, `juster-bunn` | Justering i kontekstlinjen (venstre, midt vannrett, høyre, topp, midt loddrett, bunn) |

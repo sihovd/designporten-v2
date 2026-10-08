@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Boks, Vec2 } from '../../core/geometri2d';
+import type { Hullform } from '../../core/dokument';
 import type { Bane, NodeRef } from '../../geometri/bane';
 import type { ProfilId } from '../../geometri/strek';
 import type { SvgDeler } from './svgdeler';
@@ -114,6 +115,8 @@ export interface Signtilstand {
   utkastForm: { form: 'rektangel' | 'ellipse' | 'polygon'; sider: number } | null;
   /** The number of sides last used for polygons (the mouse wheel changes it while drawing). */
   formSider: number;
+  /** The shape the Hole tool makes next. */
+  hullform: Hullform;
   paint: Paintvalg;
   /** The Paint stroke being drawn: the points so far (model coordinates). */
   paintUtkast: Vec2[] | null;
@@ -160,6 +163,7 @@ class Lager {
     utkast: null,
     utkastForm: null,
     formSider: 6,
+    hullform: 'sirkel',
     paint: { bredde: 3, profil: 'jevn', glatt: 0.5, tuppStart: 0, tuppSlutt: 0 },
     paintUtkast: null,
     maletikett: null,

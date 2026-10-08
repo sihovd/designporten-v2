@@ -86,8 +86,18 @@ export function formTilRinger(f: FormKilde): Ring[] {
     case 'rektangel':
       return [rektangel(b, h, f.hjorneradius)];
     case 'ellipse':
-    case 'hull':
       return [ellipse(b, h)];
+    case 'hull':
+      switch (f.hullform) {
+        case 'firkant':
+          return [rektangel(b, h, f.hjorneradius)];
+        case 'trekant':
+          return [polygon(b, h, 3)];
+        case 'sekskant':
+          return [polygon(b, h, 6)];
+        default:
+          return [ellipse(b, h)];
+      }
     case 'polygon':
       return [polygon(b, h, f.sider)];
   }
