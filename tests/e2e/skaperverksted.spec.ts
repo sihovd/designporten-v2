@@ -229,8 +229,8 @@ test.describe('Signgen', () => {
 
   test('legger et nytt lag rundt teksten', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Lagpanelet testes på desktop');
-    await page.getByRole('button', { name: '+ Nytt lag' }).click();
-    await page.getByRole('button', { name: /Rundt teksten/ }).click();
+    await page.locator('.lagrad .lag-navn').first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Nytt lag rundt teksten' }).click();
     await expect(page.locator('.lagrad')).toHaveCount(2);
     await expect(page.locator('.lagrad').last()).toContainText('Rundt teksten');
     await bygg3d(page);
@@ -493,7 +493,7 @@ test.describe('Signgen', () => {
     const felt = page.getByRole('region', { name: 'Du redigerer et generert skilt' });
     await expect(felt).toContainText('Du redigerer skilt 1');
     await expect(page.getByLabel('Prosjektnavn')).toBeVisible();
-    await page.locator('.objektliste li').first().click();
+    await page.locator('.objektliste li .objekt-navn').first().click();
     await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('Shift+ArrowUp');
     await expect(felt).toContainText(/\d egne verdier/);
@@ -581,9 +581,55 @@ test.describe('Signgen', () => {
     await expect(page.locator('.lagrad').first()).toContainText('Gruppe');
     await expect(page.locator('.lagrad')).toHaveCount(1);
     // a new, empty text layer is a layer of its own
-    await page.getByRole('button', { name: '+ Nytt lag' }).click();
-    await page.getByRole('button', { name: /^Tekstlag/ }).click();
+    await page.locator('.lagrad .lag-navn').first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Nytt tekstlag' }).click();
     await expect(page.locator('.lagrad')).toHaveCount(2);
+  });
+
+  test('lagpanelet: ett klikk gir et tomt lag, rader flyttes i hierarkiet, og hvert objekt kan slettes og farges', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Lagpanelet testes på desktop');
+    const tittel = page.locator('.lagliste > .lagrad > .lagrad-hode .lag-tittel');
+    const for_ = await page.locator('.lagrad').count();
+    // the small plus makes one empty layer at once, with no menu in between
+    await page.getByRole('button', { name: 'Nytt lag', exact: true }).click();
+    await expect(page.locator('.lagrad')).toHaveCount(for_ + 1);
+    await page.getByRole('button', { name: 'Nytt lag', exact: true }).click();
+    await expect(page.locator('.lagrad')).toHaveCount(for_ + 2);
+    await expect(page.locator('.nytt-lag-meny')).toHaveCount(0);
+    const navn = (await tittel.allTextContents()).map((t) => t.trim());
+    // drag the top layer to just below the bottom one with its grip
+    const rader = page.locator('.lagliste > .lagrad');
+    const sist = rader.last().locator('.lagrad-hode');
+    await rader
+      .first()
+      .locator('.drahandtak')
+      .first()
+      .dragTo(sist, { targetPosition: { x: 60, y: 30 } });
+    const etter = (await tittel.allTextContents()).map((t) => t.trim());
+    expect(etter[etter.length - 1]).toBe(navn[0]);
+    // the delete button on a layer removes it, and one step back brings it back
+    const antall = await page.locator('.lagrad').count();
+    await page
+      .getByRole('button', { name: /^Slett Lag \d/ })
+      .first()
+      .click();
+    await expect(page.locator('.lagrad')).toHaveCount(antall - 1);
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('.lagrad')).toHaveCount(antall);
+    // a text has its colour in the panel too
+    const tekstFarge = page.locator('.objektliste li', { hasText: 'Tekst' }).getByRole('button', {
+      name: /^Farge på/,
+    });
+    await tekstFarge.first().click();
+    await page
+      .getByRole('menu', { name: /filamentene i fargeprofilen/ })
+      .getByRole('menuitemradio')
+      .nth(2)
+      .click();
+    await expect(page.locator('.objektliste li .fargevelger').first()).toBeVisible();
   });
 
   test('bare det valgte omrisset vises i egenskapene', async ({ page, isMobile }) => {
@@ -610,10 +656,11 @@ test.describe('Signgen', () => {
     if (isMobile) return;
     await expect(page.locator('.lagrad').first()).toContainText('Gruppe');
     const rad = page.locator('.objektliste li', { hasText: 'Enhjørning' });
-    const bb = (await rad.boundingBox())!;
-    await page.mouse.move(bb.x + 20, bb.y + bb.height / 2);
+    // only the grip on the left of the row is dragged
+    const bb = (await rad.locator('.drahandtak').boundingBox())!;
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
     await page.mouse.down();
-    await page.mouse.move(bb.x + 30, bb.y + bb.height / 2 + 10, { steps: 4 });
+    await page.mouse.move(bb.x + bb.width / 2 + 10, bb.y + bb.height / 2 + 10, { steps: 4 });
     const ut = page.locator('.lag-ut');
     await expect(ut).toBeVisible();
     const ub = (await ut.boundingBox())!;
@@ -967,7 +1014,7 @@ test.describe('Signgen', () => {
     await page.route('https://cdn.test/**', (route) =>
       route.fulfill({ body: fil, headers: { 'access-control-allow-origin': '*' } }),
     );
-    await page.locator('.objektliste li').first().click();
+    await page.locator('.objektliste li .objekt-navn').first().click();
     await page.getByRole('button', { name: 'Flere fonter fra Google Fonts …' }).click();
     const vindu = page.getByRole('dialog', { name: 'Flere fonter fra Google Fonts' });
     await vindu.getByLabel('Søk etter font').fill('lobs');

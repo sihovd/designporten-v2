@@ -46,7 +46,7 @@ import {
   objektStorrelse,
   STANDARD_RINGBREDDE,
 } from './modell';
-import { dupliserValgte, fordel, juster, slettValgte, valgte } from './handlinger';
+import { dupliserValgte, fordel, juster, settObjektFarge, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
 import { apneCsv } from './csvhandlinger';
 import { Kurvepanel, Pennpanel } from './Kurvepanel';
@@ -665,8 +665,7 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
             />
           </div>
         )}
-        {o.kilde.type !== 'tekst' &&
-          !(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
+        {!(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
           o.operasjon === 'legg-til' &&
           lagForObjekt && (
             <div class="felt">
@@ -675,12 +674,7 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
                 <Fargevelger
                   benk={benk}
                   verdi={objektFarge(lagForObjekt, o)}
-                  endre={(m) =>
-                    endre('Bytt farge på objektet', (x) => ({
-                      ...x,
-                      materialId: m === lagForObjekt.materialId ? undefined : m,
-                    }))
-                  }
+                  endre={(m) => settObjektFarge(benk, o.id, m)}
                   etikett="Farge på objektet"
                   medNavn
                   klasse="materialvelger"

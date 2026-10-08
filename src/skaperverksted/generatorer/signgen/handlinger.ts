@@ -47,6 +47,39 @@ import {
   type Justeringsmal,
 } from './justering';
 
+/**
+ * Give one object its own colour. The layer's only object just takes the layer's colour; with several
+ * objects in the layer, the one that differs from the layer's colour gets a colour of its own.
+ */
+export function settObjektFarge(benk: Arbeidsbenk, objektId: string, materialId: string): void {
+  benk.endre({
+    navn: 'Bytt farge på objektet',
+    anvend: (d) => {
+      const o = d.objekter[objektId];
+      const lag = o && finnLag(d, o.lagId);
+      if (!o || !lag) return d;
+      const andre = objekterILag(d, lag.id).filter(
+        (x) =>
+          x.id !== o.id &&
+          x.synlig &&
+          x.operasjon !== 'trekk-fra' &&
+          !(x.kilde.type === 'form' && x.kilde.form === 'hull'),
+      );
+      if (!andre.length) {
+        return oppdaterLag(
+          oppdaterObjekter(d, [o.id], (x) => ({ ...x, materialId: undefined })),
+          lag.id,
+          { materialId },
+        );
+      }
+      return oppdaterObjekter(d, [o.id], (x) => ({
+        ...x,
+        materialId: materialId === lag.materialId ? undefined : materialId,
+      }));
+    },
+  });
+}
+
 export function valgte(benk: Arbeidsbenk): Objekt[] {
   const d = benk.dok;
   return benk.tilstand.utvalg.objekter.map((id) => d.objekter[id]).filter((o): o is Objekt => !!o);

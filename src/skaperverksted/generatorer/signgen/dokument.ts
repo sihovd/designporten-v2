@@ -333,6 +333,22 @@ export function flyttLag(dok: Dokument, id: LagId, retning: 1 | -1): Dokument {
   return stable({ ...dok, lag });
 }
 
+/** Move a layer next to another in the stack: `over` puts it just above `mal`, `under` just below. */
+export function flyttLagTil(dok: Dokument, id: LagId, mal: LagId, plass: 'over' | 'under'): Dokument {
+  if (id === mal) return dok;
+  const lag = dok.lag.find((l) => l.id === id);
+  if (!lag || !dok.lag.some((l) => l.id === mal)) return dok;
+  const resten = dok.lag.filter((l) => l.id !== id);
+  const i = resten.findIndex((l) => l.id === mal);
+  const ny = [
+    ...resten.slice(0, plass === 'over' ? i + 1 : i),
+    lag,
+    ...resten.slice(plass === 'over' ? i + 1 : i),
+  ];
+  if (ny.every((l, k) => l === dok.lag[k])) return dok;
+  return stable({ ...dok, lag: ny });
+}
+
 export function dupliserLag(dok: Dokument, id: LagId): { dok: Dokument; nyId: LagId } {
   const l = finnLag(dok, id);
   if (!l) return { dok, nyId: id };
@@ -627,6 +643,23 @@ export function oppdaterOmriss(
 
 export function slettOmriss(dok: Dokument, lagId: LagId, id: string): Dokument {
   return medOmriss(dok, lagId, (r) => r.filter((x) => x.id !== id));
+}
+
+/** Move an outline next to another one in the list (innermost first): `for` puts it before `mal`, `etter` after. */
+export function flyttOmrissTil(
+  dok: Dokument,
+  lagId: LagId,
+  id: string,
+  mal: string,
+  plass: 'for' | 'etter',
+): Dokument {
+  return medOmriss(dok, lagId, (r) => {
+    const o = r.find((x) => x.id === id);
+    if (!o || id === mal || !r.some((x) => x.id === mal)) return r;
+    const resten = r.filter((x) => x.id !== id);
+    const i = resten.findIndex((x) => x.id === mal) + (plass === 'etter' ? 1 : 0);
+    return [...resten.slice(0, i), o, ...resten.slice(i)];
+  });
 }
 
 /** Move an outline outwards (+1) or inwards (−1). */

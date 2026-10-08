@@ -74,3 +74,4 @@ De 24 ikonene fra «sign-forge-icons-round-2» er tatt i bruk (116 ikonfiler i a
 - «Fordel» i justeringspanelet og i egenskaper bruker nå `distribute-horizontal` og `distribute-vertical`.
 - Ikonene i seksjon 2 (zoom, kopier/lim inn osv.) venter fortsatt på at funksjonene finnes som knapper.
 - Rotasjon i Transform-panelet bruker tegnet «↻» (ingen SVG tegnet): et rotasjonsikon mangler i pakken. Lås-ikonet for «Behold proporsjoner» bruker `lock`/`unlock`.
+- Drahåndtaket i lagpanelet er tegnet med CSS-prikker (ingen SVG): et eget håndtak-ikon med riller mangler i pakken.

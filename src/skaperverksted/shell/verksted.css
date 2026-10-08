@@ -1266,13 +1266,18 @@
 }
 
 .lagrad {
-  border: 1px solid transparent;
+  border: 1px solid var(--linje);
   border-radius: var(--radius-felt);
+}
+
+/* a text layer is a group: its heading has a surface of its own */
+.lagrad.tekstlag > .lagrad-hode {
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
 }
 
 /* selection is neutral: a lighter surface and a quiet edge, no purple frame */
 .lagrad.aktiv {
-  border-color: var(--linje);
+  border-color: var(--linje-sterk);
   background: color-mix(in srgb, var(--fg) 7%, transparent);
 }
 
@@ -1287,13 +1292,33 @@
 .lagrad-hode {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   padding: 2px 4px;
   min-width: 0;
 }
 
+/* the grip: two columns of dots (CSS only, no icon in the pack), the only part of a row that is dragged */
+.drahandtak {
+  flex: none;
+  width: 12px;
+  height: 22px;
+  border-radius: 2px;
+  background: radial-gradient(circle, var(--fg-dempet) 1.1px, transparent 1.5px) 0 0 / 6px 6px;
+  cursor: grab;
+  opacity: 0.75;
+}
+
+.drahandtak:hover {
+  opacity: 1;
+}
+
+.drahandtak.av {
+  cursor: not-allowed;
+  opacity: 0.25;
+}
+
 .lag-apne {
-  width: 24px;
+  width: 20px;
   min-height: 32px;
   border: 0;
   background: transparent;
@@ -1334,9 +1359,9 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  min-height: 26px;
-  min-width: 26px;
-  padding: 0 4px;
+  min-height: 24px;
+  min-width: 24px;
+  padding: 0 3px;
   border: 1px solid var(--linje);
   border-radius: var(--radius-felt);
   background: transparent;
@@ -1364,14 +1389,44 @@
   border-color: var(--advarsel-mork);
 }
 
+/* delete: quiet until it is hovered, and out of the way when it cannot be used */
+.minibryter.slett {
+  border-color: transparent;
+}
+
+.minibryter.slett:hover:not(:disabled),
+.minibryter.slett:focus-visible {
+  border-color: var(--feil-mork);
+  color: var(--feil-mork);
+}
+
+.minibryter.slett:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
 .objektliste {
-  padding: 0 4px 6px 34px;
+  margin: 0 4px 4px 14px;
+  padding: 0 0 0 10px;
+  border-left: 1px solid var(--linje-sterk);
 }
 
 .objektliste li {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+}
+
+/* a short branch from the line to each row: what sits under what */
+.objektliste li::before,
+.omrissliste li::before {
+  position: absolute;
+  top: 50%;
+  left: -10px;
+  width: 8px;
+  border-top: 1px solid var(--linje-sterk);
+  content: '';
 }
 
 .objektliste li.valgt .objekt-navn {
@@ -1393,6 +1448,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.objekt-navn.tekst {
+  color: var(--fg);
+  font-weight: 600;
 }
 
 .objekt-navn .merke {
@@ -1429,7 +1489,9 @@
 .omrissliste {
   display: grid;
   gap: 4px;
-  padding: 0 4px 8px 34px;
+  margin: 0 4px 6px 14px;
+  padding: 0 0 0 10px;
+  border-left: 1px solid var(--linje-sterk);
 }
 
 .omrissliste ol {
@@ -1442,9 +1504,10 @@
 }
 
 .omrissrad {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   padding: 0 4px;
   border: 1px solid transparent;
@@ -1482,6 +1545,11 @@
   flex: 1;
   padding: 0 6px;
   font-size: 12px;
+}
+
+.lagknapper .kontroll-knapp.ikonknapp-lag {
+  flex: none;
+  width: 40px;
 }
 
 .materialvalg {
@@ -1741,8 +1809,7 @@
 }
 
 .profilliste,
-.profilfargeliste,
-.nytt-lag-meny {
+.profilfargeliste {
   display: grid;
   gap: 6px;
   margin: 0 0 8px;
@@ -1818,34 +1885,6 @@
 .fargeprofil-fot {
   justify-content: flex-end;
   margin-top: 12px;
-}
-
-.nytt-lag-meny {
-  margin: 0 0 10px;
-}
-
-.nytt-lag-meny button {
-  display: grid;
-  gap: 2px;
-  width: 100%;
-  min-height: 44px;
-  padding: 6px 10px;
-  border: 1px solid var(--linje);
-  border-radius: var(--radius-kontroll, 6px);
-  background: var(--panel-2);
-  color: var(--fg);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.nytt-lag-meny button:hover,
-.nytt-lag-meny button:focus-visible {
-  border-color: var(--dp-lilla);
-}
-
-.nytt-lag-meny .dempet {
-  font-size: 12px;
 }
 
 /* decoration gallery (Sivert, 2026-10-05) */
@@ -2049,9 +2088,15 @@
   background: var(--panel-2);
 }
 
-.lagrad-hode[draggable='true'],
-.objektliste li[draggable='true'] {
-  cursor: grab;
+/* reordering: a line where the dragged row would land */
+.lagrad.slipp-over,
+.omrissrad.slipp-over {
+  box-shadow: 0 -3px 0 0 var(--dp-lilla);
+}
+
+.lagrad.slipp-under,
+.omrissrad.slipp-under {
+  box-shadow: 0 3px 0 0 var(--dp-lilla);
 }
 
 .lag-ut {
@@ -3908,10 +3953,11 @@ button.profilfarger.fargeknapp {
   flex: none;
 }
 
-.objektliste li .fargeknapp {
-  min-width: 28px;
-  min-height: 28px;
-  padding: 2px;
+.objektliste li .fargeknapp,
+.omrissrad .fargeknapp {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 1px;
 }
 
 .fargevelger.egenfarge .fargeprove {
