@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { TekstKilde } from '../../core/dokument';
-import { finnMateriale, visningsnavn } from '../../core/materialer';
+import { fargekode, finnMateriale, visningsnavn } from '../../core/materialer';
 import { finnFont } from '../../geometri/tekst';
 import { brukBenk } from '../../shell/bruk-benk';
 import { palett } from './dokument';
@@ -63,7 +63,7 @@ function Ressursstripe({ benk }: { benk: Arbeidsbenk }) {
           return (
             <span class="csv-chip" key={id} title={`${visningsnavn(m)}, ${m.type}`}>
               <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
-              {visningsnavn(m)}
+              <span class="mono">{fargekode(m)}</span>
             </span>
           );
         })}

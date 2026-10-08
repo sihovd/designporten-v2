@@ -4,7 +4,7 @@
  * that are not closed, and saving in the gallery.
  */
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { finnMateriale } from '../../core/materialer';
+import { fargekode, finnMateriale } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { oppdaterKilde, palett } from './dokument';
@@ -137,17 +137,17 @@ export function Kurvepanel({ benk }: { benk: Arbeidsbenk }) {
               type="button"
               class="kontroll-knapp fargeknapp"
               disabled={!harForm}
-              title={`Farg formen ${finnMateriale(id).navn.toLowerCase()}`}
-              aria-label={`Farg formen ${finnMateriale(id).navn.toLowerCase()}`}
+              title={`Farg formen ${fargekode(finnMateriale(id))}`}
+              aria-label={`Farg formen ${fargekode(finnMateriale(id))}`}
               onClick={() => fargeValgtForm(benk, id)}
             >
               <span class="fargeprove" style={{ background: finnMateriale(id).hex }} aria-hidden="true" />
-              {finnMateriale(id).navn}
+              <span class="mono">{fargekode(finnMateriale(id))}</span>
             </button>
           ))}
         </div>
         <p class="merknad">
-          Formen flyttes til et eget lag på samme nivå, så den printes i den fargen ved siden av resten.
+          Formen blir et eget objekt i samme lag, med egen farge. Laget beholder omriss, høyde og profil.
         </p>
       </div>
 

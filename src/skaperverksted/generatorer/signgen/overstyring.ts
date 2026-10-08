@@ -12,7 +12,7 @@
  * Pure functions on documents.
  */
 import type { Dokument, Lag, Objekt, Omriss, TekstKilde } from '../../core/dokument';
-import { finnMateriale, visningsnavn } from '../../core/materialer';
+import { fargekode, finnMateriale } from '../../core/materialer';
 import { finnFont } from '../../geometri/tekst';
 import { finnOmriss, oppdaterLag, oppdaterObjekter, oppdaterOmriss } from './dokument';
 
@@ -365,7 +365,7 @@ export function visVerdi(
   if (verdi === undefined) return 'finnes ikke';
   const e = finnEgenskap(o.mal, o.egenskap);
   if (e?.type === 'bryter') return verdi ? 'synlig' : 'skjult';
-  if (e?.type === 'filament') return visningsnavn(finnMateriale(String(verdi)));
+  if (e?.type === 'filament') return fargekode(finnMateriale(String(verdi)));
   if (e?.type === 'font') return finnFont(String(verdi)).navn;
   if (typeof verdi === 'number') return `${tallTekst(verdi)}${e?.enhet ? ` ${e.enhet}` : ''}`;
   return String(verdi);

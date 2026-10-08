@@ -502,6 +502,78 @@ export function lagRegion(dok: Dokument, lagId: string): Region | null {
   return region;
 }
 
+// ---------- colours inside a layer ----------
+
+/** The part of a layer that prints in one filament. */
+export interface Fargedel {
+  materialId: string;
+  region: Region;
+}
+
+/** Slivers smaller than this (mm²) are left out when a layer is split by colour. */
+const MIN_FARGEAREAL = 0.02;
+
+/** The colour an object prints in. */
+export function objektFarge(lag: Lag, o: Objekt): string {
+  return o.materialId ?? lag.materialId;
+}
+
+/**
+ * A layer's outline split by the colours of its objects. The layer's Kontur and influences work on
+ * the whole, so the outline looks the same whatever the colours; each colour gets what lies on its
+ * own objects (the one in front wins where they overlap) and the part of the outline closest to them.
+ * Whatever is left over (influences from other layers) keeps the layer's colour.
+ */
+export function fargedeler(dok: Dokument, lag: Lag, region: Region): Fargedel[] {
+  const objekter = objekterILag(dok, lag.id).filter(
+    (o) => o.synlig && !erGjennomgaende(o) && o.operasjon !== 'trekk-fra',
+  );
+  const farger = new Set(objekter.map((o) => objektFarge(lag, o)));
+  if (farger.size < 2 || !region.length) return [{ materialId: lag.materialId, region }];
+  const inn: unknown[] = [region, lag.kontur, lag.materialId];
+  for (const o of objekter) inn.push(o.kilde, JSON.stringify(o.transform), o.materialId);
+  const ferdig = husk(`farger:${lag.id}`, inn, () => {
+    // front-most colour first
+    const rekkefolge = [...new Set([...objekter].reverse().map((o) => objektFarge(lag, o)))];
+    const eget = new Map<string, Region>();
+    for (const farge of rekkefolge) {
+      const deler: Region[] = [];
+      for (const o of objekter) {
+        if (objektFarge(lag, o) !== farge) continue;
+        const r = verdensRegion(o);
+        if (!r) return null;
+        deler.push(r);
+      }
+      eget.set(farge, unionAlle(deler));
+    }
+    const k = lag.kontur;
+    const ut: Fargedel[] = [];
+    let tatt: Region = [];
+    for (const farge of rekkefolge) {
+      const mine = eget.get(farge)!;
+      const andres = unionAlle(rekkefolge.filter((f) => f !== farge).map((f) => eget.get(f)!));
+      const sone = k.kunRing
+        ? forskyv(mine, Math.max(k.avstand, 0) + k.ringBredde, k.hjorne)
+        : k.avstand > 0
+          ? forskyv(mine, k.avstand, k.hjorne)
+          : mine;
+      let bit = snitt(region, union(differanse(sone, andres), mine));
+      if (tatt.length) bit = differanse(bit, tatt);
+      if (areal(bit) < MIN_FARGEAREAL) continue;
+      ut.push({ materialId: farge, region: bit });
+      tatt = union(tatt, bit);
+    }
+    const rest = tatt.length ? differanse(region, tatt) : region;
+    if (areal(rest) >= MIN_FARGEAREAL) {
+      const i = ut.findIndex((x) => x.materialId === lag.materialId);
+      if (i >= 0) ut[i] = { ...ut[i]!, region: union(ut[i]!.region, rest) };
+      else ut.push({ materialId: lag.materialId, region: rest });
+    }
+    return ut;
+  });
+  return ferdig ?? [{ materialId: lag.materialId, region }];
+}
+
 // ---------- outlines ----------
 
 /** Narrowest outline that prints reliably (Sivert, 2026-10-05). */
@@ -868,23 +940,35 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     }
 
     if (region.length && !tekstSkjult) {
-      const e = ekstruderHusket(region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne);
-      if (e.forbrukt) {
-        advarsler.push({
-          niva: 'advarsel',
-          tekst: `Profilen på «${lag.navn}» er bredere enn formen tåler, så laget slutter ved ${mm(e.toppZ)} i stedet for ${mm(lag.zBunn + lag.hoyde)}.`,
-          lagId: lag.id,
+      // objects with a colour of their own print as separate parts of the same layer
+      const fargedeler_ = fargedeler(dok, lag, region);
+      for (const [i, del] of fargedeler_.entries()) {
+        const e = ekstruderHusket(del.region, lag.zBunn, lag.hoyde, lag.profil, lagHoyde, lag.kontur.hjorne);
+        if (e.forbrukt && i === 0) {
+          advarsler.push({
+            niva: 'advarsel',
+            tekst: `Profilen på «${lag.navn}» er bredere enn formen tåler, så laget slutter ved ${mm(e.toppZ)} i stedet for ${mm(lag.zBunn + lag.hoyde)}.`,
+            lagId: lag.id,
+          });
+        }
+        const delNavn = i === 0 ? lag.navn : `${lag.navn} (${finnMateriale(del.materialId).hex})`;
+        deler.push({
+          id: i === 0 ? lag.id : `${lag.id}~${del.materialId}`,
+          ...(i === 0 ? {} : { lagId: lag.id }),
+          navn: delNavn,
+          materialId: del.materialId,
+          mesh: e.mesh,
         });
+        skiver.push({
+          navn: delNavn,
+          lagId: lag.id,
+          region: del.region,
+          zBunn: lag.zBunn,
+          hoyde: lag.hoyde,
+          materialId: del.materialId,
+        });
+        sjekk(delNavn, lag.id, del.region, del.materialId);
       }
-      deler.push({ id: lag.id, navn: lag.navn, materialId: lag.materialId, mesh: e.mesh });
-      skiver.push({
-        navn: lag.navn,
-        lagId: lag.id,
-        region,
-        zBunn: lag.zBunn,
-        hoyde: lag.hoyde,
-        materialId: lag.materialId,
-      });
 
       const maksOverheng = materialtyper[finnMateriale(lag.materialId).type].maksOverheng;
       const overheng = profilOverheng(lag.profil, lag.hoyde);
@@ -895,7 +979,6 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
           lagId: lag.id,
         });
       }
-      sjekk(lag.navn, lag.id, region, lag.materialId);
     }
 
     // what each outline lies against: the text (unless cut out) and the outlines inside it

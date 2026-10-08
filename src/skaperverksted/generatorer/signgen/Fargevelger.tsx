@@ -7,10 +7,10 @@
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
-import { finnMateriale, visningsnavn } from '../../core/materialer';
+import { fargekode, finnMateriale, visningsnavn } from '../../core/materialer';
+import { filamentLinje } from './filamenter';
 import { brukBenk } from '../../shell/bruk-benk';
 import { palett } from './dokument';
-import { filamentLinje } from './filamenter';
 import { signtilstand } from './tilstand';
 
 /** Open the colour profile: the panel where there are panels, else the dialog. */
@@ -32,7 +32,7 @@ export function Fargevelger({
   /** What the colour is for, for screen readers: «Farge på laget», «Farge på omrisset». */
   etikett: string;
   klasse?: string;
-  /** Show the filament's name beside the swatch. */
+  /** Show the colour code beside the swatch. */
   medNavn?: boolean;
 }) {
   const t = brukBenk(benk);
@@ -77,12 +77,12 @@ export function Fargevelger({
         class="fargeknapp"
         aria-haspopup="menu"
         aria-expanded={apen}
-        aria-label={`${etikett}: ${visningsnavn(m)}. Velg annen farge`}
+        aria-label={`${etikett}: ${visningsnavn(m)}, ${fargekode(m)}. Velg annen farge`}
         title={`${etikett}: ${filamentLinje(m)}`}
         onClick={() => settApen(!apen)}
       >
         <span class="fargeprove stor" style={{ background: m.hex }} aria-hidden="true" />
-        {medNavn && <span class="fargenavn">{visningsnavn(m)}</span>}
+        {medNavn && <span class="fargenavn mono">{fargekode(m)}</span>}
       </button>
       {apen && (
         <div
@@ -114,6 +114,7 @@ export function Fargevelger({
                 role="menuitemradio"
                 aria-checked={id === verdi}
                 title={filamentLinje(f)}
+                aria-label={filamentLinje(f)}
                 onClick={() => {
                   lukk();
                   if (id !== verdi) endre(id);
@@ -121,7 +122,7 @@ export function Fargevelger({
               >
                 <span class="fargeprove stor" style={{ background: f.hex }} aria-hidden="true" />
                 <span class="fargemeny-navn">
-                  {visningsnavn(f)}
+                  <span class="mono">{fargekode(f)}</span>
                   <span class="dempet"> {f.produsent ? `${f.produsent} ${f.type}` : f.type}</span>
                 </span>
                 {id === verdi && (

@@ -19,6 +19,7 @@ import { nyForm, nyTekst, oppdaterObjekter } from './dokument';
 import {
   hjorner,
   innholdsboks,
+  fargedeler,
   lagRegion,
   omrissRegioner,
   lokalGeometri,
@@ -201,7 +202,8 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
         if (o.synlig && r?.length) deler.push([r, o.materialId]);
       }
     }
-    if (lag.tekstvisning !== 'kutt') deler.push([region, lag.materialId]);
+    if (lag.tekstvisning !== 'kutt')
+      for (const f of fargedeler(d, lag, region)) deler.push([f.region, f.materialId]);
     for (const [r, materialId] of deler) {
       sti(ctx, v, r);
       ctx.fillStyle = finnMateriale(materialId).hex;

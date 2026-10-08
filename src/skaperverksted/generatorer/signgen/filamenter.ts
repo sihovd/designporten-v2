@@ -184,7 +184,17 @@ export function finnFilamenter(
     if (filter.type && m.type !== filter.type) return false;
     if (!ord.length) return true;
     const hoy = normaliser(
-      [m.navn, m.egetNavn, m.produsent, m.serie, m.type, m.sku, m.spole, ...Object.values(m.metadata ?? {})]
+      [
+        m.navn,
+        m.egetNavn,
+        m.hex,
+        m.produsent,
+        m.serie,
+        m.type,
+        m.sku,
+        m.spole,
+        ...Object.values(m.metadata ?? {}),
+      ]
         .filter(Boolean)
         .join(' '),
     );
@@ -195,6 +205,16 @@ export function finnFilamenter(
 /** One line for lists and screen readers: «Lilla, PLA · Bambu Lab PLA Basic · AMS 2». */
 export function filamentLinje(m: Materiale): string {
   const del = [`${visningsnavn(m)}, ${m.type}`];
+  const kilde = [m.produsent, m.serie].filter(Boolean).join(' ');
+  if (kilde) del.push(kilde);
+  if (m.amsPlass) del.push(`AMS ${m.amsPlass}`);
+  if (m.spole) del.push(m.spole);
+  return del.join(' · ');
+}
+
+/** What is known about the filament besides its colour, for lists: «PLA · Bambu Lab PLA Basic · AMS 2». */
+export function filamentInfo(m: Materiale): string {
+  const del: string[] = [m.type];
   const kilde = [m.produsent, m.serie].filter(Boolean).join(' ');
   if (kilde) del.push(kilde);
   if (m.amsPlass) del.push(`AMS ${m.amsPlass}`);

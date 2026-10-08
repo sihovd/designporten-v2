@@ -57,7 +57,13 @@ function settParametre(dok: Dokument, endring: Partial<SigngenParametre>): Dokum
 
 /** Every colour the sign uses now, bottom to top, each once. */
 function brukteFarger(dok: Dokument): string[] {
-  return [...new Set(dok.lag.flatMap((l) => [l.materialId, ...(l.omriss ?? []).map((o) => o.materialId)]))];
+  const objektfarger = Object.values(dok.objekter).flatMap((o) => (o.materialId ? [o.materialId] : []));
+  return [
+    ...new Set([
+      ...dok.lag.flatMap((l) => [l.materialId, ...(l.omriss ?? []).map((o) => o.materialId)]),
+      ...objektfarger,
+    ]),
+  ];
 }
 
 /**
@@ -107,7 +113,14 @@ export function settPalett(dok: Dokument, farger: string[]): Dokument {
     const endret = !ny.includes(l.materialId) || omriss?.some((o, i) => o !== l.omriss![i]);
     return endret ? { ...l, materialId: bytt(l.materialId), ...(omriss ? { omriss } : {}) } : l;
   });
-  return synkFilamenter(settParametre({ ...dok, lag }, { farger: ny, startvalgt: true }));
+  let objekter = dok.objekter;
+  for (const o of Object.values(dok.objekter)) {
+    if (o.materialId && !ny.includes(o.materialId)) {
+      if (objekter === dok.objekter) objekter = { ...dok.objekter };
+      objekter[o.id] = { ...o, materialId: bytt(o.materialId) };
+    }
+  }
+  return synkFilamenter(settParametre({ ...dok, lag, objekter }, { farger: ny, startvalgt: true }));
 }
 
 /** Add a catalogue colour to the sign's profile. */
@@ -634,6 +647,11 @@ export function fargeplasser(dok: Dokument): { id: string; navn: string; materia
     .filter((l) => l.synlig)
     .flatMap((l) => [
       ...(l.tekstvisning === 'kutt' ? [] : [{ id: l.id, navn: l.navn, materialId: l.materialId }]),
+      ...(l.tekstvisning === 'kutt'
+        ? []
+        : objekterILag(dok, l.id)
+            .filter((o) => o.synlig && o.materialId && o.materialId !== l.materialId)
+            .map((o) => ({ id: o.id, navn: `${l.navn}: ${o.navn}`, materialId: o.materialId! }))),
       ...(l.omriss ?? [])
         .filter((o) => o.synlig)
         .map((o) => ({ id: o.id, navn: `${l.navn}: ${o.navn}`, materialId: o.materialId })),
@@ -643,6 +661,7 @@ export function fargeplasser(dok: Dokument): { id: string; navn: string; materia
 /** Set the colour of a layer or of an outline (batch colour columns). */
 export function settFarge(dok: Dokument, id: string, materialId: string): Dokument {
   if (finnLag(dok, id)) return oppdaterLag(dok, id, { materialId });
+  if (dok.objekter[id]) return oppdaterObjekter(dok, [id], (o) => ({ ...o, materialId }));
   const r = finnOmriss(dok, id);
   return r ? oppdaterOmriss(dok, r.lag.id, id, { materialId }) : dok;
 }
