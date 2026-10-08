@@ -1280,6 +1280,13 @@ test.describe('Signgen', () => {
     await page.mouse.up();
     const etter = Number((await felt.inputValue()).replace(',', '.'));
     expect(etter).toBeGreaterThan(for_);
+    // the marker stays where the value is on the ruler after the button is released
+    const pil = felt.locator('xpath=ancestor::span[contains(@class,"tallfelt")]').locator('.pil');
+    const pilX = async () => Number.parseFloat(await pil.evaluate((el) => (el as HTMLElement).style.left));
+    const etterX = await pilX();
+    expect(etterX).toBeGreaterThan(b.width / 2 - 8);
+    await page.mouse.move(b.x + b.width + 80, b.y - 60);
+    expect(await pilX()).toBeCloseTo(etterX, 1);
     // typing and the arrow keys still work
     await felt.fill('5');
     await felt.press('Enter');

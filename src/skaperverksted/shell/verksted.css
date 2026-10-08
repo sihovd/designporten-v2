@@ -1106,8 +1106,17 @@
   gap: 8px;
 }
 
-.feltpar .felt {
+.feltpar .felt,
+.transform-rad .felt {
   grid-template-columns: 1.4rem minmax(0, 1fr);
+}
+
+/* Transform: rotation and the proportion lock on one line */
+.transform-rad {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
 }
 
 .verksted input[type='text'],
@@ -2630,16 +2639,19 @@
 .skrubber .skala {
   position: absolute;
   inset: 0;
+  /* the ticks sit at whole steps: --sm / --sn shift them so the scale matches the value */
   background:
-    repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 40px) 0 100% / 100% 7px no-repeat,
-    repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 8px) 0 100% / 100% 4px no-repeat;
+    repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 40px) calc(var(--sm, 0px) - 40px)
+      100% / calc(100% + 40px) 7px no-repeat,
+    repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 8px) calc(var(--sn, 0px) - 8px)
+      100% / calc(100% + 8px) 4px no-repeat;
   opacity: 0.7;
 }
 
 .skrubber .pil {
   position: absolute;
   bottom: 0;
-  left: 50%;
+  left: 50%; /* set from the value */
   translate: -50% 0;
   width: 0;
   height: 0;
