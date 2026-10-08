@@ -6,10 +6,20 @@ import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Dokument } from '../../core/dokument';
 import { fargekode, finnMateriale, visningsnavn } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
+import { Ikon, type IkonId } from '../../shell/ikoner';
 import type { Kolonnemal } from './batch';
 import { CSVSTEG, lesArbeid, lesInstans, nyeFelt, type Csvsteg } from './csvflyt';
 import { gaTilSteg, stegNavn, tilMaster } from './csvhandlinger';
 import { brukSigntilstand } from './tilstand';
+
+const STEGIKON: Record<Csvsteg, IkonId> = {
+  importer: 'import-csv',
+  koble: 'link-fields',
+  master: 'properties',
+  rader: 'rows',
+  generer: 'generate',
+  plater: 'plates-sorted',
+};
 
 export function kodeKobling(k: Kolonnemal): string {
   return k.type === 'felt' ? `felt:${k.felt}` : k.type === 'farge' ? `farge:${k.lagId}` : k.type;
@@ -84,7 +94,10 @@ export function Stegrad({
                 <span class="csv-steg-nr" aria-hidden="true">
                   {i + 1}
                 </span>
-                <span class="csv-steg-tekst">{s.kort}</span>
+                <span class="csv-steg-tekst">
+                  <Ikon id={STEGIKON[s.id]} storrelse={14} />
+                  {s.kort}
+                </span>
                 <span class="visuelt-skjult">
                   {`, steg ${i + 1} av ${CSVSTEG.length}: ${s.navn}${na ? ', du er her' : hvorfor ? `, ikke tilgjengelig: ${hvorfor}` : ''}`}
                 </span>

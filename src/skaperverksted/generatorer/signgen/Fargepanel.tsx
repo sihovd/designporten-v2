@@ -170,7 +170,7 @@ export function Filamentskjema({
         />
       </label>
       <label class="felt">
-        <span>Fargenavn</span>
+        <span>Fargenavn (vises bare når du holder over fargen)</span>
         <input type="text" value={s.navn} maxLength={60} required onInput={felt('navn')} />
       </label>
       <label class="felt">

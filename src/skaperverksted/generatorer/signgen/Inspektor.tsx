@@ -154,6 +154,23 @@ function HullReferanse({
   );
 }
 
+/** What a hanging hole's height does, in plain words (it never changes the other layers). */
+function hullHoydeTekst(dok: Dokument, hoyde: number | undefined, oye: boolean): string {
+  if (!hoyde || hoyde <= 0) {
+    return oye
+      ? 'Øyet er like høyt som laget det henger på.'
+      : 'Hullet går gjennom alle lag. Gi det egen høyde for å bare kutte de nederste lagene.';
+  }
+  if (oye) return `Øyet blir en egen ring på ${tall(hoyde)} mm. Resten av skiltet endres ikke.`;
+  const synlige = dok.lag.filter((l) => l.synlig);
+  const kuttet = synlige.filter((l) => l.zBunn < hoyde - 1e-6);
+  const delvis = synlige.find((l) => l.zBunn < hoyde - 1e-6 && l.zBunn + l.hoyde > hoyde + 1e-6);
+  if (!kuttet.length) return 'Hullet når ikke opp i noe lag, så det kutter ingenting.';
+  return delvis
+    ? `Hullet slutter inne i «${delvis.navn}» (${tall(delvis.zBunn)}–${tall(delvis.zBunn + delvis.hoyde)} mm), så det laget kuttes helt. Lagene over blir som de er.`
+    : `Hullet kutter ${kuttet.length === 1 ? 'laget' : 'lagene'} under ${tall(hoyde)} mm. Lagene over blir som de er.`;
+}
+
 /** A hanging hole: a hole through the model, or an eye outside it (Sivert, 2026-10-05). */
 function Hullvalg({
   benk,
@@ -168,6 +185,10 @@ function Hullvalg({
   if (o.kilde.type !== 'form') return null;
   const kilde = o.kilde;
   const oye = erOye(t.dok, o.id);
+  const egenHoyde = kilde.hullHoyde !== undefined && kilde.hullHoyde > 0;
+  const bunnLag = t.dok.lag.find((l) => l.synlig);
+  const standardHoyde = bunnLag ? bunnLag.hoyde : 2;
+  const hoydeMerknad = hullHoydeTekst(t.dok, kilde.hullHoyde, oye);
   return (
     <>
       <p class="merknad">
@@ -188,6 +209,37 @@ function Hullvalg({
           }
         />
       )}
+      <div class="felt">
+        <span>{oye ? 'Høyde på øyet' : 'Hullet går'}</span>
+        <Segment
+          etikett={oye ? 'Høyde på øyet' : 'Hvor langt hullet går'}
+          valg={[
+            { id: 'laget', navn: oye ? 'Som laget' : 'Hele veien' },
+            { id: 'egen', navn: 'Egen høyde' },
+          ]}
+          verdi={egenHoyde ? 'egen' : 'laget'}
+          endre={(v) =>
+            endre('Høyde på hull', (x) =>
+              x.kilde.type === 'form'
+                ? { ...x, kilde: { ...x.kilde, hullHoyde: v === 'egen' ? standardHoyde : undefined } }
+                : x,
+            )
+          }
+        />
+      </div>
+      {egenHoyde && (
+        <TallFelt
+          etikett={oye ? 'Øyets høyde' : 'Hullet går opp til'}
+          verdi={kilde.hullHoyde!}
+          min={0.2}
+          maks={50}
+          steg={0.2}
+          endre={(v) =>
+            endre('Høyde på hull', (x) => ({ ...x, kilde: { ...kilde, hullHoyde: v } }), 'hullhoyde')
+          }
+        />
+      )}
+      <p class="merknad">{hoydeMerknad}</p>
     </>
   );
 }

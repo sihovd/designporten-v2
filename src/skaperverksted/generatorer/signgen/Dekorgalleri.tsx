@@ -49,7 +49,8 @@ export function Dekorgalleri({ benk }: { benk: Arbeidsbenk }) {
   const lukk = () => signtilstand(benk).sett({ dekor: false });
   const sett = (v: DekorValg) => {
     // a vector saved with several colours keeps them, in a layer per colour
-    if (v.flerfarget) leggTilFlerfarget(benk, v.flerfarget(), 'pynt', 'eget');
+    if (v.flerfarget)
+      leggTilFlerfarget(benk, v.flerfarget(), 'pynt', plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
     else leggTilDekor(benk, v.navn, v.lag(), plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
     lukk();
   };

@@ -394,6 +394,20 @@ function modellFlate(dok: Dokument): Region | null {
 /** Default width of the ring around an eye (mm). */
 export const STANDARD_RINGBREDDE = 3;
 
+/** A hole over the model, with the height it reaches from the underside (null: all the way through). */
+interface Hullobjekt {
+  objekt: Objekt;
+  region: Region;
+  hoyde: number | null;
+}
+
+/** Own height of a hanging hole, if one is set. */
+function hullHoyde(o: Objekt): number | null {
+  return o.kilde.type === 'form' && o.kilde.hullHoyde !== undefined && o.kilde.hullHoyde > 0
+    ? o.kilde.hullHoyde
+    : null;
+}
+
 interface Oye {
   objekt: Objekt;
   /** The hole through the eye. */
@@ -408,21 +422,24 @@ interface Oye {
  * an eye, a ring outside the sign to put a key ring through. Over the
  * model means at least half the hole lies on it.
  */
-function hullOgOyne(dok: Dokument): { hull: Region; oyne: Oye[] } {
+function hullOgOyne(dok: Dokument): { hull: Region; liste: Hullobjekt[]; oyne: Oye[] } {
   const objekter = hullObjekter(dok);
-  const tom = { hull: [], oyne: [] };
+  const tom = { hull: [], liste: [], oyne: [] };
   if (!objekter.length) return tom;
   const flate = modellFlate(dok) ?? [];
   return (
     husk('hulloyne', [flate, ...objekter], () => {
       const hull: Region[] = [];
+      const liste: Hullobjekt[] = [];
       const oyne: Oye[] = [];
       for (const o of objekter) {
         const r = verdensRegion(o);
         if (!r?.length) continue;
         const inne = areal(snitt(r, flate));
-        if (inne >= areal(r) / 2) hull.push(r);
-        else {
+        if (inne >= areal(r) / 2) {
+          hull.push(r);
+          liste.push({ objekt: o, region: r, hoyde: hullHoyde(o) });
+        } else {
           const bredde = Math.max(
             MIN_OMRISSBREDDE,
             o.kilde.type === 'form' ? (o.kilde.ringBredde ?? STANDARD_RINGBREDDE) : STANDARD_RINGBREDDE,
@@ -430,14 +447,34 @@ function hullOgOyne(dok: Dokument): { hull: Region; oyne: Oye[] } {
           oyne.push({ objekt: o, hull: r, ytre: forskyv(r, bredde, 'rund') });
         }
       }
-      return { hull: unionAlle(hull), oyne };
+      return { hull: unionAlle(hull), liste, oyne };
     }) ?? tom
   );
 }
 
-/** Every hanging hole over the model, as one region. */
-function hullGjennom(dok: Dokument): Region {
-  return hullOgOyne(dok).hull;
+/**
+ * The hanging holes over the model that cut a slab starting at `zBunn`, as one region. A hole with an own
+ * height only reaches the slabs that start below it.
+ */
+function hullGjennom(dok: Dokument, zBunn = 0): Region {
+  const h = hullOgOyne(dok);
+  const gjelder = h.liste.filter((x) => x.hoyde === null || zBunn < x.hoyde - 1e-6);
+  if (gjelder.length === h.liste.length) return h.hull;
+  return husk(
+    `hullfor:${gjelder.map((x) => x.objekt.id).join(',')}`,
+    gjelder.map((x) => x.region),
+    () => unionAlle(gjelder.map((x) => x.region)),
+  )!;
+}
+
+/** Eyes that join the layer or outline below them (those without an own height). */
+function festeOyne(dok: Dokument): Oye[] {
+  return hullOgOyne(dok).oyne.filter((x) => hullHoyde(x.objekt) === null);
+}
+
+/** Eyes with an own height: printed as a ring of their own, not as part of the layer. */
+function egneOyne(dok: Dokument): Oye[] {
+  return hullOgOyne(dok).oyne.filter((x) => hullHoyde(x.objekt) !== null);
 }
 
 /** Whether a hanging hole lies off the model and is printed as an eye. */
@@ -454,6 +491,14 @@ function oyeMal(dok: Dokument): { lagId: string; omrissId?: string } | null {
   if (!lag) return null;
   const omriss = lag.tekstlag ? (lag.omriss ?? []).filter((o) => o.synlig) : [];
   return omriss.length ? { lagId: lag.id, omrissId: omriss.at(-1)!.id } : { lagId: lag.id };
+}
+
+/** A region with the eyes' holes cut, also where the eye is its own part. */
+function utenOyehull(slot: string, region: Region, oyne: Oye[]): Region {
+  if (!oyne.length) return region;
+  return husk(`oyehull:${slot}`, [region, ...oyne], () =>
+    differanse(region, unionAlle(oyne.map((x) => x.hull))),
+  )!;
 }
 
 /** A region with the eyes joined on and their holes kept open. */
@@ -493,10 +538,13 @@ export function lagRegion(dok: Dokument, lagId: string): Region | null {
   const lag = finnLag(dok, lagId);
   if (!lag) return [];
   const for_ = lagForHull(dok, lag);
-  const hull = hullGjennom(dok);
+  const hull = hullGjennom(dok, lag.zBunn);
   let region = for_ && husk(`kuttet:${lagId}`, [for_, hull], () => utenHullGjennom(for_, hull));
   const mal = oyeMal(dok);
-  if (region && mal?.lagId === lagId && !mal.omrissId) region = medOyne(lagId, region, hullOgOyne(dok).oyne);
+  if (region && mal?.lagId === lagId && !mal.omrissId) {
+    region = medOyne(lagId, region, festeOyne(dok));
+    region = utenOyehull(lagId, region, egneOyne(dok));
+  }
   // null means «fonts still loading»: do not cache it
   if (region) buffer.set(lagId, region);
   return region;
@@ -660,17 +708,19 @@ export function omrissRegioner(dok: Dokument, lagId: string): Map<string, Region
   const omriss = omrissForHull(dok, lag);
   if (!omriss) return null;
   // the holes are cut from text and outlines alike
-  const hull = hullGjennom(dok);
+  const hull = hullGjennom(dok, lag.zBunn);
   const mal = oyeMal(dok);
-  const oyne = mal?.lagId === lagId && mal.omrissId ? hullOgOyne(dok).oyne : [];
+  const iMal = mal?.lagId === lagId && !!mal.omrissId;
+  const oyne = iMal ? festeOyne(dok) : [];
+  const egne = iMal ? egneOyne(dok) : [];
   return husk(
     `omrisskuttet:${lagId}`,
-    [omriss, hull, mal?.omrissId, ...oyne],
+    [omriss, hull, mal?.omrissId, ...oyne, '|', ...egne],
     () =>
       new Map(
         omriss.map((o) => {
           const r = utenHullGjennom(o.region, hull);
-          return [o.id, o.id === mal?.omrissId ? medOyne(o.id, r, oyne) : r];
+          return [o.id, o.id === mal?.omrissId ? utenOyehull(o.id, medOyne(o.id, r, oyne), egne) : r];
         }),
       ),
   );
@@ -999,6 +1049,29 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
       });
       sjekk(navn, lag.id, r, o.materialId, { id: o.id, regioner: [...inne] });
       inne.push(r);
+    }
+  }
+
+  // eyes with an own height print as a ring of their own, next to what they hang on
+  const mal = oyeMal(dok);
+  const malLag = mal && finnLag(dok, mal.lagId);
+  if (mal && malLag) {
+    const omrissMal = mal.omrissId ? (malLag.omriss ?? []).find((x) => x.id === mal.omrissId) : undefined;
+    const under = mal.omrissId
+      ? omrissRegioner(dok, mal.lagId)?.get(mal.omrissId)
+      : lagRegion(dok, mal.lagId);
+    for (const x of egneOyne(dok)) {
+      const ring = husk(`oyering:${x.objekt.id}`, [x.ytre, x.hull, under ?? []], () =>
+        differanse(differanse(x.ytre, x.hull), forskyv(under ?? [], SKJULT_GLIPE, 'rund')),
+      )!;
+      if (!ring.length) continue;
+      const hoyde = hullHoyde(x.objekt)!;
+      const navn = `Øye: ${x.objekt.navn}`;
+      const materialId = omrissMal?.materialId ?? malLag.materialId;
+      const e = ekstruderHusket(ring, malLag.zBunn, hoyde, rettProfil(), lagHoyde, 'rund');
+      deler.push({ id: x.objekt.id, lagId: mal.lagId, navn, materialId, mesh: e.mesh });
+      skiver.push({ navn, lagId: mal.lagId, region: ring, zBunn: malLag.zBunn, hoyde, materialId });
+      sjekk(navn, mal.lagId, ring, materialId);
     }
   }
 

@@ -296,7 +296,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
 
   return (
     <div
-      class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}${harPaneler ? ' med-paneler' : ''}`}
+      class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}${plugin.flate === 'lys' ? ' lys' : ''}${harPaneler ? ' med-paneler' : ''}`}
     >
       <header class="verkstedlinje">
         <a class="hjem" href="/" aria-label="Designporten, til forsiden">
@@ -337,7 +337,10 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             <span aria-hidden="true" class="kort">
               <Ikon id="undo" storrelse={18} />
             </span>
-            <span class="lang">Angre</span>
+            <span class="lang med-ikon">
+              <Ikon id="undo" storrelse={16} />
+              Angre
+            </span>
             <span class="visuelt-skjult kortetikett">Angre</span>
           </button>
           <button
@@ -350,14 +353,21 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             <span aria-hidden="true" class="kort">
               <Ikon id="redo" storrelse={18} />
             </span>
-            <span class="lang">Gjør om</span>
+            <span class="lang med-ikon">
+              <Ikon id="redo" storrelse={16} />
+              Gjør om
+            </span>
             <span class="visuelt-skjult kortetikett">Gjør om</span>
           </button>
         </div>
         <details class="filmeny">
-          <summary>Fil</summary>
+          <summary class="med-ikon fil-sammendrag">
+            <Ikon id="open" storrelse={16} />
+            Fil
+          </summary>
           <div class="meny" role="menu">
-            <button type="button" role="menuitem" onClick={nyttProsjekt}>
+            <button type="button" role="menuitem" class="med-ikon" onClick={nyttProsjekt}>
+              <Ikon id="new" storrelse={16} />
               Nytt prosjekt
             </button>
             {reserve && (
@@ -388,11 +398,15 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
                 </button>
               </>
             )}
-            <button type="button" role="menuitem" onClick={() => filvelger.current?.click()}>
+            <button type="button" role="menuitem" class="med-ikon" onClick={() => filvelger.current?.click()}>
+              <Ikon id="open" storrelse={16} />
               Åpne prosjektfil …
             </button>
-            <button type="button" role="menuitem" onClick={lagreFil}>
-              Lagre som fil <kbd>Ctrl+S</kbd>
+            <button type="button" role="menuitem" class="med-ikon" onClick={lagreFil}>
+              <Ikon id="save-as" storrelse={16} />
+              <span>
+                Lagre som fil <kbd>Ctrl+S</kbd>
+              </span>
             </button>
             {ui.Filvalg && <ui.Filvalg benk={benk} />}
             <p class="meny-merknad">
@@ -439,7 +453,10 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
               requestAnimationFrame(() => benk.kommando('tegn'));
             }}
           >
-            Egenskaper
+            <span class="med-ikon">
+              <Ikon id="properties" storrelse={16} />
+              Egenskaper
+            </span>
           </button>
         )}
         {harPaneler && (
@@ -454,14 +471,17 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
         <button type="button" class="ikonknapp" onClick={() => settHjelp(true)} title="Hurtigtaster (?)">
           ?<span class="visuelt-skjult"> Hjelp og hurtigtaster</span>
         </button>
-        <button type="button" class="primar" onClick={() => settEksport(true)}>
-          {plugin.bestilling ? (
-            <>
-              Eksporter<span class="lang"> / Bestill</span>
-            </>
-          ) : (
-            'Eksporter'
-          )}
+        <button type="button" class="primar med-ikon" onClick={() => settEksport(true)}>
+          <Ikon id="export" storrelse={16} />
+          <span>
+            {plugin.bestilling ? (
+              <>
+                Eksporter<span class="lang"> / Bestill</span>
+              </>
+            ) : (
+              'Eksporter'
+            )}
+          </span>
         </button>
       </header>
 

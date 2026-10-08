@@ -376,7 +376,7 @@ export function Delvelger({ benk, oppgave }: { benk: Arbeidsbenk; oppgave: SvgOp
               onInput={(e) => settNavn((e.target as HTMLInputElement).value)}
             />
           </label>
-          {!eneFarge && fargerBrukt === 1 && tekstlag && (
+          {!eneFarge && tekstlag && (
             <div class="felt">
               <span>Legges</span>
               <Segment
@@ -398,7 +398,7 @@ export function Delvelger({ benk, oppgave }: { benk: Arbeidsbenk; oppgave: SvgOp
           )}
           <p class="dempet">
             Lagres i denne nettleseren, ikke på en server. Et dekor med flere farger beholder fargene i
-            galleriet; i en CSV-fil og i et tekstlag får det én farge.
+            galleriet og i et tekstlag; i en CSV-fil får det én farge.
           </p>
         </div>
         <div class="knapperad svgdeler-handlinger">

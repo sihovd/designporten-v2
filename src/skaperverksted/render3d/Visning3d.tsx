@@ -13,7 +13,7 @@ import { finnMateriale, materialtyper, standardPrinter } from '../core/materiale
 import { avgrensning, type ModellDel } from '../geometri/mesh';
 import { brukUtdrag } from '../shell/bruk-benk';
 import { mm } from '../core/enheter';
-import { cssFarge, reduserBevegelse } from '../shell/tema';
+import { cssFarge, horisontStopp, lesHorisont, reduserBevegelse } from '../shell/tema';
 import { leggTilPrintlag, settPrintlag } from './printlag';
 
 type Vinkel = 'perspektiv' | 'topp' | 'front' | 'side';
@@ -83,6 +83,21 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
     el.prepend(lerret);
 
     const sc = new THREE.Scene();
+    // a horizon gradient behind the model, when the workshop has one
+    const horisont = lesHorisont(el);
+    if (horisont) {
+      const c = document.createElement('canvas');
+      c.width = 4;
+      c.height = 512;
+      const cx = c.getContext('2d')!;
+      const g = cx.createLinearGradient(0, 0, 0, c.height);
+      horisontStopp(g, horisont);
+      cx.fillStyle = g;
+      cx.fillRect(0, 0, c.width, c.height);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      sc.background = tex;
+    }
     const camera = new THREE.PerspectiveCamera(32, 1, 1, 20000);
     camera.up.set(0, 0, 1);
     camera.position.set(160, -260, 200);

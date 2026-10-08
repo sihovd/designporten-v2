@@ -7,6 +7,7 @@
 import { useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { Dialog } from '../../shell/Dialog';
+import { Ikon } from '../../shell/ikoner';
 import { brukBenk } from '../../shell/bruk-benk';
 import { palett, startErValgt } from './dokument';
 import { finnMateriale } from '../../core/materialer';
@@ -304,21 +305,25 @@ export function Filvalg({ benk }: { benk: Arbeidsbenk }) {
       <button
         type="button"
         role="menuitem"
+        class="med-ikon"
         onClick={(e) => {
           lukkMeny(e);
           signtilstand(benk).sett({ malvindu: 'lagre' });
         }}
       >
+        <Ikon id="save-template" storrelse={16} />
         Lagre som mal …
       </button>
       <button
         type="button"
         role="menuitem"
+        class="med-ikon"
         onClick={(e) => {
           lukkMeny(e);
           signtilstand(benk).sett({ malvindu: 'bibliotek' });
         }}
       >
+        <Ikon id="templates" storrelse={16} />
         Nytt prosjekt fra mal …
       </button>
     </>

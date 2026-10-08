@@ -3905,3 +3905,154 @@ button.profilfarger.fargeknapp {
   outline: 2px solid var(--fg);
   outline-offset: 1px;
 }
+
+/* ---------- light workshop (Sign Forge, Sivert 2026-10-08) ---------- */
+
+/*
+ * Light panels and tool rail. The canvas sits on a dark horizon gradient (dark above, a bright
+ * line of blue at the horizon, deep blue below) and the 2D plate is a mid-tone from it. The
+ * canvas keeps the dark tokens so grid, rulers and handles read on the gradient.
+ */
+.verksted.lys {
+  --bg: #e8ecf3;
+  --fg: #1a2233;
+  --fg-dempet: #545f78;
+  --panel: #f6f8fb;
+  --panel-2: #e8ecf4;
+  --grafitt: #f6f8fb;
+  --grafitt-2: #e8ecf4;
+  --grafitt-3: #dbe1ee;
+  --overflate: #f6f8fb;
+  --linje: #cbd3e3;
+  --linje-sterk: #8793ad;
+  --handling-hover: #6a2fe0;
+  --lenke: #5b24c9;
+  --fokus: #6a2fe0;
+  --dp-lilla-tekst: #5b24c9;
+  --advarsel-mork: #8a5200;
+  color-scheme: light;
+}
+
+.verksted.lys .lerret,
+.verksted.lys .visning3d {
+  --advarsel-mork: #f2b84b;
+  --bg: #0b1426;
+  --fg: #f1f4fa;
+  --fg-dempet: #b9c3d9;
+  --panel: #101c38;
+  --panel-2: #1b2c52;
+  --grafitt: #101c38;
+  --grafitt-2: #1b2c52;
+  --grafitt-3: #26396a;
+  --overflate: #101c38;
+  --linje: #5679b4;
+  --linje-sterk: #9db6e0;
+  --handling-hover: #9a58ff;
+  --lenke: #b99aff;
+  --fokus: #00c4d6;
+  --horisont-topp: #04070f;
+  --horisont-hoy: #0f2a5c;
+  --horisont-linje: #3a73c4;
+  --horisont-bunn: #0d2250;
+  --horisont-pos: 0.62;
+  --bord: #2b528f;
+  color-scheme: dark;
+  background: linear-gradient(
+    180deg,
+    var(--horisont-topp) 0%,
+    var(--horisont-hoy) calc(var(--horisont-pos) * 100% - 20%),
+    var(--horisont-linje) calc(var(--horisont-pos) * 100%),
+    var(--horisont-bunn) 100%
+  );
+  color: var(--fg);
+}
+
+/* colour palette menu: a grid of swatches, the code of the one under the pointer below (names only on hover) */
+.fargemeny {
+  min-width: 0;
+  max-width: none;
+  width: 232px;
+}
+
+.fargepalett {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+  padding: 4px;
+}
+
+.fargemeny .fargerute {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-felt);
+  background: transparent;
+}
+
+.fargemeny .fargerute:hover,
+.fargemeny .fargerute:focus-visible {
+  border-color: var(--linje-sterk);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+
+.fargemeny .fargerute[aria-checked='true'] {
+  border-color: var(--fg);
+}
+
+.fargemeny .fargerute .menyhake {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+
+.fargebeskrivelse {
+  min-height: 22px;
+  margin: 0;
+  padding: 2px 8px 6px;
+  font-size: 12px;
+}
+
+/* an icon beside a label */
+.verksted .med-ikon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.verksted .panelnavn,
+.verksted .panelfane,
+.verksted .csv-steg-tekst {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.verksted .csv-steg-tekst .ikon {
+  flex: none;
+  opacity: 0.8;
+}
+
+.verksted.smal .csv-steg-tekst .ikon {
+  display: none;
+}
+
+.filmeny .meny button.med-ikon {
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+@media (max-width: 1180px) {
+  .verkstedlinje .primar > .ikon,
+  .verkstedlinje .fil-sammendrag > .ikon {
+    display: none;
+  }
+}

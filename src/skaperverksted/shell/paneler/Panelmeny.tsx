@@ -1,7 +1,7 @@
 /** «Paneler» in the workshop bar: pick a workspace, save your own, show or hide panels. */
 import { useRef, useState } from 'preact/hooks';
 import type { PanelDef } from '../../core/generator';
-import { Ikon } from '../ikoner';
+import { Ikon, type IkonId } from '../ikoner';
 import { EGENDEFINERT, egetId, type PanelHandling, type PanelLager, type RomKontekst } from './lager';
 import { apnePanel, erApen, lukkPanel, type Plassering } from './modell';
 
@@ -103,6 +103,7 @@ export function Panelmeny({
               <span class="avkryssing" aria-hidden="true">
                 {apen ? '✓' : ''}
               </span>
+              {d.ikon && <Ikon id={d.ikon as IkonId} storrelse={14} />}
               {d.navn}
             </button>
           );
