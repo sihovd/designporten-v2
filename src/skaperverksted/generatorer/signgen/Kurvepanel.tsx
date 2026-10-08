@@ -147,6 +147,7 @@ export function Kurvepanel({ benk }: { benk: Arbeidsbenk }) {
         />
         <Knapp
           navn="Lukk bane"
+          ikon="path-close"
           deaktivert={!tallene.aapne}
           hjelp="Lukker de valgte åpne banene, eller alle åpne hvis ingen er valgt"
           klikk={() => lukkValgteBaner(benk)}
@@ -247,11 +248,17 @@ export function Kurvepanel({ benk }: { benk: Arbeidsbenk }) {
                   .join(', ') + '.'}
           </p>
         )}
-        <Knapp navn="Reparer" deaktivert={!tallene.aapne} klikk={() => reparerAapne(benk)} />
+        <Knapp
+          navn="Reparer"
+          ikon="path-repair"
+          deaktivert={!tallene.aapne}
+          klikk={() => reparerAapne(benk)}
+        />
       </div>
 
       <Knapp
         navn="Lagre i galleriet"
+        ikon="decor-save"
         hjelp="Legger vektoren under «Dine egne» i dekorgalleriet"
         klikk={() => lagreKurverIGalleri(benk)}
       />
@@ -274,12 +281,14 @@ export function Pennpanel({ benk }: { benk: Arbeidsbenk }) {
       <div class="knapperad">
         <Knapp
           navn="Lukk bane"
+          ikon="path-close"
           deaktivert={antall < 3}
           klikk={() => fullforPenn(benk, true)}
           hjelp="Binder siste punkt til det første"
         />
         <Knapp
           navn="Fullfør åpen bane"
+          ikon="path-finish"
           deaktivert={antall < 3}
           klikk={() => fullforPenn(benk, false)}
           hjelp="Enter"

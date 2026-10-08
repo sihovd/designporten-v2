@@ -175,6 +175,89 @@ export function flyttAnker(p: Profil, hvilken: 'bunn' | 'topp', mm: number, bred
   return { ...p, bredde: nyB, punkter };
 }
 
+type Pkt = { u: number; t: number };
+const mix = (a: Pkt, b: Pkt, s: number): Pkt => ({ u: lerp(a.u, b.u, s), t: lerp(a.t, b.t, s) });
+
+/**
+ * The point on the wall closest to (`mm` inset, `t` height fraction), as the Bézier segment it lies on and
+ * the position `s` (0..1) along that segment. `px` scales mm and height to screen pixels so «closest» is
+ * what the eye sees; `avstand` is in those pixels.
+ */
+export function narmestePaaKurve(
+  p: Profil,
+  mm: number,
+  t: number,
+  px: { x: number; y: number },
+  perSegment = 40,
+): { segment: number; s: number; avstand: number } | null {
+  const pk = p.punkter;
+  if (pk.length < 2) return null;
+  const bredde = Math.max(p.bredde, 0);
+  let best: { segment: number; s: number; avstand: number } | null = null;
+  for (let i = 0; i < pk.length - 1; i++) {
+    const a = pk[i]!;
+    const b = pk[i + 1]!;
+    const c1 = a.ut ?? a;
+    const c2 = b.inn ?? b;
+    for (let k = 0; k <= perSegment; k++) {
+      const s = k / perSegment;
+      const x = bezier(a.u, c1.u, c2.u, b.u, s) * bredde;
+      const y = bezier(a.t, c1.t, c2.t, b.t, s);
+      const d = Math.hypot((x - mm) * px.x, (y - t) * px.y);
+      if (!best || d < best.avstand) best = { segment: i, s, avstand: d };
+    }
+  }
+  return best;
+}
+
+/**
+ * Add an anchor on the wall, on segment `segment` at position `s`, without changing the wall's shape (the
+ * Bézier segment is split there). The profile becomes a hand-made one, so the new point can be dragged
+ * sideways and up and down between its neighbours. A vertical wall gets a width to be dragged into.
+ */
+export function settInnPunkt(p: Profil, segment: number, s: number): Profil {
+  const pk = p.punkter.map((q) => ({ ...q })) as ProfilPunkt[];
+  const a = pk[segment];
+  const b = pk[segment + 1];
+  if (!a || !b) return p;
+  s = Math.min(0.95, Math.max(0.05, s));
+  const c1: Pkt = a.ut ?? a;
+  const c2: Pkt = b.inn ?? b;
+  let ny: ProfilPunkt;
+  if (!a.ut && !b.inn) {
+    ny = { ...mix(a, b, s) };
+  } else {
+    const q0 = mix(a, c1, s);
+    const q1 = mix(c1, c2, s);
+    const q2 = mix(c2, b, s);
+    const r0 = mix(q0, q1, s);
+    const r1 = mix(q1, q2, s);
+    const m = mix(r0, r1, s);
+    a.ut = q0;
+    b.inn = q2;
+    ny = { u: m.u, t: m.t, inn: r0, ut: r1 };
+  }
+  pk.splice(segment + 1, 0, ny);
+  return { ...p, type: 'egendefinert', bredde: p.bredde > 0 ? p.bredde : 1.5, punkter: pk };
+}
+
+/** The same wall in a wider (or narrower) editor range: `u` is a fraction of `bredde`, so it is rescaled. */
+export function medBredde(p: Profil, bredde: number): Profil {
+  if (bredde <= 0 || Math.abs(bredde - p.bredde) < 1e-9) return p;
+  const k = p.bredde / bredde;
+  const f = (q: Pkt): Pkt => ({ u: q.u * k, t: q.t });
+  return {
+    ...p,
+    bredde,
+    punkter: p.punkter.map((q) => ({
+      ...q,
+      u: q.u * k,
+      ...(q.ut ? { ut: f(q.ut) } : {}),
+      ...(q.inn ? { inn: f(q.inn) } : {}),
+    })),
+  };
+}
+
 /** Inset (mm) of the wall at the bottom and at the top of the layer. */
 export const bunnInset = (p: Profil) => ankere(p).bunn;
 export const toppInset = (p: Profil) => ankere(p).topp;

@@ -493,11 +493,11 @@ function Lagrad({
           )}
           <button
             type="button"
-            class="kontroll-knapp"
+            class="kontroll-knapp med-ikon"
             disabled={lag.last}
             onClick={() => nyttOmrissI(benk, lag)}
           >
-            + Omriss
+            <Ikon id="text-outline" storrelse={16} />+ Omriss
           </button>
         </div>
       )}
@@ -722,12 +722,12 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
           <span>Lag, øverst først</span>
           <button
             type="button"
-            class="kontroll-knapp"
+            class="kontroll-knapp med-ikon"
             aria-expanded={meny}
             aria-controls="nytt-lag-meny"
             onClick={() => settMeny(!meny)}
           >
-            + Nytt lag
+            <Ikon id="layer-add" storrelse={16} />+ Nytt lag
           </button>
         </h2>
         {meny && (
@@ -828,18 +828,20 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
           <div class="lagknapper" role="group" aria-label="Valgt lag">
             <button
               type="button"
-              class="kontroll-knapp"
+              class="kontroll-knapp med-ikon"
               disabled={indeks >= t.dok.lag.length - 1}
               onClick={() => benk.endre({ navn: 'Flytt lag opp', anvend: (d) => flyttLag(d, aktiv, 1) })}
             >
+              <Ikon id="bring-forward" storrelse={16} />
               Flytt opp
             </button>
             <button
               type="button"
-              class="kontroll-knapp"
+              class="kontroll-knapp med-ikon"
               disabled={indeks <= 0}
               onClick={() => benk.endre({ navn: 'Flytt lag ned', anvend: (d) => flyttLag(d, aktiv, -1) })}
             >
+              <Ikon id="send-backward" storrelse={16} />
               Flytt ned
             </button>
             <button

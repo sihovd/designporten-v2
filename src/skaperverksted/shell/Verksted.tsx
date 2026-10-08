@@ -469,7 +469,8 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
           />
         )}
         <button type="button" class="ikonknapp" onClick={() => settHjelp(true)} title="Hurtigtaster (?)">
-          ?<span class="visuelt-skjult"> Hjelp og hurtigtaster</span>
+          <Ikon id="help" storrelse={18} />
+          <span class="visuelt-skjult">Hjelp og hurtigtaster</span>
         </button>
         <button type="button" class="primar med-ikon" onClick={() => settEksport(true)}>
           <Ikon id="export" storrelse={16} />

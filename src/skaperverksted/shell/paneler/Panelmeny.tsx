@@ -40,7 +40,7 @@ export function Panelmeny({
           aria-label={`Slett arbeidsrommet ${slett}`}
           onClick={() => send({ t: 'slett', navn: slett })}
         >
-          <Ikon id="lukk" storrelse={14} />
+          <Ikon id="panel-close" storrelse={14} />
         </button>
       )}
     </div>

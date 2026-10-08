@@ -4,9 +4,12 @@ import {
   byggProfil,
   flyttAnker,
   forhandsvalg,
+  medBredde,
   mellomPunkter,
+  narmestePaaKurve,
   profilOverheng,
   samplerProfil,
+  settInnPunkt,
   validerProfil,
   type Profil,
   type ProfilType,
@@ -97,5 +100,49 @@ describe('profil med anker på bunn og topp', () => {
     const q = flyttAnker(byggProfil('rett', 0, 0), 'topp', 1);
     expect(q.bredde).toBeCloseTo(1);
     expect(ankere(q).topp).toBeCloseTo(1);
+  });
+});
+
+describe('punkter på veggen', () => {
+  it('et nytt punkt på en bue endrer ikke formen', () => {
+    const bue = byggProfil('konveks', 0, 2);
+    const for_ = samplerProfil(bue, 48);
+    const q = settInnPunkt(bue, 0, 0.5);
+    expect(q.type).toBe('egendefinert');
+    expect(q.punkter).toHaveLength(3);
+    expect(mellomPunkter(q)).toBe(1);
+    const etter = samplerProfil(q, 48);
+    // every sample of the new wall lies on the old one (within the sampling error)
+    for (const e of etter) {
+      const naermeste = Math.min(...for_.map((f) => Math.hypot(f.inset - e.inset, (f.t - e.t) * 2)));
+      expect(naermeste).toBeLessThan(0.05);
+    }
+    expect(validerProfil(q)).toBeNull();
+  });
+
+  it('en rett vegg får et punkt midt på, og en loddrett vegg får bredde å dra det inn i', () => {
+    const rett = settInnPunkt(byggProfil('rett', 0, 2), 0, 0.5);
+    expect(rett.punkter[1]!.u).toBeCloseTo(0.5);
+    expect(rett.punkter[1]!.t).toBeCloseTo(0.5);
+    const loddrett = settInnPunkt(forhandsvalg('rett'), 0, 0.5);
+    expect(loddrett.bredde).toBeGreaterThan(0);
+    expect(loddrett.punkter[1]!.t).toBeCloseTo(0.5);
+  });
+
+  it('finner punktet på kurven nærmest musen', () => {
+    const p = byggProfil('rett', 0, 2);
+    const n = narmestePaaKurve(p, 1, 0.5, { x: 40, y: 100 })!;
+    expect(n.avstand).toBeLessThan(1);
+    expect(n.segment).toBe(0);
+    expect(n.s).toBeCloseTo(0.5, 1);
+    expect(narmestePaaKurve(p, 2, 0, { x: 40, y: 100 })!.avstand).toBeGreaterThan(50);
+  });
+
+  it('en bredere ramme beholder punktene i mm', () => {
+    const q = settInnPunkt(byggProfil('rett', 0, 2), 0, 0.5);
+    const bredere = medBredde(q, 4);
+    expect(bredere.bredde).toBe(4);
+    expect(bredere.punkter[1]!.u * bredere.bredde).toBeCloseTo(q.punkter[1]!.u * q.bredde);
+    expect(ankere(bredere).topp).toBeCloseTo(2);
   });
 });

@@ -518,7 +518,7 @@ test.describe('Signgen', () => {
     const gruppe = page.getByRole('radiogroup', { name: /Høyde på øyet|Hvor langt hullet går/ });
     await expect(gruppe).toBeVisible();
     await expect(page.getByText(/Øyet er like høyt som laget|Hullet går gjennom alle lag/)).toBeVisible();
-    await gruppe.getByRole('radio', { name: 'Egen høyde' }).click();
+    await gruppe.getByRole('radio', { name: 'Egen' }).click();
     await expect(page.getByLabel(/Øyets høyde|Hullet går opp til/)).toBeVisible();
     await expect(page.getByText(/Resten av skiltet endres ikke|Lagene over blir som de er/)).toBeVisible();
   });
@@ -1270,6 +1270,26 @@ test.describe('Signgen', () => {
     await page.mouse.up();
     const etter = Number((await topp.inputValue()).replace(',', '.'));
     expect(etter).toBeLessThan(2.5);
+    // a point on the wall: added with the button, and moved up and down as well as sideways
+    await panel.getByRole('button', { name: 'Legg til punkt' }).click();
+    await expect(panel.getByLabel('Valgt punkt')).toHaveValue('1');
+    const hoydeFelt = panel.getByLabel('Mellompunkt, høyde');
+    const sideFelt = panel.getByLabel('Mellompunkt, innover');
+    await expect(hoydeFelt).toBeVisible();
+    await hoydeFelt.fill('2');
+    await hoydeFelt.press('Enter');
+    await expect(hoydeFelt).toHaveValue('2');
+    await sideFelt.fill('0,5');
+    await sideFelt.press('Enter');
+    await expect(sideFelt).toHaveValue('0,5');
+    // double-click on the curve adds another
+    const graf = panel.locator('.profilgraf');
+    const kurve = (await panel.locator('.profil-kurve').boundingBox())!;
+    await page.mouse.dblclick(kurve.x + kurve.width * 0.5, kurve.y + kurve.height * 0.15);
+    await expect(panel.locator('#profil-punkt option')).toHaveCount(4);
+    await expect(graf).toContainText('innover');
+    await panel.getByRole('button', { name: 'Fjern punkt' }).click();
+    await expect(panel.locator('#profil-punkt option')).toHaveCount(3);
     // an older profile type stays selectable
     await panel.getByLabel('Veggen').selectOption('egendefinert');
     await expect(panel.getByRole('button', { name: /Gjør (glatt|til hjørne)/ })).toBeVisible();

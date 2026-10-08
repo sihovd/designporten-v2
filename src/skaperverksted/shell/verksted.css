@@ -4087,3 +4087,13 @@ button.profilfarger.fargeknapp {
     display: none;
   }
 }
+
+.verksted .merknad.med-ikon {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.verksted .merknad.med-ikon > .ikon {
+  flex: none;
+}

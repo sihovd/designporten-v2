@@ -7,6 +7,7 @@ import { useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
+import { Ikon } from '../../shell/ikoner';
 import { fordel, juster, plateboks, redigerbare, utvalgsboks } from './handlinger';
 import {
   flyttHjelpelinjeTil,
@@ -163,18 +164,20 @@ export function Justerpanel({ benk }: { benk: Arbeidsbenk }) {
         <div class="knapperad">
           <button
             type="button"
-            class="kontroll-knapp"
+            class="kontroll-knapp med-ikon"
             disabled={gx === null || antall < (gx ? 2 : 3)}
             onClick={() => fordel(benk, 'x', gx ?? undefined)}
           >
+            <Ikon id="distribute-horizontal" storrelse={16} />
             Fordel vannrett
           </button>
           <button
             type="button"
-            class="kontroll-knapp"
+            class="kontroll-knapp med-ikon"
             disabled={gy === null || antall < (gy ? 2 : 3)}
             onClick={() => fordel(benk, 'y', gy ?? undefined)}
           >
+            <Ikon id="distribute-vertical" storrelse={16} />
             Fordel loddrett
           </button>
         </div>

@@ -64,3 +64,12 @@ Ingen vektorillustrasjoner er i bruk i Sign Forge. Hvis du vil ha dem, trengs:
 ## 5. Hvordan et ikon byttes
 
 Legg SVG-filen i `src/skaperverksted/shell/ikonsvg/` med samme filnavn som id-en, eller kall `byttIkoner({ id: '<svg-innhold>' })`. Knappene beholder sine egne tilgjengelige navn.
+
+
+## Oppdatering 2026-10-08, runde 2
+
+De 24 ikonene fra «sign-forge-icons-round-2» er tatt i bruk (116 ikonfiler i alt). Det som sto under punkt 3 som manglende er nå dekket, bortsett fra:
+
+- Arbeidsrom-knappen («Paneler») bruker fortsatt et midlertidig linjeikon.
+- «Fordel» i justeringspanelet og i egenskaper bruker nå `distribute-horizontal` og `distribute-vertical`.
+- Ikonene i seksjon 2 (zoom, kopier/lim inn osv.) venter fortsatt på at funksjonene finnes som knapper.
