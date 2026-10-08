@@ -6,16 +6,25 @@ import { tall } from '../core/enheter';
 export function Statuslinje({ benk }: { benk: Arbeidsbenk }) {
   const modell = brukUtdrag(benk, (t) => t.modell);
   const bygger = brukUtdrag(benk, (t) => t.bygger);
+  const foreldet = brukUtdrag(benk, (t) => t.modellForeldet);
+  const dok = brukUtdrag(benk, (t) => t.dok);
   const zoom = brukUtdrag(benk, (t) => t.utsnitt.zoom);
   const visning = brukUtdrag(benk, (t) => t.innstillinger.visning);
-  const m = modell ? mal(modell.deler) : null;
-  const advarsler = modell?.advarsler.filter((a) => a.niva !== 'info') ?? [];
+  // while 2D is edited the model is not rebuilt: show the size from the drawing and say what waits for 3D
+  const venter3d = visning === '2d' && foreldet && !!benk.generator.forelopigMal;
+  const m = venter3d ? null : modell ? mal(modell.deler) : null;
+  const forelopig = venter3d ? benk.generator.forelopigMal!(dok) : null;
+  const advarsler = venter3d ? [] : (modell?.advarsler.filter((a) => a.niva !== 'info') ?? []);
   return (
     <footer class="statuslinje">
       <span class="mono">
         {m ? (
           <>
             {tall(m.bredde)} × {tall(m.dybde)} × {tall(m.hoyde)} mm
+          </>
+        ) : forelopig ? (
+          <>
+            {tall(forelopig.bredde)} × {tall(forelopig.dybde)} × {tall(forelopig.hoyde)} mm
           </>
         ) : (
           'Ingen modell ennå'
@@ -27,6 +36,9 @@ export function Statuslinje({ benk }: { benk: Arbeidsbenk }) {
           {benk.generator.delerOverlapper ? 'opptil ' : ''}
           {tall(m.volum / 1000, 1)} cm³ massivt
         </span>
+      )}
+      {venter3d && (
+        <span class="mono dempet venter3d">Deler, volum og merknader beregnes når du åpner 3D</span>
       )}
       {visning === '2d' && <span class="mono">{Math.round(zoom * 100)} %</span>}
       <span class="mono" aria-hidden={!bygger}>

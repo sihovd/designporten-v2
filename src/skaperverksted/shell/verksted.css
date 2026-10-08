@@ -4056,3 +4056,34 @@ button.profilfarger.fargeknapp {
     display: none;
   }
 }
+
+/* the 3D model is built when 3D opens: a small progress bar over the view */
+.visning3d-bygger {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 5;
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100% - 32px));
+  padding: 12px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: var(--skygge-flyt, 0 6px 24px rgb(0 0 0 / 30%));
+  font-size: 13px;
+}
+
+.visning3d-bygger progress {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--handling-hover, #6a2fe0);
+}
+
+@media (max-width: 720px) {
+  .statuslinje .venter3d {
+    display: none;
+  }
+}

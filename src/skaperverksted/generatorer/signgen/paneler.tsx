@@ -88,9 +88,11 @@ export function Profilpanel({ benk }: { benk: Arbeidsbenk }) {
 /** What goes to the printer: size, parts, filament slots and notes from the model build. */
 export function Produksjonspanel({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
-  const m = t.modell ? mal(t.modell.deler) : null;
+  // the model is built when 3D is opened or on export, not while 2D is edited
+  const gammel = t.modellForeldet;
+  const m = t.modell && !gammel ? mal(t.modell.deler) : null;
   const plasser = fargeplasser(t.dok);
-  const merknader = t.modell?.advarsler.filter((a) => a.niva !== 'info') ?? [];
+  const merknader = gammel ? [] : (t.modell?.advarsler.filter((a) => a.niva !== 'info') ?? []);
   return (
     <div class="produksjon">
       <dl class="produksjonstall">
@@ -107,6 +109,7 @@ export function Produksjonspanel({ benk }: { benk: Arbeidsbenk }) {
           <dd class="mono">{m ? `${tall(m.volum / 1000, 1)} cm³` : '–'}</dd>
         </div>
       </dl>
+      {gammel && <p class="dempet">Mål, deler og merknader beregnes når du åpner 3D eller eksporterer.</p>}
       <h3 class="underoverskrift">Fargeplasser</h3>
       {plasser.length === 0 ? (
         <p class="dempet">Ingen synlige lag.</p>

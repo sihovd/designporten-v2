@@ -344,3 +344,5 @@ Skaperverksted is an ecosystem, not a page. Future generators could include vase
 5. its **product mapping** (how a design becomes an orderable item: product id, price rule input, material set).
 
 Everything else (shell, canvas, grid, units, selection, history, 2D/3D views, material catalogue, printer profiles, export, order hand-off, autosave, accessibility) is shared. Adding a generator must not require redesigning Skaperverksted. None of the future generators are built now.
+- **2D bygger ikke 3D (Sivert, 2026-10-08).** In a generator with both views, editing in 2D only touches the drawing: the 3D model is not rebuilt (`Arbeidsbenk.planleggBygg` does nothing while 2D shows, and marks the model `modellForeldet`). Opening 3D builds it at once with a progress bar over the view (`byggFremdrift`, reported by `byggModell(dok, fremdrift)`; Sign Forge reports per layer and yields between steps so the bar can paint). Export builds on its own. In 2D the status bar shows the size from `forelopigMal` (no build) and says that parts, volume and notices come when 3D opens; the Produksjon panel says the same.
+
