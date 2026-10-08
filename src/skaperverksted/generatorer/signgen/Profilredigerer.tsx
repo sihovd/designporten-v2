@@ -1,16 +1,26 @@
 /**
  * Cross-section editor for one layer: the layer's thickness up, the inset
  * from its outline across (mm). The wall rises from an anchor on the bottom
- * edge to an anchor on the top edge; the anchors only move sideways along
- * their edge. A hand-made curve also shows Bézier handles on the wall.
- * Older profiles may have anchors between the edges; they stay editable, but
- * no new ones are added. Below the graph the layer under it is drawn as a
+ * edge to an anchor on the top edge; those two only move sideways along
+ * their edge. Points can be added on the wall (the button, or a double-click
+ * on the curve) and then move freely sideways and up and down. The wall may
+ * go back down while it moves inwards (a groove or a ridge in the top); going
+ * outwards makes an overhang, which the warning below the graph reports. A hand-made
+ * curve also shows Bézier handles on the wall. Below the graph the layer under it is drawn as a
  * read-only strip, so you see where this layer rests on something.
  * The drawing is functional technical geometry (D-3).
  */
 import { useRef, useState } from 'preact/hooks';
 import type { Profil, ProfilPunkt } from '../../core/profil';
-import { ankere, flyttAnker, mellomPunkter, samplerProfil } from '../../core/profil';
+import {
+  ankere,
+  flyttAnker,
+  medBredde,
+  mellomPunkter,
+  narmestePaaKurve,
+  samplerProfil,
+  settInnPunkt,
+} from '../../core/profil';
 import { klem } from '../../core/enheter';
 import { TallFelt } from '../../shell/kontroller';
 import type { Stotte } from './modell';
@@ -70,13 +80,15 @@ export function Profilredigerer({
       endre(flyttAnker(profil, kant, mm), slaSammen);
       return;
     }
-    const punkter = pk.map((p) => ({ ...p })) as ProfilPunkt[];
+    // a point dragged past the profile's width widens it (the other points keep their place in mm)
+    const prof = mm > profil.bredde ? medBredde(profil, mm) : profil;
+    const punkter = prof.punkter.map((p) => ({ ...p })) as ProfilPunkt[];
     const p = punkter[i]!;
-    const bredde = Math.max(profil.bredde, 1e-6);
+    const bredde = Math.max(prof.bredde, 1e-6);
     if (g.del === 'anker') {
-      // an older in-between anchor moves freely, but never past its neighbours in height
+      // an in-between anchor moves freely, up and down as well: the wall may go back down
       const du = klem(mm / bredde, 0, 1) - p.u;
-      const nyT = klem(t, pk[i - 1]!.t, pk[i + 1]!.t);
+      const nyT = klem(t, 0, 1);
       const dt = nyT - p.t;
       p.u += du;
       p.t = nyT;
@@ -85,9 +97,26 @@ export function Profilredigerer({
     } else {
       p[g.del] = { u: klem(mm / bredde, 0, 1), t: klem(t, 0, 1) };
     }
-    endre({ ...profil, type: 'egendefinert', punkter }, slaSammen);
+    endre({ ...prof, type: 'egendefinert', punkter }, slaSammen);
   };
 
+  /** Add a point on segment `segment` at position `s`, and select it. */
+  const leggTilPunkt = (segment: number, s: number) => {
+    endre(settInnPunkt(profil, segment, s));
+    settValgt(segment + 1);
+  };
+  const leggTilVedValgt = () => {
+    // in the middle of the wall after the selected point (before it, when the top is selected)
+    leggTilPunkt(valgt >= pk.length - 1 ? pk.length - 2 : valgt, 0.5);
+  };
+  const dobbeltklikk = (e: MouseEvent) => {
+    const r = svg.current!.getBoundingClientRect();
+    const q = fraSkjerm(e as unknown as PointerEvent);
+    const pxX = (r.width / B) * ((B - 2 * M) / akse);
+    const pxY = (r.height / H) * (BUNN - TOPP);
+    const n = narmestePaaKurve(profil, q.mm, q.t, { x: pxX, y: pxY });
+    if (n && n.avstand < 14) leggTilPunkt(n.segment, n.s);
+  };
   const prover = samplerProfil(profil, 24);
   const kurve = prover.map((s) => `${tilX(s.inset)},${tilY(s.t)}`).join(' ');
   const fyll = `${kurve} ${tilX(akse)},${tilY(1)} ${tilX(akse)},${tilY(0)}`;
@@ -151,6 +180,7 @@ export function Profilredigerer({
           settGrep(null);
         }}
         onPointerCancel={() => settGrep(null)}
+        onDblClick={dobbeltklikk}
       >
         <defs>
           <pattern
@@ -321,72 +351,69 @@ export function Profilredigerer({
         </p>
       )}
 
-      {(egen || mellom > 0) && (
-        <>
-          <div class="knapperad">
-            <label class="visuelt-skjult" for="profil-punkt">
-              Valgt punkt
-            </label>
-            <select
-              id="profil-punkt"
-              value={valgt}
-              onChange={(e) => settValgt(Number((e.target as HTMLSelectElement).value))}
-            >
-              {pk.map((_, i) => (
-                <option key={i} value={i}>
-                  {i === 0 ? 'Bunn' : i === pk.length - 1 ? 'Topp' : `Mellompunkt ${i}`}
-                </option>
-              ))}
-            </select>
-            {egen && (
-              <button type="button" class="kontroll-knapp" onClick={vekslGlatt}>
-                {p.ut || p.inn ? 'Gjør til hjørne' : 'Gjør glatt'}
-              </button>
-            )}
-            {!erKant && (
-              <button type="button" class="kontroll-knapp" onClick={fjernPunkt}>
-                Fjern punkt
-              </button>
-            )}
-          </div>
+      <>
+        <div class="knapperad">
+          <label class="visuelt-skjult" for="profil-punkt">
+            Valgt punkt
+          </label>
+          <select
+            id="profil-punkt"
+            value={valgt}
+            onChange={(e) => settValgt(Number((e.target as HTMLSelectElement).value))}
+          >
+            {pk.map((_, i) => (
+              <option key={i} value={i}>
+                {i === 0 ? 'Bunn' : i === pk.length - 1 ? 'Topp' : `Mellompunkt ${i}`}
+              </option>
+            ))}
+          </select>
+          <button type="button" class="kontroll-knapp" onClick={leggTilVedValgt}>
+            Legg til punkt
+          </button>
+          {egen && (
+            <button type="button" class="kontroll-knapp" onClick={vekslGlatt}>
+              {p.ut || p.inn ? 'Gjør til hjørne' : 'Gjør glatt'}
+            </button>
+          )}
           {!erKant && (
-            <div class="feltpar">
-              <TallFelt
-                etikett="Mellompunkt, innover"
-                kortEtikett="↔"
-                verdi={p.u * bredde}
-                min={0}
-                maks={bredde}
-                steg={0.1}
-                desimaler={2}
-                endre={(v) => flytt({ punkt: valgt, del: 'anker', akse: naaAkse }, v, p.t)}
-              />
-              <TallFelt
-                etikett="Mellompunkt, høyde"
-                kortEtikett="↕"
-                verdi={p.t * hoyde}
-                min={0}
-                maks={hoyde}
-                steg={0.1}
-                desimaler={2}
-                endre={(v) =>
-                  flytt(
-                    { punkt: valgt, del: 'anker', akse: naaAkse },
-                    p.u * bredde,
-                    v / Math.max(hoyde, 1e-6),
-                  )
-                }
-              />
-            </div>
+            <button type="button" class="kontroll-knapp" onClick={fjernPunkt}>
+              Fjern punkt
+            </button>
           )}
-          {mellom > 0 && (
-            <p class="merknad">
-              Denne profilen har {mellom === 1 ? 'et punkt' : `${mellom} punkter`} mellom bunn og topp (fra en
-              eldre utgave). De kan flyttes, men nye punkter legges bare på bunn- og toppkanten.
-            </p>
-          )}
-        </>
-      )}
+        </div>
+        {!erKant && (
+          <div class="feltpar">
+            <TallFelt
+              etikett="Mellompunkt, innover"
+              kortEtikett="↔"
+              verdi={p.u * bredde}
+              min={0}
+              maks={30}
+              steg={0.1}
+              desimaler={2}
+              endre={(v) => flytt({ punkt: valgt, del: 'anker', akse: naaAkse }, v, p.t)}
+            />
+            <TallFelt
+              etikett="Mellompunkt, høyde"
+              kortEtikett="↕"
+              verdi={p.t * hoyde}
+              min={0}
+              maks={hoyde}
+              steg={0.1}
+              desimaler={2}
+              endre={(v) =>
+                flytt({ punkt: valgt, del: 'anker', akse: naaAkse }, p.u * bredde, v / Math.max(hoyde, 1e-6))
+              }
+            />
+          </div>
+        )}
+        <p class="merknad">
+          {mellom > 0
+            ? `${mellom === 1 ? 'Et punkt' : `${mellom} punkter`} på veggen. Dra dem sideveis og opp og ned. Veggen kan gå ned igjen så lenge den går innover; går den utover, blir det overheng. `
+            : 'Dobbeltklikk på kurven, eller trykk «Legg til punkt», for å få et punkt som kan dras både sideveis og opp og ned. '}
+          Bunn og topp flyttes bare sideveis.
+        </p>
+      </>
     </div>
   );
 }

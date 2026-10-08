@@ -4,9 +4,13 @@ import {
   byggProfil,
   flyttAnker,
   forhandsvalg,
+  medBredde,
   mellomPunkter,
+  narmestePaaKurve,
   profilOverheng,
   samplerProfil,
+  settInnPunkt,
+  skiveDeler,
   validerProfil,
   type Profil,
   type ProfilType,
@@ -97,5 +101,100 @@ describe('profil med anker på bunn og topp', () => {
     const q = flyttAnker(byggProfil('rett', 0, 0), 'topp', 1);
     expect(q.bredde).toBeCloseTo(1);
     expect(ankere(q).topp).toBeCloseTo(1);
+  });
+});
+
+describe('punkter på veggen', () => {
+  it('et nytt punkt på en bue endrer ikke formen', () => {
+    const bue = byggProfil('konveks', 0, 2);
+    const for_ = samplerProfil(bue, 48);
+    const q = settInnPunkt(bue, 0, 0.5);
+    expect(q.type).toBe('egendefinert');
+    expect(q.punkter).toHaveLength(3);
+    expect(mellomPunkter(q)).toBe(1);
+    const etter = samplerProfil(q, 48);
+    // every sample of the new wall lies on the old one (within the sampling error)
+    for (const e of etter) {
+      const naermeste = Math.min(...for_.map((f) => Math.hypot(f.inset - e.inset, (f.t - e.t) * 2)));
+      expect(naermeste).toBeLessThan(0.05);
+    }
+    expect(validerProfil(q)).toBeNull();
+  });
+
+  it('en rett vegg får et punkt midt på, og en loddrett vegg får bredde å dra det inn i', () => {
+    const rett = settInnPunkt(byggProfil('rett', 0, 2), 0, 0.5);
+    expect(rett.punkter[1]!.u).toBeCloseTo(0.5);
+    expect(rett.punkter[1]!.t).toBeCloseTo(0.5);
+    const loddrett = settInnPunkt(forhandsvalg('rett'), 0, 0.5);
+    expect(loddrett.bredde).toBeGreaterThan(0);
+    expect(loddrett.punkter[1]!.t).toBeCloseTo(0.5);
+  });
+
+  it('finner punktet på kurven nærmest musen', () => {
+    const p = byggProfil('rett', 0, 2);
+    const n = narmestePaaKurve(p, 1, 0.5, { x: 40, y: 100 })!;
+    expect(n.avstand).toBeLessThan(1);
+    expect(n.segment).toBe(0);
+    expect(n.s).toBeCloseTo(0.5, 1);
+    expect(narmestePaaKurve(p, 2, 0, { x: 40, y: 100 })!.avstand).toBeGreaterThan(50);
+  });
+
+  it('en bredere ramme beholder punktene i mm', () => {
+    const q = settInnPunkt(byggProfil('rett', 0, 2), 0, 0.5);
+    const bredere = medBredde(q, 4);
+    expect(bredere.bredde).toBe(4);
+    expect(bredere.punkter[1]!.u * bredere.bredde).toBeCloseTo(q.punkter[1]!.u * q.bredde);
+    expect(ankere(bredere).topp).toBeCloseTo(2);
+  });
+});
+
+describe('vegg som går ned igjen', () => {
+  const spor: Profil = {
+    type: 'egendefinert',
+    bredde: 6,
+    trinn: 2,
+    punkter: [
+      { u: 0, t: 0 },
+      { u: 0, t: 1 },
+      { u: 2 / 6, t: 1 },
+      { u: 3 / 6, t: 0.4 },
+      { u: 4 / 6, t: 0.4 },
+      { u: 5 / 6, t: 1 },
+      { u: 1, t: 1 },
+    ],
+  };
+
+  it('er gyldig og beholder rekkefølgen på punktene', () => {
+    expect(validerProfil(spor)).toBeNull();
+    const s = samplerProfil(spor);
+    expect(s.some((x, i) => i > 0 && x.t < s[i - 1]!.t)).toBe(true);
+  });
+
+  it('gir en ring over sporet og full flate under det', () => {
+    const s = samplerProfil(spor);
+    // below the groove floor (t = 0.4): solid from the outline all the way in
+    expect(skiveDeler(s, 0.2)).toEqual([[0, null]]);
+    // above it: solid at the rim, air in the groove, solid again further in
+    const d = skiveDeler(s, 0.7);
+    expect(d).toHaveLength(2);
+    expect(d[0]![0]).toBeCloseTo(0);
+    expect(d[0]![1]!).toBeGreaterThan(2);
+    expect(d[0]![1]!).toBeLessThan(3);
+    expect(d[1]![0]).toBeGreaterThan(4);
+    expect(d[1]![1]).toBeNull();
+  });
+
+  it('er ikke overheng så lenge den går innover, men er det når den går utover', () => {
+    expect(profilOverheng(spor, 3)).toBe(0);
+    const utover: Profil = {
+      ...spor,
+      punkter: [
+        { u: 0.5, t: 0 },
+        { u: 0.5, t: 0.5 },
+        { u: 0, t: 0.2 },
+        { u: 0, t: 1 },
+      ],
+    };
+    expect(profilOverheng(utover, 3)).toBeGreaterThan(30);
   });
 });

@@ -6,9 +6,14 @@
  *   u ∈ [0, 1]: horizontal position across the profile width
  *               (0 = the outline itself, 1 = fully inset by `bredde` mm)
  *   t ∈ [0, 1]: height fraction of the layer
- * The wall at height t is the outline offset inwards by inset(t) × bredde.
- * This is physical geometry: the mesher samples the curve and offsets the
- * outline per sample (see geometri/ekstruder.ts).
+ * The solid lies on the inner side of the curve. At height t the curve is
+ * crossed at one or more insets; the layer is solid from the first crossing
+ * inwards, between the second and third crossing, and so on (`skiveDeler`).
+ * A wall that only rises has one crossing: the outline offset inwards by
+ * inset(t) × bredde. A curve that goes back down while moving inwards (a
+ * groove or a ridge in the top) has more, and the slab becomes a ring.
+ * This is physical geometry: the mesher offsets the outline per slab
+ * (see geometri/ekstruder.ts).
  */
 
 export interface ProfilPunkt {
@@ -175,6 +180,89 @@ export function flyttAnker(p: Profil, hvilken: 'bunn' | 'topp', mm: number, bred
   return { ...p, bredde: nyB, punkter };
 }
 
+type Pkt = { u: number; t: number };
+const mix = (a: Pkt, b: Pkt, s: number): Pkt => ({ u: lerp(a.u, b.u, s), t: lerp(a.t, b.t, s) });
+
+/**
+ * The point on the wall closest to (`mm` inset, `t` height fraction), as the Bézier segment it lies on and
+ * the position `s` (0..1) along that segment. `px` scales mm and height to screen pixels so «closest» is
+ * what the eye sees; `avstand` is in those pixels.
+ */
+export function narmestePaaKurve(
+  p: Profil,
+  mm: number,
+  t: number,
+  px: { x: number; y: number },
+  perSegment = 40,
+): { segment: number; s: number; avstand: number } | null {
+  const pk = p.punkter;
+  if (pk.length < 2) return null;
+  const bredde = Math.max(p.bredde, 0);
+  let best: { segment: number; s: number; avstand: number } | null = null;
+  for (let i = 0; i < pk.length - 1; i++) {
+    const a = pk[i]!;
+    const b = pk[i + 1]!;
+    const c1 = a.ut ?? a;
+    const c2 = b.inn ?? b;
+    for (let k = 0; k <= perSegment; k++) {
+      const s = k / perSegment;
+      const x = bezier(a.u, c1.u, c2.u, b.u, s) * bredde;
+      const y = bezier(a.t, c1.t, c2.t, b.t, s);
+      const d = Math.hypot((x - mm) * px.x, (y - t) * px.y);
+      if (!best || d < best.avstand) best = { segment: i, s, avstand: d };
+    }
+  }
+  return best;
+}
+
+/**
+ * Add an anchor on the wall, on segment `segment` at position `s`, without changing the wall's shape (the
+ * Bézier segment is split there). The profile becomes a hand-made one, so the new point can be dragged
+ * sideways and up and down between its neighbours. A vertical wall gets a width to be dragged into.
+ */
+export function settInnPunkt(p: Profil, segment: number, s: number): Profil {
+  const pk = p.punkter.map((q) => ({ ...q })) as ProfilPunkt[];
+  const a = pk[segment];
+  const b = pk[segment + 1];
+  if (!a || !b) return p;
+  s = Math.min(0.95, Math.max(0.05, s));
+  const c1: Pkt = a.ut ?? a;
+  const c2: Pkt = b.inn ?? b;
+  let ny: ProfilPunkt;
+  if (!a.ut && !b.inn) {
+    ny = { ...mix(a, b, s) };
+  } else {
+    const q0 = mix(a, c1, s);
+    const q1 = mix(c1, c2, s);
+    const q2 = mix(c2, b, s);
+    const r0 = mix(q0, q1, s);
+    const r1 = mix(q1, q2, s);
+    const m = mix(r0, r1, s);
+    a.ut = q0;
+    b.inn = q2;
+    ny = { u: m.u, t: m.t, inn: r0, ut: r1 };
+  }
+  pk.splice(segment + 1, 0, ny);
+  return { ...p, type: 'egendefinert', bredde: p.bredde > 0 ? p.bredde : 1.5, punkter: pk };
+}
+
+/** The same wall in a wider (or narrower) editor range: `u` is a fraction of `bredde`, so it is rescaled. */
+export function medBredde(p: Profil, bredde: number): Profil {
+  if (bredde <= 0 || Math.abs(bredde - p.bredde) < 1e-9) return p;
+  const k = p.bredde / bredde;
+  const f = (q: Pkt): Pkt => ({ u: q.u * k, t: q.t });
+  return {
+    ...p,
+    bredde,
+    punkter: p.punkter.map((q) => ({
+      ...q,
+      u: q.u * k,
+      ...(q.ut ? { ut: f(q.ut) } : {}),
+      ...(q.inn ? { inn: f(q.inn) } : {}),
+    })),
+  };
+}
+
 /** Inset (mm) of the wall at the bottom and at the top of the layer. */
 export const bunnInset = (p: Profil) => ankere(p).bunn;
 export const toppInset = (p: Profil) => ankere(p).topp;
@@ -213,10 +301,7 @@ export function samplerProfil(p: Profil, perSegment = 12): { inset: number; t: n
       });
     }
   }
-  // Heights must be non-decreasing for a valid wall; clamp and sort defensively.
-  for (let i = 1; i < ut.length; i++) {
-    if (ut[i]!.t < ut[i - 1]!.t) ut[i]!.t = ut[i - 1]!.t;
-  }
+  // The curve may go back down (a groove in the top), so heights are only kept inside the layer.
   for (const s of ut) {
     s.t = Math.min(1, Math.max(0, s.t));
     s.inset = Math.max(0, s.inset);
@@ -230,16 +315,36 @@ export function validerProfil(p: Profil): string | null {
   const pk = p.punkter;
   if (pk.length < 2) return 'Profilen trenger minst to punkter.';
   if (pk[0]!.t !== 0 || pk[pk.length - 1]!.t !== 1) return 'Profilen må gå fra bunnen til toppen av laget.';
-  for (let i = 1; i < pk.length; i++) {
-    if (pk[i]!.t < pk[i - 1]!.t) return 'Punktene må ligge i stigende høyde.';
-  }
   return null;
+}
+
+/**
+ * Where the layer is solid at height fraction `t`, as insets in mm from the outline: `[fra, til]` pairs,
+ * `til` null meaning all the way in. One pair for a wall that only rises; more where the curve has gone
+ * back down and up again (the slab is then a ring).
+ */
+export function skiveDeler(prover: { inset: number; t: number }[], t: number): [number, number | null][] {
+  const kryss: number[] = [];
+  for (let i = 1; i < prover.length; i++) {
+    const a = prover[i - 1]!;
+    const b = prover[i]!;
+    // half-open, so a point exactly at t is counted once
+    if ((a.t <= t && t < b.t) || (b.t <= t && t < a.t)) {
+      kryss.push(a.inset + ((t - a.t) / (b.t - a.t)) * (b.inset - a.inset));
+    }
+  }
+  kryss.sort((x, y) => x - y);
+  const ut: [number, number | null][] = [];
+  for (let i = 0; i < kryss.length; i += 2) ut.push([kryss[i]!, kryss[i + 1] ?? null]);
+  return ut.length ? ut : [[prover.at(-1)?.inset ?? 0, null]];
 }
 
 /**
  * Steepest outward overhang of a profile, in degrees from vertical
  * (0 = vertical or leaning in, 90 = a horizontal ledge sticking out).
- * A wall overhangs where the inset shrinks as the height grows.
+ * The wall overhangs wherever the curve moves outwards (the inset shrinks),
+ * going up or down. A curve that goes back down while moving inwards is a
+ * groove in the top and does not overhang.
  */
 export function profilOverheng(p: Profil, hoyde: number): number {
   const s = samplerProfil(p);
@@ -247,7 +352,7 @@ export function profilOverheng(p: Profil, hoyde: number): number {
   for (let i = 1; i < s.length; i++) {
     const ut = s[i - 1]!.inset - s[i]!.inset;
     if (ut <= 1e-6) continue;
-    const dz = (s[i]!.t - s[i - 1]!.t) * hoyde;
+    const dz = Math.abs(s[i]!.t - s[i - 1]!.t) * hoyde;
     maks = Math.max(maks, dz <= 1e-9 ? 90 : (Math.atan(ut / dz) * 180) / Math.PI);
   }
   return maks;

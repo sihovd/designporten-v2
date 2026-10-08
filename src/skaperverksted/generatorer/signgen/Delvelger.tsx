@@ -13,6 +13,7 @@ import { fargekode, finnMateriale } from '../../core/materialer';
 import type { Region } from '../../geometri/polygon';
 import { Dialog } from '../../shell/Dialog';
 import { Segment } from '../../shell/kontroller';
+import { Ikon } from '../../shell/ikoner';
 import { lagreEgetFlerfarget } from './dekor';
 import { nesteFarge, palett } from './dokument';
 import { leggTilFlerfarget, tekstlagForDekor, type Dekorplass } from './handlinger';
@@ -412,10 +413,11 @@ export function Delvelger({ benk, oppgave }: { benk: Arbeidsbenk; oppgave: SvgOp
           </button>
           <button
             type="button"
-            class={opphav === 'galleri' ? 'primar' : 'sekundar'}
+            class={`${opphav === 'galleri' ? 'primar' : 'sekundar'} med-ikon`}
             disabled={!bilde}
             onClick={lagre}
           >
+            <Ikon id="decor-save" storrelse={16} />
             Lagre i galleriet
           </button>
           <button type="button" class="sekundar" disabled={!bilde} onClick={lastNedSvg}>

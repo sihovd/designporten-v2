@@ -3,11 +3,11 @@
  * single icon (or the whole set) can be replaced without touching a toolbar,
  * a panel or any tool logic: change the SVG file, or call `byttIkoner`.
  *
- * The 92 Sign Forge icons are Sivert's own set (docs/design/signgen-ikoner).
+ * The Sign Forge icons (92 from round 1, 24 from round 2) are Sivert's own set (docs/design/signgen-ikoner).
  * The files in `ikonsvg/` are used as they are, one file per icon, inlined
  * as SVG so size, colour (`currentColor`), hover and active state are set by
- * the UI. Icons the set does not have (rectangle, ellipse, polygon, hole,
- * decor and the panel chrome) use temporary plain line icons, marked below.
+ * the UI. Icons the set does not have (the workspace button) use a temporary
+ * plain line icon, marked below.
  * An icon never means a feature: buttons keep their own accessible name.
  */
 import type { JSX } from 'preact';
@@ -120,24 +120,34 @@ export type PakkeIkon =
   | 'rows'
   | 'rules'
   | 'search'
-  | 'send-printer';
-
-/** Temporary line icons for what the set does not cover (D-3: functional glyphs only). */
-export type MidlertidigIkon =
-  | 'rektangel'
+  | 'send-printer'
+  | 'rectangle'
   | 'ellipse'
   | 'polygon'
-  | 'trekant'
-  | 'hull'
-  | 'dekor'
-  | 'meny'
-  | 'minimer'
-  | 'gjenopprett'
-  | 'lukk'
-  | 'dokk-venstre'
-  | 'dokk-hoyre'
-  | 'flyt'
-  | 'paneler';
+  | 'triangle'
+  | 'hole'
+  | 'keyring-eye'
+  | 'decor-gallery'
+  | 'text-outline'
+  | 'layer-add'
+  | 'path-close'
+  | 'path-finish'
+  | 'path-repair'
+  | 'panel-menu'
+  | 'panel-minimize'
+  | 'panel-restore'
+  | 'panel-close'
+  | 'panel-dock-left'
+  | 'panel-dock-right'
+  | 'panel-float'
+  | 'decor-save'
+  | 'help'
+  | 'color-follow-layer'
+  | 'distribute-horizontal'
+  | 'distribute-vertical';
+
+/** Temporary line icons for what the set does not cover (D-3: functional glyphs only). */
+export type MidlertidigIkon = 'paneler';
 
 export type IkonId = PakkeIkon | MidlertidigIkon;
 
@@ -145,45 +155,6 @@ export type IkonId = PakkeIkon | MidlertidigIkon;
 type Tegning = string | (() => JSX.Element);
 
 const midlertidige: Record<MidlertidigIkon, () => JSX.Element> = {
-  rektangel: () => <rect x="4" y="6.5" width="16" height="11" rx="1" />,
-  ellipse: () => <ellipse cx="12" cy="12" rx="8" ry="6" />,
-  polygon: () => <path d="M12 4l7 4v8l-7 4-7-4V8z" />,
-  trekant: () => <path d="M12 5l8 14H4z" />,
-  hull: () => (
-    <>
-      <circle cx="12" cy="12" r="7.5" />
-      <circle cx="12" cy="12" r="2.5" />
-    </>
-  ),
-  dekor: () => <path d="M12 4l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" />,
-  meny: () => (
-    <>
-      <circle cx="6" cy="12" r="1" />
-      <circle cx="12" cy="12" r="1" />
-      <circle cx="18" cy="12" r="1" />
-    </>
-  ),
-  minimer: () => <path d="M6 12h12" />,
-  gjenopprett: () => <path d="M7 10l5 5 5-5" />,
-  lukk: () => <path d="M7 7l10 10M17 7L7 17" />,
-  'dokk-venstre': () => (
-    <>
-      <rect x="4" y="5" width="16" height="14" rx="1" />
-      <path d="M10 5v14" />
-    </>
-  ),
-  'dokk-hoyre': () => (
-    <>
-      <rect x="4" y="5" width="16" height="14" rx="1" />
-      <path d="M14 5v14" />
-    </>
-  ),
-  flyt: () => (
-    <>
-      <rect x="4" y="5" width="16" height="14" rx="1" />
-      <rect x="8" y="9" width="8" height="6" rx="0.5" />
-    </>
-  ),
   paneler: () => (
     <>
       <rect x="4" y="5" width="16" height="14" rx="1" />

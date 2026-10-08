@@ -29,7 +29,7 @@ export const VERKTOY: {
 }[] = [
   { id: 'velg', navn: 'Velg', tast: 'V', ikon: 'select', hjelp: 'Velg, flytt, skaler og roter' },
   { id: 'tekst', navn: 'Tekst', tast: 'T', ikon: 'text', hjelp: 'Klikk på lerretet for å skrive' },
-  { id: 'rektangel', navn: 'Rektangel', tast: 'R', ikon: 'rektangel', hjelp: 'Dra for å tegne et rektangel' },
+  { id: 'rektangel', navn: 'Rektangel', tast: 'R', ikon: 'rectangle', hjelp: 'Dra for å tegne et rektangel' },
   { id: 'ellipse', navn: 'Ellipse', tast: 'E', ikon: 'ellipse', hjelp: 'Dra for å tegne en ellipse' },
   {
     id: 'polygon',
@@ -42,7 +42,7 @@ export const VERKTOY: {
     id: 'trekant',
     navn: 'Trekant',
     tast: '',
-    ikon: 'trekant',
+    ikon: 'triangle',
     hjelp: 'Dra for å tegne en trekant. Musehjulet gir flere sider mens du drar',
   },
   {
@@ -65,7 +65,7 @@ export const VERKTOY: {
     id: 'hull',
     navn: 'Hull',
     tast: 'H',
-    ikon: 'hull',
+    ikon: 'hole',
     hjelp: 'Klikk for å lage et opphengshull gjennom skiltet',
   },
   { id: 'mal', navn: 'Mål', tast: 'M', ikon: 'ruler', hjelp: 'Dra for å måle avstander' },
@@ -150,7 +150,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
           (e.target as HTMLInputElement).value = '';
         }}
       />
-      {hjelpeknapp('Dekor', 'Legg til et dekor fra galleriet, eller din egen vektor', 'dekor', () =>
+      {hjelpeknapp('Dekor', 'Legg til et dekor fra galleriet, eller din egen vektor', 'decor-gallery', () =>
         signtilstand(benk).sett({ dekor: true }),
       )}
       <span class="skinne-skille" aria-hidden="true" />

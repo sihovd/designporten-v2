@@ -6,7 +6,7 @@ import { mal } from '../../shell/mal';
 import { meta } from './meta';
 import { Filvalg } from './Maldialog';
 import { fargeplasser, lesInnSigngen, nyttSigngenDokument } from './dokument';
-import { byggSigngen } from './modell';
+import { byggSigngen, forelopigMal } from './modell';
 import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
 import { Lagpanel } from './Lagpanel';
@@ -27,6 +27,7 @@ const plugin: GeneratorPlugin = {
   nyttDokument: nyttSigngenDokument,
   lesInn: lesInnSigngen,
   byggModell: byggSigngen,
+  forelopigMal,
   ui: {
     Lerret2d: SigngenLerret,
     Verktoy: SigngenVerktoy,

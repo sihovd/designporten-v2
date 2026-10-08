@@ -5,7 +5,7 @@ import { stiTilRinger, StiFeil } from './stidata';
 import { ellipse, formTilRinger, rektangel } from './former';
 import { ekstruder, planleggSkiver } from './ekstruder';
 import { sjekkManifold, volum, avgrensning } from './mesh';
-import { forhandsvalg, rettProfil } from '../core/profil';
+import { forhandsvalg, rettProfil, type Profil } from '../core/profil';
 import { lastFont, settFontHenter, tekstTilRinger, fonter } from './tekst';
 
 const kvadrat = (s: number, x = 0, y = 0) => [
@@ -140,6 +140,34 @@ describe('extrusion', () => {
   it('merges slabs for straight walls and plans one slab per print layer for curves', () => {
     expect(planleggSkiver(rettProfil(), 3, 0.2)).toHaveLength(1);
     expect(planleggSkiver(forhandsvalg('konveks', 1.5), 3, 0.2).length).toBeGreaterThan(5);
+  });
+
+  it('a wall that goes back down makes a groove: closed, ring-shaped slabs, less volume', () => {
+    const spor: Profil = {
+      type: 'egendefinert',
+      bredde: 6,
+      trinn: 2,
+      punkter: [
+        { u: 0, t: 0 },
+        { u: 0, t: 1 },
+        { u: 2 / 6, t: 1 },
+        { u: 3 / 6, t: 0.4 },
+        { u: 4 / 6, t: 0.4 },
+        { u: 5 / 6, t: 1 },
+        { u: 1, t: 1 },
+      ],
+    };
+    const plate = regionFraRinger([kvadrat(30)]);
+    const plan = planleggSkiver(spor, 3, 0.2);
+    expect(plan.some((p) => p.deler.length === 2)).toBe(true);
+    const e = ekstruder(plate, 0, 3, spor, 0.2);
+    expect(e.forbrukt).toBe(false);
+    expect(sjekkManifold(e.mesh).lukket).toBe(true);
+    const v = volum(e.mesh);
+    expect(v).toBeLessThan(900 * 3);
+    // the groove is about 2 mm wide at the floor and 1.8 mm deep, around the whole sign
+    expect(v).toBeGreaterThan(900 * 3 - 4 * 30 * 2 * 1.8 * 1.5);
+    expect(avgrensning(e.mesh).maks[2]).toBeCloseTo(3);
   });
 
   it('returns an empty mesh for an empty region', () => {

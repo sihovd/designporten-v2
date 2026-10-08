@@ -909,9 +909,38 @@ export function lagStotte(dok: Dokument, lagId: string): Stotte {
   return { niva: uforstott < 1 ? 'full' : 'delvis', uforstottMm2: uforstott, trengtInset: trengt };
 }
 
-export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
+/** Lets the browser paint (a progress bar) between the heavy steps of a build. */
+const pause = () => new Promise<void>((klar) => setTimeout(klar, 0));
+
+/**
+ * The size the sign will have, without building anything: what it prints (outlines and eyes included)
+ * and how tall the tallest layer or outline stands. Null while fonts load or when nothing is printed.
+ */
+export function forelopigMal(dok: Dokument): { bredde: number; dybde: number; hoyde: number } | null {
+  const b = fotavtrykkBoks(dok);
+  if (!b) return null;
+  let hoyde = 0;
+  for (const lag of dok.lag) {
+    if (!lag.synlig) continue;
+    hoyde = Math.max(hoyde, lag.zBunn + lag.hoyde);
+    for (const o of lag.omriss ?? []) if (o.synlig) hoyde = Math.max(hoyde, lag.zBunn + o.hoyde);
+  }
+  return { bredde: b.maksX - b.minX, dybde: b.maksY - b.minY, hoyde };
+}
+
+export async function byggSigngen(
+  dok: Dokument,
+  fremdrift?: (andel: number) => void,
+): Promise<Modellresultat> {
   const advarsler: Advarsel[] = [];
+  const meld = async (andel: number) => {
+    if (!fremdrift) return;
+    fremdrift(andel);
+    await pause();
+  };
+  await meld(0);
   const fontFeil = await lastFonter(dok);
+  await meld(0.05);
   if (fontFeil.length)
     advarsler.push({
       niva: 'feil',
@@ -973,8 +1002,10 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     }
   };
 
+  const synlige = dok.lag.filter((l) => l.synlig);
   for (const lag of dok.lag) {
     if (!lag.synlig) continue;
+    await meld(0.05 + (0.8 * synlige.indexOf(lag)) / Math.max(1, synlige.length));
     const region = lagRegion(dok, lag.id) ?? [];
     const omriss = lag.tekstlag ? (omrissRegioner(dok, lag.id) ?? new Map<string, Region>()) : new Map();
     const tekstSkjult = lag.tekstvisning === 'kutt';
@@ -1052,6 +1083,7 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
     }
   }
 
+  await meld(0.88);
   // eyes with an own height print as a ring of their own, next to what they hang on
   const mal = oyeMal(dok);
   const malLag = mal && finnLag(dok, mal.lagId);
@@ -1115,6 +1147,7 @@ export async function byggSigngen(dok: Dokument): Promise<Modellresultat> {
       tekst: `Modellen er høyere enn skriveren kan bygge (${mm(plate.hoyde)}).`,
     });
   }
+  await meld(1);
   return { deler, advarsler };
 }
 

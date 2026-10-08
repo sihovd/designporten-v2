@@ -34,9 +34,6 @@ export interface Innstillinger {
   inspektor: boolean;
 }
 
-/** How long the 2D view lets editing pause before the 3D model is rebuilt (ms). */
-const BYGG_I_2D_ETTER = 600;
-
 export interface BenkTilstand {
   dok: Dokument;
   utvalg: Utvalg;
@@ -46,6 +43,10 @@ export interface BenkTilstand {
   innstillinger: Innstillinger;
   modell: Modellresultat | null;
   bygger: boolean;
+  /** Progress of the running build, 0 to 1 (null when none runs or the generator reports none). */
+  byggFremdrift: number | null;
+  /** The document has changed since `modell` was built (2D editing does not rebuild it). */
+  modellForeldet: boolean;
   melding: string | null;
 }
 
@@ -86,6 +87,8 @@ export class Arbeidsbenk {
       },
       modell: null,
       bygger: false,
+      byggFremdrift: null,
+      modellForeldet: true,
       melding: null,
     };
     this.historikk.lytt((d) => {
@@ -146,7 +149,8 @@ export class Arbeidsbenk {
   settInnstillinger(i: Partial<Innstillinger>): void {
     const til3d = i.visning === '3d' && this.t.innstillinger.visning !== '3d';
     this.oppdater({ innstillinger: { ...this.t.innstillinger, ...i } });
-    if (til3d && this.byggVenter) void this.bygg();
+    // the model is built when 3D is opened, with a progress bar (Sivert, 2026-10-08)
+    if (til3d && (this.t.modellForeldet || this.byggVenter) && !this.t.bygger) void this.bygg();
   }
 
   /** Short status text for the live region (screen readers) and status bar. */
@@ -172,28 +176,22 @@ export class Arbeidsbenk {
     for (const fn of this.lyttere) fn(this.t);
   }
 
-  /** Rebuild the model after changes, debounced; stale results are dropped. */
+  /**
+   * Rebuild the model after changes, debounced; stale results are dropped. A generator with a 2D view
+   * does not build while 2D is showing: editing only touches the 2D drawing, and the model is built
+   * when 3D is opened (Sivert, 2026-10-08).
+   */
   private planleggBygg(forsinkelse = 120): void {
     clearTimeout(this.byggTidsur);
     this.byggVenter = true;
-    // The 2D view draws the layers itself; the 3D model only feeds the
-    // status bar and notices there, so it waits until editing pauses
-    // (Sivert, 2026-10-05). Switching to 3D or exporting builds at once.
-    const i2d = this.t?.innstillinger.visning === '2d';
-    if (i2d && forsinkelse > 0) forsinkelse = Math.max(forsinkelse, BYGG_I_2D_ETTER);
-    this.byggTidsur = setTimeout(() => {
-      const ledig = (
-        globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }
-      ).requestIdleCallback;
-      if (i2d && ledig)
-        ledig(
-          () => {
-            if (this.byggVenter) void this.bygg();
-          },
-          { timeout: 1000 },
-        );
-      else void this.bygg();
-    }, forsinkelse);
+    if (this.t && !this.t.modellForeldet) this.oppdater({ modellForeldet: true });
+    if (
+      this.t?.innstillinger.visning === '2d' &&
+      this.generator.visninger.includes('2d') &&
+      this.generator.visninger.includes('3d')
+    )
+      return;
+    this.byggTidsur = setTimeout(() => void this.bygg(), forsinkelse);
   }
 
   async bygg(): Promise<Modellresultat> {
@@ -201,15 +199,28 @@ export class Arbeidsbenk {
     this.byggVenter = false;
     const nr = ++this.byggNr;
     const dok = this.t.dok;
-    this.oppdater({ bygger: true });
+    this.oppdater({ bygger: true, byggFremdrift: null });
     let resultat: Modellresultat;
+    let sist = -1;
+    const fremdrift = (andel: number) => {
+      const prosent = Math.round(Math.min(1, Math.max(0, andel)) * 100);
+      if (nr !== this.byggNr || prosent === sist) return;
+      sist = prosent;
+      this.oppdater({ byggFremdrift: prosent / 100 });
+    };
     try {
-      resultat = await this.generator.byggModell(dok);
+      resultat = await this.generator.byggModell(dok, fremdrift);
     } catch (feil) {
       console.error(feil);
       resultat = { deler: [], advarsler: [{ niva: 'feil', tekst: 'Modellen kunne ikke bygges.' }] };
     }
-    if (nr === this.byggNr) this.oppdater({ modell: resultat, bygger: false });
+    if (nr === this.byggNr)
+      this.oppdater({
+        modell: resultat,
+        bygger: false,
+        byggFremdrift: null,
+        modellForeldet: this.t.dok !== dok,
+      });
     return resultat;
   }
 

@@ -18,6 +18,14 @@ async function startPaaNytt(page: import('@playwright/test').Page): Promise<void
   await expect(page.locator('.statuslinje')).toContainText('mm');
 }
 
+/** The 3D model is built when 3D opens: open 3D, wait for it, and come back to 2D. */
+async function bygg3d(page: import('@playwright/test').Page): Promise<void> {
+  await page.getByRole('radio', { name: '3D', exact: true }).click();
+  await expect(page.locator('.visning3d-bygger')).toBeHidden();
+  await expect(page.locator('.statuslinje')).toContainText('deler');
+  await page.getByRole('radio', { name: '2D', exact: true }).click();
+}
+
 type Side = import('@playwright/test').Page;
 
 /** Paste a CSV in the import step of «Fra CSV» and read it in. */
@@ -225,7 +233,35 @@ test.describe('Signgen', () => {
     await page.getByRole('button', { name: /Rundt teksten/ }).click();
     await expect(page.locator('.lagrad')).toHaveCount(2);
     await expect(page.locator('.lagrad').last()).toContainText('Rundt teksten');
+    await bygg3d(page);
     await expect(page.locator('.statuslinje')).toContainText('3 deler');
+  });
+
+  test('2D-redigering bygger ikke 3D-modellen, den bygges med fremdriftslinje når 3D åpnes', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tegning med mus testes på desktop');
+    const status = page.locator('.statuslinje');
+    await expect(status).toContainText('beregnes når du åpner 3D');
+    await expect(status).not.toContainText('Bygger modell');
+    const bb = (await page.locator('canvas').first().boundingBox())!;
+    await page.locator('canvas').first().focus();
+    await page.keyboard.press('r');
+    await page.mouse.move(bb.x + bb.width * 0.3, bb.y + bb.height * 0.3);
+    await page.mouse.down();
+    await page.mouse.move(bb.x + bb.width * 0.4, bb.y + bb.height * 0.4, { steps: 4 });
+    await page.mouse.up();
+    // still no model while 2D is showing
+    await expect(status).toContainText('beregnes når du åpner 3D');
+    await page.waitForTimeout(1500);
+    await expect(status).not.toContainText('Bygger modell');
+    await expect(status).not.toContainText('deler');
+    await page.getByRole('radio', { name: '3D', exact: true }).click();
+    await expect(page.locator('.visning3d-bygger')).toBeHidden();
+    await expect(status).toContainText('deler');
+    const a = await new AxeBuilder({ page }).exclude('canvas').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
 
   test('legger til et rektangel og angrer', async ({ page, isMobile }) => {
@@ -248,6 +284,7 @@ test.describe('Signgen', () => {
     const tekstlag = page.locator('.lagrad', { hasText: 'Tekst' }).first();
     await tekstlag.getByRole('button', { name: '+ Omriss' }).click();
     await expect(tekstlag.locator('.omrissrad')).toHaveCount(2);
+    await bygg3d(page);
     await expect(page.locator('.statuslinje')).toContainText('3 deler');
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
@@ -481,7 +518,7 @@ test.describe('Signgen', () => {
     const gruppe = page.getByRole('radiogroup', { name: /Høyde på øyet|Hvor langt hullet går/ });
     await expect(gruppe).toBeVisible();
     await expect(page.getByText(/Øyet er like høyt som laget|Hullet går gjennom alle lag/)).toBeVisible();
-    await gruppe.getByRole('radio', { name: 'Egen høyde' }).click();
+    await gruppe.getByRole('radio', { name: 'Egen' }).click();
     await expect(page.getByLabel(/Øyets høyde|Hullet går opp til/)).toBeVisible();
     await expect(page.getByText(/Resten av skiltet endres ikke|Lagene over blir som de er/)).toBeVisible();
   });
@@ -579,6 +616,7 @@ test.describe('Signgen', () => {
     await expect(dialog.getByText('2 av 3 deler er med, i 2 farger.')).toBeVisible();
     await dialog.getByRole('button', { name: 'Legg på skiltet' }).click();
     await expect(dialog).toBeHidden();
+    await bygg3d(page);
     await expect(page.locator('.statuslinje')).toContainText('4 deler');
     if (!isMobile) {
       // the picture joins the text layer, so both colours share the text's outlines and no layer is added
@@ -607,6 +645,7 @@ test.describe('Signgen', () => {
     await expect(egen).toBeVisible();
     await egen.click();
     await expect(tilbake).toBeHidden();
+    await bygg3d(page);
     await expect(page.locator('.statuslinje')).toContainText('5 deler');
     if (!isMobile) await expect(page.locator('.lagrad')).toHaveCount(1);
   });
@@ -646,12 +685,14 @@ test.describe('Signgen', () => {
     const a = await new AxeBuilder({ page }).include('section[aria-label="Rediger kurver"]').analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
     const maal = () => page.locator('.statuslinje').innerText();
+    const bb0 = (await page.locator('canvas').first().boundingBox())!;
     const for_ = await maal();
     // drag a corner out, then take it back
     await page.mouse.move(sx - 120, sy - 60);
     await page.mouse.down();
     await page.mouse.move(sx - 140, sy - 80, { steps: 3 });
-    await page.mouse.move(sx - 200, sy - 140, { steps: 6 });
+    // far out, past the sign's edge, so that the size in the status bar changes
+    await page.mouse.move(bb0.x + 20, bb0.y + 20, { steps: 8 });
     await page.mouse.up();
     await expect(panel).toContainText('1 punkt valgt');
     await expect.poll(maal).not.toBe(for_);
@@ -1229,6 +1270,30 @@ test.describe('Signgen', () => {
     await page.mouse.up();
     const etter = Number((await topp.inputValue()).replace(',', '.'));
     expect(etter).toBeLessThan(2.5);
+    // a point on the wall: added with the button, and moved up and down as well as sideways
+    await panel.getByRole('button', { name: 'Legg til punkt' }).click();
+    await expect(panel.getByLabel('Valgt punkt')).toHaveValue('1');
+    const hoydeFelt = panel.getByLabel('Mellompunkt, høyde');
+    const sideFelt = panel.getByLabel('Mellompunkt, innover');
+    await expect(hoydeFelt).toBeVisible();
+    await hoydeFelt.fill('2');
+    await hoydeFelt.press('Enter');
+    await expect(hoydeFelt).toHaveValue('2');
+    await sideFelt.fill('0,5');
+    await sideFelt.press('Enter');
+    await expect(sideFelt).toHaveValue('0,5');
+    // double-click on the curve adds another
+    const graf = panel.locator('.profilgraf');
+    const kurve = (await panel.locator('.profil-kurve').boundingBox())!;
+    await page.mouse.dblclick(kurve.x + kurve.width * 0.5, kurve.y + kurve.height * 0.15);
+    await expect(panel.locator('#profil-punkt option')).toHaveCount(4);
+    await expect(graf).toContainText('innover');
+    // the wall may go back down: the new point can sit lower than the one before it
+    await hoydeFelt.fill('0,2');
+    await hoydeFelt.press('Enter');
+    await expect(hoydeFelt).toHaveValue('0,2');
+    await panel.getByRole('button', { name: 'Fjern punkt' }).click();
+    await expect(panel.locator('#profil-punkt option')).toHaveCount(3);
     // an older profile type stays selectable
     await panel.getByLabel('Veggen').selectOption('egendefinert');
     await expect(panel.getByRole('button', { name: /Gjør (glatt|til hjørne)/ })).toBeVisible();

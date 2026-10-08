@@ -122,7 +122,12 @@ export interface GeneratorPlugin {
    * Build printable parts from the document. Pure and deterministic; may run
    * in a worker. Throws nothing: problems become advarsler.
    */
-  byggModell(dok: Dokument): Promise<Modellresultat>;
+  byggModell(dok: Dokument, fremdrift?: (andel: number) => void): Promise<Modellresultat>;
+  /**
+   * A generator with both a 2D and a 3D view builds its 3D model only when 3D is opened (or on export),
+   * not while 2D is edited. This gives the size to show in the meantime (mm), cheaply and without a build.
+   */
+  forelopigMal?(dok: Dokument): { bredde: number; dybde: number; hoyde: number } | null;
   ui: GeneratorUi;
   /** Name of the left panel on small screens and for screen readers (default «Lag»). */
   venstrepanelNavn?: string;

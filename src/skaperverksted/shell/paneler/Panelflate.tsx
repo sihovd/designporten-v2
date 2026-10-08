@@ -481,7 +481,7 @@ function Gruppevisning({
                 onClick={() => endre((x) => settMinimert(x, g.id, !g.minimert))}
                 {...p}
               >
-                <Ikon id={g.minimert ? 'gjenopprett' : 'minimer'} storrelse={16} />
+                <Ikon id={g.minimert ? 'panel-restore' : 'panel-minimize'} storrelse={16} />
               </button>
             )}
           </Tips>
@@ -558,7 +558,7 @@ function Gruppemeny({
             onClick={() => settApen(!apen)}
             {...p}
           >
-            <Ikon id="meny" storrelse={16} />
+            <Ikon id="panel-menu" storrelse={16} />
           </button>
         )}
       </Tips>
@@ -582,21 +582,25 @@ function Gruppemeny({
             alle[(i + d + alle.length) % alle.length]?.focus();
           }}
         >
-          {dokkSide !== 'venstre' && knapp('Dokk til venstre', 'dokk-venstre', () => flytTil('venstre'))}
-          {dokkSide !== 'hoyre' && knapp('Dokk til høyre', 'dokk-hoyre', () => flytTil('hoyre'))}
+          {dokkSide !== 'venstre' && knapp('Dokk til venstre', 'panel-dock-left', () => flytTil('venstre'))}
+          {dokkSide !== 'hoyre' && knapp('Dokk til høyre', 'panel-dock-right', () => flytTil('hoyre'))}
           {dokkSide !== null &&
-            knapp('Gjør flytende', 'flyt', () => valg((x) => flyttGruppeTilFlyt(x, g.id, { x: 48, y: 48 })))}
+            knapp('Gjør flytende', 'panel-float', () =>
+              valg((x) => flyttGruppeTilFlyt(x, g.id, { x: 48, y: 48 })),
+            )}
           {g.paneler.length > 1 &&
-            knapp(`Løsne «${navn}» fra gruppen`, 'flyt', () =>
+            knapp(`Løsne «${navn}» fra gruppen`, 'panel-float', () =>
               valg((x) => {
                 const l = losneFane(x, g.aktiv);
                 return l ? flyttGruppeTilFlyt(l.oppsett, l.gruppeId, { x: 64, y: 64 }) : x;
               }),
             )}
-          {knapp(g.minimert ? 'Gjenopprett' : 'Minimer', g.minimert ? 'gjenopprett' : 'minimer', () =>
-            valg((x) => settMinimert(x, g.id, !g.minimert)),
+          {knapp(
+            g.minimert ? 'Gjenopprett' : 'Minimer',
+            g.minimert ? 'panel-restore' : 'panel-minimize',
+            () => valg((x) => settMinimert(x, g.id, !g.minimert)),
           )}
-          {knapp(`Lukk «${navn}»`, 'lukk', () => valg((x) => lukkPanel(x, g.aktiv)))}
+          {knapp(`Lukk «${navn}»`, 'panel-close', () => valg((x) => lukkPanel(x, g.aktiv)))}
         </div>
       )}
     </div>

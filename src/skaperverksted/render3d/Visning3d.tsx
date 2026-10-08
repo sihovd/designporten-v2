@@ -48,6 +48,8 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
   const [scene, settScene] = useState<Scene3d | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
   const modell = brukUtdrag(benk, (t) => t.modell);
+  const bygger = brukUtdrag(benk, (t) => t.bygger);
+  const fremdrift = brukUtdrag(benk, (t) => t.byggFremdrift);
   const valgtLag = brukUtdrag(benk, (t) => t.utvalg.lag);
   const plate = brukUtdrag(benk, (t) => t.dok.plate);
   const parametre = brukUtdrag(benk, (t) => t.dok.parametre);
@@ -393,6 +395,16 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
   return (
     <div class={`visning3d${kompakt ? ' kompakt' : ''}`} ref={vert}>
       {feil && <p class="visning3d-feil">{feil}</p>}
+      {bygger && !kompakt && (
+        <div class="visning3d-bygger" role="status">
+          <span>Bygger 3D-modellen{fremdrift !== null ? ` … ${Math.round(fremdrift * 100)} %` : ' …'}</span>
+          <progress
+            max={100}
+            value={fremdrift !== null ? Math.round(fremdrift * 100) : undefined}
+            aria-label="Bygger 3D-modellen"
+          />
+        </div>
+      )}
       <div class="visning3d-verktoy">
         <div class="visning3d-vinkler" role="group" aria-label="Kameravinkel">
           {VINKLER.map((v) => (

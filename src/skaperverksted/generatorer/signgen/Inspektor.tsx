@@ -17,6 +17,7 @@ import {
 import { fargekode, finnMateriale, standardPrinter, visningsnavn } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
+import { Ikon } from '../../shell/ikoner';
 import { tall } from '../../core/enheter';
 import { alleFonter } from '../../geometri/tekst';
 import { synkFonter } from './fontbibliotek';
@@ -191,7 +192,8 @@ function Hullvalg({
   const hoydeMerknad = hullHoydeTekst(t.dok, kilde.hullHoyde, oye);
   return (
     <>
-      <p class="merknad">
+      <p class="merknad med-ikon">
+        <Ikon id={oye ? 'keyring-eye' : 'hole'} storrelse={20} />
         {oye
           ? `Øye utenfor skiltet: en ring med hull på ${tall(kilde.bredde)} mm til nøkkelring. Dra det inn over skiltet for å gjøre det til et hull.`
           : `Hull gjennom skiltet, ${tall(kilde.bredde)} mm innvendig. Dra det utenfor kanten for å gjøre det til et øye til nøkkelring.`}
@@ -215,7 +217,7 @@ function Hullvalg({
           etikett={oye ? 'Høyde på øyet' : 'Hvor langt hullet går'}
           valg={[
             { id: 'laget', navn: oye ? 'Som laget' : 'Hele veien' },
-            { id: 'egen', navn: 'Egen høyde' },
+            { id: 'egen', navn: 'Egen' },
           ]}
           verdi={egenHoyde ? 'egen' : 'laget'}
           endre={(v) =>
@@ -686,9 +688,10 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
                 {o.materialId ? (
                   <button
                     type="button"
-                    class="kontroll-knapp"
+                    class="kontroll-knapp med-ikon"
                     onClick={() => endre('Følg lagets farge', (x) => ({ ...x, materialId: undefined }))}
                   >
+                    <Ikon id="color-follow-layer" storrelse={16} />
                     Følg laget
                   </button>
                 ) : (
@@ -832,10 +835,22 @@ function FlereObjekter({ benk, antall }: { benk: Arbeidsbenk; antall: number }) 
         ))}
       </div>
       <div class="knapperad">
-        <button type="button" class="kontroll-knapp" onClick={() => fordel(benk, 'x')} disabled={antall < 3}>
+        <button
+          type="button"
+          class="kontroll-knapp med-ikon"
+          onClick={() => fordel(benk, 'x')}
+          disabled={antall < 3}
+        >
+          <Ikon id="distribute-horizontal" storrelse={16} />
           Fordel vannrett
         </button>
-        <button type="button" class="kontroll-knapp" onClick={() => fordel(benk, 'y')} disabled={antall < 3}>
+        <button
+          type="button"
+          class="kontroll-knapp med-ikon"
+          onClick={() => fordel(benk, 'y')}
+          disabled={antall < 3}
+        >
+          <Ikon id="distribute-vertical" storrelse={16} />
           Fordel loddrett
         </button>
       </div>
