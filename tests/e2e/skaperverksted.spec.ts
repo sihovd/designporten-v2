@@ -1288,6 +1288,10 @@ test.describe('Signgen', () => {
     await page.mouse.dblclick(kurve.x + kurve.width * 0.5, kurve.y + kurve.height * 0.15);
     await expect(panel.locator('#profil-punkt option')).toHaveCount(4);
     await expect(graf).toContainText('innover');
+    // the wall may go back down: the new point can sit lower than the one before it
+    await hoydeFelt.fill('0,2');
+    await hoydeFelt.press('Enter');
+    await expect(hoydeFelt).toHaveValue('0,2');
     await panel.getByRole('button', { name: 'Fjern punkt' }).click();
     await expect(panel.locator('#profil-punkt option')).toHaveCount(3);
     // an older profile type stays selectable

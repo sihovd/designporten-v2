@@ -117,7 +117,8 @@ export function Profilseksjon({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
       )}
       <p class="merknad">
         Profilen blir ekte geometri: 3D-visningen og filen viser det som blir printet, lag for lag. Bunn og
-        topp flyttes sideveis. Punkter du legger til på veggen kan dras både sideveis og opp og ned.
+        topp flyttes sideveis. Punkter du legger til på veggen kan dras både sideveis og opp og ned, også slik
+        at veggen går ned igjen (et spor i toppen).
       </p>
     </>
   );

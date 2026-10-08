@@ -3,8 +3,9 @@
  * from its outline across (mm). The wall rises from an anchor on the bottom
  * edge to an anchor on the top edge; those two only move sideways along
  * their edge. Points can be added on the wall (the button, or a double-click
- * on the curve) and then move freely sideways and up and down between their
- * neighbours; the wall always rises, it never turns back down. A hand-made
+ * on the curve) and then move freely sideways and up and down. The wall may
+ * go back down while it moves inwards (a groove or a ridge in the top); going
+ * outwards makes an overhang, which the warning below the graph reports. A hand-made
  * curve also shows Bézier handles on the wall. Below the graph the layer under it is drawn as a
  * read-only strip, so you see where this layer rests on something.
  * The drawing is functional technical geometry (D-3).
@@ -85,9 +86,9 @@ export function Profilredigerer({
     const p = punkter[i]!;
     const bredde = Math.max(prof.bredde, 1e-6);
     if (g.del === 'anker') {
-      // an older in-between anchor moves freely, but never past its neighbours in height
+      // an in-between anchor moves freely, up and down as well: the wall may go back down
       const du = klem(mm / bredde, 0, 1) - p.u;
-      const nyT = klem(t, pk[i - 1]!.t, pk[i + 1]!.t);
+      const nyT = klem(t, 0, 1);
       const dt = nyT - p.t;
       p.u += du;
       p.t = nyT;
@@ -408,7 +409,7 @@ export function Profilredigerer({
         )}
         <p class="merknad">
           {mellom > 0
-            ? `${mellom === 1 ? 'Et punkt' : `${mellom} punkter`} på veggen. Dra dem sideveis og opp og ned; veggen går alltid oppover, aldri tilbake ned. `
+            ? `${mellom === 1 ? 'Et punkt' : `${mellom} punkter`} på veggen. Dra dem sideveis og opp og ned. Veggen kan gå ned igjen så lenge den går innover; går den utover, blir det overheng. `
             : 'Dobbeltklikk på kurven, eller trykk «Legg til punkt», for å få et punkt som kan dras både sideveis og opp og ned. '}
           Bunn og topp flyttes bare sideveis.
         </p>

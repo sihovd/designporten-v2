@@ -22,13 +22,14 @@ import {
   SKALA,
   differanse,
   forskyv,
+  unionAlle,
   ringAreal,
   trianguler,
   type Flate,
   type Region,
   type Ring,
 } from './polygon';
-import { samplerProfil, type Profil } from '../core/profil';
+import { samplerProfil, skiveDeler, type Profil } from '../core/profil';
 import type { Vec2 } from '../core/geometri2d';
 
 export interface Ekstrudering {
@@ -168,38 +169,34 @@ function vegger(b: MeshBygger, hk: Hjornekart, s: Skive): void {
   }
 }
 
-/** Inset (mm) at height fraction t, linear between samples. */
-function insetVed(prover: { inset: number; t: number }[], t: number): number {
-  if (t <= prover[0]!.t) return prover[0]!.inset;
-  for (let i = 1; i < prover.length; i++) {
-    const a = prover[i - 1]!,
-      b = prover[i]!;
-    if (t <= b.t) {
-      if (b.t - a.t < 1e-9) return b.inset;
-      return a.inset + ((t - a.t) / (b.t - a.t)) * (b.inset - a.inset);
-    }
-  }
-  return prover.at(-1)!.inset;
-}
+/** Where a slab is solid, as insets from the outline: `[fra, til]` pairs, `til` null meaning all the way in. */
+type Deler = [number, number | null][];
 
-/** Plan the slabs (z ranges and insets) for a profile. */
+/**
+ * Plan the slabs (z ranges and where each is solid) for a profile. A wall that only rises has one
+ * inset per slab; a curve that goes back down gives ring-shaped slabs.
+ */
 export function planleggSkiver(
   profil: Profil,
   hoyde: number,
   lagHoyde: number,
-): { z0: number; z1: number; inset: number }[] {
-  if (profil.bredde <= 0) return [{ z0: 0, z1: hoyde, inset: 0 }];
+): { z0: number; z1: number; deler: Deler }[] {
+  if (profil.bredde <= 0) return [{ z0: 0, z1: hoyde, deler: [[0, null]] }];
   const prover = samplerProfil(profil, 16);
   const n = Math.max(1, Math.round(hoyde / Math.max(0.05, lagHoyde)));
-  const ut: { z0: number; z1: number; inset: number }[] = [];
+  const ut: { z0: number; z1: number; deler: Deler }[] = [];
+  const kv = (v: number) => Math.round(v * 100) / 100;
   for (let k = 0; k < n; k++) {
     const z0 = (hoyde * k) / n,
       z1 = (hoyde * (k + 1)) / n;
-    // sample at the slab's middle; quantise to 0.01 mm so equal insets merge
-    const inset = Math.round(insetVed(prover, (k + 0.5) / n) * 100) / 100;
+    // sample at the slab's middle; quantise to 0.01 mm so equal slabs merge
+    const deler = skiveDeler(prover, (k + 0.5) / n).map(([fra, til]): [number, number | null] => [
+      kv(fra),
+      til === null ? null : kv(til),
+    ]);
     const forrige = ut.at(-1);
-    if (forrige && Math.abs(forrige.inset - inset) < 1e-9) forrige.z1 = z1;
-    else ut.push({ z0, z1, inset });
+    if (forrige && JSON.stringify(forrige.deler) === JSON.stringify(deler)) forrige.z1 = z1;
+    else ut.push({ z0, z1, deler });
   }
   return ut;
 }
@@ -223,14 +220,21 @@ export function ekstruder(
 
   const plan = planleggSkiver(profil, hoyde, lagHoyde);
   const cache = new Map<number, Region>();
+  const innover = (inset: number) => {
+    let r = cache.get(inset);
+    if (!r) {
+      r = forskyv(region, -inset, hjorne);
+      cache.set(inset, r);
+    }
+    return r;
+  };
   const skiver: Skive[] = [];
   let forbrukt = false;
   for (const p of plan) {
-    let r = cache.get(p.inset);
-    if (!r) {
-      r = forskyv(region, -p.inset, hjorne);
-      cache.set(p.inset, r);
-    }
+    const deler = p.deler.map(([fra, til]) =>
+      til === null ? innover(fra) : differanse(innover(fra), innover(til)),
+    );
+    const r = deler.length === 1 ? deler[0]! : unionAlle(deler);
     if (!r.length) {
       forbrukt = true;
       break;

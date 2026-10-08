@@ -10,6 +10,7 @@ import {
   profilOverheng,
   samplerProfil,
   settInnPunkt,
+  skiveDeler,
   validerProfil,
   type Profil,
   type ProfilType,
@@ -144,5 +145,56 @@ describe('punkter på veggen', () => {
     expect(bredere.bredde).toBe(4);
     expect(bredere.punkter[1]!.u * bredere.bredde).toBeCloseTo(q.punkter[1]!.u * q.bredde);
     expect(ankere(bredere).topp).toBeCloseTo(2);
+  });
+});
+
+describe('vegg som går ned igjen', () => {
+  const spor: Profil = {
+    type: 'egendefinert',
+    bredde: 6,
+    trinn: 2,
+    punkter: [
+      { u: 0, t: 0 },
+      { u: 0, t: 1 },
+      { u: 2 / 6, t: 1 },
+      { u: 3 / 6, t: 0.4 },
+      { u: 4 / 6, t: 0.4 },
+      { u: 5 / 6, t: 1 },
+      { u: 1, t: 1 },
+    ],
+  };
+
+  it('er gyldig og beholder rekkefølgen på punktene', () => {
+    expect(validerProfil(spor)).toBeNull();
+    const s = samplerProfil(spor);
+    expect(s.some((x, i) => i > 0 && x.t < s[i - 1]!.t)).toBe(true);
+  });
+
+  it('gir en ring over sporet og full flate under det', () => {
+    const s = samplerProfil(spor);
+    // below the groove floor (t = 0.4): solid from the outline all the way in
+    expect(skiveDeler(s, 0.2)).toEqual([[0, null]]);
+    // above it: solid at the rim, air in the groove, solid again further in
+    const d = skiveDeler(s, 0.7);
+    expect(d).toHaveLength(2);
+    expect(d[0]![0]).toBeCloseTo(0);
+    expect(d[0]![1]!).toBeGreaterThan(2);
+    expect(d[0]![1]!).toBeLessThan(3);
+    expect(d[1]![0]).toBeGreaterThan(4);
+    expect(d[1]![1]).toBeNull();
+  });
+
+  it('er ikke overheng så lenge den går innover, men er det når den går utover', () => {
+    expect(profilOverheng(spor, 3)).toBe(0);
+    const utover: Profil = {
+      ...spor,
+      punkter: [
+        { u: 0.5, t: 0 },
+        { u: 0.5, t: 0.5 },
+        { u: 0, t: 0.2 },
+        { u: 0, t: 1 },
+      ],
+    };
+    expect(profilOverheng(utover, 3)).toBeGreaterThan(30);
   });
 });
