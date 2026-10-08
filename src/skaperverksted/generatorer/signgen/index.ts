@@ -5,6 +5,7 @@ import { tall } from '../../core/enheter';
 import { mal } from '../../shell/mal';
 import { meta } from './meta';
 import { Filvalg } from './Maldialog';
+import { Innstillingsvalg } from './Prosjektinnstillinger';
 import { fargeplasser, lesInnSigngen, nyttSigngenDokument } from './dokument';
 import { byggSigngen, forelopigMal } from './modell';
 import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
@@ -36,6 +37,7 @@ const plugin: GeneratorPlugin = {
     Paneler: PANELER,
     Arbeidsrom: ARBEIDSROM,
     Filvalg: Filvalg,
+    Innstillingsvalg: Innstillingsvalg,
     Bunnbrett: Csvbrett,
   },
   gjestelagring: { maksDager: 30 },

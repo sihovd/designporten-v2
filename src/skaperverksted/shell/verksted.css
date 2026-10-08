@@ -3989,6 +3989,12 @@ button.profilfarger.fargeknapp {
   --fokus: #6a2fe0;
   --dp-lilla-tekst: #5b24c9;
   --advarsel-mork: #8a5200;
+  /* the horizon behind the canvas; «Innstillinger → Bakgrunn» overrides these on the root */
+  --horisont-topp: #04070f;
+  --horisont-hoy: #0f2a5c;
+  --horisont-linje: #3a73c4;
+  --horisont-bunn: #0d2250;
+  --horisont-pos: 0.62;
   color-scheme: light;
 }
 
@@ -4009,11 +4015,6 @@ button.profilfarger.fargeknapp {
   --handling-hover: #9a58ff;
   --lenke: #b99aff;
   --fokus: #00c4d6;
-  --horisont-topp: #04070f;
-  --horisont-hoy: #0f2a5c;
-  --horisont-linje: #3a73c4;
-  --horisont-bunn: #0d2250;
-  --horisont-pos: 0.62;
   --bord: #2b528f;
   color-scheme: dark;
   background: linear-gradient(
@@ -4156,4 +4157,165 @@ button.profilfarger.fargeknapp {
 
 .verksted .merknad.med-ikon > .ikon {
   flex: none;
+}
+
+/* a background chosen in «Innstillinger» also works in the dark workshop */
+.verksted.egen-bakgrunn .lerret,
+.verksted.egen-bakgrunn .visning3d {
+  background: linear-gradient(
+    180deg,
+    var(--horisont-topp) 0%,
+    var(--horisont-hoy) calc(var(--horisont-pos) * 100% - 20%),
+    var(--horisont-linje) calc(var(--horisont-pos) * 100%),
+    var(--horisont-bunn) 100%
+  );
+  --bord: var(--plate-egen);
+  --grafitt: var(--plate-egen);
+  --grafitt-2: var(--plate-egen-2);
+}
+
+/* a light background needs dark ink on the canvas */
+.verksted.lerret-lys .lerret,
+.verksted.lerret-lys .visning3d {
+  --bg: #e9edf4;
+  --fg: #1a2233;
+  --fg-dempet: #4a5570;
+  --linje: #9aa6bf;
+  --linje-sterk: #66728f;
+  --advarsel-mork: #8a5200;
+  color-scheme: light;
+}
+
+/* Innstillinger menu */
+.innstillingsmeny {
+  min-width: 260px;
+}
+
+.innstillingsmeny .valgrad {
+  display: flex;
+  margin: 4px 6px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  overflow: hidden;
+}
+
+.innstillingsmeny .valgrad button {
+  flex: 1;
+  justify-content: center;
+  border-radius: 0;
+}
+
+.innstillingsmeny .valgrad button[aria-checked='true'] {
+  background: var(--fokus);
+  color: #fff;
+}
+
+.bakgrunnsvalg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 6px;
+}
+
+.filmeny .meny .bakgrunnsknapp {
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 2px solid var(--linje);
+  border-radius: var(--radius-felt);
+}
+
+.filmeny .meny .bakgrunnsknapp[aria-checked='true'] {
+  border-color: var(--fokus);
+  outline: 2px solid var(--fokus);
+  outline-offset: 1px;
+}
+
+.egenfarge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 10px;
+}
+
+.egenfarge input[type='color'] {
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: transparent;
+}
+
+/* Prosjektinnstillinger */
+.verksted-dialog.prosjektinnstillinger {
+  width: min(460px, calc(100vw - 24px));
+}
+
+.prosjekt-innhold {
+  display: grid;
+  gap: 4px;
+  padding: 0 18px 18px;
+  overflow: auto;
+}
+
+.prosjekt-innhold section {
+  display: grid;
+  gap: 8px;
+}
+
+.prosjekt-innhold .felt-rad {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.prosjekt-innhold .felt-rad select {
+  min-height: var(--kontroll-h);
+  padding: 0 8px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.prosjekt-innhold .fakta > div {
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.prosjekt-innhold .kontroll-knapp {
+  justify-self: start;
+}
+
+/* narrow bars scroll sideways, which would clip an absolute menu: the menus then sit under the bar */
+@media (max-width: 760px) {
+  .verkstedlinje .filmeny .meny {
+    position: fixed;
+    top: 50px;
+    left: 8px;
+    right: 8px;
+    max-height: calc(100dvh - 62px);
+    overflow-y: auto;
+  }
+
+  .verkstedlinje .innstillinger .fil-tekst {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .verkstedlinje .innstillinger .fil-sammendrag > .ikon {
+    display: inline-block;
+  }
+}
+
+.prosjekt-innhold .felt-rad > span {
+  color: var(--fg-dempet);
+  font-size: 13px;
 }

@@ -51,6 +51,8 @@ export interface GeneratorUi {
   Arbeidsrom?: Romspek[];
   /** Extra entries in the Fil menu (for example «Lagre som mal»). Rendered as menu items. */
   Filvalg?: ComponentType<{ benk: Arbeidsbenk }>;
+  /** Extra entries in the Innstillinger menu (only generators with a light workshop have one). */
+  Innstillingsvalg?: ComponentType<{ benk: Arbeidsbenk }>;
 }
 
 export interface PanelDef {

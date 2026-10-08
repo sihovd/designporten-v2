@@ -38,6 +38,7 @@ import {
   slettOmriss,
 } from './dokument';
 import { signtilstand, brukSigntilstand } from './tilstand';
+import { ProsjektinnstillingerKnapp } from './Prosjektinnstillinger';
 import {
   importerSvgSom,
   nyttLagRundtTeksten,
@@ -875,6 +876,7 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
       <div class="panel">
         <h2 class="panel-tittel">
           <span>Lag, øverst først</span>
+          <ProsjektinnstillingerKnapp benk={benk} />
         </h2>
         <input
           ref={svgfil}

@@ -27,6 +27,14 @@ import { filnavn } from '../eksport/tremf';
 import { brukBenk } from './bruk-benk';
 import { Eksportdialog } from './Eksportdialog';
 import { Hjelp } from './Hjelp';
+import { Innstillingsmeny } from './Innstillingsmeny';
+import {
+  bakgrunnErLys,
+  bakgrunnVariabler,
+  brukInnstillinger,
+  FARGER_ENDRET,
+  valgtHorisont,
+} from './innstillinger';
 import { useLukkMeny } from './lukk-meny';
 import { Statuslinje } from './Statuslinje';
 import { Ark } from './Ark';
@@ -130,6 +138,15 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   const filmeny = useRef<HTMLDetailsElement>(null);
   useLukkMeny(filmeny);
   const ui = plugin.ui;
+  const inn = brukInnstillinger();
+  const lys = inn.tema === 'lys' || (inn.tema === 'standard' && plugin.flate === 'lys');
+  const bakgrunnVar = bakgrunnVariabler(inn);
+  const bakgrunn = valgtHorisont(inn);
+  const fargeNokkel = `${inn.tema}|${inn.bakgrunn}|${inn.egenFarge}`;
+  // the canvases read their colours from the CSS tokens, so they are told when the tokens change
+  useEffect(() => {
+    dispatchEvent(new Event(FARGER_ENDRET));
+  }, [fargeNokkel]);
   // generators with dockable panels get the panel system on wide screens; the rest keep the fixed layout
   const smalDesktop = useMemo(
     () => typeof matchMedia !== 'undefined' && !matchMedia('(min-width: 1280px)').matches,
@@ -299,7 +316,8 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
 
   return (
     <div
-      class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}${plugin.flate === 'lys' ? ' lys' : ''}${harPaneler ? ' med-paneler' : ''}`}
+      class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}${lys ? ' lys' : ''}${bakgrunn ? ' egen-bakgrunn' : ''}${bakgrunn && bakgrunnErLys(bakgrunn) ? ' lerret-lys' : ''}${harPaneler ? ' med-paneler' : ''}`}
+      style={bakgrunnVar ?? undefined}
     >
       <header class="verkstedlinje">
         <a class="hjem" href="/" aria-label="Designporten, til forsiden">
@@ -419,6 +437,9 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             </p>
           </div>
         </details>
+        {plugin.flate === 'lys' && (
+          <Innstillingsmeny>{ui.Innstillingsvalg && <ui.Innstillingsvalg benk={benk} />}</Innstillingsmeny>
+        )}
         <input
           ref={filvelger}
           type="file"

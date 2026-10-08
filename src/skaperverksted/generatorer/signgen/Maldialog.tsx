@@ -26,6 +26,8 @@ import {
 } from './maler';
 import { lesInnSigngen } from './dokument';
 import { signtilstand } from './tilstand';
+import { apneCsv } from './csvhandlinger';
+import { plangrenser } from '../../core/plangrenser';
 
 const FEILTEKST: Record<Malfeil, string> = {
   full: 'Du har 30 maler, som er det mest nettleseren tar. Slett en for å lagre en ny.',
@@ -326,6 +328,20 @@ export function Filvalg({ benk }: { benk: Arbeidsbenk }) {
         <Ikon id="templates" storrelse={16} />
         Nytt prosjekt fra mal …
       </button>
+      {plangrenser.csvBatch && (
+        <button
+          type="button"
+          role="menuitem"
+          class="med-ikon"
+          onClick={(e) => {
+            lukkMeny(e);
+            apneCsv(benk);
+          }}
+        >
+          <Ikon id="csv" storrelse={16} />
+          Lag skilt fra CSV …
+        </button>
+      )}
     </>
   );
 }

@@ -123,6 +123,8 @@ export interface Signtilstand {
   omriss: string | null;
   /** The colour profile window is open (it also opens by itself for a new sign). */
   fargeprofil: boolean;
+  /** The project settings window is open (build plate, colours in use, print layer height). */
+  prosjektinnstillinger: boolean;
   /** A new sign: which step of the start the user is on (the three entries, then the colours). */
   startsteg: 'valg' | 'farger';
   /** «Fra CSV» was chosen at the start: open the CSV window once the sign has been started. */
@@ -163,6 +165,7 @@ class Lager {
     maletikett: null,
     omriss: null,
     fargeprofil: false,
+    prosjektinnstillinger: false,
     startsteg: 'valg',
     startCsv: false,
     malvindu: null,

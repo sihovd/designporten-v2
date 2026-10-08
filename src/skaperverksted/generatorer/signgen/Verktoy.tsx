@@ -12,6 +12,7 @@ import { Tips } from '../../shell/Tips';
 import { brukSigntilstand, signtilstand, type Snapmal, type VerktoyId } from './tilstand';
 import { importerSvgSom } from './handlinger';
 import { startErValgt } from './dokument';
+import { Prosjektinnstillinger } from './Prosjektinnstillinger';
 import { Fargeprofilvindu } from './Fargeprofilvindu';
 import { Fontvindu } from './Fontvindu';
 import { Startside } from './Startside';
@@ -174,6 +175,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {((!startErValgt(t.dok) && st.startsteg === 'farger') || st.fargeprofil) && (
         <Fargeprofilvindu benk={benk} />
       )}
+      {st.prosjektinnstillinger && <Prosjektinnstillinger benk={benk} />}
       {st.malvindu === 'bibliotek' && <Malbibliotek benk={benk} />}
       {st.malvindu === 'lagre' && <LagreSomMal benk={benk} />}
       {st.fontvindu && <Fontvindu benk={benk} />}

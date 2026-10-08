@@ -14,7 +14,7 @@ import {
   type SvgKilde,
   type TekstKilde,
 } from '../../core/dokument';
-import { fargekode, finnMateriale, standardPrinter, visningsnavn } from '../../core/materialer';
+import { finnMateriale } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import { Ikon } from '../../shell/ikoner';
@@ -26,16 +26,13 @@ import {
   oppdaterLag,
   oppdaterObjekter,
   flyttTilLag,
-  fargeplasser,
   flyttOmriss,
-  palett,
   grupperTekst,
   losUtObjekt,
   kanLiggeI,
   oppdaterOmriss,
   slettOmriss,
   ordne,
-  stable,
   standardNavn,
 } from './dokument';
 import {
@@ -48,17 +45,15 @@ import {
 } from './modell';
 import { dupliserValgte, fordel, juster, settObjektFarge, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
-import { apneCsv } from './csvhandlinger';
 import { Kurvepanel, Pennpanel } from './Kurvepanel';
 import { antallAapne } from '../../geometri/bane';
 import { hentBaner, settKurve, startKurveredigering } from './kurver';
 import { nyttOmrissI } from './Lagpanel';
 import { PROFILER, Profilseksjon } from './Profilseksjon';
 import { Strekseksjon } from './Strekpanel';
-import { apneFargeprofil, Fargevelger } from './Fargevelger';
+import { Fargevelger } from './Fargevelger';
 import { brukPanelKontekst } from '../../shell/paneler/kontekst';
 import { folgerNavnet, hullanker, settHullavstand } from './batch';
-import { plangrenser } from '../../core/plangrenser';
 
 /**
  * Colour: a swatch that opens a menu of the filaments in the sign's colour
@@ -950,7 +945,8 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
         )}
         {auto && (
           <p class="merknad">
-            Z følger lagrekkefølgen. Slå av «Stable lagene automatisk» under Prosjekt for å sette Z selv.
+            Z følger lagrekkefølgen. Slå av «Stable lagene automatisk» i Prosjektinnstillinger for å sette Z
+            selv.
           </p>
         )}
       </Panel>
@@ -1266,105 +1262,6 @@ function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
   );
 }
 
-// ---------- project ----------
-
-function ProsjektInspektor({ benk }: { benk: Arbeidsbenk }) {
-  const t = brukBenk(benk);
-  const p = parametre(t.dok);
-  const brukte = [...new Set(fargeplasser(t.dok).map((p) => p.materialId))].map(finnMateriale);
-  const settParam = (navn: string, e: Partial<typeof p>) =>
-    benk.endre({ navn, anvend: (d: Dokument) => stable({ ...d, parametre: { ...d.parametre, ...e } }) });
-  return (
-    <Panel tittel="Prosjekt">
-      <dl class="fakta">
-        <div>
-          <dt>Byggeplate</dt>
-          <dd class="mono">
-            {t.dok.plate.bredde} × {t.dok.plate.dybde} × {t.dok.plate.hoyde} mm
-          </dd>
-        </div>
-        <div>
-          <dt>Farger i bruk</dt>
-          <dd class="fargekoder">
-            {brukte.map((m) => (
-              <span class="fargekode" key={m.id} title={visningsnavn(m)}>
-                <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
-                <span class="mono">{fargekode(m)}</span>
-              </span>
-            ))}
-          </dd>
-        </div>
-        <div>
-          <dt>Fargeprofil</dt>
-          <dd>
-            <button
-              type="button"
-              class="profilfarger fargeknapp"
-              aria-label="Åpne fargeprofilen"
-              onClick={() => apneFargeprofil(benk)}
-            >
-              {palett(t.dok).map((id) => (
-                <span
-                  key={id}
-                  class="fargeprove"
-                  style={{ background: finnMateriale(id).hex }}
-                  aria-hidden="true"
-                />
-              ))}
-            </button>{' '}
-            <span class="mono">
-              {palett(t.dok)
-                .map((id) => fargekode(finnMateriale(id)))
-                .join(' ')}
-            </span>
-          </dd>
-        </div>
-      </dl>
-      <button
-        type="button"
-        class="kontroll-knapp"
-        onClick={() => signtilstand(benk).sett({ fargeprofil: true })}
-      >
-        Endre fargeprofil
-      </button>
-      {!standardPrinter.bekreftet && (
-        <p class="merknad">Skriverprofil og farger er foreløpige og ikke bekreftet av Designporten.</p>
-      )}
-      <label class="avkryssing">
-        <input
-          type="checkbox"
-          checked={p.autoZ}
-          onChange={() => settParam('Automatisk stabling', { autoZ: !p.autoZ })}
-        />{' '}
-        Stable lagene automatisk
-      </label>
-      <TallFelt
-        etikett="Printlaghøyde"
-        verdi={p.lagHoyde}
-        min={0.08}
-        maks={0.4}
-        steg={0.04}
-        desimaler={2}
-        endre={(v) => settParam('Printlaghøyde', { lagHoyde: v })}
-      />
-    </Panel>
-  );
-}
-
-function BatchInngang({ benk }: { benk: Arbeidsbenk }) {
-  if (!plangrenser.csvBatch) return null;
-  return (
-    <Panel tittel="Mange skilt">
-      <p class="tom-melding">
-        Lag ett skilt per rad i en CSV-fil, for eksempel navneskilt til et arrangement.
-      </p>
-      <button type="button" class="kontroll-knapp" onClick={() => apneCsv(benk)}>
-        Lag skilt fra CSV …
-      </button>
-    </Panel>
-  );
-}
-
 export function SigngenInspektor({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
   const st = brukSigntilstand(benk);
@@ -1384,8 +1281,14 @@ export function SigngenInspektor({ benk }: { benk: Arbeidsbenk }) {
     <>
       {st.verktoy === 'penn' && <Pennpanel benk={benk} />}
       {lag && <LagInspektor benk={benk} lag={lag} key={lag.id} />}
-      <ProsjektInspektor benk={benk} />
-      <BatchInngang benk={benk} />
+      {!lag && (
+        <Panel tittel="Egenskaper">
+          <p class="tom-melding">
+            Velg et objekt eller et lag for å se egenskapene. Byggeplate, farger og printlaghøyde ligger i
+            Prosjektinnstillinger øverst i lagpanelet.
+          </p>
+        </Panel>
+      )}
     </>
   );
 }

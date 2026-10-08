@@ -356,10 +356,9 @@ test.describe('Signgen', () => {
 
   test('Fra CSV er en arbeidsflyt: importer, koble, master, rader, valider, generer og plater', async ({
     page,
-    isMobile,
   }) => {
-    if (isMobile) await page.getByRole('button', { name: 'Egenskaper' }).click();
-    await page.getByRole('button', { name: /Lag skilt fra CSV/ }).click();
+    await page.locator('summary', { hasText: 'Fil' }).click();
+    await page.getByRole('menuitem', { name: /Lag skilt fra CSV/ }).click();
     const importer = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
     await expect(importer.getByRole('navigation', { name: 'Fra CSV, stegene' })).toBeVisible();
     await importer.getByLabel('Eller lim inn').fill('navn;Tekst\nOla;Lilla\nKari;Cyan\nPer;Neonoransje');
@@ -523,7 +522,8 @@ test.describe('Signgen', () => {
       .analyze();
     expect(a1.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: /Lag skilt fra CSV/ }).click();
+    await page.locator('summary', { hasText: 'Fil' }).click();
+    await page.getByRole('menuitem', { name: /Lag skilt fra CSV/ }).click();
     await tilMasterSteget(page, 'navn\nEd\nEt veldig langt navn');
     await page
       .getByRole('region', { name: 'Fra CSV: design masteren' })
@@ -584,6 +584,61 @@ test.describe('Signgen', () => {
     await page.locator('.lagrad .lag-navn').first().click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Nytt tekstlag' }).click();
     await expect(page.locator('.lagrad')).toHaveCount(2);
+  });
+
+  test('Innstillinger: mørk modus og bakgrunn gjelder editoren og huskes', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Menylinjen testes på desktop');
+    const rot = page.locator('.verksted');
+    await expect(rot).toHaveClass(/\blys\b/);
+    await page.locator('summary', { hasText: 'Innstillinger' }).click();
+    await page.getByRole('radio', { name: 'Mørk', exact: true }).click();
+    await expect(rot).not.toHaveClass(/\blys\b/);
+    await page.getByRole('radio', { name: 'Midnatt' }).click();
+    await expect(rot).toHaveClass(/egen-bakgrunn/);
+    expect(
+      await page
+        .locator('.lerret')
+        .evaluate((el) => getComputedStyle(el).getPropertyValue('--horisont-topp')),
+    ).toBe('#05060d');
+    // a light background gives dark ink on the canvas
+    await page.getByRole('radio', { name: 'Hvit' }).click();
+    await expect(rot).toHaveClass(/lerret-lys/);
+    // a colour of your own
+    await page.locator('.egenfarge input[type="color"]').fill('#336699');
+    await expect(page.getByRole('radio', { name: 'Egen farge' })).toHaveAttribute('aria-checked', 'true');
+    await expect(rot).not.toHaveClass(/lerret-lys/);
+    // clicking the canvas closes the menu
+    await page.locator('.lerret canvas').click({ position: { x: 300, y: 200 } });
+    await expect(page.locator('.innstillinger')).not.toHaveAttribute('open', '');
+    // it is remembered
+    await page.reload();
+    await startPaaNytt(page);
+    await expect(page.locator('.verksted')).not.toHaveClass(/\blys\b/);
+    await expect(page.locator('.verksted')).toHaveClass(/egen-bakgrunn/);
+  });
+
+  test('Prosjektinnstillinger: byggeplate, farger og printlaghøyde er flyttet ut av Egenskaper', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Lagpanelet testes på desktop');
+    await page.locator('.lerret canvas').click({ position: { x: 5, y: 5 } });
+    const egenskaper = page.getByRole('region', { name: 'Egenskaper', exact: true });
+    await expect(egenskaper).not.toContainText('Byggeplate');
+    await expect(egenskaper).not.toContainText('Printlaghøyde');
+    await page.getByRole('button', { name: 'Prosjektinnstillinger' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Prosjektinnstillinger' });
+    await expect(vindu).toContainText('Printlaghøyde');
+    await vindu.getByLabel('Størrelse').selectOption({ label: '300 × 300 mm' });
+    await expect(vindu.getByRole('textbox', { name: 'Bredde' })).toHaveValue('300');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.statuslinje')).toBeVisible();
+    // the project went back to a plate of its own size: undo returns the old plate
+    await page.getByRole('button', { name: /Angre/ }).first().click();
+    await page.getByRole('button', { name: 'Prosjektinnstillinger' }).click();
+    await expect(
+      page.getByRole('dialog', { name: 'Prosjektinnstillinger' }).getByRole('textbox', { name: 'Bredde' }),
+    ).toHaveValue('256');
   });
 
   test('lagpanelet: ett klikk gir et tomt lag, rader flyttes i hierarkiet, og hvert objekt kan slettes og farges', async ({
