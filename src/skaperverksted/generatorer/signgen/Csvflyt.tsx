@@ -1,9 +1,9 @@
 /**
- * «Fra CSV» (Sivert, 2026-10-06, §24): a workflow, not a window. Import,
- * connect the columns, design the master (on the canvas, with the tray
- * from Csvbrett.tsx), choose rows, validate and generate, then the
- * production plates. The master step has no window: the canvas is the work.
- * Every other step is one window with the step bar on top.
+ * «Fra CSV» (Sivert, 2026-10-06, §24; three tabs 2026-10-08, §11): a workflow, not a window. Importer
+ * (read the file, choose columns and rows), Koble (connect the columns, add own columns for decoration
+ * and colour profile), design the master on the canvas (with the tray from Csvbrett.tsx), and Generer
+ * (a short status, then the build plates once «Generer» is pressed). The master has no window and no
+ * tab: the canvas is the work. Every tab is one window with the tab bar on top.
  */
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { Dialog } from '../../shell/Dialog';
@@ -12,8 +12,7 @@ import { lesArbeid, lesInstans } from './csvflyt';
 import { stegNavn } from './csvhandlinger';
 import { Stegrad } from './Csvfelles';
 import { ImportSteg, KobleSteg } from './Csvimport';
-import { GenererSteg, RaderSteg } from './Csvrader';
-import { PlaterSteg } from './Csvplater';
+import { GenererSteg } from './Csvgenerer';
 import { brukSigntilstand, signtilstand } from './tilstand';
 
 export function Csvflyt({ benk }: { benk: Arbeidsbenk }) {
@@ -29,11 +28,9 @@ export function Csvflyt({ benk }: { benk: Arbeidsbenk }) {
   return (
     <Dialog tittel={`Fra CSV: ${stegNavn(steg)}`} lukk={lukk} klasse="csvflyt">
       <Stegrad benk={benk} aktiv={steg} />
-      {steg === 'importer' && <ImportSteg benk={benk} />}
+      {(steg === 'importer' || steg === 'rader') && <ImportSteg benk={benk} />}
       {steg === 'koble' && <KobleSteg benk={benk} />}
-      {steg === 'rader' && <RaderSteg benk={benk} />}
-      {steg === 'generer' && <GenererSteg benk={benk} />}
-      {steg === 'plater' && <PlaterSteg benk={benk} />}
+      {(steg === 'generer' || steg === 'plater') && <GenererSteg benk={benk} />}
     </Dialog>
   );
 }

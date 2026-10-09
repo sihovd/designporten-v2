@@ -4815,6 +4815,8 @@ button.profilfarger.fargeknapp {
 }
 
 .tidslinje-rad {
+  /* the hidden labels of the steps are positioned: without this they escape the scrolling row and widen the page */
+  position: relative;
   display: flex;
   flex: 1;
   align-items: center;
@@ -5051,4 +5053,142 @@ button.profilfarger.fargeknapp {
   gap: 6px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+/* Fra CSV, tre faner (2026-10-08): kolonne- og radvalg, egne kolonner og kort status */
+.csv-kolonnehode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.csv-kolonnehode input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--dp-lilla);
+}
+
+.batch-tabell th.av,
+.batch-tabell td.av {
+  font-style: italic;
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.csv-celle {
+  padding: 0;
+}
+
+.csv-cellevisning {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: text;
+}
+
+.csv-cellevisning:hover {
+  background: color-mix(in srgb, var(--handling) 8%, transparent);
+}
+
+.csv-celleinput {
+  width: 100%;
+  min-width: 8rem;
+  min-height: 32px;
+  box-sizing: border-box;
+}
+
+.csv-nykolonne {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--linje);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.csv-verdier select {
+  width: 100%;
+  min-width: 11rem;
+}
+
+.csv-alle-rad th,
+.csv-alle-rad td {
+  background: color-mix(in srgb, var(--handling) 7%, transparent);
+}
+
+.csv-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.csv-status li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 1px solid var(--linje);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.csv-status li strong {
+  font-size: 1.25rem;
+}
+
+.csv-status li.ok {
+  border-color: var(--handling);
+}
+
+.csv-status li.feil {
+  border-color: var(--feil-mork);
+}
+
+.csv-mangler {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-inline-start: 1.2rem;
+}
+
+.csv-brett-merke {
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .csv-kobletabell table,
+  .csv-kobletabell tbody,
+  .csv-kobletabell tr,
+  .csv-kobletabell th,
+  .csv-kobletabell td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .csv-kobletabell thead {
+    display: none;
+  }
+
+  .csv-kobletabell tr {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--linje);
+  }
+
+  .csv-kobletabell select {
+    min-width: 0;
+  }
 }

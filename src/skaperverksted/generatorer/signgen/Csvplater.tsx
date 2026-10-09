@@ -27,6 +27,9 @@ import {
   grunnskilt,
   lagProduksjonsplater,
   lesArbeid,
+  profilkolonne,
+  settProfilForRad,
+  skiltinfo,
   tilbakestillOverstyring,
   tilbakestillSkilt,
   type Csvarbeid,
@@ -34,6 +37,7 @@ import {
 } from './csvflyt';
 import { endreArbeid, gaTilSteg, startInstans } from './csvhandlinger';
 import { Filamentchip } from './Csvfelles';
+import { alleProfiler } from './batch';
 import { byggSigngen, lastFonter } from './modell';
 import { foreldreloseOverstyringer, lesVerdi, overstyringsetikett, visVerdi } from './overstyring';
 import { signtilstand, brukSigntilstand } from './tilstand';
@@ -176,7 +180,36 @@ function Egneverdier({ benk, a, rad }: { benk: Arbeidsbenk; a: Csvarbeid; rad: n
   );
 }
 
-export function PlaterSteg({ benk }: { benk: Arbeidsbenk }) {
+/** Another colour profile for this one sign: the sign changes, the master and the other signs do not. */
+function Skiltvalg({ benk, a, rad }: { benk: Arbeidsbenk; a: Csvarbeid; rad: number }) {
+  const profiler = alleProfiler();
+  const kol = profilkolonne(a);
+  const naa = kol >= 0 ? (a.rader[rad]?.[kol] ?? '') : '';
+  const liste = naa && !profiler.some((p) => p.navn.toLowerCase() === naa.toLowerCase()) ? [naa] : [];
+  return (
+    <label class="felt" for="csv-skiltprofil">
+      <span>Fargeprofil for dette skiltet</span>
+      <select
+        id="csv-skiltprofil"
+        value={naa}
+        onChange={(e) =>
+          endreArbeid(benk, 'Fargeprofil for ett skilt', (x) =>
+            settProfilForRad(x, rad, (e.target as HTMLSelectElement).value),
+          )
+        }
+      >
+        <option value="">Som masteren</option>
+        {[...liste, ...profiler.map((p) => p.navn)].map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export function PlaterSteg({ benk, tilStatus }: { benk: Arbeidsbenk; tilStatus: () => void }) {
   const t = brukBenk(benk);
   const st = brukSigntilstand(benk);
   const a = lesArbeid(t.dok);
@@ -218,10 +251,10 @@ export function PlaterSteg({ benk }: { benk: Arbeidsbenk }) {
   if (!a.generert.length) {
     return (
       <div class="csv-steginnhold">
-        <p class="merknad">Ingen skilt er generert ennå. Velg rader og trykk «Generer».</p>
+        <p class="merknad">Ingen skilt er generert ennå. Trykk «Generer».</p>
         <div class="knapperad csv-fot">
-          <button type="button" class="primar" onClick={() => gaTilSteg(benk, 'rader')}>
-            Velg rader →
+          <button type="button" class="primar" onClick={tilStatus}>
+            Til genereringen →
           </button>
         </div>
       </div>
@@ -260,8 +293,9 @@ export function PlaterSteg({ benk }: { benk: Arbeidsbenk }) {
   return (
     <div class="csv-steginnhold">
       <p class="dempet csv-intro">
-        Skiltene er sortert etter hvilke filamenter de trenger, så du bytter filament sjeldnere. Plater med
-        samme kombinasjon bruker samme plasser i printeren.
+        Skiltene er laget. De er sortert etter hvilke filamenter de trenger, så du bytter filament sjeldnere.
+        Velg et skilt for å bytte fargeprofil eller åpne det i editoren. Det du endrer på ett skilt, gjelder
+        bare det skiltet; masteren og de andre skiltene blir ikke berørt.
       </p>
 
       {!klar ? (
@@ -328,6 +362,8 @@ export function PlaterSteg({ benk }: { benk: Arbeidsbenk }) {
                       <tr>
                         <th scope="col">Rad</th>
                         <th scope="col">Skilt</th>
+                        <th scope="col">Dekor</th>
+                        <th scope="col">Fargeprofil</th>
                         <th scope="col">Filamenter</th>
                         <th scope="col">Status</th>
                         <th scope="col">
@@ -342,7 +378,9 @@ export function PlaterSteg({ benk }: { benk: Arbeidsbenk }) {
                           class={`${v.problemer.length ? 'problem' : ''}${v.indeks === valgtRad ? ' valgt' : ''}`}
                         >
                           <td class="mono">{v.indeks + 1}</td>
-                          <td>{first(v)}</td>
+                          <td>{skiltinfo(a, t.dok, v.indeks).navn}</td>
+                          <td>{skiltinfo(a, t.dok, v.indeks).dekor.join(', ') || '–'}</td>
+                          <td>{skiltinfo(a, t.dok, v.indeks).profil || 'Som masteren'}</td>
                           <td>{filamentkombinasjon(v).length}</td>
                           <td>
                             {[
@@ -386,6 +424,7 @@ export function PlaterSteg({ benk }: { benk: Arbeidsbenk }) {
                   {valgtSkilt.problemer.join('; ')}
                 </p>
               )}
+              <Skiltvalg benk={benk} a={a} rad={valgtSkilt.indeks} />
               <Egneverdier benk={benk} a={a} rad={valgtSkilt.indeks} />
               <div class="knapperad">
                 <button
@@ -464,10 +503,10 @@ export function PlaterSteg({ benk }: { benk: Arbeidsbenk }) {
       )}
 
       <div class="knapperad csv-fot">
-        <button type="button" class="sekundar" onClick={() => gaTilSteg(benk, 'rader')}>
+        <button type="button" class="sekundar" onClick={() => gaTilSteg(benk, 'importer')}>
           ← Tilbake til CSV
         </button>
-        <button type="button" class="sekundar" onClick={() => gaTilSteg(benk, 'rader')}>
+        <button type="button" class="sekundar" onClick={tilStatus}>
           Generer flere rader{venter > 0 ? ` (${venter} valgt, ikke generert)` : ''}
         </button>
         <button

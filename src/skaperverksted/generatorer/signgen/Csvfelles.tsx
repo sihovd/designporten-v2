@@ -8,17 +8,14 @@ import { fargekode, finnMateriale, visningsnavn } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Ikon, type IkonId } from '../../shell/ikoner';
 import type { Kolonnemal } from './batch';
-import { CSVSTEG, lesArbeid, lesInstans, nyeFelt, type Csvsteg } from './csvflyt';
+import { CSVFANER, faneFor, lesArbeid, lesInstans, nyeFeltFor, type Csvfane, type Csvsteg } from './csvflyt';
 import { gaTilSteg, stegNavn, tilMaster } from './csvhandlinger';
 import { brukSigntilstand } from './tilstand';
 
-const STEGIKON: Record<Csvsteg, IkonId> = {
+const STEGIKON: Record<Csvfane, IkonId> = {
   importer: 'import-csv',
   koble: 'link-fields',
-  master: 'properties',
-  rader: 'rows',
   generer: 'generate',
-  plater: 'plates-sorted',
 };
 
 export function kodeKobling(k: Kolonnemal): string {
@@ -45,23 +42,24 @@ export function hvorforIkke(dok: Dokument, steg: Csvsteg): string | null {
   const designet = a.steg !== 'koble';
   if (steg === 'master')
     return a.kobling.some((k) => k.type !== 'ingen') ? null : 'Koble minst én kolonne først';
-  if (!designet) return 'Lag masteren først';
+  if (!designet) return 'Lag masteren under Koble først';
   if (steg === 'rader') return null;
-  if (steg === 'generer') return a.valgte.length ? null : 'Velg minst én rad først';
-  return a.generert.length ? null : 'Generer skilt først';
+  if (steg === 'generer' || steg === 'plater')
+    return a.valgte.length || a.generert.length ? null : 'Velg minst én rad under Importer først';
+  return null;
 }
 
-/** Go to a step from the step bar: the master is made the first time it is reached. */
+/** Go to a step: the master is made the first time it is reached. The step bar has only the three tabs. */
 export async function velgSteg(benk: Arbeidsbenk, steg: Csvsteg): Promise<void> {
   const a = lesArbeid(benk.dok);
-  if (steg === 'master' && a && (a.steg === 'koble' || nyeFelt(benk.dok, a.kobling).length)) {
+  if (steg === 'master' && a && (a.steg === 'koble' || nyeFeltFor(benk.dok, a).length)) {
     await tilMaster(benk);
     return;
   }
-  gaTilSteg(benk, steg, steg === 'master' || steg === 'rader');
+  gaTilSteg(benk, steg, steg === 'master' || steg === 'generer');
 }
 
-/** The steps as a numbered row: the step you are on is marked, the ones you cannot reach yet are dimmed with the reason. */
+/** The three tabs: the one you are on is marked, the ones you cannot reach yet are dimmed with the reason. */
 export function Stegrad({
   benk,
   aktiv,
@@ -72,12 +70,13 @@ export function Stegrad({
   kompakt?: boolean;
 }) {
   const t = brukBenk(benk);
+  const aktivFane = faneFor(aktiv);
   return (
     <nav class={`csv-steg${kompakt ? ' kompakt' : ''}`} aria-label="Fra CSV, stegene">
       <ol>
-        {CSVSTEG.map((s, i) => {
+        {CSVFANER.map((s, i) => {
           const hvorfor = hvorforIkke(t.dok, s.id);
-          const na = s.id === aktiv;
+          const na = s.id === aktivFane;
           return (
             <li key={s.id}>
               <button
@@ -99,7 +98,7 @@ export function Stegrad({
                   {s.kort}
                 </span>
                 <span class="visuelt-skjult">
-                  {`, steg ${i + 1} av ${CSVSTEG.length}: ${s.navn}${na ? ', du er her' : hvorfor ? `, ikke tilgjengelig: ${hvorfor}` : ''}`}
+                  {`, fane ${i + 1} av ${CSVFANER.length}: ${s.navn}${na ? ', du er her' : hvorfor ? `, ikke tilgjengelig: ${hvorfor}` : ''}`}
                 </span>
               </button>
             </li>
@@ -113,9 +112,11 @@ export function Stegrad({
 /** Previous and next step for the narrow layout. */
 export function Stegnavigasjon({ benk, aktiv }: { benk: Arbeidsbenk; aktiv: Csvsteg }) {
   const t = brukBenk(benk);
-  const i = CSVSTEG.findIndex((s) => s.id === aktiv);
-  const forrige = CSVSTEG[i - 1];
-  const neste = CSVSTEG[i + 1];
+  const fane = faneFor(aktiv);
+  // on the canvas (the master) the previous tab is Koble and the next is Generer
+  const i = fane ? CSVFANER.findIndex((s) => s.id === fane) : 1;
+  const forrige = fane ? CSVFANER[i - 1] : CSVFANER[1];
+  const neste = fane ? CSVFANER[i + 1] : CSVFANER[2];
   const nesteHvorfor = neste ? hvorforIkke(t.dok, neste.id) : 'Siste steg';
   return (
     <div class="csv-stegnav">
@@ -128,7 +129,7 @@ export function Stegnavigasjon({ benk, aktiv }: { benk: Arbeidsbenk; aktiv: Csvs
         ← {forrige?.kort ?? 'Start'}
       </button>
       <span class="dempet" aria-hidden="true">
-        {i + 1} av {CSVSTEG.length}
+        {fane ? `${i + 1} av ${CSVFANER.length}` : 'Masteren'}
       </span>
       <button
         type="button"

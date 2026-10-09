@@ -12,8 +12,9 @@
  * they are always built from master, row and overrides, so a change to the
  * master reaches every sign (Sivert §31).
  */
-import { type Dokument, type Objekt, type TekstKilde } from '../../core/dokument';
+import { type Dokument, type Objekt, type SvgKilde, type TekstKilde } from '../../core/dokument';
 import { feltNavn, feltObjekter, leggTilObjekt, nyTekst, nyttObjekt, oppdaterObjekter } from './dokument';
+import { dekorValg, finnDekorFraTekst, type DekorValg } from './dekor';
 import {
   alleProfiler,
   amsRekkefolge,
@@ -32,23 +33,47 @@ import {
   type Varianttilvalg,
 } from './batch';
 import { finnOverstyringer, type Avvik, type Overstyringer } from './overstyring';
-import { lastFonter } from './modell';
+import { lastFonter, verdensBoks } from './modell';
 import type { Fargeprofil } from './fargeprofiler';
 
 /** More rows than this are not read (the project keeps the table). */
 export const MAKS_RADER = 1000;
 
-/** The steps of the workflow, in order. */
+/**
+ * Where the workflow is. There are three tabs (Sivert, 2026-10-08, §11): Importer, Koble and Generer.
+ * `master` is the canvas between Koble and Generer, with no tab of its own. `rader` and `plater`
+ * are the old names of what now lives in Importer and Generer; projects saved with them still open.
+ */
 export type Csvsteg = 'importer' | 'koble' | 'master' | 'rader' | 'generer' | 'plater';
 
-export const CSVSTEG: { id: Csvsteg; navn: string; kort: string }[] = [
+/** The tabs, in order. */
+export type Csvfane = 'importer' | 'koble' | 'generer';
+
+export const CSVFANER: { id: Csvfane; navn: string; kort: string }[] = [
   { id: 'importer', navn: 'Importer CSV', kort: 'Importer' },
   { id: 'koble', navn: 'Koble kolonner', kort: 'Koble' },
-  { id: 'master', navn: 'Design masteren', kort: 'Master' },
-  { id: 'rader', navn: 'Velg rader', kort: 'Rader' },
-  { id: 'generer', navn: 'Valider og generer', kort: 'Generer' },
-  { id: 'plater', navn: 'Produksjonsplater', kort: 'Plater' },
+  { id: 'generer', navn: 'Generer skilt', kort: 'Generer' },
 ];
+
+/** The tab a step belongs to, or null on the canvas (the master has no tab). */
+export function faneFor(steg: Csvsteg): Csvfane | null {
+  if (steg === 'rader') return 'importer';
+  if (steg === 'plater') return 'generer';
+  return steg === 'master' ? null : steg;
+}
+
+/** A step as it is called in the window title. */
+export const STEGNAVN: Record<Csvsteg, string> = {
+  importer: 'Importer CSV',
+  koble: 'Koble kolonner',
+  master: 'Design masteren',
+  rader: 'Importer CSV',
+  generer: 'Generer skilt',
+  plater: 'Generer skilt',
+};
+
+/** What an own column holds: a decoration or a colour profile per row. */
+export type Egenkolonne = 'dekor' | 'profil';
 
 /** How the signs are built and laid out; saved with the work. */
 export interface Csvvalg {
@@ -82,6 +107,10 @@ export interface Csvarbeid {
   rader: string[][];
   /** What each column controls. */
   kobling: Kolonnemal[];
+  /** The columns taken forward (column indexes); the others are left out of the connecting and the signs. */
+  valgteKolonner: number[];
+  /** Columns the user added in Koble (index to kind): a decoration or colour profile per row. */
+  egne: Record<number, Egenkolonne>;
   /** The row the master is designed from (the first by default, §25). */
   masterRad: number;
   /** The rows chosen for generation (row indexes, ascending). */
@@ -109,6 +138,8 @@ export function lesArbeid(dok: Dokument): Csvarbeid | null {
     steg: a.steg ?? 'koble',
     valg: { ...STANDARDVALG, ...(a.valg ?? {}) },
     kobling: a.kolonner.map((_, i) => a.kobling?.[i] ?? { type: 'ingen' }),
+    valgteKolonner: a.valgteKolonner ?? a.kolonner.map((_, i) => i),
+    egne: a.egne ?? {},
     valgte: a.valgte ?? [],
     generert: a.generert ?? [],
     overstyringer: a.overstyringer ?? {},
@@ -176,11 +207,190 @@ export function nyttArbeid(csv: Csv, kilde: string, dok: Dokument): Csvarbeid {
     kolonner: csv.kolonner,
     rader: csv.rader,
     kobling: foreslaFlytkobling(csv, dok),
+    valgteKolonner: csv.kolonner.map((_, i) => i),
+    egne: {},
     masterRad: 0,
     valgte: csv.rader.map((_, i) => i),
     generert: [],
     overstyringer: {},
   };
+}
+
+// ---------- choosing and adding columns ----------
+
+/** What a column controls when it is taken forward: the first guess, or what an own column is made for. */
+function standardKobling(a: Csvarbeid, dok: Dokument, i: number): Kolonnemal {
+  const egen = a.egne[i];
+  if (egen === 'profil') return { type: 'profil' };
+  if (egen === 'dekor') return { type: 'felt', felt: feltnavnFraKolonne(a.kolonner[i] ?? '') };
+  return foreslaFlytkobling(tilCsv(a), dok)[i] ?? { type: 'ingen' };
+}
+
+/** Take columns forward, or leave them out. A column left out controls nothing. */
+export function velgKolonner(
+  a: Csvarbeid,
+  dok: Dokument,
+  kolonner: readonly number[],
+  paa: boolean,
+): Csvarbeid {
+  const valgt = new Set(a.valgteKolonner);
+  const kobling = [...a.kobling];
+  for (const i of kolonner) {
+    if (paa) {
+      if (valgt.has(i)) continue;
+      valgt.add(i);
+      kobling[i] = standardKobling(a, dok, i);
+    } else {
+      valgt.delete(i);
+      kobling[i] = { type: 'ingen' };
+    }
+  }
+  return { ...a, valgteKolonner: [...valgt].sort((x, y) => x - y), kobling };
+}
+
+/** A name that no other column has, with a number after it when it is taken. */
+function ledigKolonnenavn(a: Pick<Csvarbeid, 'kolonner'>, onsket: string): string {
+  const grunn = onsket.trim() || 'Kolonne';
+  const har = new Set(a.kolonner.map((k) => k.trim().toLowerCase()));
+  if (!har.has(grunn.toLowerCase())) return grunn;
+  let n = 2;
+  while (har.has(`${grunn} ${n}`.toLowerCase())) n++;
+  return `${grunn} ${n}`;
+}
+
+/**
+ * Add a column of our own to the table (§11): a decoration or a colour profile per row. The cells start
+ * empty and are chosen in Koble. A decoration column fills a decoration field on the master.
+ */
+export function leggTilEgenKolonne(a: Csvarbeid, onsket: string, type: Egenkolonne): Csvarbeid {
+  const navn = ledigKolonnenavn(a, onsket);
+  const i = a.kolonner.length;
+  const brukteFelt = new Set(a.kobling.flatMap((k) => (k.type === 'felt' ? [k.felt] : [])));
+  let felt = feltnavnFraKolonne(navn);
+  for (let n = 2; brukteFelt.has(felt); n++) felt = `${feltnavnFraKolonne(navn)}${n}`;
+  const kobling: Kolonnemal = type === 'profil' ? { type: 'profil' } : { type: 'felt', felt };
+  return {
+    ...a,
+    kolonner: [...a.kolonner, navn],
+    rader: a.rader.map((r) => [...r, '']),
+    kobling: [...a.kobling, kobling],
+    valgteKolonner: [...a.valgteKolonner, i],
+    egne: { ...a.egne, [i]: type },
+  };
+}
+
+/** Take away a column the user added. Columns from the file are left out instead (`velgKolonner`). */
+export function fjernEgenKolonne(a: Csvarbeid, i: number): Csvarbeid {
+  if (!a.egne[i]) return a;
+  const om = (n: number) => (n > i ? n - 1 : n);
+  return {
+    ...a,
+    kolonner: a.kolonner.filter((_, j) => j !== i),
+    rader: a.rader.map((r) => r.filter((_, j) => j !== i)),
+    kobling: a.kobling.filter((_, j) => j !== i),
+    valgteKolonner: a.valgteKolonner.filter((j) => j !== i).map(om),
+    egne: Object.fromEntries(
+      Object.entries(a.egne)
+        .filter(([j]) => Number(j) !== i)
+        .map(([j, t]) => [om(Number(j)), t]),
+    ),
+    valg: {
+      ...a.valg,
+      sorterKolonne: a.valg.sorterKolonne === i ? 0 : om(a.valg.sorterKolonne),
+    },
+  };
+}
+
+/** Change one cell of the table (a decoration or a colour profile for one row). */
+export function settCelle(a: Csvarbeid, rad: number, kolonne: number, verdi: string): Csvarbeid {
+  return {
+    ...a,
+    rader: a.rader.map((r, i) => {
+      if (i !== rad) return r;
+      const ny = [...r];
+      while (ny.length < a.kolonner.length) ny.push('');
+      ny[kolonne] = verdi;
+      return ny;
+    }),
+  };
+}
+
+/** Give every chosen row the same value in one column (for a start before the exceptions). */
+export function settKolonne(
+  a: Csvarbeid,
+  kolonne: number,
+  verdi: string,
+  rader: readonly number[],
+): Csvarbeid {
+  return rader.reduce((x, r) => settCelle(x, r, kolonne, verdi), a);
+}
+
+/** The decoration a column names first: on the master row, else on the first row that names one. */
+export function dekorForKolonne(a: Csvarbeid, kolonne: number): DekorValg | undefined {
+  for (const r of [a.masterRad, ...a.rader.keys()]) {
+    const v = finnDekorFraTekst(a.rader[r]?.[kolonne] ?? '');
+    if (v) return v;
+  }
+  return undefined;
+}
+
+/**
+ * Give one row another colour profile without touching the master or the other rows: the cell of the
+ * profile column changes. When the table has no profile column yet, one is added.
+ */
+export function settProfilForRad(a: Csvarbeid, rad: number, profilnavn: string): Csvarbeid {
+  let x = a;
+  let kol = x.kobling.findIndex((k, i) => k.type === 'profil' && x.valgteKolonner.includes(i));
+  if (kol < 0) {
+    x = leggTilEgenKolonne(x, 'Fargeprofil', 'profil');
+    kol = x.kolonner.length - 1;
+  }
+  return settCelle(x, rad, kol, profilnavn);
+}
+
+/** The colour profile column the table has, if it has one. */
+export function profilkolonne(a: Csvarbeid): number {
+  return a.kobling.findIndex((k, i) => k.type === 'profil' && a.valgteKolonner.includes(i));
+}
+
+/** What a row's sign shows in the plate view: its name, its decorations and its colour profile. */
+export function skiltinfo(
+  a: Csvarbeid,
+  dok: Dokument,
+  rad: number,
+): { navn: string; dekor: string[]; profil: string } {
+  const r = a.rader[rad] ?? [];
+  const navn: string[] = [];
+  const dekor: string[] = [];
+  let profil = '';
+  for (const i of a.valgteKolonner) {
+    const v = (r[i] ?? '').trim();
+    if (!v) continue;
+    const type = kolonnetype(a, dok, i);
+    if (type === 'tekst') navn.push(v);
+    else if (type === 'dekor') dekor.push(v);
+    else if (type === 'profil' && !profil) profil = v;
+  }
+  return { navn: navn[0] ?? `Rad ${rad + 1}`, dekor, profil };
+}
+
+/** The names a decoration column's cells can have: the gallery. */
+export const dekornavn = (): string[] => dekorValg().map((d) => d.navn);
+
+/** Which kind a connected column is: a plain text, a decoration, a colour, or a colour profile. */
+export function kolonnetype(
+  a: Csvarbeid,
+  dok: Dokument,
+  i: number,
+): 'tekst' | 'dekor' | 'farge' | 'profil' | 'ingen' {
+  const k = a.kobling[i];
+  if (!k || k.type === 'ingen') return 'ingen';
+  if (k.type === 'farge' || k.type === 'profil') return k.type;
+  const dekor =
+    a.egne[i] === 'dekor' ||
+    (feltObjekter(dok).some((o) => feltNavn(o) === k.felt && o.kilde.type === 'svg') &&
+      !feltObjekter(dok).some((o) => feltNavn(o) === k.felt && o.kilde.type === 'tekst'));
+  return dekor ? 'dekor' : 'tekst';
 }
 
 // ---------- the master ----------
@@ -189,6 +399,17 @@ export function nyttArbeid(csv: Csv, kilde: string, dok: Dokument): Csvarbeid {
 export function nyeFelt(dok: Dokument, kobling: readonly Kolonnemal[]): string[] {
   const har = new Set(feltObjekter(dok).map((o) => feltNavn(o)));
   return [...new Set(kobling.flatMap((k) => (k.type === 'felt' && !har.has(k.felt) ? [k.felt] : [])))];
+}
+
+/**
+ * The fields the master lacks and can be given now: texts always, decorations only once a row names one
+ * (the master needs a decoration to stand in for the others).
+ */
+export function nyeFeltFor(dok: Dokument, a: Csvarbeid): string[] {
+  return nyeFelt(dok, a.kobling).filter((f) => {
+    const i = a.kobling.findIndex((k) => k.type === 'felt' && k.felt === f);
+    return a.egne[i] !== 'dekor' || !!dekorForKolonne(a, i);
+  });
 }
 
 /** Does the master still hold only the starting text, with no field? Then the first new field takes its place. */
@@ -207,12 +428,37 @@ function bareStartteksten(dok: Dokument): Objekt | null {
 export async function klargjorMaster(dok: Dokument, a: Csvarbeid): Promise<Dokument> {
   let d = dok;
   const rad = a.rader[a.masterRad] ?? [];
-  const mangler = nyeFelt(d, a.kobling);
+  await lastFonter(d);
+  const mangler = nyeFeltFor(d, a);
   const verdiFor = (felt: string) => {
     const i = a.kobling.findIndex((k) => k.type === 'felt' && k.felt === felt);
     return (i >= 0 ? rad[i] : '') ?? '';
   };
   for (const felt of mangler) {
+    const kol = a.kobling.findIndex((k) => k.type === 'felt' && k.felt === felt);
+    if (a.egne[kol] === 'dekor') {
+      // a decoration column: the master gets one decoration to stand in for the others, beside what is there
+      const valg = dekorForKolonne(a, kol);
+      if (!valg) continue;
+      const ny = valg.lag();
+      const skala = 16 / Math.max(ny.bredde, ny.hoyde, 1);
+      const alle = Object.values(d.objekter).map((o) => verdensBoks(o));
+      const hoyre = alle.length ? Math.max(...alle.map((b) => b.maksX)) : 0;
+      const midtY = alle.length
+        ? (Math.min(...alle.map((b) => b.minY)) + Math.max(...alle.map((b) => b.maksY))) / 2
+        : 0;
+      const lagId = (d.lag.find((l) => l.tekstlag) ?? d.lag.at(-1)!).id;
+      d = leggTilObjekt(
+        d,
+        nyttObjekt(
+          lagId,
+          { ...(ny.kilde as SvgKilde), felt },
+          { x: hoyre + 8 + (ny.bredde * skala) / 2, y: midtY, skalaX: skala, skalaY: skala },
+          `Dekor «${valg.navn}»`,
+        ),
+      );
+      continue;
+    }
     const start = bareStartteksten(d);
     if (start) {
       d = oppdaterObjekter(d, [start.id], (o) => ({
@@ -230,7 +476,6 @@ export async function klargjorMaster(dok: Dokument, a: Csvarbeid): Promise<Dokum
     const ny = nyttObjekt(tekstlag.id, { ...nyTekst(verdiFor(felt), storrelse), felt }, { y: under });
     d = leggTilObjekt(d, ny);
   }
-  await lastFonter(d);
   // the master row's colours, profile and decorations, but not the spacing rules: the master is the original
   const v = lagVarianter(rentDokument(d), tilCsv(a), a.kobling, {
     rader: [a.masterRad],
@@ -398,7 +643,7 @@ export function valider(
     !manglende.length && !dobbelt.length && lagFinnes,
     'Kolonnene peker på ting som finnes på masteren',
     manglende.length
-      ? `Masteren mangler feltene ${manglende.map((f) => `«${f}»`).join(', ')}. Koble kolonnen på nytt.`
+      ? `Masteren mangler feltene ${manglende.map((f) => `«${f}»`).join(', ')}. Gå til Koble og legg dem inn på masteren.`
       : dobbelt.length
         ? `Flere kolonner styrer samme felt: ${dobbelt.map((f) => `«${f}»`).join(', ')}.`
         : 'En fargekolonne peker på et lag eller omriss som er slettet.',
@@ -437,6 +682,35 @@ export function valider(
   );
 
   return { kontroller, problemrader, klar: kontroller.every((k) => k.ok) };
+}
+
+/** The short picture before «Generer»: how many rows, how many designs, and what is missing. */
+export interface Genererstatus {
+  rader: number;
+  /** Different combinations of decoration and colour profile among the chosen rows (at least one). */
+  design: number;
+  /** What is missing, in plain words; empty when generating can start. */
+  mangler: string[];
+}
+
+export function genererstatus(master: Dokument, a: Csvarbeid, v: Validering | null): Genererstatus {
+  const kol = a.kobling.flatMap((k, i) =>
+    a.valgteKolonner.includes(i) && (k.type === 'profil' || a.egne[i] === 'dekor') ? [i] : [],
+  );
+  const design = new Set(
+    a.valgte.map((r) => kol.map((i) => (a.rader[r]?.[i] ?? '').trim().toLowerCase()).join('|')),
+  );
+  const mangler: string[] = [];
+  if (!a.valgte.length) mangler.push('Ingen rader er valgt. Velg rader under Importer.');
+  if (!a.kobling.some((k) => k.type !== 'ingen')) mangler.push('Ingen kolonner er koblet. Gå til Koble.');
+  if (v) {
+    for (const k of v.kontroller) {
+      if (k.ok || k.id === 'valgte' || k.id === 'kobling') continue;
+      if (k.id === 'rader') mangler.push(`${v.problemrader.length} av radene har problemer.`);
+      else mangler.push(k.detalj ?? k.tekst);
+    }
+  }
+  return { rader: a.valgte.length, design: Math.max(1, design.size), mangler };
 }
 
 // ---------- generating and the signs ----------

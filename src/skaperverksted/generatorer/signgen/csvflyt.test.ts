@@ -19,23 +19,33 @@ import {
 import {
   antallOverstyringer,
   bygSkilt,
+  fjernEgenKolonne,
   generer,
+  genererstatus,
   grunnskilt,
   inverter,
   klargjorMaster,
   lagProduksjonsplater,
   lagreRedigertSkilt,
+  leggTilEgenKolonne,
   lesArbeid,
   nyeFelt,
+  nyeFeltFor,
   nyttArbeid,
+  profilkolonne,
   rentDokument,
   sett,
   settArbeid,
+  settCelle,
+  settKolonne,
+  settProfilForRad,
+  skiltinfo,
   synligeRader,
   tilbakestillOverstyring,
   tilbakestillSkilt,
   ukjenteProfiler,
   valider,
+  velgKolonner,
   velgOmrade,
 } from './csvflyt';
 import {
@@ -500,5 +510,128 @@ describe('Packing keeps working with plates tagged by combination', () => {
     const v = [skilt(0, 'pla-kritthvit'), skilt(1, 'pla-svart')];
     const plater = fordelPaPlater(organiser(v, 'csv', 'farger'), { bredde: 100, dybde: 100 }, 5);
     expect(plater).toHaveLength(2);
+  });
+});
+
+describe('Columns and own columns (§11)', () => {
+  const start = nyttSigngenDokument();
+  const grunn = () => nyttArbeid(tolkCsv('Navn;Rolle;Notat\nOla;Leder;x\nKari;Designer;y'), 'x.csv', start);
+
+  beforeAll(async () => {
+    await lastFonter(start);
+  });
+
+  it('takes every column forward at first, and a column left out controls nothing', () => {
+    const a = grunn();
+    expect(a.valgteKolonner).toEqual([0, 1, 2]);
+    const uten = velgKolonner(a, start, [2], false);
+    expect(uten.valgteKolonner).toEqual([0, 1]);
+    expect(uten.kobling[2]).toEqual({ type: 'ingen' });
+    // taken forward again, the column gets its first guess back
+    const igjen = velgKolonner(uten, start, [2], true);
+    expect(igjen.valgteKolonner).toEqual([0, 1, 2]);
+    expect(igjen.kobling[2]).toEqual({ type: 'felt', felt: 'notat' });
+  });
+
+  it('opens old work with every column and no own columns', () => {
+    const a = grunn();
+    const eldre = { ...a, valgteKolonner: undefined, egne: undefined } as unknown as typeof a;
+    const l = lesArbeid(settArbeid(start, eldre))!;
+    expect(l.valgteKolonner).toEqual([0, 1, 2]);
+    expect(l.egne).toEqual({});
+  });
+
+  it('adds a decoration column and a colour profile column with empty cells for every row', () => {
+    let a = leggTilEgenKolonne(grunn(), 'Dekor', 'dekor');
+    a = leggTilEgenKolonne(a, 'Fargeprofil', 'profil');
+    expect(a.kolonner.slice(3)).toEqual(['Dekor', 'Fargeprofil']);
+    expect(a.rader.every((r) => r.length === 5 && r[3] === '' && r[4] === '')).toBe(true);
+    expect(a.kobling[3]).toEqual({ type: 'felt', felt: 'dekor' });
+    expect(a.kobling[4]).toEqual({ type: 'profil' });
+    expect(a.egne).toEqual({ 3: 'dekor', 4: 'profil' });
+    expect(a.valgteKolonner).toEqual([0, 1, 2, 3, 4]);
+    // a name that is taken gets a number
+    expect(leggTilEgenKolonne(a, 'dekor', 'dekor').kolonner.at(-1)).toBe('dekor 2');
+  });
+
+  it('changes a cell for one row, or one value for all chosen rows', () => {
+    let a = leggTilEgenKolonne(grunn(), 'Dekor', 'dekor');
+    a = settCelle(a, 1, 3, 'Hjerte');
+    expect(a.rader.map((r) => r[3])).toEqual(['', 'Hjerte']);
+    a = settKolonne(a, 3, 'Stjerne', [0, 1]);
+    expect(a.rader.map((r) => r[3])).toEqual(['Stjerne', 'Stjerne']);
+  });
+
+  it('takes an own column away and keeps the others where they are', () => {
+    let a = leggTilEgenKolonne(grunn(), 'Dekor', 'dekor');
+    a = leggTilEgenKolonne(a, 'Fargeprofil', 'profil');
+    const ut = fjernEgenKolonne(a, 3);
+    expect(ut.kolonner).toEqual(['Navn', 'Rolle', 'Notat', 'Fargeprofil']);
+    expect(ut.kobling[3]).toEqual({ type: 'profil' });
+    expect(ut.egne).toEqual({ 3: 'profil' });
+    expect(ut.valgteKolonner).toEqual([0, 1, 2, 3]);
+    // columns from the file are not removed, only left out
+    expect(fjernEgenKolonne(a, 0)).toBe(a);
+  });
+
+  it('gives the master one decoration for a decoration column, from the first row that names one', async () => {
+    let a = leggTilEgenKolonne(grunn(), 'Dekor', 'dekor');
+    // no row names a decoration yet: nothing to put on the master
+    expect(nyeFeltFor(start, a)).not.toContain('dekor');
+    a = settCelle(a, 1, 3, 'Hjerte');
+    expect(nyeFeltFor(start, a)).toContain('dekor');
+    const m = await klargjorMaster(start, a);
+    const dekor = feltObjekter(m).filter((o) => feltNavn(o) === 'dekor');
+    expect(dekor).toHaveLength(1);
+    expect(dekor[0]!.kilde.type).toBe('svg');
+    expect(nyeFeltFor(m, a)).toEqual([]);
+  });
+
+  it('builds each row with its own decoration and colour profile, without touching the master', async () => {
+    let a = leggTilEgenKolonne(grunn(), 'Dekor', 'dekor');
+    a = leggTilEgenKolonne(a, 'Fargeprofil', 'profil');
+    a = settCelle(a, 0, 3, 'Hjerte');
+    a = settCelle(a, 1, 3, 'Stjerne');
+    const m = await klargjorMaster(start, a);
+    const v = bygSkilt(m, lesArbeid(m)!, [0, 1]);
+    const dekorAv = (d: Dokument) => feltObjekter(d).find((o) => feltNavn(o) === 'dekor')!;
+    expect(v[0]!.problemer).toEqual([]);
+    expect(v[1]!.problemer).toEqual([]);
+    const k0 = dekorAv(v[0]!.dok).kilde;
+    const k1 = dekorAv(v[1]!.dok).kilde;
+    expect(k0.type === 'svg' && k1.type === 'svg' && k0.stier.join() !== k1.stier.join()).toBe(true);
+  });
+
+  it('gives one sign another colour profile through the profile column, and adds the column when it is missing', () => {
+    const a = grunn();
+    expect(profilkolonne(a)).toBe(-1);
+    const b = settProfilForRad(a, 1, 'Autumn');
+    const kol = profilkolonne(b);
+    expect(kol).toBe(3);
+    expect(b.rader.map((r) => r[kol])).toEqual(['', 'Autumn']);
+    // a second change uses the same column
+    const c = settProfilForRad(b, 0, 'Corporate');
+    expect(c.kolonner).toHaveLength(4);
+    expect(c.rader.map((r) => r[kol])).toEqual(['Corporate', 'Autumn']);
+  });
+
+  it('describes a sign by name, decoration and colour profile', () => {
+    let a = leggTilEgenKolonne(grunn(), 'Dekor', 'dekor');
+    a = leggTilEgenKolonne(a, 'Fargeprofil', 'profil');
+    a = settCelle(settCelle(a, 0, 3, 'Hjerte'), 0, 4, 'Autumn');
+    expect(skiltinfo(a, start, 0)).toEqual({ navn: 'Ola', dekor: ['Hjerte'], profil: 'Autumn' });
+    expect(skiltinfo(a, start, 1)).toEqual({ navn: 'Kari', dekor: [], profil: '' });
+  });
+
+  it('shows the short status: rows, designs and what is missing', () => {
+    let a = leggTilEgenKolonne(grunn(), 'Fargeprofil', 'profil');
+    a = settCelle(settCelle(a, 0, 3, 'Autumn'), 1, 3, 'Corporate');
+    const s = genererstatus(start, a, null);
+    expect(s.rader).toBe(2);
+    expect(s.design).toBe(2);
+    expect(s.mangler).toEqual([]);
+    const ingen = genererstatus(start, { ...a, valgte: [] }, null);
+    expect(ingen.mangler[0]).toMatch(/Ingen rader er valgt/);
+    expect(ingen.design).toBe(1);
   });
 });
