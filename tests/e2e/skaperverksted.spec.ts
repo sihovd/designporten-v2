@@ -720,10 +720,12 @@ test.describe('Signgen', () => {
   }) => {
     await page.getByRole('button', { name: 'Dekor' }).click();
     const galleri = page.getByRole('dialog', { name: 'Dekor' });
-    await expect(galleri.getByRole('button', { name: 'Enhjørning' })).toBeVisible();
+    await galleri.getByRole('button', { name: 'Dyr', exact: true }).click();
+    await expect(galleri.getByRole('button', { name: 'Sett inn Enhjørning' })).toBeAttached();
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
-    await galleri.getByRole('button', { name: 'Enhjørning' }).click();
+    await galleri.locator('.dekor-celle', { hasText: 'Enhjørning' }).hover();
+    await galleri.getByRole('button', { name: 'Sett inn Enhjørning' }).click();
     await expect(galleri).toBeHidden();
     if (isMobile) return;
     await expect(page.locator('.lagrad').first()).toContainText('Gruppe');
@@ -740,6 +742,48 @@ test.describe('Signgen', () => {
     await page.mouse.up();
     await expect(page.locator('.lagrad')).toHaveCount(2);
     await expect(page.locator('.lagrad').first()).toContainText('Pynt');
+  });
+
+  test('dekorgalleriet har temaer og søk, og Velg deler åpner delvelgeren', async ({ page }) => {
+    await page.getByRole('button', { name: 'Dekor' }).click();
+    const galleri = page.getByRole('dialog', { name: 'Dekor' });
+    await galleri.getByRole('button', { name: 'Natur', exact: true }).click();
+    await expect(galleri.getByRole('button', { name: 'Sett inn Sol' })).toBeAttached();
+    await expect(galleri.getByRole('button', { name: 'Sett inn Hund' })).toHaveCount(0);
+    await galleri.getByLabel('Søk i dekor').fill('katt');
+    await expect(galleri.locator('.dekor-celle')).toHaveCount(1);
+    await galleri.getByLabel('Søk i dekor').fill('');
+    await galleri.getByRole('button', { name: 'Natur', exact: true }).click();
+    // holding the pointer over an element shows the two choices
+    const sol = galleri.locator('.dekor-celle', { hasText: 'Sol' });
+    await sol.hover();
+    await expect(sol.getByRole('button', { name: 'Velg deler av Sol' })).toBeVisible();
+    await sol.getByRole('button', { name: 'Velg deler av Sol' }).click();
+    await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
+  });
+
+  test('Lagre dekorelement: markerte vektorer blir ett dekor under Dine egne', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Markering av flere objekter testes på brede skjermer');
+    for (const navn of ['Hjerte', 'Stjerne']) {
+      await page.getByRole('button', { name: 'Dekor', exact: true }).click();
+      const g = page.getByRole('dialog', { name: 'Dekor' });
+      await g.getByRole('button', { name: 'Symboler', exact: true }).click();
+      await g.locator('.dekor-celle', { hasText: navn }).hover();
+      await g.getByRole('button', { name: `Sett inn ${navn}` }).click();
+      await expect(g).toBeHidden();
+    }
+    const rader = page.locator('.objektliste li .objekt-navn');
+    await rader.filter({ hasText: 'Hjerte' }).click();
+    await rader.filter({ hasText: 'Stjerne' }).click({ modifiers: ['Shift'] });
+    await page.getByRole('button', { name: 'Lagre dekorelement' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Lagre dekorelement' });
+    await vindu.getByLabel('Navn på dekoret').fill('Hjerte og stjerne');
+    await vindu.getByRole('button', { name: 'Lagre dekor' }).click();
+    await expect(vindu).toBeHidden();
+    await page.getByRole('button', { name: 'Dekor', exact: true }).click();
+    const g = page.getByRole('dialog', { name: 'Dekor' });
+    await g.getByRole('button', { name: /^Dine egne/ }).click();
+    await expect(g.locator('.dekor-celle', { hasText: 'Hjerte og stjerne' })).toHaveCount(1);
   });
 
   test('«Eksporter via CSV» åpner CSV-arbeidsflyten og viser byggeplaten med skiltene til slutt', async ({
@@ -804,7 +848,9 @@ test.describe('Signgen', () => {
     await expect(velger.getByText('«Mine former» er lagret i galleriet')).toBeVisible();
     await velger.getByRole('button', { name: 'Lukk' }).click();
     const tilbake = page.getByRole('dialog', { name: 'Dekor' });
-    const egen = tilbake.getByRole('button', { name: 'Mine former', exact: true });
+    // the gallery comes back on «Dine egne», where the new element is
+    const egen = tilbake.getByRole('button', { name: 'Sett inn Mine former' });
+    await tilbake.locator('.dekor-celle', { hasText: 'Mine former' }).hover();
     await expect(egen).toBeVisible();
     await egen.click();
     await expect(tilbake).toBeHidden();
@@ -1038,6 +1084,7 @@ test.describe('Signgen', () => {
     await expect(panel.getByText('Fargene i prosjektet (4)')).toBeVisible();
 
     // a new filament of your own, with a manufacturer, joins the profile
+    await panel.getByText('Avansert', { exact: true }).click();
     await panel.getByRole('button', { name: '+ Nytt filament' }).click();
     await panel.getByLabel('Produsent').fill('Polymaker');
     await panel.getByLabel('Produktserie').fill('PolyTerra');
@@ -1045,12 +1092,13 @@ test.describe('Signgen', () => {
     await panel.getByLabel('AMS-plass').fill('2');
     await panel.getByRole('button', { name: 'Lagre filament' }).click();
     await expect(panel.getByText('Fargene i prosjektet (5)')).toBeVisible();
-    await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText(
-      'Polymaker PolyTerra',
-    );
-    await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText('AMS 2');
+    const prover = panel.getByRole('list', { name: /Fargene i prosjektet/ }).getByRole('button');
+    await expect(prover).toHaveCount(5);
+    await expect(prover.last()).toHaveAttribute('title', /Polymaker PolyTerra/);
+    await expect(prover.last()).toHaveAttribute('title', /AMS 2/);
 
-    // the registry can be browsed by manufacturer and searched
+    // the registry (under Avansert, which closes when the form has been saved) can be browsed by manufacturer and searched
+    await panel.getByText('Avansert', { exact: true }).click();
     await panel.locator('.registerfilter select').first().selectOption('Polymaker');
     await expect(panel.getByRole('list', { name: 'Filamentregister' }).locator('li')).toHaveCount(1);
     await panel.locator('.registerfilter select').first().selectOption('');
@@ -1378,10 +1426,39 @@ test.describe('Signgen', () => {
     await page.getByRole('menuitem', { name: 'Flere filamenter …' }).click();
     const panel = page.locator('.fargepanel');
     await expect(panel).toBeVisible();
-    await expect(panel.locator('.profilfargeliste').getByText(/^#[0-9A-F]{6}$/)).toHaveCount(4);
-    await expect(panel.locator('.profilfargeliste').getByText('Kritthvit', { exact: true })).toHaveCount(0);
+    const rutene = panel.locator('.fp-ruter').getByRole('button');
+    await expect(rutene).toHaveCount(4);
+    for (const r of await rutene.all()) await expect(r).toHaveAttribute('aria-label', /#[0-9A-F]{6}/);
+    await expect(panel.locator('.fp-ruter').getByText('Kritthvit', { exact: true })).toHaveCount(0);
     const a = await new AxeBuilder({ page }).analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
+
+  test('Lag profil: plussen viser fargeprøver som flervelges, navn og Lag profil bruker profilen', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.getByRole('button', { name: /^Farge: Kritthvit/ }).click();
+    await page.getByRole('menuitem', { name: 'Flere filamenter …' }).click();
+    const panel = page.locator('.fargepanel');
+    await panel.getByRole('button', { name: 'Ny profil' }).click();
+    const skjema = panel.getByRole('form', { name: 'Lag profil' });
+    // the project's colours start selected, so «save the colours I have» still works
+    await expect(skjema.getByRole('button', { pressed: true })).toHaveCount(4);
+    await skjema.getByRole('button', { pressed: true }).nth(3).click();
+    await expect(skjema.getByRole('button', { pressed: true })).toHaveCount(3);
+    await expect(skjema.getByRole('button', { name: 'Lag profil' })).toBeDisabled();
+    await skjema.getByLabel('Navn på profilen').fill('Trio');
+    await skjema.getByRole('button', { name: 'Lag profil' }).click();
+    await expect(skjema).toHaveCount(0);
+    await expect(panel.getByText('Fargene i prosjektet (3)')).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Trio', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await panel.getByRole('button', { name: 'Slett profilen Trio' }).click();
+    await expect(panel.getByRole('button', { name: 'Trio', exact: true })).toHaveCount(0);
   });
 
   test('Paint lager et strøk med breddepunkter som kan endres etterpå', async ({ page, isMobile }) => {

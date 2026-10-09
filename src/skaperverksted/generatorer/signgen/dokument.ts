@@ -382,6 +382,18 @@ export function leggTilObjekt(dok: Dokument, o: Objekt): Dokument {
   };
 }
 
+/** Add an object to its layer right after another object (so it keeps its place in the stacking order). */
+export function leggTilObjektEtter(dok: Dokument, o: Objekt, etterId: ObjektId): Dokument {
+  const liste = dok.rekkefolge[o.lagId] ?? [];
+  const i = liste.indexOf(etterId);
+  const ny = i < 0 ? [...liste, o.id] : [...liste.slice(0, i + 1), o.id, ...liste.slice(i + 1)];
+  return {
+    ...dok,
+    objekter: { ...dok.objekter, [o.id]: o },
+    rekkefolge: { ...dok.rekkefolge, [o.lagId]: ny },
+  };
+}
+
 export function oppdaterObjekter(dok: Dokument, ider: ObjektId[], fn: (o: Objekt) => Objekt): Dokument {
   let objekter: Dokument['objekter'] | null = null;
   for (const id of ider) {

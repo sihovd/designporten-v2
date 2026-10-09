@@ -1,0 +1,21 @@
+Dekorgalleriet i Sign Forge (Designporten)
+
+Kilde: Material Design Icons, Pictogrammers (https://pictogrammers.com/library/mdi/,
+https://github.com/Templarian/MaterialDesign).
+
+Lisens: Pictogrammers Free License. Ikonene er gjort tilgjengelige under Apache License 2.0; lisensen
+sier at noen ikoner i samlingen videredistribueres under sin egen lisens, og at alle andre er under
+Apache 2.0. Teksten til Apache License 2.0 følger med i LICENSE-Apache-2.0.txt.
+
+Ikonene i galleriet (Stjerne, Hjerte, Måne, Sol, Blomst, Gran, Hest, Enhjørning, Sommerfugl, Katt, Hund,
+Fisk, Hai, Kanin, Pote, Rakett, Krone, Anker, Lyn, Traktor, Gravemaskin, Fotball, Spillkontroll, Ugle) er
+lagt inn med lisensen for hele samlingen. Designporten har ikke kontrollert lisensen til hvert enkelt ikon
+mot opphavspersonen. Før salg eller videredistribusjon av ikonene som egne filer bør dette sjekkes ikon for
+ikon i kildens lisensoversikt.
+
+Endringer: Banedataene (path) er hentet uendret fra ikonene, men er skalert fra et 24-enhetsrutenett til
+millimeter (lengste side 24 mm), speilet om vannrett akse (y opp), flyttet til midten og gjort om til 3D-form
+i Sign Forge. Kurvene er beholdt der det gir samme form. Hull i ikonene er beholdt som hull, eller kan fylles
+igjen av brukeren. Ikonene er ikke ellers endret.
+
+Dette er ikke produktdata eller varemerker fra Pictogrammers; navnet brukes bare for å oppgi kilden.

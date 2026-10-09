@@ -16,6 +16,7 @@ import { hjelpelinjerAv } from './hjelpelinjer';
 import { justeringGjelder, type Justering, type Justeringsmal } from './justering';
 import { Paintvalgbar } from './Strekpanel';
 import { HULLFORMER } from './dokument';
+import { dekorlagringHinder } from './dekorlagring';
 import { fullforPenn, pennPagar } from './Pennverktoy';
 import { brukSigntilstand, signtilstand } from './tilstand';
 
@@ -201,6 +202,23 @@ function Objektvalg({ benk }: { benk: Arbeidsbenk }) {
   );
 }
 
+/** Save the selected vectors as one gallery element. */
+function Dekorknapp({ benk }: { benk: Arbeidsbenk }) {
+  const t = brukBenk(benk);
+  const hinder = dekorlagringHinder(t.dok, redigerbare(benk));
+  return (
+    <div class="kontekst-gruppe" role="group" aria-label="Dekor">
+      <Knapp
+        navn="Lagre dekorelement"
+        hjelp={hinder ?? 'Lagre de markerte vektorene som ett dekor i galleriet'}
+        ikon="decor-save"
+        deaktivert={!!hinder}
+        klikk={() => signtilstand(benk).sett({ lagreDekor: true })}
+      />
+    </div>
+  );
+}
+
 function Hint({ children }: { children: string }) {
   return <span class="kontekst-hint">{children}</span>;
 }
@@ -218,6 +236,7 @@ export function Kontekstlinje({ benk }: { benk: Arbeidsbenk }) {
           <>
             <Justeringsknapper benk={benk} />
             <Objektvalg benk={benk} />
+            <Dekorknapp benk={benk} />
           </>
         );
       return <Hint>Velg noe på lerretet for å justere det, eller et verktøy til venstre.</Hint>;

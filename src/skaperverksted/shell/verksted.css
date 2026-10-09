@@ -1946,7 +1946,7 @@
 
 /* decoration gallery (Sivert, 2026-10-05) */
 .verksted-dialog.dekorgalleri {
-  width: min(720px, calc(100vw - 24px));
+  width: min(560px, calc(100vw - 24px));
 }
 
 .dekor-innhold {
@@ -1956,45 +1956,144 @@
   overflow: auto;
 }
 
-.dekor-rutenett {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.dekor-kategorier {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 
-.dekor-valg {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 6px;
+.dekor-kategori {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 6px;
   border: 1px solid var(--linje);
-  border-radius: var(--radius-kontroll, 6px);
+  border-radius: var(--radius-felt);
   background: var(--panel-2);
   color: var(--fg);
-  font: inherit;
-  font-size: 13px;
   cursor: pointer;
 }
 
-.dekor-valg:hover,
-.dekor-valg:focus-visible {
+.dekor-kategori:hover {
+  border-color: var(--linje-sterk);
+}
+
+.dekor-kategori[aria-pressed='true'] {
   border-color: var(--dp-lilla);
+  outline: 1px solid var(--dp-lilla);
+}
+
+.dekor-kategori .dekor-miniatyr {
+  width: 28px;
+  height: 28px;
+}
+
+.dekor-sok {
+  flex: 1 1 8em;
+  min-width: 0;
+}
+
+.dekor-rutenett {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+  height: 264px;
+  margin: 0;
+  padding: 2px;
+  overflow: auto;
+  align-content: start;
+  list-style: none;
+}
+
+.dekor-celle {
+  position: relative;
+  aspect-ratio: 1;
+  min-height: 84px;
+}
+
+.dekor-flis {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
 }
 
 .dekor-miniatyr {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   color: var(--fg);
 }
 
-.dekor-rutenett .kontroll-knapp {
-  width: 100%;
-  margin-top: 4px;
+/* the two choices appear over the element when the pointer rests on it or focus is inside it */
+.dekor-handlinger {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  opacity: 0;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--dp-lilla);
+  border-radius: var(--radius-felt);
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+}
+
+.dekor-celle:hover .dekor-handlinger,
+.dekor-celle:focus-within .dekor-handlinger {
+  opacity: 1;
+}
+
+.dekor-handling {
+  min-height: 26px;
+  padding: 0 4px;
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dekor-handling:hover,
+.dekor-handling:focus-visible {
+  border-color: var(--dp-lilla);
+}
+
+.dekor-bunn {
+  justify-content: space-between;
+}
+
+.dekor-kreditt {
+  margin: 0;
+  font-size: 11px;
+}
+
+/* touch has no hover: the choices sit under each element */
+@media (hover: none) {
+  .dekor-celle {
+    aspect-ratio: auto;
+  }
+
+  .dekor-flis {
+    height: 64px;
+  }
+
+  .dekor-handlinger {
+    position: static;
+    opacity: 1;
+    margin-top: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
 }
 
 /* the SVG part picker */
@@ -4788,4 +4887,160 @@ button.profilfarger.fargeknapp {
   .tidslinje-naa {
     display: none;
   }
+}
+
+/* ---------- Fargeprofil-panelet: kvadratiske fargeprøver, profiler som rad, Lag profil ---------- */
+
+.fargepanel .fp-ruter,
+.fargepanel .fp-profiler {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fargepanel .fp-ruter li,
+.fargepanel .fp-profiler li {
+  display: block;
+  padding: 0;
+  border: 0;
+}
+
+.fp-rute {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--linje-sterk);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.fp-rute:hover {
+  border-color: var(--fg);
+}
+
+.fp-rute.valgt {
+  outline: 2px solid var(--dp-lilla);
+  outline-offset: 1px;
+}
+
+.fp-nr {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  min-width: 14px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.fp-detalj {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+}
+
+.fp-detalj .fp-linje {
+  flex: 1 1 8em;
+}
+
+.fp-profil-rad {
+  display: flex !important;
+  align-items: stretch;
+}
+
+.fp-profil {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 3px 8px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fp-profil:hover {
+  border-color: var(--linje-sterk);
+}
+
+.fp-profil.valgt {
+  border-color: var(--dp-lilla);
+  outline: 1px solid var(--dp-lilla);
+}
+
+.fp-profil-rad .fp-slett {
+  width: 22px;
+  margin-left: -1px;
+  border: 1px solid var(--linje);
+  border-radius: 0 var(--radius-felt) var(--radius-felt) 0;
+  background: var(--panel-2);
+  color: var(--fg-dempet);
+  cursor: pointer;
+}
+
+.fp-profil-rad .fp-slett:hover {
+  color: var(--fg);
+}
+
+.fp-pluss {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px dashed var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: transparent;
+  color: var(--fg);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fp-pluss[aria-expanded='true'] {
+  border-style: solid;
+  background: var(--panel-2);
+}
+
+.fp-lager {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+}
+
+.fp-rutenett {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 30px);
+  gap: 6px;
+  max-height: 172px;
+  padding: 3px;
+  overflow: auto;
+}
+
+.fp-rutenett .fp-rute {
+  width: 30px;
+  height: 30px;
+}
+
+.fp-avansert {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--linje);
+}
+
+.fp-avansert summary {
+  cursor: pointer;
+  color: var(--fg-dempet);
+  font-size: 13px;
 }

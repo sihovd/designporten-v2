@@ -117,6 +117,10 @@ describe('Editing the curves of a vector', () => {
     expect(d.objekter[id]!.materialId).toBeUndefined();
     // the rest of the original keeps its two paths
     expect(hentBaner(d.objekter[id]!)).toHaveLength(2);
+    // the coloured shape sits right after the vector in the layer, not at the end, and keeps its role
+    const rekke = d.rekkefolge[lagId]!;
+    expect(rekke[rekke.indexOf(id) + 1]).toBe(nytt.id);
+    expect(nytt.operasjon).toBe(d.objekter[id]!.operasjon);
     benk.angre();
     expect(benk.dok.lag.length).toBe(lagFor);
     expect(Object.keys(benk.dok.objekter).length).toBe(antallFor);

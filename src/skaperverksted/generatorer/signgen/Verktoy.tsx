@@ -17,7 +17,7 @@ import { Fargeprofilvindu } from './Fargeprofilvindu';
 import { Fontvindu } from './Fontvindu';
 import { Startside } from './Startside';
 import { LagreSomMal, Malbibliotek } from './Maldialog';
-import { Dekorgalleri } from './Dekorgalleri';
+import { Dekorgalleri, Dekorlagringsvindu } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
 import { Csvflyt } from './Csvflyt';
 
@@ -180,6 +180,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {st.malvindu === 'lagre' && <LagreSomMal benk={benk} />}
       {st.fontvindu && <Fontvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
+      {st.lagreDekor && <Dekorlagringsvindu benk={benk} />}
       {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}
       <Csvflyt benk={benk} />
     </>

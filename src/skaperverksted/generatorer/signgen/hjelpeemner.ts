@@ -94,7 +94,7 @@ export const HJELPEEMNER: Hjelpeemne[] = [
   },
   {
     sporsmal: 'Sette inn et dekor fra galleriet',
-    svar: 'Trykk Dekor i verktøyskinnen og velg et element. Du kan også lagre egne vektorer der.',
+    svar: 'Trykk Dekor i verktøyskinnen, velg et tema og hold musen over et element. «Sett inn» legger hele elementet på skiltet, «Velg deler» lar deg velge ut deler først. Marker flere vektorer og velg «Lagre dekorelement» for å lagre dem som ett dekor under Dine egne.',
     ord: 'ikon pynt',
   },
   {

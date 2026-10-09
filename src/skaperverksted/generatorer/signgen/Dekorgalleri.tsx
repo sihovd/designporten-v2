@@ -1,16 +1,22 @@
 /**
- * The decoration gallery (Sivert, 2026-10-05): ready-made vector elements
- * to put on a sign, and your own vectors, kept in this browser. A decoration
- * goes into the selected text layer, where it shares the text's outlines,
- * or into a layer of its own. Holes in a vector stay holes.
+ * The decoration gallery (Sivert, 2026-10-05, made compact like an emoji picker on 2026-10-08): a row of
+ * themes on top, a scrolling grid below. Holding the pointer over an element gives two choices: «Sett inn»
+ * puts the whole element on the sign, «Velg deler» opens the part picker so only some of its parts are
+ * imported. Your own vectors work the same way. A decoration goes into the selected text layer, where it
+ * shares the text's outlines, or into a layer of its own. Holes in a vector stay holes.
  */
 import { useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
+import { finnMateriale } from '../../core/materialer';
 import { Dialog } from '../../shell/Dialog';
+import { Ikon } from '../../shell/ikoner';
 import { Segment } from '../../shell/kontroller';
 import {
+  dekorSvgTekst,
   dekorValg,
+  DEKOR_KATEGORIER,
   DEKOR_KREDIT,
+  DEKOR_LISENS_URL,
   hentEgneDekor,
   lagreEgetDekor,
   slettEgetDekor,
@@ -24,7 +30,8 @@ import {
   tekstlagForDekor,
   type Dekorplass,
 } from './handlinger';
-import { delerTilKilde } from './svgimport';
+import { lagreValgteSomDekor } from './dekorlagring';
+import { delerTilKilde, lesSvgDeler, SvgFeil } from './svgimport';
 import { signtilstand } from './tilstand';
 
 function Miniatyr({ v }: { v: DekorValg }) {
@@ -36,23 +43,54 @@ function Miniatyr({ v }: { v: DekorValg }) {
   );
 }
 
+type Valgt = (typeof DEKOR_KATEGORIER)[number]['id'] | 'egne';
+
+/** The theme last open, so the gallery comes back to it after the part picker has been used. */
+let sisteKategori: Valgt = 'symboler';
+
 export function Dekorgalleri({ benk }: { benk: Arbeidsbenk }) {
   const [egne, settEgne] = useState(() => hentEgneDekor());
   const tekstlag = tekstlagForDekor(benk);
   const [plass, settPlass] = useState<Dekorplass>(tekstlag ? 'gruppe' : 'eget');
   const [melding, settMelding] = useState<string | null>(null);
+  const [kategori, settKategoriState] = useState<Valgt>(sisteKategori);
+  const [sok, settSok] = useState('');
   const fil = useRef<HTMLInputElement>(null);
   const valg = dekorValg(egne);
-  const innebygde = valg.filter((v) => !v.egen);
-  const mine = valg.filter((v) => v.egen);
+  const settKategori = (k: Valgt) => {
+    sisteKategori = k;
+    settKategoriState(k);
+    settSok('');
+  };
+
+  const ord = sok.trim().toLowerCase();
+  const synlige = ord
+    ? valg.filter((v) => v.navn.toLowerCase().includes(ord))
+    : valg.filter((v) => (kategori === 'egne' ? v.egen : v.kategori === kategori));
 
   const lukk = () => signtilstand(benk).sett({ dekor: false });
+  const sted = () => (plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
   const sett = (v: DekorValg) => {
     // a vector saved with several colours keeps them, in a layer per colour
-    if (v.flerfarget)
-      leggTilFlerfarget(benk, v.flerfarget(), 'pynt', plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
-    else leggTilDekor(benk, v.navn, v.lag(), plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
+    if (v.flerfarget) leggTilFlerfarget(benk, v.flerfarget(), 'pynt', sted());
+    else leggTilDekor(benk, v.navn, v.lag(), sted());
     lukk();
+  };
+  const velgDeler = (v: DekorValg) => {
+    settMelding(null);
+    try {
+      const deler = lesSvgDeler(
+        dekorSvgTekst(v, (id) => finnMateriale(id).hex),
+        `${v.navn}.svg`,
+      );
+      if (deler.deler.length < 2) {
+        settMelding(`«${v.navn}» har bare én del. Bruk «Sett inn».`);
+        return;
+      }
+      behandleSvg(benk, deler, 'pynt', 'galleri');
+    } catch (e) {
+      settMelding(e instanceof SvgFeil ? e.message : 'Delene i dekoret kunne ikke leses.');
+    }
   };
   const leggTilEgen = async (f: File) => {
     settMelding(null);
@@ -62,6 +100,7 @@ export function Dekorgalleri({ benk }: { benk: Arbeidsbenk }) {
       return;
     }
     // several parts: the part picker lets the user keep some, colour them and save them
+    sisteKategori = 'egne';
     if (behandleSvg(benk, deler, 'pynt', 'galleri') === 'apnet') return;
     const r = delerTilKilde(deler, f.name);
     if (!r) {
@@ -74,11 +113,12 @@ export function Dekorgalleri({ benk }: { benk: Arbeidsbenk }) {
       settMelding(
         'Nettleseren fikk ikke lagret vektoren (for mye data). Den legges på skiltet uten å bli i galleriet.',
       );
-      leggTilDekor(benk, navn, r, plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget');
+      leggTilDekor(benk, navn, r, sted());
       lukk();
       return;
     }
     settEgne(hentEgneDekor());
+    settKategori('egne');
     const hull = r.kilde.stier.some((s) => (s.match(/M/g)?.length ?? 0) > 1);
     settMelding(
       `«${navn}» er lagt i galleriet.${hull ? ' Hull i vektoren er beholdt.' : ''}${
@@ -91,73 +131,95 @@ export function Dekorgalleri({ benk }: { benk: Arbeidsbenk }) {
   return (
     <Dialog tittel="Dekor" lukk={lukk} klasse="dekorgalleri">
       <div class="dekor-innhold">
-        <p class="dempet">
-          Velg et dekor for å legge det på skiltet. Hull i dekoret beholdes som hull. Du kan også legge til
-          din egen vektor (SVG). Har SVG-en flere deler, kan du velge hvilke du vil ha og gi delene hver sin
-          farge.
-        </p>
-        <div class="felt">
-          <span>Legges</span>
+        <div class="dekor-kategorier" role="group" aria-label="Temaer">
+          {DEKOR_KATEGORIER.map((k) => {
+            const symbol = valg.find((v) => v.id === k.symbol);
+            return (
+              <button
+                key={k.id}
+                type="button"
+                class="dekor-kategori"
+                aria-pressed={!ord && kategori === k.id}
+                aria-label={k.navn}
+                title={k.navn}
+                onClick={() => settKategori(k.id)}
+              >
+                {symbol ? <Miniatyr v={symbol} /> : k.navn.slice(0, 1)}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            class="dekor-kategori"
+            aria-pressed={!ord && kategori === 'egne'}
+            aria-label={`Dine egne (${egne.length})`}
+            title="Dine egne"
+            onClick={() => settKategori('egne')}
+          >
+            <Ikon id="favorites" storrelse={26} />
+          </button>
+          <input
+            type="search"
+            class="dekor-sok"
+            aria-label="Søk i dekor"
+            placeholder="Søk"
+            value={sok}
+            onInput={(e) => settSok((e.target as HTMLInputElement).value)}
+          />
+        </div>
+        <ul class="dekor-rutenett" role="list" aria-label={ord ? 'Søkeresultat' : 'Dekor'}>
+          {synlige.map((v) => (
+            <li key={v.id} class="dekor-celle">
+              <span class="dekor-flis" title={v.navn}>
+                <Miniatyr v={v} />
+              </span>
+              <span class="dekor-handlinger">
+                <button type="button" class="dekor-handling" onClick={() => sett(v)}>
+                  Sett inn<span class="visuelt-skjult"> {v.navn}</span>
+                </button>
+                <button type="button" class="dekor-handling" onClick={() => velgDeler(v)}>
+                  Velg deler<span class="visuelt-skjult"> av {v.navn}</span>
+                </button>
+                {v.egen && (
+                  <button
+                    type="button"
+                    class="dekor-handling farlig"
+                    onClick={() => {
+                      slettEgetDekor(v.id);
+                      settEgne(hentEgneDekor());
+                    }}
+                  >
+                    Fjern<span class="visuelt-skjult"> {v.navn} fra galleriet</span>
+                  </button>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {synlige.length === 0 && (
+          <p class="dempet">
+            {ord
+              ? 'Ingen dekor passer.'
+              : kategori === 'egne'
+                ? 'Ingen egne ennå. Legg til en SVG, eller marker vektorer på lerretet og velg «Lagre dekorelement».'
+                : 'Ingen dekor her.'}
+          </p>
+        )}
+        <div class="knapperad dekor-bunn">
+          <button type="button" class="sekundar" onClick={() => fil.current?.click()}>
+            Legg til egen vektor (SVG)
+          </button>
           <Segment
             etikett="Hvor dekoret legges"
             valg={[
-              { id: 'gruppe', navn: tekstlag ? `I tekstlaget «${tekstlag.navn}»` : 'I tekstlaget' },
+              { id: 'gruppe', navn: 'I tekstlaget' },
               { id: 'eget', navn: 'I eget lag' },
             ]}
-            verdi={plass === 'gruppe' && tekstlag ? 'gruppe' : 'eget'}
+            verdi={sted()}
             endre={(v) =>
               v === 'gruppe' && !tekstlag ? settMelding('Velg et tekstlag først.') : settPlass(v)
             }
           />
-        </div>
-        <p class="merknad">
-          {plass === 'gruppe' && tekstlag
-            ? 'Dekoret grupperes med teksten og får samme omriss. Du kan dra det ut til et eget lag i lagpanelet.'
-            : 'Dekoret får et eget lag med egen farge og høyde. Du kan dra det inn i et tekstlag for å dele omriss.'}
-        </p>
-        <ul class="dekor-rutenett" role="list" aria-label="Ferdige dekor">
-          {innebygde.map((v) => (
-            <li key={v.id}>
-              <button type="button" class="dekor-valg" onClick={() => sett(v)}>
-                <Miniatyr v={v} />
-                <span>{v.navn}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <h3>Dine egne</h3>
-        {mine.length === 0 && (
-          <p class="dempet">
-            Ingen ennå. Legg til en SVG med knappen under; den blir lagret i denne nettleseren.
-          </p>
-        )}
-        {mine.length > 0 && (
-          <ul class="dekor-rutenett" role="list" aria-label="Dine egne dekor">
-            {mine.map((v) => (
-              <li key={v.id}>
-                <button type="button" class="dekor-valg" onClick={() => sett(v)}>
-                  <Miniatyr v={v} />
-                  <span>{v.navn}</span>
-                </button>
-                <button
-                  type="button"
-                  class="kontroll-knapp farlig"
-                  onClick={() => {
-                    slettEgetDekor(v.id);
-                    settEgne(hentEgneDekor());
-                  }}
-                >
-                  Fjern
-                  <span class="visuelt-skjult"> {v.navn} fra galleriet</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div class="knapperad">
-          <button type="button" class="sekundar" onClick={() => fil.current?.click()}>
-            Legg til egen vektor (SVG)
-          </button>
         </div>
         <input
           ref={fil}
@@ -175,13 +237,52 @@ export function Dekorgalleri({ benk }: { benk: Arbeidsbenk }) {
             {melding}
           </p>
         )}
-        <p class="merknad">
-          Vektorer med hull (for eksempel åpningene i en sommerfugl) beholder hullene. Under «Hull i vektoren»
-          på dekoret kan du i stedet fylle dem igjen, så bare omrisset blir igjen. Med dekoret som batchfelt
-          kan en kolonne i CSV-filen bytte dekor fra skilt til skilt, med navnet på dekoret i cellen.
+        <p class="dempet dekor-kreditt">
+          {DEKOR_KREDIT}{' '}
+          <a href={DEKOR_LISENS_URL} target="_blank" rel="noreferrer">
+            Lisens og merknad
+          </a>
         </p>
-        <p class="dempet">{DEKOR_KREDIT}</p>
       </div>
+    </Dialog>
+  );
+}
+
+/** Name the selected vectors and keep them in the gallery under «Dine egne». */
+export function Dekorlagringsvindu({ benk }: { benk: Arbeidsbenk }) {
+  const [navn, settNavn] = useState('Mitt dekor');
+  const lukk = () => signtilstand(benk).sett({ lagreDekor: false });
+  return (
+    <Dialog tittel="Lagre dekorelement" lukk={lukk} klasse="dekorlagring">
+      <form
+        class="dekor-innhold"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (lagreValgteSomDekor(benk, navn)) lukk();
+        }}
+      >
+        <label class="felt stablet">
+          <span>Navn på dekoret</span>
+          <input
+            type="text"
+            maxLength={40}
+            value={navn}
+            onInput={(e) => settNavn((e.target as HTMLInputElement).value)}
+          />
+        </label>
+        <p class="merknad">
+          Vektorene du har markert, lagres som ett dekor med fargene sine. Det ligger i denne nettleseren
+          under «Dine egne» og kan settes inn som helhet eller del for del.
+        </p>
+        <div class="knapperad">
+          <button type="submit" class="primar" disabled={!navn.trim()}>
+            Lagre dekor
+          </button>
+          <button type="button" class="sekundar" onClick={lukk}>
+            Avbryt
+          </button>
+        </div>
+      </form>
     </Dialog>
   );
 }

@@ -10,19 +10,62 @@ import type { SvgKilde } from '../../core/dokument';
 import { regionBoks, unionAlle } from '../../geometri/polygon';
 import { stiTilRinger } from '../../geometri/stidata';
 import { flyttBaner, tolkBaner, transformerBaner } from '../../geometri/bane';
-import type { Fargegruppe, Flerfarget } from './svgdeler';
+import { svgFil, type Fargegruppe, type Flerfarget } from './svgdeler';
 import { kildeFraRegion, kildeFraRinger } from './svgkilde';
 
 export interface Dekor {
   id: string;
   navn: string;
+  kategori: DekorKategori;
   /** Path data on a 24 × 24 grid, y down. */
   sti: string;
 }
 
-export const DEKOR_KREDIT = 'Ikonene er fra Material Design Icons (Pictogrammers), Apache-lisens 2.0.';
+/** The gallery's themes. Each is shown by one of its own elements, so no extra artwork is needed. */
+export type DekorKategori = 'symboler' | 'natur' | 'dyr' | 'kjoretoy' | 'sport';
 
-export const DEKOR: Dekor[] = [
+export const DEKOR_KATEGORIER: { id: DekorKategori; navn: string; symbol: string }[] = [
+  { id: 'symboler', navn: 'Symboler', symbol: 'hjerte' },
+  { id: 'natur', navn: 'Natur', symbol: 'blomst' },
+  { id: 'dyr', navn: 'Dyr', symbol: 'katt' },
+  { id: 'kjoretoy', navn: 'Kjøretøy', symbol: 'traktor' },
+  { id: 'sport', navn: 'Sport og spill', symbol: 'fotball' },
+];
+
+const KATEGORI_AV: Record<string, DekorKategori> = {
+  stjerne: 'symboler',
+  hjerte: 'symboler',
+  krone: 'symboler',
+  lyn: 'symboler',
+  anker: 'symboler',
+  mane: 'natur',
+  sol: 'natur',
+  blomst: 'natur',
+  gran: 'natur',
+  hest: 'dyr',
+  enhjorning: 'dyr',
+  sommerfugl: 'dyr',
+  katt: 'dyr',
+  hund: 'dyr',
+  fisk: 'dyr',
+  hai: 'dyr',
+  kanin: 'dyr',
+  pote: 'dyr',
+  ugle: 'dyr',
+  rakett: 'kjoretoy',
+  traktor: 'kjoretoy',
+  gravemaskin: 'kjoretoy',
+  fotball: 'sport',
+  spillkontroll: 'sport',
+};
+
+export const DEKOR_KREDIT =
+  'Ikonene er fra Material Design Icons (Pictogrammers), Apache-lisens 2.0, skalert og speilet til millimeter.';
+
+/** Where the licence text and notice are published (Apache 2.0 asks for both, and for the changes made). */
+export const DEKOR_LISENS_URL = '/skaperverksted/dekor/NOTICE.txt';
+
+const RA: Omit<Dekor, 'kategori'>[] = [
   {
     id: 'stjerne',
     navn: 'Stjerne',
@@ -132,6 +175,8 @@ export const DEKOR: Dekor[] = [
     sti: 'M12,16C12.56,16.84 13.31,17.53 14.2,18L12,20.2L9.8,18C10.69,17.53 11.45,16.84 12,16M17,11.2A2,2 0 0,0 15,13.2A2,2 0 0,0 17,15.2A2,2 0 0,0 19,13.2C19,12.09 18.1,11.2 17,11.2M7,11.2A2,2 0 0,0 5,13.2A2,2 0 0,0 7,15.2A2,2 0 0,0 9,13.2C9,12.09 8.1,11.2 7,11.2M17,8.7A4,4 0 0,1 21,12.7A4,4 0 0,1 17,16.7A4,4 0 0,1 13,12.7A4,4 0 0,1 17,8.7M7,8.7A4,4 0 0,1 11,12.7A4,4 0 0,1 7,16.7A4,4 0 0,1 3,12.7A4,4 0 0,1 7,8.7M2.24,1C4,4.7 2.73,7.46 1.55,10.2C1.19,11 1,11.83 1,12.7A6,6 0 0,0 7,18.7C7.21,18.69 7.42,18.68 7.63,18.65L10.59,21.61L12,23L13.41,21.61L16.37,18.65C16.58,18.68 16.79,18.69 17,18.7A6,6 0 0,0 23,12.7C23,11.83 22.81,11 22.45,10.2C21.27,7.46 20,4.7 21.76,1C19.12,3.06 15.36,4.69 12,4.7C8.64,4.69 4.88,3.06 2.24,1Z',
   },
 ];
+
+export const DEKOR: Dekor[] = RA.map((d) => ({ ...d, kategori: KATEGORI_AV[d.id] ?? 'symboler' }));
 
 /** Size of a gallery element's longest side when it is made (mm); the sign scales it. */
 const GRUNNSTORRELSE = 24;
@@ -264,6 +309,8 @@ export interface DekorValg {
   id: string;
   navn: string;
   egen: boolean;
+  /** The theme of a built-in element; own vectors have none. */
+  kategori?: DekorKategori;
   lag: () => { kilde: SvgKilde; bredde: number; hoyde: number };
   /** The parts in their own colours, for a vector saved with several colours. */
   flerfarget?: () => Flerfarget;
@@ -277,6 +324,7 @@ export function dekorValg(egne: EgetDekor[] = hentEgneDekor()): DekorValg[] {
       id: d.id,
       navn: d.navn,
       egen: false,
+      kategori: d.kategori,
       lag: () => dekorKilde(d),
       forhandsvisning: { d: d.sti, viewBox: '0 0 24 24', flipp: false },
     })),
@@ -300,6 +348,20 @@ export function dekorValg(egne: EgetDekor[] = hentEgneDekor()): DekorValg[] {
       },
     })),
   ];
+}
+
+/**
+ * The element as an SVG file, so its parts can be picked in the part picker. Built-in icons are one path
+ * on a 24 grid; own vectors keep their colours when they have several.
+ */
+export function dekorSvgTekst(v: DekorValg, hex: (materialId: string) => string): string {
+  const t = (n: number) => String(Math.round(n * 1000) / 1000);
+  if (v.flerfarget) return svgFil(v.flerfarget(), hex);
+  const f = v.forhandsvisning;
+  if (!v.egen)
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${GRUNNSTORRELSE}mm" height="${GRUNNSTORRELSE}mm" viewBox="${f.viewBox}"><path fill="#000000" fill-rule="nonzero" d="${f.d}"/></svg>`;
+  const k = v.lag();
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${t(k.bredde)}mm" height="${t(k.hoyde)}mm" viewBox="0 0 ${t(k.bredde)} ${t(k.hoyde)}"><path fill="#000000" fill-rule="${k.kilde.fyllregel}" transform="translate(${t(k.bredde / 2)} ${t(k.hoyde / 2)}) scale(1 -1)" d="${k.kilde.stier.join('')}"/></svg>`;
 }
 
 const enkel = (t: string) => t.trim().toLowerCase().replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a');

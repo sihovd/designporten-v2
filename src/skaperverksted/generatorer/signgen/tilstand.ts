@@ -138,6 +138,8 @@ export interface Signtilstand {
   fontvindu: boolean;
   /** The decoration gallery is open. */
   dekor: boolean;
+  /** The «Lagre dekorelement» window: the selected vectors become one gallery element. */
+  lagreDekor: boolean;
   /** The CSV workflow's step on screen (null: the workflow is closed). */
   csv: Csvsteg | null;
   /** The generated sign shown in the plates view (CSV row index). */
@@ -175,6 +177,7 @@ class Lager {
     malvindu: null,
     fontvindu: false,
     dekor: false,
+    lagreDekor: false,
     csv: null,
     csvrad: null,
     svgdeler: null,

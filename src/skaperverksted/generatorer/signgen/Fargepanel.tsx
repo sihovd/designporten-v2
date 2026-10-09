@@ -264,9 +264,13 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
   const [produsent, settProdusent] = useState('');
   const [type, settType] = useState<Materialtype | ''>('');
   const [skjema, settSkjema] = useState<Skjema | null>(null);
-  const [profilnavn, settProfilnavn] = useState('');
   const [gruppenavn, settGruppenavn] = useState('');
   const [melding, settMelding] = useState<string | null>(null);
+  const [valgtFarge, settValgtFarge] = useState<number | null>(null);
+  const [lager, settLager] = useState(false);
+  const [utvalg, settUtvalg] = useState<string[]>([]);
+  const [lagNavn, settLagNavn] = useState('');
+  const [lagSok, settLagSok] = useState('');
 
   void versjon;
   const alle = alleMaterialer();
@@ -297,32 +301,59 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
     bruk(f, 'Flytt farge i profilen');
   };
 
-  const profilvalg = (p: Fargeprofil) => (
-    <li key={p.id}>
-      <button
-        type="button"
-        class={`profilvalg${p.farger.join() === profil.join() ? ' valgt' : ''}`}
-        aria-pressed={p.farger.join() === profil.join()}
-        onClick={() => bruk(p.farger)}
-      >
-        <span class="profilnavn">{p.navn}</span>
-        <Prover farger={p.farger} />
-        <span class="visuelt-skjult">: {p.farger.map((id) => fargekode(finnMateriale(id))).join(', ')}</span>
-      </button>
-      {p.egen && (
+  const profilknapp = (p: Fargeprofil) => {
+    const er = p.farger.join() === profil.join();
+    return (
+      <li key={p.id} class="fp-profil-rad">
         <button
           type="button"
-          class="kontroll-knapp"
-          onClick={() => {
-            slettEgenProfil(p.id);
-            ny();
-          }}
+          class={`fp-profil${er ? ' valgt' : ''}`}
+          aria-pressed={er}
+          title={`${p.navn}: ${p.farger.map((id) => fargekode(finnMateriale(id))).join(', ')}`}
+          onClick={() => bruk(p.farger)}
         >
-          Slett<span class="visuelt-skjult"> profilen {p.navn}</span>
+          <Prover farger={p.farger} />
+          <span class="fp-profilnavn">{p.navn}</span>
         </button>
-      )}
-    </li>
-  );
+        {p.egen && (
+          <button
+            type="button"
+            class="fp-slett"
+            aria-label={`Slett profilen ${p.navn}`}
+            title="Slett profilen"
+            onClick={() => {
+              slettEgenProfil(p.id);
+              ny();
+            }}
+          >
+            ×
+          </button>
+        )}
+      </li>
+    );
+  };
+
+  const apneLager = () => {
+    settUtvalg([...profil]);
+    settLagNavn('');
+    settLagSok('');
+    settLager(true);
+  };
+  const veksleUtvalg = (id: string) =>
+    settUtvalg(utvalg.includes(id) ? utvalg.filter((x) => x !== id) : [...utvalg, id]);
+  const lagProfil = (e: Event) => {
+    e.preventDefault();
+    if (!lagNavn.trim() || utvalg.length === 0) return;
+    const p = lagreEgenProfil(lagNavn, utvalg);
+    if (!p) {
+      settMelding('Nettleseren ville ikke lagre profilen.');
+      return;
+    }
+    bruk(p.farger, 'Bruk ny fargeprofil');
+    settMelding(`«${p.navn}» er laget og brukt i prosjektet. Den ligger i denne nettleseren.`);
+    settLager(false);
+    ny();
+  };
 
   if (skjema)
     return (
@@ -344,58 +375,85 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
       </div>
     );
 
+  const valgtM =
+    valgtFarge !== null && valgtFarge < profil.length ? finnMateriale(profil[valgtFarge]!) : null;
+  const lagTreff = finnFilamenter({ tekst: lagSok }, alle);
+
   return (
     <div class="fargepanel">
       <h3 class="underoverskrift" id="fp-aktiv">
         Fargene i prosjektet ({profil.length})
       </h3>
-      <ol class="profilfargeliste" aria-labelledby="fp-aktiv">
+      <ol class="profilfargeliste fp-ruter" aria-labelledby="fp-aktiv">
         {profil.map((id, i) => {
           const m = finnMateriale(id);
           return (
             <li key={id}>
-              <span class="mono filamentnr">{i + 1}</span>
-              <span class="fargeprove stor" style={{ background: m.hex }} aria-hidden="true" />
-              <span class="fp-tekst">
-                <span class="mono">{fargekode(m)}</span>
-                <span class="dempet fp-linje" title={filamentLinje(m)}>
-                  {filamentInfo(m)}
-                  {brukt.has(id) ? ' · i bruk' : ''}
+              <button
+                type="button"
+                class={`fp-rute${valgtFarge === i ? ' valgt' : ''}`}
+                style={{ background: m.hex }}
+                aria-pressed={valgtFarge === i}
+                aria-label={`Farge ${i + 1}: ${fargekode(m)}, ${m.type}${brukt.has(id) ? ', i bruk' : ''}`}
+                title={`${i + 1}. ${filamentLinje(m)}${brukt.has(id) ? ' · i bruk' : ''}`}
+                onClick={() => settValgtFarge(valgtFarge === i ? null : i)}
+              >
+                <span class="fp-nr" aria-hidden="true">
+                  {i + 1}
                 </span>
-              </span>
-              <span class="fp-knapper">
-                <button
-                  type="button"
-                  class="kontroll-knapp"
-                  disabled={i === 0}
-                  aria-label={`Flytt ${visningsnavn(m)} opp`}
-                  onClick={() => flytt(i, -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  class="kontroll-knapp"
-                  disabled={i === profil.length - 1}
-                  aria-label={`Flytt ${visningsnavn(m)} ned`}
-                  onClick={() => flytt(i, 1)}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  class="kontroll-knapp"
-                  disabled={profil.length <= 1}
-                  aria-label={`Fjern ${visningsnavn(m)} fra profilen`}
-                  onClick={() => fjern(id)}
-                >
-                  Fjern
-                </button>
-              </span>
+              </button>
             </li>
           );
         })}
       </ol>
+      {valgtM && valgtFarge !== null && (
+        <div class="fp-detalj" role="group" aria-label={`Valgt farge ${valgtFarge + 1}`}>
+          <span class="mono">{fargekode(valgtM)}</span>
+          <span class="dempet fp-linje" title={filamentLinje(valgtM)}>
+            {filamentInfo(valgtM)}
+          </span>
+          <span class="fp-knapper">
+            <button
+              type="button"
+              class="kontroll-knapp"
+              disabled={valgtFarge === 0}
+              aria-label={`Flytt farge ${valgtFarge + 1} mot start`}
+              title="Flytt mot start"
+              onClick={() => {
+                flytt(valgtFarge, -1);
+                settValgtFarge(valgtFarge - 1);
+              }}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              class="kontroll-knapp"
+              disabled={valgtFarge === profil.length - 1}
+              aria-label={`Flytt farge ${valgtFarge + 1} mot slutt`}
+              title="Flytt mot slutt"
+              onClick={() => {
+                flytt(valgtFarge, 1);
+                settValgtFarge(valgtFarge + 1);
+              }}
+            >
+              →
+            </button>
+            <button
+              type="button"
+              class="kontroll-knapp"
+              disabled={profil.length <= 1}
+              aria-label={`Fjern farge ${valgtFarge + 1} fra profilen`}
+              onClick={() => {
+                fjern(profil[valgtFarge]!);
+                settValgtFarge(null);
+              }}
+            >
+              Fjern
+            </button>
+          </span>
+        </div>
+      )}
       {melding && (
         <p class="merknad" role="status">
           {melding}
@@ -405,200 +463,243 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
       <h3 class="underoverskrift" id="fp-profiler">
         Profiler
       </h3>
-      <ul class="profilliste" role="list" aria-labelledby="fp-profiler">
-        {FERDIGE_PROFILER.map(profilvalg)}
-        {egneProfiler.map(profilvalg)}
+      <ul class="fp-profiler" role="list" aria-labelledby="fp-profiler">
+        {FERDIGE_PROFILER.map(profilknapp)}
+        {egneProfiler.map(profilknapp)}
+        <li>
+          <button
+            type="button"
+            class="fp-pluss"
+            aria-expanded={lager}
+            aria-label="Ny profil"
+            title="Lag en ny profil"
+            onClick={() => (lager ? settLager(false) : apneLager())}
+          >
+            +
+          </button>
+        </li>
       </ul>
-      <form
-        class="profil-lagre"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const p = lagreEgenProfil(profilnavn, profil);
-          settMelding(
-            p
-              ? `«${p.navn}» er lagret som profil i denne nettleseren.`
-              : 'Nettleseren ville ikke lagre profilen.',
-          );
-          if (p) settProfilnavn('');
-          ny();
-        }}
-      >
-        <label class="felt">
-          <span>Lagre som profil</span>
-          <input
-            type="text"
-            maxLength={40}
-            placeholder="for eksempel «AMS hjemme»"
-            value={profilnavn}
-            onInput={(e) => settProfilnavn((e.target as HTMLInputElement).value)}
-          />
-        </label>
-        <button type="submit" class="sekundar" disabled={!profilnavn.trim()}>
-          Lagre profil
-        </button>
-      </form>
-
-      <h3 class="underoverskrift" id="fp-grupper">
-        Fargegrupper
-      </h3>
-      {grupper.length === 0 ? (
-        <p class="dempet">
-          En gruppe er et sett filamenter du ofte bruker sammen. Lagre fargene over som en gruppe.
-        </p>
-      ) : (
-        <ul class="profilliste" role="list" aria-labelledby="fp-grupper">
-          {grupper.map((g: Fargegruppe) => (
-            <li key={g.id}>
-              <span class="profilvalg">
-                <span class="profilnavn">{g.navn}</span>
-                <Prover farger={g.farger.filter((id) => alle.some((m) => m.id === id))} />
-              </span>
-              <button
-                type="button"
-                class="kontroll-knapp"
-                onClick={() =>
-                  bruk(
-                    [...new Set([...profil, ...g.farger.filter((id) => alle.some((m) => m.id === id))])],
-                    'Legg til gruppe',
-                  )
-                }
-              >
-                Legg til<span class="visuelt-skjult"> gruppen {g.navn}</span>
-              </button>
-              <button
-                type="button"
-                class="kontroll-knapp"
-                onClick={() => {
-                  slettGruppe(g.id);
-                  ny();
-                }}
-              >
-                Slett<span class="visuelt-skjult"> gruppen {g.navn}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <form
-        class="profil-lagre"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const g = lagreGruppe(gruppenavn, profil);
-          settMelding(g ? `Gruppen «${g.navn}» er lagret.` : 'Gruppen ble ikke lagret.');
-          if (g) settGruppenavn('');
-          ny();
-        }}
-      >
-        <label class="felt">
-          <span>Lagre fargene som gruppe</span>
-          <input
-            type="text"
-            maxLength={40}
-            placeholder="for eksempel «Jul»"
-            value={gruppenavn}
-            onInput={(e) => settGruppenavn((e.target as HTMLInputElement).value)}
-          />
-        </label>
-        <button type="submit" class="sekundar" disabled={!gruppenavn.trim()}>
-          Lagre gruppe
-        </button>
-      </form>
-
-      <h3 class="underoverskrift" id="fp-register">
-        Filamentregister
-      </h3>
-      <div class="registerfilter">
-        <label class="felt">
-          <span>Søk</span>
+      {lager && (
+        <form class="fp-lager" onSubmit={lagProfil} aria-label="Lag profil">
           <input
             type="search"
-            value={tekst}
-            placeholder="navn, produsent, serie, varenummer"
-            onInput={(e) => settTekst((e.target as HTMLInputElement).value)}
+            aria-label="Søk etter farge"
+            placeholder="Søk etter farge"
+            value={lagSok}
+            onInput={(e) => settLagSok((e.target as HTMLInputElement).value)}
           />
-        </label>
-        <label class="felt">
-          <span>Produsent</span>
-          <select value={produsent} onChange={(e) => settProdusent((e.target as HTMLSelectElement).value)}>
-            <option value="">Alle</option>
-            {produsenter(alle).map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label class="felt">
-          <span>Materiale</span>
-          <select
-            value={type}
-            onChange={(e) => settType((e.target as HTMLSelectElement).value as Materialtype | '')}
-          >
-            <option value="">Alle</option>
-            {TYPER.map((x) => (
-              <option key={x} value={x}>
-                {x}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <p class="merknad" role="status">
-        {treff.length === 0 ? 'Ingen filamenter passer.' : `${treff.length} av ${alle.length} filamenter.`}
-      </p>
-      <ul class="registerliste" role="list" aria-labelledby="fp-register">
-        {treff.map((m) => {
-          const i = profil.includes(m.id);
-          return (
-            <li key={m.id}>
-              <span class="fargeprove stor" style={{ background: m.hex }} aria-hidden="true" />
-              <span class="fp-tekst">
-                <span class="mono">{fargekode(m)}</span>
-                <span class="dempet fp-linje" title={filamentLinje(m)}>
-                  {filamentInfo(m)}
-                </span>
-              </span>
-              <span class="fp-knapper">
-                <button type="button" class="kontroll-knapp" disabled={i} onClick={() => leggTil(m.id)}>
-                  {i ? 'I profilen' : 'Legg til'}
-                  <span class="visuelt-skjult"> {visningsnavn(m)}</span>
+          <div class="fp-rutenett" role="group" aria-label="Velg fargene til profilen">
+            {lagTreff.map((m) => {
+              const plass = utvalg.indexOf(m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  class={`fp-rute${plass >= 0 ? ' valgt' : ''}`}
+                  style={{ background: m.hex }}
+                  aria-pressed={plass >= 0}
+                  aria-label={`${fargekode(m)}, ${m.type}`}
+                  title={filamentLinje(m)}
+                  onClick={() => veksleUtvalg(m.id)}
+                >
+                  {plass >= 0 && (
+                    <span class="fp-nr" aria-hidden="true">
+                      {plass + 1}
+                    </span>
+                  )}
                 </button>
-                {m.egen && (
-                  <>
-                    <button
-                      type="button"
-                      class="kontroll-knapp"
-                      aria-label={`Rediger ${visningsnavn(m)}`}
-                      onClick={() => settSkjema(tilSkjema(m))}
-                    >
-                      <Ikon id="pen" storrelse={14} />
-                    </button>
-                    <button
-                      type="button"
-                      class="kontroll-knapp"
-                      disabled={brukt.has(m.id) || i}
-                      aria-label={`Slett ${visningsnavn(m)} fra registeret`}
-                      onClick={() => {
-                        slettEgetFilament(m.id);
-                        ny();
-                      }}
-                    >
-                      Slett
-                    </button>
-                  </>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-      <button type="button" class="sekundar" onClick={() => settSkjema({ ...TOMT })}>
-        + Nytt filament
-      </button>
-      <p class="merknad">
-        Startkatalogen er foreløpig og ikke bekreftet på lager. Egne filamenter lagres i denne nettleseren og
-        følger prosjektet.
-      </p>
+              );
+            })}
+          </div>
+          {lagTreff.length === 0 && <p class="merknad">Ingen farger passer.</p>}
+          <label class="felt stablet">
+            <span>Navn på profilen</span>
+            <input
+              type="text"
+              maxLength={40}
+              placeholder="for eksempel «AMS hjemme»"
+              value={lagNavn}
+              onInput={(e) => settLagNavn((e.target as HTMLInputElement).value)}
+            />
+          </label>
+          <div class="knapperad">
+            <button type="submit" class="primar" disabled={!lagNavn.trim() || utvalg.length === 0}>
+              Lag profil
+            </button>
+            <span class="dempet" role="status">
+              {utvalg.length} valgt
+            </span>
+            <button type="button" class="sekundar" onClick={() => settLager(false)}>
+              Avbryt
+            </button>
+          </div>
+        </form>
+      )}
+
+      <details class="fp-avansert">
+        <summary>Avansert</summary>
+        <h3 class="underoverskrift" id="fp-grupper">
+          Fargegrupper
+        </h3>
+        {grupper.length === 0 ? (
+          <p class="dempet">
+            En gruppe er et sett filamenter du ofte bruker sammen. Lagre fargene over som en gruppe.
+          </p>
+        ) : (
+          <ul class="profilliste" role="list" aria-labelledby="fp-grupper">
+            {grupper.map((g: Fargegruppe) => (
+              <li key={g.id}>
+                <span class="profilvalg">
+                  <span class="profilnavn">{g.navn}</span>
+                  <Prover farger={g.farger.filter((id) => alle.some((m) => m.id === id))} />
+                </span>
+                <button
+                  type="button"
+                  class="kontroll-knapp"
+                  onClick={() =>
+                    bruk(
+                      [...new Set([...profil, ...g.farger.filter((id) => alle.some((m) => m.id === id))])],
+                      'Legg til gruppe',
+                    )
+                  }
+                >
+                  Legg til<span class="visuelt-skjult"> gruppen {g.navn}</span>
+                </button>
+                <button
+                  type="button"
+                  class="kontroll-knapp"
+                  onClick={() => {
+                    slettGruppe(g.id);
+                    ny();
+                  }}
+                >
+                  Slett<span class="visuelt-skjult"> gruppen {g.navn}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          class="profil-lagre"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const g = lagreGruppe(gruppenavn, profil);
+            settMelding(g ? `Gruppen «${g.navn}» er lagret.` : 'Gruppen ble ikke lagret.');
+            if (g) settGruppenavn('');
+            ny();
+          }}
+        >
+          <label class="felt">
+            <span>Lagre fargene som gruppe</span>
+            <input
+              type="text"
+              maxLength={40}
+              placeholder="for eksempel «Jul»"
+              value={gruppenavn}
+              onInput={(e) => settGruppenavn((e.target as HTMLInputElement).value)}
+            />
+          </label>
+          <button type="submit" class="sekundar" disabled={!gruppenavn.trim()}>
+            Lagre gruppe
+          </button>
+        </form>
+
+        <h3 class="underoverskrift" id="fp-register">
+          Filamentregister
+        </h3>
+        <div class="registerfilter">
+          <label class="felt">
+            <span>Søk</span>
+            <input
+              type="search"
+              value={tekst}
+              placeholder="navn, produsent, serie, varenummer"
+              onInput={(e) => settTekst((e.target as HTMLInputElement).value)}
+            />
+          </label>
+          <label class="felt">
+            <span>Produsent</span>
+            <select value={produsent} onChange={(e) => settProdusent((e.target as HTMLSelectElement).value)}>
+              <option value="">Alle</option>
+              {produsenter(alle).map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label class="felt">
+            <span>Materiale</span>
+            <select
+              value={type}
+              onChange={(e) => settType((e.target as HTMLSelectElement).value as Materialtype | '')}
+            >
+              <option value="">Alle</option>
+              {TYPER.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p class="merknad" role="status">
+          {treff.length === 0 ? 'Ingen filamenter passer.' : `${treff.length} av ${alle.length} filamenter.`}
+        </p>
+        <ul class="registerliste" role="list" aria-labelledby="fp-register">
+          {treff.map((m) => {
+            const i = profil.includes(m.id);
+            return (
+              <li key={m.id}>
+                <span class="fargeprove stor" style={{ background: m.hex }} aria-hidden="true" />
+                <span class="fp-tekst">
+                  <span class="mono">{fargekode(m)}</span>
+                  <span class="dempet fp-linje" title={filamentLinje(m)}>
+                    {filamentInfo(m)}
+                  </span>
+                </span>
+                <span class="fp-knapper">
+                  <button type="button" class="kontroll-knapp" disabled={i} onClick={() => leggTil(m.id)}>
+                    {i ? 'I profilen' : 'Legg til'}
+                    <span class="visuelt-skjult"> {visningsnavn(m)}</span>
+                  </button>
+                  {m.egen && (
+                    <>
+                      <button
+                        type="button"
+                        class="kontroll-knapp"
+                        aria-label={`Rediger ${visningsnavn(m)}`}
+                        onClick={() => settSkjema(tilSkjema(m))}
+                      >
+                        <Ikon id="pen" storrelse={14} />
+                      </button>
+                      <button
+                        type="button"
+                        class="kontroll-knapp"
+                        disabled={brukt.has(m.id) || i}
+                        aria-label={`Slett ${visningsnavn(m)} fra registeret`}
+                        onClick={() => {
+                          slettEgetFilament(m.id);
+                          ny();
+                        }}
+                      >
+                        Slett
+                      </button>
+                    </>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <button type="button" class="sekundar" onClick={() => settSkjema({ ...TOMT })}>
+          + Nytt filament
+        </button>
+        <p class="merknad">
+          Startkatalogen er foreløpig og ikke bekreftet på lager. Egne filamenter lagres i denne nettleseren
+          og følger prosjektet.
+        </p>
+      </details>
     </div>
   );
 }
