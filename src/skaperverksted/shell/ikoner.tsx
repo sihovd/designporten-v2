@@ -154,7 +154,10 @@ export type MidlertidigIkon =
   | 'juster-hoyre'
   | 'juster-topp'
   | 'juster-midt-y'
-  | 'juster-bunn';
+  | 'juster-bunn'
+  | 'tekst-venstre'
+  | 'tekst-midt'
+  | 'tekst-hoyre';
 
 export type IkonId = PakkeIkon | MidlertidigIkon;
 
@@ -204,6 +207,10 @@ const midlertidige: Record<MidlertidigIkon, () => JSX.Element> = {
       <rect x="14" y="8" width="4" height="8" />
     </>
   ),
+  // text alignment: four lines of text, flush left / centred / flush right
+  'tekst-venstre': () => <path d="M4 6h16M4 10h10M4 14h16M4 18h10" />,
+  'tekst-midt': () => <path d="M4 6h16M7 10h10M4 14h16M7 18h10" />,
+  'tekst-hoyre': () => <path d="M4 6h16M10 10h10M4 14h16M10 18h10" />,
   'juster-bunn': () => (
     <>
       <path d="M3 20h18" />

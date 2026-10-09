@@ -16,6 +16,8 @@ import {
   hentGoogleFamilier,
   hentGoogleFont,
   nullstillGoogleFontCache,
+  filtrerFamilier,
+  forhandsvisningUrl,
   soekFamilier,
   standardVekt,
   type Hent,
@@ -106,6 +108,13 @@ describe('Google Fonts', () => {
     expect(soekFamilier(l, '   ')).toEqual([]);
     expect(standardVekt(l[1]!)).toBe(700);
     expect(standardVekt(l[0]!)).toBe(400);
+  });
+
+  it('lists every family when the query is empty, and builds the preview address', async () => {
+    const l = await hentGoogleFamilier(hent);
+    expect(filtrerFamilier(l, '').map((f) => f.familie)).toEqual(['Lobster', 'Open Sans']);
+    expect(filtrerFamilier(l, 'sans').map((f) => f.familie)).toEqual(['Open Sans']);
+    expect(forhandsvisningUrl(l[0]!)).toContain('/lobster@latest/latin-400-normal.woff2');
   });
 
   it('fetches a WOFF file and says plainly when only WOFF2 exists', async () => {

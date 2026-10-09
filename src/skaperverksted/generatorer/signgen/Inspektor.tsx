@@ -354,8 +354,8 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
                 }
               />
             </label>
-            <label class="felt" for="signgen-font">
-              <span>Font</span>
+            <div class="felt fontrad">
+              <label for="signgen-font">Font</label>
               <select
                 id="signgen-font"
                 value={tekst.fontId}
@@ -367,14 +367,18 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
                   </option>
                 ))}
               </select>
-            </label>
-            <button
-              type="button"
-              class="kontroll-knapp"
-              onClick={() => signtilstand(benk).sett({ fontvindu: true })}
-            >
-              Flere fonter fra Google Fonts …
-            </button>
+              <button
+                type="button"
+                class="kontroll-knapp fontknapp"
+                aria-label="Flere fonter fra Google Fonts …"
+                title="Flere fonter fra Google Fonts"
+                onClick={() => signtilstand(benk).sett({ fontvindu: true })}
+              >
+                <span aria-hidden="true">
+                  A<span class="fontknapp-liten">a</span>+
+                </span>
+              </button>
+            </div>
             <TallFelt
               etikett="Skriftstørrelse"
               verdi={tekst.storrelse}
@@ -412,9 +416,9 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
               <Segment
                 etikett="Justering"
                 valg={[
-                  { id: 'venstre', navn: 'Venstre' },
-                  { id: 'midt', navn: 'Midt' },
-                  { id: 'hoyre', navn: 'Høyre' },
+                  { id: 'venstre', navn: 'Venstrejustert', ikon: 'tekst-venstre' },
+                  { id: 'midt', navn: 'Midtstilt', ikon: 'tekst-midt' },
+                  { id: 'hoyre', navn: 'Høyrejustert', ikon: 'tekst-hoyre' },
                 ]}
                 verdi={tekst.justering}
                 endre={(j) => endreTekst('Justering', { justering: j })}

@@ -82,6 +82,7 @@ Funksjonsglyfer tegnet i kode til de ferdige ikonene kommer (D-3: bare funksjone
 
 | id | Brukes til |
 | --- | --- |
+| `tekst-venstre`, `tekst-midt`, `tekst-hoyre` | Tekstjustering i egenskapene (venstre, midt, høyre) |
 | `juster-venstre`, `juster-midt-x`, `juster-hoyre`, `juster-topp`, `juster-midt-y`, `juster-bunn` | Justering i kontekstlinjen (venstre, midt vannrett, høyre, topp, midt loddrett, bunn) |
 
 - Fase 5: «Legg i handlekurven» bruker `store` (butikk) fordi pakken ikke har et handlekurvikon. Tidslinjen velger ikon etter navnet på steget (`ikonForTrinn`); steg uten treff får `edit-point`.

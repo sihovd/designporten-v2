@@ -1205,6 +1205,59 @@
   color: var(--pa-handling);
 }
 
+.segment button.segment-ikon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.veggvalg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.veggvalg button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel-2);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.veggvalg button:hover {
+  border-color: var(--linje-sterk);
+}
+
+.veggvalg button[aria-checked='true'] {
+  background: var(--handling);
+  border-color: var(--handling);
+  color: var(--pa-handling);
+}
+
+.veggvalg svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.veggvalg .veggvalg-gulv {
+  opacity: 0.35;
+  stroke-width: 1.2;
+}
+
+.veggvalg .stiplet {
+  stroke-dasharray: 2.5 2.5;
+}
+
 .tom-melding {
   margin: 0;
   color: var(--fg-dempet);
@@ -3244,6 +3297,51 @@ button.profilfarger.fargeknapp {
   gap: 10px;
   padding: 10px 18px 18px;
   overflow: auto;
+}
+
+.felt.fontrad {
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+}
+
+.fontrad > label {
+  color: var(--fg-dempet);
+  font-size: 13px;
+}
+
+.fontknapp {
+  padding: 0 8px;
+  font-weight: 700;
+}
+
+.fontknapp-liten {
+  font-size: 0.8em;
+}
+
+.font-forhandsvisning {
+  overflow: hidden;
+  font-size: 20px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.font-forhandsvisning[data-klar='false'] {
+  color: var(--fg-dempet);
+}
+
+.fontsider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.verksted .knapperad .ikonknapp-lag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  padding: 0;
 }
 
 .fontliste li select {

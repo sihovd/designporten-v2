@@ -14,8 +14,9 @@ import { oppdaterObjekter } from './dokument';
 import { fjernFraBibliotek, hentFontbibliotek, leggTilIBibliotek, synkFonter } from './fontbibliotek';
 import {
   hentGoogleFamilier,
+  filtrerFamilier,
+  forhandsvisningUrl,
   hentGoogleFont,
-  soekFamilier,
   standardVekt,
   type GoogleFamilie,
 } from './googlefonts';
@@ -23,11 +24,47 @@ import { valgte } from './handlinger';
 import { standardNavn } from './dokument';
 import { signtilstand } from './tilstand';
 
+const PER_SIDE = 20;
+
+/** The family name set in the font itself. The preview file loads when the row shows; if it can't, the name stays in the normal font. */
+function Forhandsvisning({ familie }: { familie: GoogleFamilie }) {
+  const navn = `gfforhand-${familie.id}`;
+  const [klar, settKlar] = useState(false);
+  useEffect(() => {
+    let avbrutt = false;
+    settKlar(false);
+    if (typeof FontFace === 'undefined') return;
+    const ansikt = new FontFace(navn, `url(${forhandsvisningUrl(familie)})`);
+    ansikt
+      .load()
+      .then((f) => {
+        if (avbrutt) return;
+        document.fonts.add(f);
+        settKlar(true);
+      })
+      .catch(() => {});
+    return () => {
+      avbrutt = true;
+    };
+  }, [familie.id]);
+  return (
+    <span
+      class="font-forhandsvisning"
+      data-klar={klar}
+      aria-hidden="true"
+      style={klar ? { fontFamily: `'${navn}', sans-serif` } : undefined}
+    >
+      {familie.familie}
+    </span>
+  );
+}
+
 export function Fontvindu({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
   const [liste, settListe] = useState<GoogleFamilie[] | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
   const [sok, settSok] = useState('');
+  const [side, settSide] = useState(0);
   const [vekter, settVekter] = useState<Record<string, number>>({});
   const [jobber, settJobber] = useState<string | null>(null);
   const [melding, settMelding] = useState<string | null>(null);
@@ -56,7 +93,10 @@ export function Fontvindu({ benk }: { benk: Arbeidsbenk }) {
     const v = valgte(benk);
     return v.length === 1 && v[0]!.kilde.type === 'tekst' ? v[0]! : null;
   })();
-  const treff = liste ? soekFamilier(liste, sok) : [];
+  const alle = liste ? filtrerFamilier(liste, sok) : [];
+  const sider = Math.max(1, Math.ceil(alle.length / PER_SIDE));
+  const naaSide = Math.min(side, sider - 1);
+  const treff = alle.slice(naaSide * PER_SIDE, (naaSide + 1) * PER_SIDE);
   const brukte = new Set(
     Object.values(t.dok.objekter).flatMap((o) => (o.kilde.type === 'tekst' ? [o.kilde.fontId] : [])),
   );
@@ -103,7 +143,7 @@ export function Fontvindu({ benk }: { benk: Arbeidsbenk }) {
     >
       <div class="fontvindu-innhold">
         <p class="dempet">
-          Søk i Google Fonts og legg til fonten i prosjektet. Filen lagres i prosjektet og i denne
+          Bla i Google Fonts eller søk, og legg fonten til i prosjektet. Filen lagres i prosjektet og i denne
           nettleseren, så skiltet kan bygges uten nett. Google Fonts har åpne lisenser, men sjekk lisensen til
           fonten du velger.
         </p>
@@ -115,7 +155,10 @@ export function Fontvindu({ benk }: { benk: Arbeidsbenk }) {
             type="search"
             value={sok}
             placeholder="for eksempel Lobster"
-            onInput={(e) => settSok((e.target as HTMLInputElement).value)}
+            onInput={(e) => {
+              settSok((e.target as HTMLInputElement).value);
+              settSide(0);
+            }}
           />
         </label>
         {feil && (
@@ -128,11 +171,13 @@ export function Fontvindu({ benk }: { benk: Arbeidsbenk }) {
             Henter fontlisten …
           </p>
         )}
-        {liste && sok.trim() && (
+        {liste && (
           <p class="merknad" role="status">
-            {treff.length === 0
+            {alle.length === 0
               ? 'Ingen fonter passer.'
-              : `${treff.length} fonter${treff.length === 40 ? ' (de 40 første)' : ''}.`}
+              : alle.length <= PER_SIDE
+                ? `${alle.length} fonter.`
+                : `Viser ${naaSide * PER_SIDE + 1}–${naaSide * PER_SIDE + treff.length} av ${alle.length} fonter.`}
           </p>
         )}
         <ul class="registerliste fontliste" role="list" aria-label="Søkeresultat">
@@ -143,8 +188,11 @@ export function Fontvindu({ benk }: { benk: Arbeidsbenk }) {
             return (
               <li key={f.id}>
                 <span class="fp-tekst">
-                  {f.familie}
-                  <span class="dempet fp-linje">{[f.kategori, f.lisens].filter(Boolean).join(' · ')}</span>
+                  <Forhandsvisning familie={f} />
+                  <span class="fp-linje">
+                    <span class="visuelt-skjult">{f.familie}. </span>
+                    <span class="dempet">{[f.kategori, f.lisens].filter(Boolean).join(' · ')}</span>
+                  </span>
                 </span>
                 <label class="visuelt-skjult" for={`vekt-${f.id}`}>
                   Tykkelse for {f.familie}
@@ -178,6 +226,29 @@ export function Fontvindu({ benk }: { benk: Arbeidsbenk }) {
             );
           })}
         </ul>
+        {liste && alle.length > PER_SIDE && (
+          <nav class="fontsider" aria-label="Sider med fonter">
+            <button
+              type="button"
+              class="kontroll-knapp"
+              disabled={naaSide === 0}
+              onClick={() => settSide(naaSide - 1)}
+            >
+              Forrige
+            </button>
+            <span class="dempet">
+              Side {naaSide + 1} av {sider}
+            </span>
+            <button
+              type="button"
+              class="kontroll-knapp"
+              disabled={naaSide >= sider - 1}
+              onClick={() => settSide(naaSide + 1)}
+            >
+              Neste
+            </button>
+          </nav>
+        )}
         {melding && (
           <p class="merknad" role="status">
             {melding}

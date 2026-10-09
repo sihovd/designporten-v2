@@ -1110,6 +1110,55 @@ test.describe('Signgen', () => {
     await expect(page.locator('.statuslinje')).not.toContainText('font');
   });
 
+  test('fontvinduet viser fonten, har søk øverst og blar 20 om gangen med Neste', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Fontvinduet testes på brede skjermer');
+    await page.route('https://api.fontsource.org/**', (route) =>
+      route.fulfill({
+        json: Array.from({ length: 45 }, (_, i) => ({
+          id: `font-${String(i).padStart(2, '0')}`,
+          family: `Font ${String(i).padStart(2, '0')}`,
+          subsets: ['latin'],
+          weights: [400],
+          category: 'display',
+          type: 'google',
+        })),
+        headers: { 'access-control-allow-origin': '*' },
+      }),
+    );
+    await page.locator('.objektliste li .objekt-navn').first().click();
+    await page.getByRole('button', { name: 'Flere fonter fra Google Fonts …' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Flere fonter fra Google Fonts' });
+    await expect(vindu.getByText('Viser 1–20 av 45 fonter.')).toBeVisible();
+    await expect(vindu.getByRole('list', { name: 'Søkeresultat' }).getByRole('listitem')).toHaveCount(20);
+    await vindu.getByRole('button', { name: 'Neste' }).click();
+    await expect(vindu.getByText('Viser 21–40 av 45 fonter.')).toBeVisible();
+    await vindu.getByRole('button', { name: 'Neste' }).click();
+    await expect(vindu.getByRole('list', { name: 'Søkeresultat' }).getByRole('listitem')).toHaveCount(5);
+    await expect(vindu.getByRole('button', { name: 'Neste' })).toBeDisabled();
+    await vindu.getByLabel('Søk etter font').fill('font 07');
+    await expect(vindu.getByText('1 fonter.')).toBeVisible();
+    await expect(vindu.getByRole('button', { name: 'Neste' })).toHaveCount(0);
+  });
+
+  test('tekstjustering er tre ikonknapper og profilen velges med små kurver', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.locator('.objektliste li .objekt-navn').first().click();
+    const just = page.getByRole('radiogroup', { name: 'Justering' });
+    await expect(just.getByRole('radio', { name: 'Midtstilt' })).toBeChecked();
+    await just.getByRole('radio', { name: 'Venstrejustert' }).click();
+    await expect(just.getByRole('radio', { name: 'Venstrejustert' })).toBeChecked();
+    await page.locator('.lagrad .lag-navn').first().click();
+    await page.getByRole('button', { name: 'Åpne Profil-panelet' }).click();
+    const veggen = page.getByRole('radiogroup', { name: 'Veggen' });
+    await expect(veggen.getByRole('radio')).toHaveCount(8);
+    await expect(veggen.getByRole('radio', { name: 'Rett' })).toBeChecked();
+    await veggen.getByRole('radio', { name: 'Trapp' }).click();
+    await expect(veggen.getByRole('radio', { name: 'Trapp' })).toBeChecked();
+  });
+
   test('hjelpelinjer dras ut fra linjalen, kan flyttes med piltaster, skjules og slettes', async ({
     page,
     isMobile,
@@ -1480,7 +1529,7 @@ test.describe('Signgen', () => {
     await expect(panel).toBeVisible();
     // the layer sits on the build plate
     await expect(panel.locator('.profilgraf')).toContainText('byggeplaten');
-    await panel.getByLabel('Veggen').selectOption('konveks');
+    await panel.getByRole('radio', { name: 'Bue ut' }).click();
     const topp = panel.getByLabel('Toppkant, innover');
     await expect(topp).toHaveValue('1,5');
     await topp.fill('2,5');
@@ -1521,7 +1570,7 @@ test.describe('Signgen', () => {
     await panel.getByRole('button', { name: 'Fjern punkt' }).click();
     await expect(panel.locator('#profil-punkt option')).toHaveCount(3);
     // an older profile type stays selectable
-    await panel.getByLabel('Veggen').selectOption('egendefinert');
+    await panel.getByRole('radio', { name: 'Egendefinert kurve' }).click();
     await expect(panel.getByRole('button', { name: /Gjør (glatt|til hjørne)/ })).toBeVisible();
     const r = await new AxeBuilder({ page }).exclude('canvas').analyze();
     expect(
