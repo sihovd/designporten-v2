@@ -15,7 +15,9 @@ import { flyttObjektTilValg, lagValgFor } from './objektlag';
 import { hjelpelinjerAv } from './hjelpelinjer';
 import { justeringGjelder, type Justering, type Justeringsmal } from './justering';
 import { Paintvalgbar } from './Strekpanel';
+import { Monstervalgbar } from './Monsterverktoy';
 import { HULLFORMER } from './dokument';
+import { fjernStrekpunkt, leggTilStrekpunkt, MIN_STREKPUNKTER, valgtStrekpunkt } from './strekpunkter';
 import { dekorlagringHinder } from './dekorlagring';
 import { fullforPenn, pennPagar } from './Pennverktoy';
 import { brukSigntilstand, signtilstand } from './tilstand';
@@ -202,6 +204,33 @@ function Objektvalg({ benk }: { benk: Arbeidsbenk }) {
   );
 }
 
+/** The centre line of a selected Paint stroke: add a point, remove the chosen one (same icons as a vector's points). */
+function Strekknapper({ benk }: { benk: Arbeidsbenk }) {
+  brukSigntilstand(benk);
+  const v = redigerbare(benk);
+  const o = v.length === 1 ? v[0]! : null;
+  if (!o || o.kilde.type !== 'svg' || !o.kilde.strek) return null;
+  const valgt = valgtStrekpunkt(benk);
+  const punkter = o.kilde.strek.punkter.length;
+  return (
+    <div class="kontekst-gruppe" role="group" aria-label="Senterlinjen">
+      <Knapp
+        navn="Legg til punkt på senterlinjen"
+        hjelp="Midt i det lengste stykket. Alt + klikk på linjen setter det der du klikker"
+        ikon="add-point"
+        klikk={() => leggTilStrekpunkt(benk, o.id, null)}
+      />
+      <Knapp
+        navn="Fjern valgt punkt på senterlinjen"
+        hjelp={valgt ? 'Fjern det valgte punktet' : 'Klikk et firkantet punkt på linjen først'}
+        ikon="remove-point"
+        deaktivert={!valgt || punkter <= MIN_STREKPUNKTER}
+        klikk={() => valgt && fjernStrekpunkt(benk, o.id, valgt.indeks)}
+      />
+    </div>
+  );
+}
+
 /** Save the selected vectors as one gallery element. */
 function Dekorknapp({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
@@ -236,6 +265,7 @@ export function Kontekstlinje({ benk }: { benk: Arbeidsbenk }) {
           <>
             <Justeringsknapper benk={benk} />
             <Objektvalg benk={benk} />
+            <Strekknapper benk={benk} />
             <Dekorknapp benk={benk} />
           </>
         );
@@ -324,6 +354,8 @@ export function Kontekstlinje({ benk }: { benk: Arbeidsbenk }) {
     }
     case 'paint':
       return <Paintvalgbar benk={benk} />;
+    case 'monster':
+      return <Monstervalgbar benk={benk} />;
     case 'mal':
       return <Hint>Dra for å måle avstanden mellom to punkter.</Hint>;
   }

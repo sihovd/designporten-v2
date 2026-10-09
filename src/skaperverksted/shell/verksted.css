@@ -5044,3 +5044,11 @@ button.profilfarger.fargeknapp {
   color: var(--fg-dempet);
   font-size: 13px;
 }
+
+.kontekst-avkryssing {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}

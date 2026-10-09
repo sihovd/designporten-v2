@@ -82,6 +82,7 @@ Funksjonsglyfer tegnet i kode til de ferdige ikonene kommer (D-3: bare funksjone
 
 | id | Brukes til |
 | --- | --- |
+| `monster` | Mønster-verktøyet i verktøylinjen (tre sirkler over en linje) |
 | `tekst-venstre`, `tekst-midt`, `tekst-hoyre` | Tekstjustering i egenskapene (venstre, midt, høyre) |
 | `juster-venstre`, `juster-midt-x`, `juster-hoyre`, `juster-topp`, `juster-midt-y`, `juster-bunn` | Justering i kontekstlinjen (venstre, midt vannrett, høyre, topp, midt loddrett, bunn) |
 

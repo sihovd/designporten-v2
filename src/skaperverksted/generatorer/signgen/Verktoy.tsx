@@ -69,6 +69,14 @@ export const VERKTOY: {
     ikon: 'hole',
     hjelp: 'Klikk for å lage et opphengshull gjennom skiltet',
   },
+  {
+    id: 'monster',
+    navn: 'Mønster',
+    tast: '',
+    ikon: 'monster',
+    hjelp:
+      'Gjenta de valgte vektorene i en retning eller langs en bane. Forhåndsvisning vises før du lager kopiene',
+  },
   { id: 'mal', navn: 'Mål', tast: 'M', ikon: 'ruler', hjelp: 'Dra for å måle avstander' },
 ];
 
@@ -131,7 +139,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
     <>
       {enkle(['velg', 'tekst'])}
       <Formverktoy benk={benk} aktiv={i2d ? st.verktoy : null} velg={velg} />
-      {enkle(['penn', 'paint', 'hull', 'mal'])}
+      {enkle(['penn', 'paint', 'monster', 'hull', 'mal'])}
       <span class="skinne-skille" aria-hidden="true" />
       {hjelpeknapp(
         'SVG',

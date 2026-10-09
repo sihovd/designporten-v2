@@ -1461,6 +1461,75 @@ test.describe('Signgen', () => {
     await expect(panel.getByRole('button', { name: 'Trio', exact: true })).toHaveCount(0);
   });
 
+  test('senterlinjen til et Paint-strøk kan redigeres som punkter, og bredden bevares', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Frihåndstegning testes på brede skjermer');
+    await page.getByRole('button', { name: 'Paint', exact: true }).click();
+    await page.getByRole('radio', { name: 'Penselstrøk' }).click();
+    const b = (await page.locator('canvas').first().boundingBox())!;
+    await page.mouse.move(b.x + b.width * 0.2, b.y + b.height * 0.25);
+    await page.mouse.down();
+    for (let i = 1; i <= 20; i++)
+      await page.mouse.move(b.x + b.width * (0.2 + i * 0.02), b.y + b.height * 0.25);
+    await page.mouse.up();
+    // the points show with the Select tool, like the width controls
+    await page.keyboard.press('v');
+    const insp = page.getByRole('region', { name: 'Strek' });
+    await expect(insp).toContainText('Senterlinjen har 2 punkter');
+    await page.getByRole('button', { name: 'Legg til punkt på senterlinjen' }).click();
+    await expect(insp).toContainText('Senterlinjen har 3 punkter');
+    const bredder = await page.getByRole('list', { name: 'Breddepunkter' }).locator('li').count();
+    // the new point sits in the middle of the line: drag it down, and the stroke bends
+    const hoyde = () => page.locator('.statuslinje').innerText();
+    const for_ = await hoyde();
+    await page.mouse.move(b.x + b.width * 0.4, b.y + b.height * 0.25);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.4, b.y + b.height * 0.45, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(hoyde).not.toBe(for_);
+    await expect(page.getByRole('list', { name: 'Breddepunkter' }).locator('li')).toHaveCount(bredder);
+    await expect(insp.getByRole('radio', { name: 'Penselstrøk' })).toBeChecked();
+    // one drag is one undo step
+    await page.getByRole('button', { name: 'Angre', exact: true }).click();
+    await expect.poll(hoyde).toBe(for_);
+    // Delete takes the chosen point away again
+    await page.keyboard.press('Delete');
+    await expect(insp).toContainText('Senterlinjen har 2 punkter');
+  });
+
+  test('Mønster gjentar de valgte vektorene i en retning, med forhåndsvisning og ett angretrinn', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Verktøyet testes på brede skjermer');
+    // a decoration to repeat
+    await page.getByRole('button', { name: 'Dekor', exact: true }).click();
+    const g = page.getByRole('dialog', { name: 'Dekor' });
+    await g.locator('.dekor-celle', { hasText: 'Hjerte' }).hover();
+    await g.getByRole('button', { name: 'Sett inn Hjerte' }).click();
+    const rader = page.locator('.objektliste li');
+    const for_ = await rader.count();
+    await page.locator('.objektliste li .objekt-navn', { hasText: 'Hjerte' }).click();
+    await page.getByRole('button', { name: 'Mønster', exact: true }).click();
+    const linje = page.getByRole('toolbar').or(page.locator('.kontekstlinje'));
+    await expect(linje.getByRole('radio', { name: 'I en retning' })).toBeChecked();
+    await page.getByLabel('Antall kopier').fill('3');
+    await page.getByLabel('Antall kopier').press('Enter');
+    await page.getByRole('button', { name: 'Lag mønster' }).click();
+    await expect(rader).toHaveCount(for_ + 3);
+    // back on the Select tool, the copies are selected, and one undo takes them all away
+    await page.getByRole('button', { name: 'Angre', exact: true }).click();
+    await expect(rader).toHaveCount(for_);
+    // the tool can pick a path
+    await page.locator('.objektliste li .objekt-navn', { hasText: 'Hjerte' }).click();
+    await page.getByRole('button', { name: 'Mønster', exact: true }).click();
+    await page.getByRole('radio', { name: 'Langs en bane' }).click();
+    await expect(page.getByLabel('Banen kopiene følger')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Lag mønster', exact: true })).toBeDisabled();
+  });
+
   test('Paint lager et strøk med breddepunkter som kan endres etterpå', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Frihåndstegning testes på brede skjermer');
     await page.getByRole('button', { name: 'Paint', exact: true }).click();

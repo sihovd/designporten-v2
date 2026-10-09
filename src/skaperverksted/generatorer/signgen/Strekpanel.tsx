@@ -319,6 +319,10 @@ export function Strekseksjon({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
           )
         }
       />
+      <p class="dempet" role="status">
+        Senterlinjen har {strek.punkter.length} punkter. Dra de firkantede punktene, eller bruk ikonene i
+        kontekstlinjen.
+      </p>
       <div class="knapperad">
         <button
           type="button"

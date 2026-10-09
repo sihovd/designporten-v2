@@ -155,6 +155,7 @@ export type MidlertidigIkon =
   | 'juster-topp'
   | 'juster-midt-y'
   | 'juster-bunn'
+  | 'monster'
   | 'tekst-venstre'
   | 'tekst-midt'
   | 'tekst-hoyre';
@@ -205,6 +206,15 @@ const midlertidige: Record<MidlertidigIkon, () => JSX.Element> = {
       <path d="M3 12h18" />
       <rect x="6" y="5" width="4" height="14" />
       <rect x="14" y="8" width="4" height="8" />
+    </>
+  ),
+  // pattern: a shape repeated along a line (three circles above a line)
+  monster: () => (
+    <>
+      <circle cx="5" cy="14" r="2.2" />
+      <circle cx="12" cy="9" r="2.2" />
+      <circle cx="19" cy="14" r="2.2" />
+      <path d="M3 20h18" />
     </>
   ),
   // text alignment: four lines of text, flush left / centred / flush right
