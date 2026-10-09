@@ -147,7 +147,18 @@ export type PakkeIkon =
   | 'distribute-vertical';
 
 /** Temporary line icons for what the set does not cover (D-3: functional glyphs only). */
-export type MidlertidigIkon = 'paneler';
+export type MidlertidigIkon =
+  | 'paneler'
+  | 'juster-venstre'
+  | 'juster-midt-x'
+  | 'juster-hoyre'
+  | 'juster-topp'
+  | 'juster-midt-y'
+  | 'juster-bunn'
+  | 'monster'
+  | 'tekst-venstre'
+  | 'tekst-midt'
+  | 'tekst-hoyre';
 
 export type IkonId = PakkeIkon | MidlertidigIkon;
 
@@ -159,6 +170,62 @@ const midlertidige: Record<MidlertidigIkon, () => JSX.Element> = {
     <>
       <rect x="4" y="5" width="16" height="14" rx="1" />
       <path d="M4 10h16M10 10v9" />
+    </>
+  ),
+  // alignment: the edge or centre line and two bars lined up against it
+  'juster-venstre': () => (
+    <>
+      <path d="M4 3v18" />
+      <rect x="7" y="6" width="13" height="4" />
+      <rect x="7" y="14" width="8" height="4" />
+    </>
+  ),
+  'juster-midt-x': () => (
+    <>
+      <path d="M12 3v18" />
+      <rect x="5" y="6" width="14" height="4" />
+      <rect x="8" y="14" width="8" height="4" />
+    </>
+  ),
+  'juster-hoyre': () => (
+    <>
+      <path d="M20 3v18" />
+      <rect x="4" y="6" width="13" height="4" />
+      <rect x="9" y="14" width="8" height="4" />
+    </>
+  ),
+  'juster-topp': () => (
+    <>
+      <path d="M3 4h18" />
+      <rect x="6" y="7" width="4" height="13" />
+      <rect x="14" y="7" width="4" height="8" />
+    </>
+  ),
+  'juster-midt-y': () => (
+    <>
+      <path d="M3 12h18" />
+      <rect x="6" y="5" width="4" height="14" />
+      <rect x="14" y="8" width="4" height="8" />
+    </>
+  ),
+  // pattern: a shape repeated along a line (three circles above a line)
+  monster: () => (
+    <>
+      <circle cx="5" cy="14" r="2.2" />
+      <circle cx="12" cy="9" r="2.2" />
+      <circle cx="19" cy="14" r="2.2" />
+      <path d="M3 20h18" />
+    </>
+  ),
+  // text alignment: four lines of text, flush left / centred / flush right
+  'tekst-venstre': () => <path d="M4 6h16M4 10h10M4 14h16M4 18h10" />,
+  'tekst-midt': () => <path d="M4 6h16M7 10h10M4 14h16M7 18h10" />,
+  'tekst-hoyre': () => <path d="M4 6h16M10 10h10M4 14h16M10 18h10" />,
+  'juster-bunn': () => (
+    <>
+      <path d="M3 20h18" />
+      <rect x="6" y="4" width="4" height="13" />
+      <rect x="14" y="9" width="4" height="8" />
     </>
   ),
 };

@@ -8,7 +8,15 @@ import { useMemo } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Lag } from '../../core/dokument';
 import { materialtyper, finnMateriale } from '../../core/materialer';
-import { ankere, byggProfil, flyttAnker, harSpor, profilOverheng, type ProfilType } from '../../core/profil';
+import {
+  ankere,
+  byggProfil,
+  flyttAnker,
+  harSpor,
+  profilOverheng,
+  samplerProfil,
+  type ProfilType,
+} from '../../core/profil';
 import { brukBenk } from '../../shell/bruk-benk';
 import { TallFelt } from '../../shell/kontroller';
 import { oppdaterLag } from './dokument';
@@ -25,6 +33,46 @@ export const PROFILER: { id: ProfilType; navn: string }[] = [
   { id: 'fas', navn: 'Knekk (fas)' },
   { id: 'egendefinert', navn: 'Egendefinert kurve' },
 ];
+
+/** The wall seen from the side, drawn from the real preset: outer edge to the left, up is up. */
+function miniKurve(type: ProfilType): string {
+  const p = type === 'egendefinert' ? byggProfil('s-kurve', 0, 1.5, 3) : byggProfil(type, 0, 1.5, 3);
+  return samplerProfil(p, 10)
+    .map(
+      (pt, i) =>
+        `${i === 0 ? 'M' : 'L'}${(5 + (pt.inset / 1.5) * 13).toFixed(2)} ${(20 - pt.t * 16).toFixed(2)}`,
+    )
+    .join(' ');
+}
+
+function Profilvalg({ verdi, endre }: { verdi: ProfilType; endre: (t: ProfilType) => void }) {
+  return (
+    <div class="felt stablet">
+      <span id="signgen-profil-etikett">Veggen</span>
+      <div class="veggvalg" role="radiogroup" aria-labelledby="signgen-profil-etikett">
+        {PROFILER.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={p.id === verdi}
+            aria-label={p.navn}
+            title={p.navn}
+            onClick={() => endre(p.id)}
+          >
+            <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+              <path class="veggvalg-gulv" d="M3 20h18" />
+              <path
+                class={p.id === 'egendefinert' ? 'veggvalg-kurve stiplet' : 'veggvalg-kurve'}
+                d={miniKurve(p.id)}
+              />
+            </svg>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function Profilseksjon({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
   const t = brukBenk(benk);
@@ -53,20 +101,7 @@ export function Profilseksjon({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
 
   return (
     <>
-      <label class="felt" for="signgen-profil">
-        <span>Veggen</span>
-        <select
-          id="signgen-profil"
-          value={profil.type}
-          onChange={(e) => byttType((e.target as HTMLSelectElement).value as ProfilType)}
-        >
-          {PROFILER.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.navn}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Profilvalg verdi={profil.type} endre={byttType} />
       <div class="feltpar">
         <TallFelt
           etikett="Bunnkant, innover"

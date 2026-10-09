@@ -7,7 +7,7 @@ import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Dokument } from '../../core/dokument';
 import { tolkCsv } from './batch';
 import {
-  CSVSTEG,
+  STEGNAVN,
   MAKS_RADER,
   bygSkilt,
   grunnskilt,
@@ -40,13 +40,16 @@ export function endreArbeid(
   });
 }
 
-export const stegNavn = (s: Csvsteg) => CSVSTEG.find((x) => x.id === s)!.navn;
+export const stegNavn = (s: Csvsteg) => STEGNAVN[s];
 
 /** Where the workflow resumes for a project: the furthest step reached, or the import when there is no work yet. */
 export function fortsettSteg(dok: Dokument): Csvsteg {
   const a = lesArbeid(dok);
   if (!a) return 'importer';
-  return a.generert.length && a.steg === 'plater' ? 'plater' : a.steg;
+  // the old step names live on in saved projects
+  if (a.steg === 'rader') return 'generer';
+  if (a.steg === 'plater') return a.generert.length ? 'generer' : 'master';
+  return a.steg;
 }
 
 /** Open the workflow where the project left off. */
@@ -139,7 +142,7 @@ export async function avsluttInstans(benk: Arbeidsbenk, lagre: boolean): Promise
     if (grunn) {
       const r = lagreRedigertSkilt(a, inst.rad, grunn.dok, benk.dok);
       utenfor = r.avvik.utenfor;
-      master = settArbeid(master, { ...r.arbeid, steg: 'plater' });
+      master = settArbeid(master, { ...r.arbeid, steg: 'generer' });
     }
   }
   benk.endre({
@@ -147,7 +150,7 @@ export async function avsluttInstans(benk: Arbeidsbenk, lagre: boolean): Promise
     anvend: () => master,
   });
   benk.velg({ objekter: [], lag: master.lag.at(-1)?.id ?? null });
-  signtilstand(benk).sett({ csv: lagre ? 'plater' : 'master', csvrad: inst.rad });
+  signtilstand(benk).sett({ csv: lagre ? 'generer' : 'master', csvrad: inst.rad });
   benk.kommando('tilpass');
   benk.melde(
     lagre

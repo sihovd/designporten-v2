@@ -12,11 +12,12 @@ import { Tips } from '../../shell/Tips';
 import { brukSigntilstand, signtilstand, type Snapmal, type VerktoyId } from './tilstand';
 import { importerSvgSom } from './handlinger';
 import { startErValgt } from './dokument';
+import { Prosjektinnstillinger } from './Prosjektinnstillinger';
 import { Fargeprofilvindu } from './Fargeprofilvindu';
 import { Fontvindu } from './Fontvindu';
 import { Startside } from './Startside';
 import { LagreSomMal, Malbibliotek } from './Maldialog';
-import { Dekorgalleri } from './Dekorgalleri';
+import { Dekorgalleri, Dekorlagringsvindu } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
 import { Csvflyt } from './Csvflyt';
 
@@ -67,6 +68,14 @@ export const VERKTOY: {
     tast: 'H',
     ikon: 'hole',
     hjelp: 'Klikk for å lage et opphengshull gjennom skiltet',
+  },
+  {
+    id: 'monster',
+    navn: 'Mønster',
+    tast: '',
+    ikon: 'monster',
+    hjelp:
+      'Gjenta de valgte vektorene i en retning eller langs en bane. Forhåndsvisning vises før du lager kopiene',
   },
   { id: 'mal', navn: 'Mål', tast: 'M', ikon: 'ruler', hjelp: 'Dra for å måle avstander' },
 ];
@@ -130,7 +139,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
     <>
       {enkle(['velg', 'tekst'])}
       <Formverktoy benk={benk} aktiv={i2d ? st.verktoy : null} velg={velg} />
-      {enkle(['penn', 'paint', 'hull', 'mal'])}
+      {enkle(['penn', 'paint', 'monster', 'hull', 'mal'])}
       <span class="skinne-skille" aria-hidden="true" />
       {hjelpeknapp(
         'SVG',
@@ -174,10 +183,12 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {((!startErValgt(t.dok) && st.startsteg === 'farger') || st.fargeprofil) && (
         <Fargeprofilvindu benk={benk} />
       )}
+      {st.prosjektinnstillinger && <Prosjektinnstillinger benk={benk} />}
       {st.malvindu === 'bibliotek' && <Malbibliotek benk={benk} />}
       {st.malvindu === 'lagre' && <LagreSomMal benk={benk} />}
       {st.fontvindu && <Fontvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
+      {st.lagreDekor && <Dekorlagringsvindu benk={benk} />}
       {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}
       <Csvflyt benk={benk} />
     </>

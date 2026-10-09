@@ -21,6 +21,7 @@ import {
   settInnPunkt,
 } from '../../core/profil';
 import { klem } from '../../core/enheter';
+import { Ikon } from '../../shell/ikoner';
 import { TallFelt } from '../../shell/kontroller';
 import type { Stotte } from './modell';
 
@@ -375,17 +376,36 @@ export function Profilredigerer({
               </option>
             ))}
           </select>
-          <button type="button" class="kontroll-knapp" onClick={leggTilVedValgt}>
-            Legg til punkt
+          <button
+            type="button"
+            class="kontroll-knapp ikonknapp-lag"
+            aria-label="Legg til punkt"
+            title="Legg til punkt"
+            onClick={leggTilVedValgt}
+          >
+            <Ikon id="add-point" storrelse={18} />
           </button>
           {egen && (
-            <button type="button" class="kontroll-knapp" onClick={vekslGlatt}>
-              {p.ut || p.inn ? 'Gjør til hjørne' : 'Gjør glatt'}
+            <button
+              type="button"
+              class="kontroll-knapp ikonknapp-lag"
+              aria-label={p.ut || p.inn ? 'Gjør til hjørne' : 'Gjør glatt'}
+              title={p.ut || p.inn ? 'Gjør til hjørne' : 'Gjør glatt'}
+              aria-pressed={!!(p.ut || p.inn)}
+              onClick={vekslGlatt}
+            >
+              <Ikon id="smooth" storrelse={18} />
             </button>
           )}
           {!erKant && (
-            <button type="button" class="kontroll-knapp" onClick={fjernPunkt}>
-              Fjern punkt
+            <button
+              type="button"
+              class="kontroll-knapp ikonknapp-lag"
+              aria-label="Fjern punkt"
+              title="Fjern punkt"
+              onClick={fjernPunkt}
+            >
+              <Ikon id="remove-point" storrelse={18} />
             </button>
           )}
         </div>

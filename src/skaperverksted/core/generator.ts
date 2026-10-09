@@ -26,6 +26,14 @@ export interface Modellresultat {
   advarsler: Advarsel[];
 }
 
+/** One short answer in the help search: how a task is done. */
+export interface Hjelpeemne {
+  sporsmal: string;
+  svar: string;
+  /** Extra words the search also looks for. */
+  ord?: string;
+}
+
 /** UI contributions a generator plugs into the shared shell. */
 export interface GeneratorUi {
   /** Main 2D workspace (canvas) if the generator has one. */
@@ -36,6 +44,8 @@ export interface GeneratorUi {
   Venstrepanel?: ComponentType<{ benk: Arbeidsbenk }>;
   /** Right panel: inspector for the current selection / parameters. */
   Inspektor: ComponentType<{ benk: Arbeidsbenk }>;
+  /** The bar under the workshop bar: what the active tool or the selection can do (wide and narrow screens). */
+  Kontekstlinje?: ComponentType<{ benk: Arbeidsbenk }>;
   /** Bottom tray (e.g. variant pickers). */
   Bunnbrett?: ComponentType<{ benk: Arbeidsbenk }>;
   /** Overlays on the 3D view (e.g. direct-manipulation handles). */
@@ -51,6 +61,8 @@ export interface GeneratorUi {
   Arbeidsrom?: Romspek[];
   /** Extra entries in the Fil menu (for example «Lagre som mal»). Rendered as menu items. */
   Filvalg?: ComponentType<{ benk: Arbeidsbenk }>;
+  /** Extra entries in the Innstillinger menu (only generators with a light workshop have one). */
+  Innstillingsvalg?: ComponentType<{ benk: Arbeidsbenk }>;
 }
 
 export interface PanelDef {
@@ -164,6 +176,10 @@ export interface GeneratorPlugin {
   hurtigtaster?: (e: KeyboardEvent, benk: Arbeidsbenk) => boolean;
   /** Shortcut list for the help overlay: [keys, description]. */
   hurtigtastListe?: [string, string][];
+  /** Short answers to «how do I …», found by the small search field at the top. */
+  hjelpeemner?: Hjelpeemne[];
+  /** Name of the bottom tray for screen readers (default «Varianter»). */
+  bunnbrettNavn?: string;
   /** Optional 3D material per part (default: material colour, PBR from the material type). */
   material3d?: (del: ModellDel, three: typeof THREE) => THREE.Material;
   /** Optional scene setup (lights, helpers). Return a cleanup function. */

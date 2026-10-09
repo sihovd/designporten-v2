@@ -21,6 +21,7 @@ import type { Visning } from '../../render2d/visning';
 import { redigerbare, valgte } from './handlinger';
 import { endreStrek } from './paint';
 import { signtilstand } from './tilstand';
+import { strekpunkterIVerden, valgtStrekpunkt } from './strekpunkter';
 
 export const MAKS_BREDDEPUNKTER = 8;
 
@@ -84,13 +85,13 @@ export function strekvisning(benk: Arbeidsbenk): Strekvisning | null {
 }
 
 /** The control under a point (model coordinates, `tol` in mm), if any. */
-export function treffBreddehandtak(sv: Strekvisning, p: Vec2, tol: number): number | null {
+export function treffBreddehandtak(sv: Strekvisning, p: Vec2, tol: number, medSenter = true): number | null {
   let best: number | null = null;
   let bestD = tol;
   for (const h of sv.handtak) {
     const d = Math.min(
       Math.hypot(h.kant.x - p.x, h.kant.y - p.y),
-      Math.hypot(h.senter.x - p.x, h.senter.y - p.y),
+      medSenter ? Math.hypot(h.senter.x - p.x, h.senter.y - p.y) : Infinity,
     );
     if (d <= bestD) {
       best = h.indeks;
@@ -207,5 +208,17 @@ export function tegnBreddehandtak(
     ctx.strokeStyle = f.tekst;
     ctx.stroke();
   }
+  // the points the centre line is drawn through: squares, the chosen one filled
+  const valgt = valgtStrekpunkt(benk);
+  strekpunkterIVerden(sv.o, sv.strek).forEach((p, i) => {
+    const s = v.tilSkjerm(p);
+    ctx.beginPath();
+    ctx.rect(s.x - 4, s.y - 4, 8, 8);
+    ctx.fillStyle = valgt?.indeks === i ? f.lilla : f.bakgrunn;
+    ctx.fill();
+    ctx.strokeStyle = valgt?.indeks === i ? f.tekst : f.cyan;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
   ctx.restore();
 }

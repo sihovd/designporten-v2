@@ -8,6 +8,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useId, useRef, useState } from 'preact/hooks';
 import { klem, tall, tolkLengde } from '../core/enheter';
 import { startDra } from './paneler/dra';
+import { Ikon, type IkonId } from './ikoner';
 
 /**
  * Scrubber: how many pixels of dragging change the value by one `steg`. The ruler uses the same scale,
@@ -226,7 +227,7 @@ export function Segment<T extends string>({
   endre,
 }: {
   etikett: string;
-  valg: { id: T; navn: string }[];
+  valg: { id: T; navn: string; ikon?: IkonId }[];
   verdi: T;
   endre: (v: T) => void;
 }) {
@@ -238,9 +239,18 @@ export function Segment<T extends string>({
           type="button"
           role="radio"
           aria-checked={v.id === verdi}
+          title={v.ikon ? v.navn : undefined}
+          class={v.ikon ? 'segment-ikon' : undefined}
           onClick={() => endre(v.id)}
         >
-          {v.navn}
+          {v.ikon ? (
+            <>
+              <Ikon id={v.ikon} storrelse={18} />
+              <span class="visuelt-skjult">{v.navn}</span>
+            </>
+          ) : (
+            v.navn
+          )}
         </button>
       ))}
     </div>

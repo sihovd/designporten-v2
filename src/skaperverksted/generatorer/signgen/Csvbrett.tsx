@@ -200,6 +200,7 @@ export function Csvbrett({ benk }: { benk: Arbeidsbenk }) {
       <div class="csv-brettlinje">
         <strong class="csv-brett-tittel">Fra CSV</strong>
         <Stegrad benk={benk} aktiv="master" />
+        <span class="csv-brett-merke">Du designer masteren</span>
         <Stegnavigasjon benk={benk} aktiv="master" />
         <button type="button" class="kontroll-knapp" onClick={() => lukkCsv(benk)}>
           Lukk<span class="visuelt-skjult"> CSV-visningen</span>

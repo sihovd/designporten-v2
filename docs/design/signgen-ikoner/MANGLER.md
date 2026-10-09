@@ -74,3 +74,16 @@ De 24 ikonene fra «sign-forge-icons-round-2» er tatt i bruk (116 ikonfiler i a
 - «Fordel» i justeringspanelet og i egenskaper bruker nå `distribute-horizontal` og `distribute-vertical`.
 - Ikonene i seksjon 2 (zoom, kopier/lim inn osv.) venter fortsatt på at funksjonene finnes som knapper.
 - Rotasjon i Transform-panelet bruker tegnet «↻» (ingen SVG tegnet): et rotasjonsikon mangler i pakken. Lås-ikonet for «Behold proporsjoner» bruker `lock`/`unlock`.
+- Drahåndtaket i lagpanelet er tegnet med CSS-prikker (ingen SVG): et eget håndtak-ikon med riller mangler i pakken.
+
+## Midlertidige (fase 4, 2026-10-08)
+
+Funksjonsglyfer tegnet i kode til de ferdige ikonene kommer (D-3: bare funksjonelle glyfer). Bytt ved å legge SVG-filer med samme id i `shell/ikonsvg/`.
+
+| id | Brukes til |
+| --- | --- |
+| `monster` | Mønster-verktøyet i verktøylinjen (tre sirkler over en linje) |
+| `tekst-venstre`, `tekst-midt`, `tekst-hoyre` | Tekstjustering i egenskapene (venstre, midt, høyre) |
+| `juster-venstre`, `juster-midt-x`, `juster-hoyre`, `juster-topp`, `juster-midt-y`, `juster-bunn` | Justering i kontekstlinjen (venstre, midt vannrett, høyre, topp, midt loddrett, bunn) |
+
+- Fase 5: «Legg i handlekurven» bruker `store` (butikk) fordi pakken ikke har et handlekurvikon. Tidslinjen velger ikon etter navnet på steget (`ikonForTrinn`); steg uten treff får `edit-point`.

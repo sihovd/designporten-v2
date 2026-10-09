@@ -9,6 +9,7 @@ import {
   tomtDokument,
   type Dokument,
   type FormKilde,
+  type Hullform,
   type Lag,
   type LagId,
   type Objekt,
@@ -204,6 +205,18 @@ export function nyTekst(tekst = 'Tekst', storrelse = 16): TekstKilde {
   };
 }
 
+/** The shapes a hanging hole can have, with the icons of the shape tools. */
+export const HULLFORMER: {
+  id: Hullform;
+  navn: string;
+  ikon: 'ellipse' | 'rectangle' | 'triangle' | 'polygon';
+}[] = [
+  { id: 'sirkel', navn: 'Sirkel', ikon: 'ellipse' },
+  { id: 'firkant', navn: 'Firkant', ikon: 'rectangle' },
+  { id: 'trekant', navn: 'Trekant', ikon: 'triangle' },
+  { id: 'sekskant', navn: 'Sekskant', ikon: 'polygon' },
+];
+
 export function nyForm(form: FormKilde['form'], bredde: number, hoyde: number, hjorneradius = 0): FormKilde {
   return { type: 'form', form, bredde, hoyde, hjorneradius, sider: 6 };
 }
@@ -333,6 +346,22 @@ export function flyttLag(dok: Dokument, id: LagId, retning: 1 | -1): Dokument {
   return stable({ ...dok, lag });
 }
 
+/** Move a layer next to another in the stack: `over` puts it just above `mal`, `under` just below. */
+export function flyttLagTil(dok: Dokument, id: LagId, mal: LagId, plass: 'over' | 'under'): Dokument {
+  if (id === mal) return dok;
+  const lag = dok.lag.find((l) => l.id === id);
+  if (!lag || !dok.lag.some((l) => l.id === mal)) return dok;
+  const resten = dok.lag.filter((l) => l.id !== id);
+  const i = resten.findIndex((l) => l.id === mal);
+  const ny = [
+    ...resten.slice(0, plass === 'over' ? i + 1 : i),
+    lag,
+    ...resten.slice(plass === 'over' ? i + 1 : i),
+  ];
+  if (ny.every((l, k) => l === dok.lag[k])) return dok;
+  return stable({ ...dok, lag: ny });
+}
+
 export function dupliserLag(dok: Dokument, id: LagId): { dok: Dokument; nyId: LagId } {
   const l = finnLag(dok, id);
   if (!l) return { dok, nyId: id };
@@ -350,6 +379,18 @@ export function leggTilObjekt(dok: Dokument, o: Objekt): Dokument {
     ...dok,
     objekter: { ...dok.objekter, [o.id]: o },
     rekkefolge: { ...dok.rekkefolge, [o.lagId]: [...(dok.rekkefolge[o.lagId] ?? []), o.id] },
+  };
+}
+
+/** Add an object to its layer right after another object (so it keeps its place in the stacking order). */
+export function leggTilObjektEtter(dok: Dokument, o: Objekt, etterId: ObjektId): Dokument {
+  const liste = dok.rekkefolge[o.lagId] ?? [];
+  const i = liste.indexOf(etterId);
+  const ny = i < 0 ? [...liste, o.id] : [...liste.slice(0, i + 1), o.id, ...liste.slice(i + 1)];
+  return {
+    ...dok,
+    objekter: { ...dok.objekter, [o.id]: o },
+    rekkefolge: { ...dok.rekkefolge, [o.lagId]: ny },
   };
 }
 
@@ -627,6 +668,23 @@ export function oppdaterOmriss(
 
 export function slettOmriss(dok: Dokument, lagId: LagId, id: string): Dokument {
   return medOmriss(dok, lagId, (r) => r.filter((x) => x.id !== id));
+}
+
+/** Move an outline next to another one in the list (innermost first): `for` puts it before `mal`, `etter` after. */
+export function flyttOmrissTil(
+  dok: Dokument,
+  lagId: LagId,
+  id: string,
+  mal: string,
+  plass: 'for' | 'etter',
+): Dokument {
+  return medOmriss(dok, lagId, (r) => {
+    const o = r.find((x) => x.id === id);
+    if (!o || id === mal || !r.some((x) => x.id === mal)) return r;
+    const resten = r.filter((x) => x.id !== id);
+    const i = resten.findIndex((x) => x.id === mal) + (plass === 'etter' ? 1 : 0);
+    return [...resten.slice(0, i), o, ...resten.slice(i)];
+  });
 }
 
 /** Move an outline outwards (+1) or inwards (−1). */

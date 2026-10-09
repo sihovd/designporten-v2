@@ -10,6 +10,7 @@ import type { Arbeidsbenk } from '../core/arbeidsbenk';
 import type { Boks, Vec2 } from '../core/geometri2d';
 import { linjalEtikett, rutenettnivaa } from '../core/rutenett';
 import { cssFarge, horisontStopp, lesHorisont, type Horisont } from '../shell/tema';
+import { FARGER_ENDRET } from '../shell/innstillinger';
 import { LINJAL, lagVisning, tilpass, zoomRundt, type Visning } from './visning';
 
 export interface Pekerhendelse {
@@ -216,6 +217,7 @@ export function Lerret({
       planlegg();
     };
     tema.addEventListener('change', nyeFarger);
+    addEventListener(FARGER_ENDRET, nyeFarger);
 
     // view commands for shortcuts and toolbars
     const fit = () => {
@@ -411,6 +413,7 @@ export function Lerret({
       avLytt();
       markorLytter();
       tema.removeEventListener('change', nyeFarger);
+      removeEventListener(FARGER_ENDRET, nyeFarger);
       for (const [k, f] of kommandoer) if (benk.kommandoer.get(k) === f) benk.kommandoer.delete(k);
       c.removeEventListener('pointerdown', ned);
       c.removeEventListener('pointermove', flytt);

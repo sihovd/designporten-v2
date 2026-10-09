@@ -19,7 +19,9 @@ import { lagRegion, objektFarge } from './modell';
 import {
   dupliserLag,
   flyttLagInnI,
+  flyttLagTil,
   flyttObjekterInnI,
+  flyttOmrissTil,
   kanLiggeI,
   losUtObjekt,
   nesteFarge,
@@ -32,9 +34,18 @@ import {
   oppdaterLag,
   oppdaterObjekter,
   slettLag,
+  slettObjekter,
+  slettOmriss,
 } from './dokument';
 import { signtilstand, brukSigntilstand } from './tilstand';
-import { importerSvgSom, nyttLagRundtTeksten, nyttTomtTekstlag, type Svgrolle } from './handlinger';
+import { ProsjektinnstillingerKnapp } from './Prosjektinnstillinger';
+import {
+  importerSvgSom,
+  nyttLagRundtTeksten,
+  nyttTomtTekstlag,
+  settObjektFarge,
+  type Svgrolle,
+} from './handlinger';
 
 // ---------- thumbnails ----------
 
@@ -113,6 +124,47 @@ function Bryter({
         {type === 'synlighet' ? 'Synlig' : 'Låst'} {navn}
       </span>
     </button>
+  );
+}
+
+/** Delete button in the same small style as visibility and lock. */
+function Slettknapp({
+  navn,
+  tittel,
+  av,
+  onClick,
+}: {
+  navn: string;
+  tittel: string;
+  av?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" class="minibryter slett" title={tittel} disabled={av} onClick={onClick}>
+      <Ikon id="delete" storrelse={16} />
+      <span class="visuelt-skjult">Slett {navn}</span>
+    </button>
+  );
+}
+
+/**
+ * The grip on the left of a row: the only part that is dragged, drawn with CSS dots (no icon in the pack).
+ * The whole row follows as the drag image. Keyboard users reorder with «Flytt opp» and «Flytt ned».
+ */
+function Drahandtak({ dnd, dra, av }: { dnd: Dnd; dra: Dra; av?: boolean }) {
+  return (
+    <span
+      class={`drahandtak${av ? ' av' : ''}`}
+      aria-hidden="true"
+      title="Dra for å flytte"
+      draggable={!av}
+      onDragStart={(e) => {
+        const rad = (e.currentTarget as HTMLElement).closest('li');
+        if (rad && e.dataTransfer) e.dataTransfer.setDragImage(rad, 12, 12);
+        dnd.start(dra, e);
+      }}
+      onDragEnd={dnd.slutt}
+    />
   );
 }
 
@@ -204,15 +256,56 @@ function Lagmeny({ x, y, valg, lukk }: { x: number; y: number; valg: MenyValg[];
 }
 
 /** One outline of a text layer: a row of its own in the layers panel. */
-function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss }) {
+function Omrissrad({ benk, lag, o, dnd }: { benk: Arbeidsbenk; lag: Lag; o: Omriss; dnd: Dnd }) {
   const t = brukBenk(benk);
   const st = brukSigntilstand(benk);
   const mat = finnMateriale(o.materialId);
   const aktiv = t.utvalg.lag === lag.id && st.omriss === o.id;
   const endre = (navn: string, endring: Partial<Omriss>) =>
     benk.endre({ navn, anvend: (d) => oppdaterOmriss(d, lag.id, o.id, endring) });
+  const kanSlippes =
+    dnd.dra?.type === 'omriss' && dnd.dra.lagId === lag.id && dnd.dra.id !== o.id && !lag.last;
+  const plass = dnd.over === o.id ? dnd.overPlass : null;
   return (
-    <li class={`omrissrad${aktiv ? ' aktiv' : ''}${o.synlig ? '' : ' skjult'}`}>
+    <li
+      class={`omrissrad${aktiv ? ' aktiv' : ''}${o.synlig ? '' : ' skjult'}${
+        kanSlippes && plass ? ` slipp-${plass}` : ''
+      }`}
+      onDragOver={(e) => {
+        if (!kanSlippes) return;
+        e.preventDefault();
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const ny = e.clientY < r.top + r.height / 2 ? 'over' : 'under';
+        if (dnd.over !== o.id || dnd.overPlass !== ny) dnd.settOver(o.id, ny);
+      }}
+      onDragLeave={(e) => {
+        if (dnd.over === o.id && !(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null))
+          dnd.settOver(null);
+      }}
+      onDrop={(e) => {
+        if (!kanSlippes) return;
+        e.preventDefault();
+        dnd.slippOmriss(lag.id, o.id, plass === 'under' ? 'etter' : 'for');
+      }}
+    >
+      <Drahandtak dnd={dnd} dra={{ type: 'omriss', id: o.id, lagId: lag.id }} av={lag.last} />
+      <Bryter
+        type="synlighet"
+        paa={o.synlig}
+        navn={o.navn}
+        tittel={o.synlig ? 'Skjul omrisset' : 'Vis omrisset'}
+        onClick={() => endre(o.synlig ? 'Skjul omriss' : 'Vis omriss', { synlig: !o.synlig })}
+      />
+      <Slettknapp
+        navn={o.navn}
+        tittel="Slett omrisset"
+        av={lag.last}
+        onClick={() => {
+          benk.endre({ navn: 'Slett omriss', anvend: (d) => slettOmriss(d, lag.id, o.id) });
+          if (st.omriss === o.id) signtilstand(benk).sett({ omriss: null });
+          benk.melde(`Omrisset «${o.navn}» er slettet. Angre med Ctrl+Z.`);
+        }}
+      />
       <Fargevelger
         benk={benk}
         verdi={o.materialId}
@@ -234,13 +327,6 @@ function Omrissrad({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss })
           {fargekode(mat)}
         </span>
       </button>
-      <Bryter
-        type="synlighet"
-        paa={o.synlig}
-        navn={o.navn}
-        tittel={o.synlig ? 'Skjul omrisset' : 'Vis omrisset'}
-        onClick={() => endre(o.synlig ? 'Skjul omriss' : 'Vis omriss', { synlig: !o.synlig })}
-      />
     </li>
   );
 }
@@ -258,20 +344,27 @@ export function nyttOmrissI(benk: Arbeidsbenk, lag: Lag): void {
 
 /** What is being dragged in the layers panel: an object, or a whole layer. */
 interface Dra {
-  type: 'objekt' | 'lag';
+  type: 'objekt' | 'lag' | 'omriss';
   id: string;
+  /** For an outline: the layer it belongs to (it can only be reordered there). */
+  lagId?: string;
 }
+
+/** Where a drop lands: just above or below a row, or inside it (a layer taking the dragged thing in). */
+type Plass = 'over' | 'under' | 'inn';
 
 interface Dnd {
   dra: Dra | null;
   start: (d: Dra, e: DragEvent) => void;
   slutt: () => void;
-  /** The layer under the pointer while dragging. */
+  /** The row under the pointer while dragging, and where on it the drop would land. */
   over: string | null;
-  settOver: (id: string | null) => void;
+  overPlass: Plass | null;
+  settOver: (id: string | null, plass?: Plass) => void;
   /** Whether the dragged thing may be dropped on this layer. */
   kan: (lag: Lag) => boolean;
-  slipp: (lagId: string) => void;
+  slipp: (lagId: string, plass: Plass) => void;
+  slippOmriss: (lagId: string, mal: string, plass: 'for' | 'etter') => void;
   /** Rename in place: the layer being renamed, and the menu opening on a layer. */
   omdop: string | null;
   ferdigOmdop: () => void;
@@ -298,17 +391,35 @@ function Lagrad({
   const mat = finnMateriale(lag.materialId);
   const endreLag = (navn: string, endring: Partial<Lag>) =>
     benk.endre({ navn, anvend: (d) => oppdaterLag(d, lag.id, endring) });
-  const kanSlippes = !!dnd.dra && dnd.kan(lag);
+  // a layer can be dropped next to another layer, or into one that takes it (a text group)
+  const drarLag = dnd.dra?.type === 'lag' && dnd.dra.id !== lag.id;
+  const drarObjekt = dnd.dra?.type === 'objekt' && dnd.kan(lag);
+  const kanInn = !!dnd.dra && dnd.kan(lag);
+  const kanSlippes = drarLag || drarObjekt;
+  const plass = dnd.over === lag.id ? dnd.overPlass : null;
   return (
     <li
-      class={`lagrad${aktiv ? ' aktiv' : ''}${lag.synlig ? '' : ' skjult'}${
-        kanSlippes ? ' kan-slippes' : ''
-      }${kanSlippes && dnd.over === lag.id ? ' slipp-her' : ''}`}
+      class={`lagrad${aktiv ? ' aktiv' : ''}${lag.synlig ? '' : ' skjult'}${lag.tekstlag ? ' tekstlag' : ''}${
+        kanInn ? ' kan-slippes' : ''
+      }${kanSlippes && plass === 'inn' ? ' slipp-her' : ''}${
+        kanSlippes && (plass === 'over' || plass === 'under') ? ` slipp-${plass}` : ''
+      }`}
       onDragOver={(e) => {
         if (!kanSlippes) return;
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-        if (dnd.over !== lag.id) dnd.settOver(lag.id);
+        let ny: Plass = 'inn';
+        if (!drarObjekt) {
+          const hode = (e.currentTarget as HTMLElement)
+            .querySelector('.lagrad-hode')!
+            .getBoundingClientRect();
+          const rel = (e.clientY - hode.top) / Math.max(hode.height, 1);
+          if (rel > 1) ny = kanInn ? 'inn' : 'under';
+          else if (rel < 0.3) ny = 'over';
+          else if (rel > 0.7) ny = 'under';
+          else ny = kanInn ? 'inn' : rel < 0.5 ? 'over' : 'under';
+        }
+        if (dnd.over !== lag.id || dnd.overPlass !== ny) dnd.settOver(lag.id, ny);
       }}
       onDragLeave={(e) => {
         if (dnd.over === lag.id && !(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null))
@@ -317,15 +428,34 @@ function Lagrad({
       onDrop={(e) => {
         if (!kanSlippes) return;
         e.preventDefault();
-        dnd.slipp(lag.id);
+        dnd.slipp(lag.id, plass ?? 'inn');
       }}
     >
-      <div
-        class="lagrad-hode"
-        draggable={!lag.last}
-        onDragStart={(e) => dnd.start({ type: 'lag', id: lag.id }, e)}
-        onDragEnd={dnd.slutt}
-      >
+      <div class="lagrad-hode">
+        <Drahandtak dnd={dnd} dra={{ type: 'lag', id: lag.id }} av={lag.last} />
+        <Bryter
+          type="synlighet"
+          paa={lag.synlig}
+          navn={lag.navn}
+          tittel={lag.synlig ? 'Skjul laget' : 'Vis laget'}
+          onClick={() => endreLag(lag.synlig ? 'Skjul lag' : 'Vis lag', { synlig: !lag.synlig })}
+        />
+        <Bryter
+          type="las"
+          paa={lag.last}
+          navn={lag.navn}
+          tittel={lag.last ? 'Lås opp laget' : 'Lås laget'}
+          onClick={() => endreLag(lag.last ? 'Lås opp lag' : 'Lås lag', { last: !lag.last })}
+        />
+        <Slettknapp
+          navn={lag.navn}
+          tittel="Slett laget"
+          av={lag.last || t.dok.lag.length <= 1}
+          onClick={() => {
+            benk.endre({ navn: 'Slett lag', anvend: (d) => slettLag(d, lag.id) });
+            benk.melde(`Laget «${lag.navn}» er slettet. Angre med Ctrl+Z.`);
+          }}
+        />
         <button type="button" class="lag-apne" aria-expanded={apen} onClick={veksle}>
           <span class="visuelt-skjult">{apen ? 'Skjul innholdet i' : 'Vis innholdet i'} </span>
           <span aria-hidden="true">{apen ? '▾' : '▸'}</span>
@@ -386,20 +516,6 @@ function Lagrad({
             </span>
           </button>
         )}
-        <Bryter
-          type="synlighet"
-          paa={lag.synlig}
-          navn={lag.navn}
-          tittel={lag.synlig ? 'Skjul laget' : 'Vis laget'}
-          onClick={() => endreLag(lag.synlig ? 'Skjul lag' : 'Vis lag', { synlig: !lag.synlig })}
-        />
-        <Bryter
-          type="las"
-          paa={lag.last}
-          navn={lag.navn}
-          tittel={lag.last ? 'Lås opp laget' : 'Lås laget'}
-          onClick={() => endreLag(lag.last ? 'Lås opp lag' : 'Lås lag', { last: !lag.last })}
-        />
       </div>
       {apen && (
         <ul class="objektliste" role="list">
@@ -412,49 +528,10 @@ function Lagrad({
           )}
           {[...objekter].reverse().map((o) => {
             const valgt = t.utvalg.objekter.includes(o.id);
+            const erTekst = o.kilde.type === 'tekst';
             return (
-              <li
-                key={o.id}
-                class={valgt ? 'valgt' : ''}
-                draggable={!o.last && !lag.last}
-                onDragStart={(e) => dnd.start({ type: 'objekt', id: o.id }, e)}
-                onDragEnd={dnd.slutt}
-              >
-                {o.kilde.type !== 'tekst' && !(o.kilde.type === 'form' && o.kilde.form === 'hull') && (
-                  <Fargevelger
-                    benk={benk}
-                    verdi={objektFarge(lag, o)}
-                    etikett={`Farge på ${o.navn}`}
-                    klasse={o.materialId ? 'egenfarge' : ''}
-                    endre={(id) =>
-                      benk.endre({
-                        navn: 'Bytt farge på objektet',
-                        anvend: (d) =>
-                          oppdaterObjekter(d, [o.id], (x) => ({
-                            ...x,
-                            materialId: id === lag.materialId ? undefined : id,
-                          })),
-                      })
-                    }
-                  />
-                )}
-                <button
-                  type="button"
-                  class="objekt-navn"
-                  aria-pressed={valgt}
-                  onClick={(e) => {
-                    const flere = e.shiftKey || e.ctrlKey || e.metaKey;
-                    const ny = flere
-                      ? valgt
-                        ? t.utvalg.objekter.filter((x) => x !== o.id)
-                        : [...t.utvalg.objekter, o.id]
-                      : [o.id];
-                    benk.velg({ objekter: ny, lag: lag.id });
-                  }}
-                >
-                  {o.navn}
-                  {o.operasjon === 'trekk-fra' && <span class="mono merke"> kutter</span>}
-                </button>
+              <li key={o.id} class={valgt ? 'valgt' : ''}>
+                <Drahandtak dnd={dnd} dra={{ type: 'objekt', id: o.id }} av={o.last || lag.last} />
                 <Bryter
                   type="synlighet"
                   paa={o.synlig}
@@ -479,6 +556,42 @@ function Lagrad({
                     })
                   }
                 />
+                <Slettknapp
+                  navn={o.navn}
+                  tittel="Slett objektet"
+                  av={o.last || lag.last}
+                  onClick={() => {
+                    benk.endre({ navn: 'Slett objekt', anvend: (d) => slettObjekter(d, [o.id]) });
+                    benk.velg({ objekter: t.utvalg.objekter.filter((x) => x !== o.id), lag: lag.id });
+                    benk.melde('Objektet er slettet.');
+                  }}
+                />
+                {!(o.kilde.type === 'form' && o.kilde.form === 'hull') && (
+                  <Fargevelger
+                    benk={benk}
+                    verdi={objektFarge(lag, o)}
+                    etikett={`Farge på ${o.navn}`}
+                    klasse={o.materialId ? 'egenfarge' : ''}
+                    endre={(id) => settObjektFarge(benk, o.id, id)}
+                  />
+                )}
+                <button
+                  type="button"
+                  class={`objekt-navn${erTekst ? ' tekst' : ''}`}
+                  aria-pressed={valgt}
+                  onClick={(e) => {
+                    const flere = e.shiftKey || e.ctrlKey || e.metaKey;
+                    const ny = flere
+                      ? valgt
+                        ? t.utvalg.objekter.filter((x) => x !== o.id)
+                        : [...t.utvalg.objekter, o.id]
+                      : [o.id];
+                    benk.velg({ objekter: ny, lag: lag.id });
+                  }}
+                >
+                  {o.navn}
+                  {o.operasjon === 'trekk-fra' && <span class="mono merke"> kutter</span>}
+                </button>
               </li>
             );
           })}
@@ -490,7 +603,7 @@ function Lagrad({
           {(lag.omriss ?? []).length > 0 && (
             <ol role="list" aria-label={`Omriss rundt ${lag.navn}, innerst først`}>
               {(lag.omriss ?? []).map((o) => (
-                <Omrissrad key={o.id} benk={benk} lag={lag} o={o} />
+                <Omrissrad key={o.id} benk={benk} lag={lag} o={o} dnd={dnd} />
               ))}
             </ol>
           )}
@@ -515,7 +628,6 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
   const aktiv = t.utvalg.lag;
   const indeks = t.dok.lag.findIndex((l) => l.id === aktiv);
 
-  const [meny, settMeny] = useState(false);
   const svgfil = useRef<HTMLInputElement>(null);
   const svgrolle = useRef<Svgrolle>('ramme');
   const apneNytt = (id: string) =>
@@ -533,7 +645,6 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
     benk.melde(`${lag.navn} er lagt til over det valgte laget.`);
   };
   const velg = (gjor: () => void) => {
-    settMeny(false);
     gjor();
     const ny = benk.tilstand.utvalg.lag;
     if (ny) apneNytt(ny);
@@ -541,9 +652,13 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
   // dragging in the layers panel (Sivert, 2026-10-05): an object or a layer onto a layer, or an
   // object out of its group
   const [dra, settDraTilstand] = useState<Dra | null>(null);
-  const [over, settOver] = useState<string | null>(null);
+  const [overTilstand, settOverTilstand] = useState<{ id: string; plass: Plass } | null>(null);
+  const over = overTilstand?.id ?? null;
+  const settOver = (id: string | null, plass: Plass = 'inn') =>
+    settOverTilstand((a) => (id === null ? null : a?.id === id && a.plass === plass ? a : { id, plass }));
   const kan = (lag: Lag): boolean => {
     if (!dra || lag.last) return false;
+    if (dra.type === 'omriss') return false;
     if (dra.type === 'objekt') {
       const o = t.dok.objekter[dra.id];
       return !!o && o.lagId !== lag.id && kanLiggeI(o, lag);
@@ -559,12 +674,22 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
   };
   const slutt = () => {
     settDraTilstand(null);
-    settOver(null);
+    settOverTilstand(null);
   };
-  const slipp = (lagId: string) => {
+  const slipp = (lagId: string, plass: Plass) => {
     const d = dra;
     slutt();
     if (!d) return;
+    if (d.type === 'lag' && plass !== 'inn') {
+      // reorder: next to the other layer, not into it
+      benk.endre({
+        navn: 'Flytt lag',
+        anvend: (dok: Dokument) => flyttLagTil(dok, d.id, lagId, plass),
+      });
+      benk.velg({ lag: d.id, objekter: [] });
+      return;
+    }
+    if (d.type === 'omriss') return;
     const mal = finnLag(benk.dok, lagId);
     const r =
       d.type === 'objekt' ? flyttObjekterInnI(benk.dok, [d.id], lagId) : flyttLagInnI(benk.dok, d.id, lagId);
@@ -584,6 +709,15 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
         ? `Flyttet til «${mal.navn}». Det får samme omriss som resten av gruppen.`
         : `Flyttet til «${mal.navn}».`,
     );
+  };
+  const slippOmriss = (lagId: string, mal: string, plass: 'for' | 'etter') => {
+    const d = dra;
+    slutt();
+    if (d?.type !== 'omriss' || d.lagId !== lagId) return;
+    benk.endre({
+      navn: 'Flytt omriss',
+      anvend: (dok: Dokument) => flyttOmrissTil(dok, lagId, d.id, mal, plass),
+    });
   };
   const slippUt = () => {
     const d = dra;
@@ -618,9 +752,11 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
     start,
     slutt,
     over,
+    overPlass: overTilstand?.plass ?? null,
     settOver,
     kan,
     slipp,
+    slippOmriss,
     omdop,
     ferdigOmdop: () => settOmdop(null),
     apneMeny: (lagId, x, y) => settLagmeny({ lagId, x, y }),
@@ -662,6 +798,24 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
             });
             benk.velg({ lag: ny, objekter: [] });
           },
+        },
+        {
+          id: 'nytt-tekstlag',
+          navn: 'Nytt tekstlag',
+          ikon: 'text',
+          gjor: () => velg(() => nyttTomtTekstlag(benk)),
+        },
+        {
+          id: 'rundt-teksten',
+          navn: 'Nytt lag rundt teksten',
+          ikon: 'text-outline',
+          gjor: () => velg(() => nyttLagRundtTeksten(benk)),
+        },
+        {
+          id: 'svg-ramme',
+          navn: 'SVG som ramme …',
+          ikon: 'svg-import',
+          gjor: () => svg('ramme'),
         },
         {
           id: 'synlig',
@@ -712,7 +866,6 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
     : [];
 
   const svg = (rolle: Svgrolle) => {
-    settMeny(false);
     svgrolle.current = rolle;
     svgfil.current?.click();
   };
@@ -723,62 +876,8 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
       <div class="panel">
         <h2 class="panel-tittel">
           <span>Lag, øverst først</span>
-          <button
-            type="button"
-            class="kontroll-knapp med-ikon"
-            aria-expanded={meny}
-            aria-controls="nytt-lag-meny"
-            onClick={() => settMeny(!meny)}
-          >
-            <Ikon id="layer-add" storrelse={16} />+ Nytt lag
-          </button>
+          <ProsjektinnstillingerKnapp benk={benk} />
         </h2>
-        {meny && (
-          <ul id="nytt-lag-meny" class="nytt-lag-meny" role="list">
-            <li>
-              <button type="button" onClick={() => velg(() => nyttTomtTekstlag(benk))}>
-                <strong>Tekstlag</strong>
-                <span class="dempet">Et eget lag for tekst, atskilt fra de andre tekstene</span>
-              </button>
-            </li>
-            <li>
-              <button
-                type="button"
-                onClick={() => {
-                  settMeny(false);
-                  signtilstand(benk).sett({ dekor: true });
-                }}
-              >
-                <strong>Dekor fra galleri</strong>
-                <span class="dempet">Stjerne, hest, enhjørning og flere, eller din egen vektor</span>
-              </button>
-            </li>
-            <li>
-              <button type="button" onClick={() => velg(() => nyttLagRundtTeksten(benk))}>
-                <strong>Rundt teksten</strong>
-                <span class="dempet">Under skiltet, formet etter teksten og omrissene</span>
-              </button>
-            </li>
-            <li>
-              <button type="button" onClick={() => svg('ramme')}>
-                <strong>SVG som ramme</strong>
-                <span class="dempet">En SVG-fil under skiltet, stor nok til å gå rundt det</span>
-              </button>
-            </li>
-            <li>
-              <button type="button" onClick={() => svg('pynt')}>
-                <strong>SVG som pynt</strong>
-                <span class="dempet">En SVG-fil i et eget lag over det valgte laget</span>
-              </button>
-            </li>
-            <li>
-              <button type="button" onClick={() => velg(tomt)}>
-                <strong>Tomt lag</strong>
-                <span class="dempet">Tegn former i det selv</span>
-              </button>
-            </li>
-          </ul>
-        )}
         <input
           ref={svgfil}
           type="file"
@@ -827,58 +926,57 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
             Slipp her for å ta det ut av gruppen
           </div>
         )}
-        {aktiv && (
-          <div class="lagknapper" role="group" aria-label="Valgt lag">
-            <button
-              type="button"
-              class="kontroll-knapp med-ikon"
-              disabled={indeks >= t.dok.lag.length - 1}
-              onClick={() => benk.endre({ navn: 'Flytt lag opp', anvend: (d) => flyttLag(d, aktiv, 1) })}
-            >
-              <Ikon id="bring-forward" storrelse={16} />
-              Flytt opp
-            </button>
-            <button
-              type="button"
-              class="kontroll-knapp med-ikon"
-              disabled={indeks <= 0}
-              onClick={() => benk.endre({ navn: 'Flytt lag ned', anvend: (d) => flyttLag(d, aktiv, -1) })}
-            >
-              <Ikon id="send-backward" storrelse={16} />
-              Flytt ned
-            </button>
-            <button
-              type="button"
-              class="kontroll-knapp"
-              onClick={() => {
-                let ny = aktiv;
-                benk.endre({
-                  navn: 'Dupliser lag',
-                  anvend: (d) => {
-                    const r = dupliserLag(d, aktiv);
-                    ny = r.nyId;
-                    return r.dok;
-                  },
-                });
-                benk.velg({ lag: ny, objekter: [] });
-              }}
-            >
-              Dupliser
-            </button>
-            <button
-              type="button"
-              class="kontroll-knapp farlig"
-              disabled={t.dok.lag.length <= 1}
-              onClick={() => {
-                const navn = t.dok.lag[indeks]?.navn;
-                benk.endre({ navn: 'Slett lag', anvend: (d) => slettLag(d, aktiv) });
-                benk.melde(`Laget «${navn}» er slettet. Angre med Ctrl+Z.`);
-              }}
-            >
-              Slett
-            </button>
-          </div>
-        )}
+        <div class="lagknapper" role="group" aria-label="Lag">
+          <button
+            type="button"
+            class="kontroll-knapp ikonknapp-lag"
+            title="Nytt lag over det valgte laget"
+            aria-label="Nytt lag"
+            onClick={tomt}
+          >
+            <Ikon id="layer-add" storrelse={18} />
+          </button>
+          {aktiv && (
+            <>
+              <button
+                type="button"
+                class="kontroll-knapp med-ikon"
+                disabled={indeks >= t.dok.lag.length - 1}
+                onClick={() => benk.endre({ navn: 'Flytt lag opp', anvend: (d) => flyttLag(d, aktiv, 1) })}
+              >
+                <Ikon id="bring-forward" storrelse={16} />
+                Flytt opp
+              </button>
+              <button
+                type="button"
+                class="kontroll-knapp med-ikon"
+                disabled={indeks <= 0}
+                onClick={() => benk.endre({ navn: 'Flytt lag ned', anvend: (d) => flyttLag(d, aktiv, -1) })}
+              >
+                <Ikon id="send-backward" storrelse={16} />
+                Flytt ned
+              </button>
+              <button
+                type="button"
+                class="kontroll-knapp"
+                onClick={() => {
+                  let ny = aktiv;
+                  benk.endre({
+                    navn: 'Dupliser lag',
+                    anvend: (d) => {
+                      const r = dupliserLag(d, aktiv);
+                      ny = r.nyId;
+                      return r.dok;
+                    },
+                  });
+                  benk.velg({ lag: ny, objekter: [] });
+                }}
+              >
+                Dupliser
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

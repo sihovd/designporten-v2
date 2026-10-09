@@ -45,18 +45,17 @@ async function tilMasterSteget(page: Side, csv: string): Promise<void> {
   await expect(page.getByRole('region', { name: 'Fra CSV: design masteren' })).toBeVisible();
 }
 
-/** From the master step to the plates, choosing every row. */
+/** From the master step to the plates: every row is chosen from the start, «Generer» makes the signs. */
 async function genererAlt(page: Side): Promise<void> {
   const brett = page.getByRole('region', { name: 'Fra CSV: design masteren' });
   await brett
-    .getByRole('button', { name: /^Rader/ })
+    .getByRole('button', { name: /^Generer/ })
     .first()
     .click();
-  const rader = page.getByRole('dialog', { name: 'Fra CSV: Velg rader' });
-  await rader.getByRole('button', { name: /Valider og generer \d/ }).click();
-  const generer = page.getByRole('dialog', { name: 'Fra CSV: Valider og generer' });
+  const generer = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
   await generer.getByRole('button', { name: /^Generer \d+ skilt/ }).click();
-  await expect(page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' })).toBeVisible();
+  // the plates come after pressing «Generer», in the same tab
+  await expect(generer.getByRole('list', { name: 'Produksjonsplater' })).toBeVisible();
 }
 
 test.describe('Skaperverksted', () => {
@@ -229,8 +228,8 @@ test.describe('Signgen', () => {
 
   test('legger et nytt lag rundt teksten', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Lagpanelet testes på desktop');
-    await page.getByRole('button', { name: '+ Nytt lag' }).click();
-    await page.getByRole('button', { name: /Rundt teksten/ }).click();
+    await page.locator('.lagrad .lag-navn').first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Nytt lag rundt teksten' }).click();
     await expect(page.locator('.lagrad')).toHaveCount(2);
     await expect(page.locator('.lagrad').last()).toContainText('Rundt teksten');
     await bygg3d(page);
@@ -342,24 +341,40 @@ test.describe('Signgen', () => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
     await expect(dialog.getByText('Mål')).toBeVisible({ timeout: 20_000 });
+    // the three buttons sit under the plate image: Last ned (3MF, STL), Eksporter via CSV, Legg i handlekurven
+    const knapper = dialog.getByRole('group', { name: 'Eksporter eller bestill' });
+    await expect(knapper.locator(':scope > details > summary, :scope > button')).toHaveText([
+      /Last ned/,
+      /Eksporter via CSV/,
+      /Legg i handlekurven/,
+    ]);
+    await knapper.locator('summary', { hasText: 'Last ned' }).click();
+    await expect(dialog.getByRole('menuitem', { name: 'Last ned 3MF' })).toHaveAttribute(
+      'title',
+      'Geometri med fargeinformasjon',
+    );
+    await expect(dialog.getByRole('menuitem', { name: 'Last ned STL' })).toHaveAttribute(
+      'title',
+      'Geometri uten fargeinformasjon',
+    );
     const [tremf] = await Promise.all([
       page.waitForEvent('download'),
-      dialog.getByRole('button', { name: 'Last ned 3MF' }).click(),
+      dialog.getByRole('menuitem', { name: 'Last ned 3MF' }).click(),
     ]);
     expect(tremf.suggestedFilename()).toMatch(/\.3mf$/);
+    await knapper.locator('summary', { hasText: 'Last ned' }).click();
     const [stl] = await Promise.all([
       page.waitForEvent('download'),
-      dialog.getByRole('button', { name: 'Last ned STL' }).click(),
+      dialog.getByRole('menuitem', { name: 'Last ned STL' }).click(),
     ]);
     expect(stl.suggestedFilename()).toMatch(/\.stl$/);
   });
 
-  test('Fra CSV er en arbeidsflyt: importer, koble, master, rader, valider, generer og plater', async ({
+  test('Fra CSV er en arbeidsflyt: importer, koble, master og generer med plater etterpå', async ({
     page,
-    isMobile,
   }) => {
-    if (isMobile) await page.getByRole('button', { name: 'Egenskaper' }).click();
-    await page.getByRole('button', { name: /Lag skilt fra CSV/ }).click();
+    await page.locator('summary', { hasText: 'Fil' }).click();
+    await page.getByRole('menuitem', { name: /Lag skilt fra CSV/ }).click();
     const importer = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
     await expect(importer.getByRole('navigation', { name: 'Fra CSV, stegene' })).toBeVisible();
     await importer.getByLabel('Eller lim inn').fill('navn;Tekst\nOla;Lilla\nKari;Cyan\nPer;Neonoransje');
@@ -383,17 +398,16 @@ test.describe('Signgen', () => {
     await expect(page.getByRole('group', { name: 'Ressurser for CSV-skiltene' })).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await brett
-      .getByRole('button', { name: /^Rader/ })
+      .getByRole('button', { name: /^Generer/ })
       .first()
       .click();
 
-    const rader = page.getByRole('dialog', { name: 'Fra CSV: Velg rader' });
-    await expect(rader.getByText('3 av 3 rader valgt')).toBeVisible();
-    await rader.getByRole('button', { name: /Valider og generer 3 →/ }).click();
-
+    // the status is short: rows, designs and what is missing. The plates come only after «Generer»
+    const generer = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
+    await expect(generer.getByRole('list', { name: 'Status før generering' })).toContainText('3 rader valgt');
+    await expect(generer.getByRole('list', { name: 'Produksjonsplater' })).toHaveCount(0);
     // a row with a colour that does not exist blocks «Generer» until it is taken out
-    const generer = page.getByRole('dialog', { name: 'Fra CSV: Valider og generer' });
-    await expect(generer.getByText('1 valgte rader har problemer')).toBeVisible();
+    await expect(generer.getByText('1 av radene har problemer')).toBeVisible();
     await expect(generer.getByRole('button', { name: /^Generer 3 skilt/ })).toBeDisabled();
     const a3 = await new AxeBuilder({ page }).include('dialog[open]').analyze();
     expect(a3.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
@@ -401,7 +415,7 @@ test.describe('Signgen', () => {
     await expect(generer.getByRole('button', { name: /^Generer 2 skilt/ })).toBeEnabled();
     await generer.getByRole('button', { name: /^Generer 2 skilt/ }).click();
 
-    const plater = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    const plater = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
     // Lilla and Cyan are different filaments, so the two signs go on two plates
     await expect(plater.getByText('2 skilt på 2 plater')).toBeVisible();
     await expect(plater.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
@@ -423,12 +437,19 @@ test.describe('Signgen', () => {
       .getByRole('button', { name: 'Eksporter via CSV' })
       .click();
     await tilMasterSteget(page, 'navn;rolle\nOla;Designer\nKari;Leder\nPer;Deltaker\nÅse;Leder\nUlf;Leder');
-    await page
-      .getByRole('region', { name: 'Fra CSV: design masteren' })
-      .getByRole('button', { name: /^Rader/ })
-      .first()
-      .click();
-    const rader = page.getByRole('dialog', { name: 'Fra CSV: Velg rader' });
+    const brett = page.getByRole('region', { name: 'Fra CSV: design masteren' });
+    const fane = brett.getByRole('button', { name: /^Importer/ }).first();
+    if (await fane.isVisible()) await fane.click();
+    else {
+      // on a phone the tray has previous and next: Koble first, then the Importer tab
+      await brett.getByRole('button', { name: /Koble/ }).click();
+      await page
+        .getByRole('dialog', { name: 'Fra CSV: Koble kolonner' })
+        .getByRole('button', { name: /^Importer/ })
+        .first()
+        .click();
+    }
+    const rader = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
     await expect(rader.getByText('5 av 5 rader valgt')).toBeVisible();
     await rader.getByRole('button', { name: 'Velg ingen' }).click();
     await expect(rader.getByText('0 av 5 rader valgt')).toBeVisible();
@@ -451,6 +472,81 @@ test.describe('Signgen', () => {
     await expect(rader.getByText('5 av 5 rader valgt')).toBeVisible();
   });
 
+  test('Importer tar bare med valgte kolonner og rader, og egne kolonner gir dekor og fargeprofil per rad', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Se over før eksport' })
+      .getByRole('button', { name: 'Eksporter via CSV' })
+      .click();
+    await limInnCsv(page, 'navn;rolle\nOla;Leder\nKari;Designer\nPer;Deltaker');
+    const importer = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
+    // the three tabs, and no separate master button
+    const faner = importer.getByRole('navigation', { name: 'Fra CSV, stegene' });
+    await expect(faner.getByRole('button')).toHaveCount(3);
+    await expect(faner.getByRole('button', { name: /Master/ })).toHaveCount(0);
+    await importer.getByLabel('Ta med kolonnen rolle').uncheck();
+    await expect(importer.getByText('1 av 2 kolonner med')).toBeVisible();
+    await importer.getByLabel('Velg rad 3: Per').uncheck();
+    await expect(importer.getByText('2 av 3 rader valgt')).toBeVisible();
+    // a cell can be corrected right in the table
+    await importer.getByRole('button', { name: /^Rett navn, rad 2/ }).click();
+    await importer.getByLabel('navn, rad 2').fill('Kristine');
+    await importer.getByLabel('navn, rad 2').press('Enter');
+    await expect(importer.getByRole('button', { name: /^Rett navn, rad 2: Kristine/ })).toBeVisible();
+    const a1 = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a1.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await importer.getByRole('button', { name: /Koble kolonnene/ }).click();
+
+    const koble = page.getByRole('dialog', { name: 'Fra CSV: Koble kolonner' });
+    // only the chosen column is connected
+    await expect(koble.locator('#csv-kol-0')).toHaveValue('felt:navn');
+    await expect(koble.locator('#csv-kol-1')).toHaveCount(0);
+    // own columns: a decoration and a colour profile per row
+    await koble.getByRole('button', { name: '+ Legg til egendefinert kolonne' }).click();
+    const ny = koble.getByRole('form', { name: 'Ny egendefinert kolonne' });
+    await ny.getByRole('button', { name: 'Legg til kolonnen' }).click();
+    await koble.getByRole('button', { name: '+ Legg til egendefinert kolonne' }).click();
+    await koble.getByRole('radio', { name: 'Fargeprofil', exact: true }).click();
+    await koble.getByRole('button', { name: 'Legg til kolonnen' }).click();
+    const verdier = koble.getByRole('region', { name: 'Dekor og fargeprofil per rad' });
+    await verdier.getByLabel('Dekor for rad 1').selectOption('Hjerte');
+    await verdier.getByLabel('Dekor for rad 2').selectOption('Stjerne');
+    await verdier.getByLabel('Fargeprofil for rad 1').selectOption('Natur');
+    await verdier.getByLabel('Fargeprofil for rad 2').selectOption('Signal');
+    // the rows are never connected one by one: row 3 was left out and is not there
+    await expect(verdier.getByLabel('Dekor for rad 3')).toHaveCount(0);
+    const a2 = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a2.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+    await koble.getByRole('button', { name: /Lag masteren fra rad 1/ }).click();
+    await expect(page.getByRole('region', { name: 'Fra CSV: design masteren' })).toBeVisible();
+    await page
+      .getByRole('region', { name: 'Fra CSV: design masteren' })
+      .getByRole('button', { name: /^Generer/ })
+      .first()
+      .click();
+
+    const generer = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
+    const status = generer.getByRole('list', { name: 'Status før generering' });
+    await expect(status).toContainText('2 rader valgt');
+    await expect(status).toContainText('2 design');
+    await expect(generer.getByRole('list', { name: 'Produksjonsplater' })).toHaveCount(0);
+    await generer.getByRole('button', { name: /^Generer 2 skilt/ }).click();
+
+    // the plates show after «Generer», with name, decoration and colour profile for each sign
+    await expect(generer.getByText('2 skilt på 2 plater')).toBeVisible();
+    const tabell = generer.getByRole('region', { name: /^Skiltene på plate/ }).first();
+    await expect(tabell).toContainText(/Hjerte|Stjerne/);
+    await expect(tabell).toContainText(/Natur|Signal/);
+    // one sign gets another colour profile: nothing is regenerated and the other sign is not touched
+    await generer.getByRole('button', { name: /^Plate 1/ }).click();
+    const profil = generer.getByLabel('Fargeprofil for dette skiltet');
+    const naa = await profil.inputValue();
+    await profil.selectOption(naa === 'Natur' ? 'Signal' : 'Natur');
+    await expect(generer.getByText('2 skilt på 1 plate')).toBeVisible();
+  });
+
   test('en fargeprofilkolonne gir egne plater etter filamentene skiltene trenger', async ({ page }) => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     await page
@@ -464,7 +560,7 @@ test.describe('Signgen', () => {
     await expect(koble.locator('#csv-kol-1')).toHaveValue('profil');
     await koble.getByRole('button', { name: /Lag masteren fra rad 1/ }).click();
     await genererAlt(page);
-    const plater = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    const plater = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
     await expect(plater.getByText('4 skilt på 2 plater')).toBeVisible();
     const kort = plater.getByRole('list', { name: 'Produksjonsplater' }).getByRole('listitem');
     await expect(kort).toHaveCount(2);
@@ -485,7 +581,7 @@ test.describe('Signgen', () => {
       .click();
     await tilMasterSteget(page, 'navn\nOla\nKari');
     await genererAlt(page);
-    const plater = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    const plater = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
     await expect(plater.getByText('Ingen egne verdier')).toBeVisible();
     await plater.getByRole('button', { name: 'Rediger dette skiltet' }).click();
 
@@ -493,13 +589,13 @@ test.describe('Signgen', () => {
     const felt = page.getByRole('region', { name: 'Du redigerer et generert skilt' });
     await expect(felt).toContainText('Du redigerer skilt 1');
     await expect(page.getByLabel('Prosjektnavn')).toBeVisible();
-    await page.locator('.objektliste li').first().click();
+    await page.locator('.objektliste li .objekt-navn').first().click();
     await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('Shift+ArrowUp');
     await expect(felt).toContainText(/\d egne verdier/);
     await felt.getByRole('button', { name: 'Ferdig' }).click();
 
-    const igjen = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    const igjen = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
     await expect(igjen.getByText('Egen verdi').first()).toBeVisible();
     await expect(igjen.getByText(/Master: .* · Her:/).first()).toBeVisible();
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
@@ -523,20 +619,17 @@ test.describe('Signgen', () => {
       .analyze();
     expect(a1.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: /Lag skilt fra CSV/ }).click();
+    await page.locator('summary', { hasText: 'Fil' }).click();
+    await page.getByRole('menuitem', { name: /Lag skilt fra CSV/ }).click();
     await tilMasterSteget(page, 'navn\nEd\nEt veldig langt navn');
     await page
       .getByRole('region', { name: 'Fra CSV: design masteren' })
-      .getByRole('button', { name: /^Rader/ })
+      .getByRole('button', { name: /^Generer/ })
       .first()
       .click();
-    await page
-      .getByRole('dialog', { name: 'Fra CSV: Velg rader' })
-      .getByRole('button', { name: /Valider og generer \d/ })
-      .click();
-    const dialog = page.getByRole('dialog', { name: 'Fra CSV: Valider og generer' });
+    const dialog = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
     await expect(dialog.getByLabel('Hold hull og øyne like langt fra navnet på alle skilt')).toBeChecked();
-    await expect(dialog.getByText('Ingen av de valgte radene har problemer')).toBeVisible();
+    await expect(dialog.getByText('Klar til å generere')).toBeVisible();
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
@@ -581,9 +674,110 @@ test.describe('Signgen', () => {
     await expect(page.locator('.lagrad').first()).toContainText('Gruppe');
     await expect(page.locator('.lagrad')).toHaveCount(1);
     // a new, empty text layer is a layer of its own
-    await page.getByRole('button', { name: '+ Nytt lag' }).click();
-    await page.getByRole('button', { name: /^Tekstlag/ }).click();
+    await page.locator('.lagrad .lag-navn').first().click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Nytt tekstlag' }).click();
     await expect(page.locator('.lagrad')).toHaveCount(2);
+  });
+
+  test('Innstillinger: mørk modus og bakgrunn gjelder editoren og huskes', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Menylinjen testes på desktop');
+    const rot = page.locator('.verksted');
+    await expect(rot).toHaveClass(/\blys\b/);
+    await page.locator('summary', { hasText: 'Innstillinger' }).click();
+    await page.getByRole('radio', { name: 'Mørk', exact: true }).click();
+    await expect(rot).not.toHaveClass(/\blys\b/);
+    await page.getByRole('radio', { name: 'Midnatt' }).click();
+    await expect(rot).toHaveClass(/egen-bakgrunn/);
+    expect(
+      await page
+        .locator('.lerret')
+        .evaluate((el) => getComputedStyle(el).getPropertyValue('--horisont-topp')),
+    ).toBe('#05060d');
+    // a light background gives dark ink on the canvas
+    await page.getByRole('radio', { name: 'Hvit' }).click();
+    await expect(rot).toHaveClass(/lerret-lys/);
+    // a colour of your own
+    await page.locator('.egenfarge input[type="color"]').fill('#336699');
+    await expect(page.getByRole('radio', { name: 'Egen farge' })).toHaveAttribute('aria-checked', 'true');
+    await expect(rot).not.toHaveClass(/lerret-lys/);
+    // clicking the canvas closes the menu
+    await page.locator('.lerret canvas').click({ position: { x: 300, y: 650 } });
+    await expect(page.locator('.innstillinger')).not.toHaveAttribute('open', '');
+    // it is remembered
+    await page.reload();
+    await startPaaNytt(page);
+    await expect(page.locator('.verksted')).not.toHaveClass(/\blys\b/);
+    await expect(page.locator('.verksted')).toHaveClass(/egen-bakgrunn/);
+  });
+
+  test('Prosjektinnstillinger: byggeplate, farger og printlaghøyde er flyttet ut av Egenskaper', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Lagpanelet testes på desktop');
+    await page.locator('.lerret canvas').click({ position: { x: 5, y: 5 } });
+    const egenskaper = page.getByRole('region', { name: 'Egenskaper', exact: true });
+    await expect(egenskaper).not.toContainText('Byggeplate');
+    await expect(egenskaper).not.toContainText('Printlaghøyde');
+    await page.getByRole('button', { name: 'Prosjektinnstillinger' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Prosjektinnstillinger' });
+    await expect(vindu).toContainText('Printlaghøyde');
+    await vindu.getByLabel('Størrelse').selectOption({ label: '300 × 300 mm' });
+    await expect(vindu.getByRole('textbox', { name: 'Bredde' })).toHaveValue('300');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.statuslinje')).toBeVisible();
+    // the project went back to a plate of its own size: undo returns the old plate
+    await page.getByRole('button', { name: /Angre/ }).first().click();
+    await page.getByRole('button', { name: 'Prosjektinnstillinger' }).click();
+    await expect(
+      page.getByRole('dialog', { name: 'Prosjektinnstillinger' }).getByRole('textbox', { name: 'Bredde' }),
+    ).toHaveValue('256');
+  });
+
+  test('lagpanelet: ett klikk gir et tomt lag, rader flyttes i hierarkiet, og hvert objekt kan slettes og farges', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Lagpanelet testes på desktop');
+    const tittel = page.locator('.lagliste > .lagrad > .lagrad-hode .lag-tittel');
+    const for_ = await page.locator('.lagrad').count();
+    // the small plus makes one empty layer at once, with no menu in between
+    await page.getByRole('button', { name: 'Nytt lag', exact: true }).click();
+    await expect(page.locator('.lagrad')).toHaveCount(for_ + 1);
+    await page.getByRole('button', { name: 'Nytt lag', exact: true }).click();
+    await expect(page.locator('.lagrad')).toHaveCount(for_ + 2);
+    await expect(page.locator('.nytt-lag-meny')).toHaveCount(0);
+    const navn = (await tittel.allTextContents()).map((t) => t.trim());
+    // drag the top layer to just below the bottom one with its grip
+    const rader = page.locator('.lagliste > .lagrad');
+    const sist = rader.last().locator('.lagrad-hode');
+    await rader
+      .first()
+      .locator('.drahandtak')
+      .first()
+      .dragTo(sist, { targetPosition: { x: 60, y: 30 } });
+    const etter = (await tittel.allTextContents()).map((t) => t.trim());
+    expect(etter[etter.length - 1]).toBe(navn[0]);
+    // the delete button on a layer removes it, and one step back brings it back
+    const antall = await page.locator('.lagrad').count();
+    await page
+      .getByRole('button', { name: /^Slett Lag \d/ })
+      .first()
+      .click();
+    await expect(page.locator('.lagrad')).toHaveCount(antall - 1);
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('.lagrad')).toHaveCount(antall);
+    // a text has its colour in the panel too
+    const tekstFarge = page.locator('.objektliste li', { hasText: 'Tekst' }).getByRole('button', {
+      name: /^Farge på/,
+    });
+    await tekstFarge.first().click();
+    await page
+      .getByRole('menu', { name: /filamentene i fargeprofilen/ })
+      .getByRole('menuitemradio')
+      .nth(2)
+      .click();
+    await expect(page.locator('.objektliste li .fargevelger').first()).toBeVisible();
   });
 
   test('bare det valgte omrisset vises i egenskapene', async ({ page, isMobile }) => {
@@ -602,18 +796,21 @@ test.describe('Signgen', () => {
   }) => {
     await page.getByRole('button', { name: 'Dekor' }).click();
     const galleri = page.getByRole('dialog', { name: 'Dekor' });
-    await expect(galleri.getByRole('button', { name: 'Enhjørning' })).toBeVisible();
+    await galleri.getByRole('button', { name: 'Dyr', exact: true }).click();
+    await expect(galleri.getByRole('button', { name: 'Sett inn Enhjørning' })).toBeAttached();
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
-    await galleri.getByRole('button', { name: 'Enhjørning' }).click();
+    await galleri.locator('.dekor-celle', { hasText: 'Enhjørning' }).hover();
+    await galleri.getByRole('button', { name: 'Sett inn Enhjørning' }).click();
     await expect(galleri).toBeHidden();
     if (isMobile) return;
     await expect(page.locator('.lagrad').first()).toContainText('Gruppe');
     const rad = page.locator('.objektliste li', { hasText: 'Enhjørning' });
-    const bb = (await rad.boundingBox())!;
-    await page.mouse.move(bb.x + 20, bb.y + bb.height / 2);
+    // only the grip on the left of the row is dragged
+    const bb = (await rad.locator('.drahandtak').boundingBox())!;
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
     await page.mouse.down();
-    await page.mouse.move(bb.x + 30, bb.y + bb.height / 2 + 10, { steps: 4 });
+    await page.mouse.move(bb.x + bb.width / 2 + 10, bb.y + bb.height / 2 + 10, { steps: 4 });
     const ut = page.locator('.lag-ut');
     await expect(ut).toBeVisible();
     const ub = (await ut.boundingBox())!;
@@ -621,6 +818,48 @@ test.describe('Signgen', () => {
     await page.mouse.up();
     await expect(page.locator('.lagrad')).toHaveCount(2);
     await expect(page.locator('.lagrad').first()).toContainText('Pynt');
+  });
+
+  test('dekorgalleriet har temaer og søk, og Velg deler åpner delvelgeren', async ({ page }) => {
+    await page.getByRole('button', { name: 'Dekor' }).click();
+    const galleri = page.getByRole('dialog', { name: 'Dekor' });
+    await galleri.getByRole('button', { name: 'Natur', exact: true }).click();
+    await expect(galleri.getByRole('button', { name: 'Sett inn Sol' })).toBeAttached();
+    await expect(galleri.getByRole('button', { name: 'Sett inn Hund' })).toHaveCount(0);
+    await galleri.getByLabel('Søk i dekor').fill('katt');
+    await expect(galleri.locator('.dekor-celle')).toHaveCount(1);
+    await galleri.getByLabel('Søk i dekor').fill('');
+    await galleri.getByRole('button', { name: 'Natur', exact: true }).click();
+    // holding the pointer over an element shows the two choices
+    const sol = galleri.locator('.dekor-celle', { hasText: 'Sol' });
+    await sol.hover();
+    await expect(sol.getByRole('button', { name: 'Velg deler av Sol' })).toBeVisible();
+    await sol.getByRole('button', { name: 'Velg deler av Sol' }).click();
+    await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
+  });
+
+  test('Lagre dekorelement: markerte vektorer blir ett dekor under Dine egne', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Markering av flere objekter testes på brede skjermer');
+    for (const navn of ['Hjerte', 'Stjerne']) {
+      await page.getByRole('button', { name: 'Dekor', exact: true }).click();
+      const g = page.getByRole('dialog', { name: 'Dekor' });
+      await g.getByRole('button', { name: 'Symboler', exact: true }).click();
+      await g.locator('.dekor-celle', { hasText: navn }).hover();
+      await g.getByRole('button', { name: `Sett inn ${navn}` }).click();
+      await expect(g).toBeHidden();
+    }
+    const rader = page.locator('.objektliste li .objekt-navn');
+    await rader.filter({ hasText: 'Hjerte' }).click();
+    await rader.filter({ hasText: 'Stjerne' }).click({ modifiers: ['Shift'] });
+    await page.getByRole('button', { name: 'Lagre dekorelement' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Lagre dekorelement' });
+    await vindu.getByLabel('Navn på dekoret').fill('Hjerte og stjerne');
+    await vindu.getByRole('button', { name: 'Lagre dekor' }).click();
+    await expect(vindu).toBeHidden();
+    await page.getByRole('button', { name: 'Dekor', exact: true }).click();
+    const g = page.getByRole('dialog', { name: 'Dekor' });
+    await g.getByRole('button', { name: /^Dine egne/ }).click();
+    await expect(g.locator('.dekor-celle', { hasText: 'Hjerte og stjerne' })).toHaveCount(1);
   });
 
   test('«Eksporter via CSV» åpner CSV-arbeidsflyten og viser byggeplaten med skiltene til slutt', async ({
@@ -632,7 +871,7 @@ test.describe('Signgen', () => {
     await expect(page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' })).toBeVisible();
     await tilMasterSteget(page, 'navn\nOla\nKari');
     await genererAlt(page);
-    const dialog = page.getByRole('dialog', { name: 'Fra CSV: Produksjonsplater' });
+    const dialog = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
     await expect(dialog.getByText('2 skilt på 1 plate')).toBeVisible();
     await expect(dialog.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
       timeout: 20_000,
@@ -685,7 +924,9 @@ test.describe('Signgen', () => {
     await expect(velger.getByText('«Mine former» er lagret i galleriet')).toBeVisible();
     await velger.getByRole('button', { name: 'Lukk' }).click();
     const tilbake = page.getByRole('dialog', { name: 'Dekor' });
-    const egen = tilbake.getByRole('button', { name: 'Mine former', exact: true });
+    // the gallery comes back on «Dine egne», where the new element is
+    const egen = tilbake.getByRole('button', { name: 'Sett inn Mine former' });
+    await tilbake.locator('.dekor-celle', { hasText: 'Mine former' }).hover();
     await expect(egen).toBeVisible();
     await egen.click();
     await expect(tilbake).toBeHidden();
@@ -829,12 +1070,15 @@ test.describe('Signgen', () => {
     await page.getByRole('button', { name: /^Meny for / }).click();
     await page.getByRole('menuitem', { name: /^Lukk «/ }).click();
     await page.locator('summary', { hasText: 'Paneler' }).click();
-    await page.getByRole('button', { name: 'Historikk', exact: true }).click();
-    await expect(page.getByRole('region', { name: 'Historikk' })).toBeVisible();
+    await page
+      .getByRole('group', { name: 'Paneler og arbeidsrom' })
+      .getByRole('button', { name: 'Hjelpelinjer', exact: true })
+      .click();
+    await expect(page.getByRole('region', { name: 'Hjelpelinjer' }).first()).toBeVisible();
     // choosing a workspace puts everything back
     await page.getByRole('button', { name: 'Enkel', exact: true }).click();
     await expect(page.locator('.dokkolonne.venstre')).toHaveCount(1);
-    await expect(page.getByRole('region', { name: 'Historikk' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Hjelpelinjer' })).toHaveCount(0);
   });
 
   test('et panel kan gjøres flytende fra menyen, og et eget arbeidsrom kan lagres', async ({
@@ -860,13 +1104,17 @@ test.describe('Signgen', () => {
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
 
-  test('Historikk-panelet viser endringene og kan gå tilbake til et trinn', async ({ page, isMobile }) => {
-    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+  test('historikken er en tidslinje nederst som kan gå tilbake til et trinn, og Historikk og Produksjon er ikke paneler lenger', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tegning med mus brukes på brede skjermer');
     await page.locator('summary', { hasText: 'Paneler' }).click();
-    await page.getByRole('button', { name: 'Historikk', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Historikk', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Produksjon', exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
-    const hist = page.getByRole('region', { name: 'Historikk' });
-    await expect(hist).toContainText('Ingenting er gjort ennå');
+    const tid = page.getByRole('region', { name: 'Historikk' });
+    await expect(tid).toContainText('Ingen endringer ennå');
     await page.getByRole('button', { name: 'Rutenett', exact: true }).click(); // not a document change
     const lerret = page.locator('canvas').first();
     const b = (await lerret.boundingBox())!;
@@ -875,10 +1123,14 @@ test.describe('Signgen', () => {
     await page.mouse.down();
     await page.mouse.move(b.x + b.width * 0.8, b.y + b.height * 0.35, { steps: 5 });
     await page.mouse.up();
-    await expect(hist.getByRole('button', { name: 'Utgangspunkt' })).toBeEnabled();
+    await expect(tid.getByRole('button', { name: 'Utgangspunkt' })).toBeEnabled();
+    await expect(tid.locator('.tidstrinn[aria-current="step"]')).toContainText('Legg til');
     const antall = await page.locator('.objektliste li').count();
-    await hist.getByRole('button', { name: 'Utgangspunkt' }).click();
+    await tid.getByRole('button', { name: 'Utgangspunkt' }).click();
     await expect(page.locator('.objektliste li')).toHaveCount(antall - 1);
+    // the undone step stays on the strip and can be done again
+    await tid.locator('.tidstrinn.gjort-om').click();
+    await expect(page.locator('.objektliste li')).toHaveCount(antall);
   });
 
   test('fargeprøver åpner en meny med filamentene, og egne filamenter legges til i Fargeprofil-panelet', async ({
@@ -908,6 +1160,7 @@ test.describe('Signgen', () => {
     await expect(panel.getByText('Fargene i prosjektet (4)')).toBeVisible();
 
     // a new filament of your own, with a manufacturer, joins the profile
+    await panel.getByText('Avansert', { exact: true }).click();
     await panel.getByRole('button', { name: '+ Nytt filament' }).click();
     await panel.getByLabel('Produsent').fill('Polymaker');
     await panel.getByLabel('Produktserie').fill('PolyTerra');
@@ -915,12 +1168,13 @@ test.describe('Signgen', () => {
     await panel.getByLabel('AMS-plass').fill('2');
     await panel.getByRole('button', { name: 'Lagre filament' }).click();
     await expect(panel.getByText('Fargene i prosjektet (5)')).toBeVisible();
-    await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText(
-      'Polymaker PolyTerra',
-    );
-    await expect(panel.getByRole('list', { name: /Fargene i prosjektet/ })).toContainText('AMS 2');
+    const prover = panel.getByRole('list', { name: /Fargene i prosjektet/ }).getByRole('button');
+    await expect(prover).toHaveCount(5);
+    await expect(prover.last()).toHaveAttribute('title', /Polymaker PolyTerra/);
+    await expect(prover.last()).toHaveAttribute('title', /AMS 2/);
 
-    // the registry can be browsed by manufacturer and searched
+    // the registry (under Avansert, which closes when the form has been saved) can be browsed by manufacturer and searched
+    await panel.getByText('Avansert', { exact: true }).click();
     await panel.locator('.registerfilter select').first().selectOption('Polymaker');
     await expect(panel.getByRole('list', { name: 'Filamentregister' }).locator('li')).toHaveCount(1);
     await panel.locator('.registerfilter select').first().selectOption('');
@@ -967,7 +1221,7 @@ test.describe('Signgen', () => {
     await page.route('https://cdn.test/**', (route) =>
       route.fulfill({ body: fil, headers: { 'access-control-allow-origin': '*' } }),
     );
-    await page.locator('.objektliste li').first().click();
+    await page.locator('.objektliste li .objekt-navn').first().click();
     await page.getByRole('button', { name: 'Flere fonter fra Google Fonts …' }).click();
     const vindu = page.getByRole('dialog', { name: 'Flere fonter fra Google Fonts' });
     await vindu.getByLabel('Søk etter font').fill('lobs');
@@ -980,13 +1234,65 @@ test.describe('Signgen', () => {
     await expect(page.locator('.statuslinje')).not.toContainText('font');
   });
 
+  test('fontvinduet viser fonten, har søk øverst og blar 20 om gangen med Neste', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Fontvinduet testes på brede skjermer');
+    await page.route('https://api.fontsource.org/**', (route) =>
+      route.fulfill({
+        json: Array.from({ length: 45 }, (_, i) => ({
+          id: `font-${String(i).padStart(2, '0')}`,
+          family: `Font ${String(i).padStart(2, '0')}`,
+          subsets: ['latin'],
+          weights: [400],
+          category: 'display',
+          type: 'google',
+        })),
+        headers: { 'access-control-allow-origin': '*' },
+      }),
+    );
+    await page.locator('.objektliste li .objekt-navn').first().click();
+    await page.getByRole('button', { name: 'Flere fonter fra Google Fonts …' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Flere fonter fra Google Fonts' });
+    await expect(vindu.getByText('Viser 1–20 av 45 fonter.')).toBeVisible();
+    await expect(vindu.getByRole('list', { name: 'Søkeresultat' }).getByRole('listitem')).toHaveCount(20);
+    await vindu.getByRole('button', { name: 'Neste' }).click();
+    await expect(vindu.getByText('Viser 21–40 av 45 fonter.')).toBeVisible();
+    await vindu.getByRole('button', { name: 'Neste' }).click();
+    await expect(vindu.getByRole('list', { name: 'Søkeresultat' }).getByRole('listitem')).toHaveCount(5);
+    await expect(vindu.getByRole('button', { name: 'Neste' })).toBeDisabled();
+    await vindu.getByLabel('Søk etter font').fill('font 07');
+    await expect(vindu.getByText('1 fonter.')).toBeVisible();
+    await expect(vindu.getByRole('button', { name: 'Neste' })).toHaveCount(0);
+  });
+
+  test('tekstjustering er tre ikonknapper og profilen velges med små kurver', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.locator('.objektliste li .objekt-navn').first().click();
+    const just = page.getByRole('radiogroup', { name: 'Justering' });
+    await expect(just.getByRole('radio', { name: 'Midtstilt' })).toBeChecked();
+    await just.getByRole('radio', { name: 'Venstrejustert' }).click();
+    await expect(just.getByRole('radio', { name: 'Venstrejustert' })).toBeChecked();
+    await page.locator('.lagrad .lag-navn').first().click();
+    await page.getByRole('button', { name: 'Åpne Profil-panelet' }).click();
+    const veggen = page.getByRole('radiogroup', { name: 'Veggen' });
+    await expect(veggen.getByRole('radio')).toHaveCount(8);
+    await expect(veggen.getByRole('radio', { name: 'Rett' })).toBeChecked();
+    await veggen.getByRole('radio', { name: 'Trapp' }).click();
+    await expect(veggen.getByRole('radio', { name: 'Trapp' })).toBeChecked();
+  });
+
   test('hjelpelinjer dras ut fra linjalen, kan flyttes med piltaster, skjules og slettes', async ({
     page,
     isMobile,
   }) => {
     test.skip(isMobile, 'Linjaldrag brukes på brede skjermer');
     await page.locator('summary', { hasText: 'Paneler' }).click();
-    await page.getByRole('button', { name: 'Justér', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'Paneler og arbeidsrom' })
+      .getByRole('button', { name: 'Hjelpelinjer', exact: true })
+      .click();
     await page.locator('summary', { hasText: 'Paneler' }).click(); // close the menu
     const liste = page.locator('.guideliste li');
     await expect(liste).toHaveCount(0);
@@ -1041,14 +1347,15 @@ test.describe('Signgen', () => {
     ).toHaveAttribute('aria-checked', for_ === 'true' ? 'false' : 'true');
   });
 
-  test('Transform setter størrelsen på utvalget, og Justér kan legge kantene mot hverandre', async ({
+  test('Transform setter størrelsen på utvalget, og ikonene i kontekstlinjen legger kantene mot hverandre', async ({
     page,
     isMobile,
   }) => {
     test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
     await page.locator('summary', { hasText: 'Paneler' }).click();
     await page.getByRole('button', { name: 'Transform', exact: true }).click();
-    await page.getByRole('button', { name: 'Justér', exact: true }).click();
+    // the old Justér panel is gone from the menu: it is icons in the context bar now
+    await expect(page.getByRole('button', { name: 'Justér', exact: true })).toHaveCount(0);
     await page.locator('summary', { hasText: 'Paneler' }).click(); // close the menu
     const lerret = page.locator('canvas').first();
     const b = (await lerret.boundingBox())!;
@@ -1071,8 +1378,48 @@ test.describe('Signgen', () => {
     await bredde.press('Enter');
     await expect(bredde).toHaveValue('33');
     // both are selected: align the left edges
-    const just = page.getByRole('region', { name: 'Justér' });
-    await just.getByRole('button', { name: 'Venstre', exact: true }).click();
+    const linje = page.getByRole('toolbar', { name: 'Valg for verktøyet' });
+    await linje.getByRole('button', { name: 'Venstre kant', exact: true }).click();
+    await expect(page.locator('.statuslinje')).toContainText('mm');
+  });
+
+  test('kontekstlinjen følger verktøyet: hullform, Paint-valg og sider på mangekant', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Verktøy og lerret brukes på brede skjermer');
+    const linje = page.getByRole('toolbar', { name: 'Valg for verktøyet' });
+    await expect(linje).toContainText('Velg noe');
+    await page.getByRole('button', { name: 'Hull', exact: true }).click();
+    await linje.getByRole('radio', { name: 'Firkant' }).click();
+    await expect(linje.getByRole('radio', { name: 'Firkant' })).toHaveAttribute('aria-checked', 'true');
+    const b = (await page.locator('canvas').first().boundingBox())!;
+    await page.mouse.click(b.x + b.width * 0.5, b.y + b.height * 0.5);
+    // the new hole is square, and the shape can be changed on the object
+    await expect(page.getByRole('radio', { name: 'Firkant', exact: true }).last()).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await page.getByRole('radio', { name: 'Sekskant', exact: true }).last().click();
+    await expect(page.getByRole('radio', { name: 'Sekskant', exact: true }).last()).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await page.keyboard.press('f');
+    await expect(linje.getByLabel('Bredde på strøket')).toBeVisible();
+    await page.keyboard.press('p');
+    await expect(linje.getByLabel('Antall sider')).toBeVisible();
+  });
+
+  test('hjelpesøket finner korte svar, og Logg inn er en merket plassholder', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Menylinjen testes på desktop');
+    await page.getByPlaceholder('Søk i hjelp').fill('hull');
+    await expect(page.locator('.hjelpesok-treff')).toContainText('Lage hull til oppheng');
+    await page.getByPlaceholder('Søk i hjelp').fill('blablabla');
+    await expect(page.locator('.hjelpesok-treff')).toContainText('Ingen treff');
+    await page.locator('summary', { hasText: 'Logg inn' }).click();
+    await expect(page.locator('.brukerfelt')).toContainText('Innlogging er ikke laget ennå');
+    // the editor still works without logging in
     await expect(page.locator('.statuslinje')).toContainText('mm');
   });
 
@@ -1155,10 +1502,108 @@ test.describe('Signgen', () => {
     await page.getByRole('menuitem', { name: 'Flere filamenter …' }).click();
     const panel = page.locator('.fargepanel');
     await expect(panel).toBeVisible();
-    await expect(panel.locator('.profilfargeliste').getByText(/^#[0-9A-F]{6}$/)).toHaveCount(4);
-    await expect(panel.locator('.profilfargeliste').getByText('Kritthvit', { exact: true })).toHaveCount(0);
+    const rutene = panel.locator('.fp-ruter').getByRole('button');
+    await expect(rutene).toHaveCount(4);
+    for (const r of await rutene.all()) await expect(r).toHaveAttribute('aria-label', /#[0-9A-F]{6}/);
+    await expect(panel.locator('.fp-ruter').getByText('Kritthvit', { exact: true })).toHaveCount(0);
     const a = await new AxeBuilder({ page }).analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
+
+  test('Lag profil: plussen viser fargeprøver som flervelges, navn og Lag profil bruker profilen', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.getByRole('button', { name: /^Farge: Kritthvit/ }).click();
+    await page.getByRole('menuitem', { name: 'Flere filamenter …' }).click();
+    const panel = page.locator('.fargepanel');
+    await panel.getByRole('button', { name: 'Ny profil' }).click();
+    const skjema = panel.getByRole('form', { name: 'Lag profil' });
+    // the project's colours start selected, so «save the colours I have» still works
+    await expect(skjema.getByRole('button', { pressed: true })).toHaveCount(4);
+    await skjema.getByRole('button', { pressed: true }).nth(3).click();
+    await expect(skjema.getByRole('button', { pressed: true })).toHaveCount(3);
+    await expect(skjema.getByRole('button', { name: 'Lag profil' })).toBeDisabled();
+    await skjema.getByLabel('Navn på profilen').fill('Trio');
+    await skjema.getByRole('button', { name: 'Lag profil' }).click();
+    await expect(skjema).toHaveCount(0);
+    await expect(panel.getByText('Fargene i prosjektet (3)')).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Trio', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await panel.getByRole('button', { name: 'Slett profilen Trio' }).click();
+    await expect(panel.getByRole('button', { name: 'Trio', exact: true })).toHaveCount(0);
+  });
+
+  test('senterlinjen til et Paint-strøk kan redigeres som punkter, og bredden bevares', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Frihåndstegning testes på brede skjermer');
+    await page.getByRole('button', { name: 'Paint', exact: true }).click();
+    await page.getByRole('radio', { name: 'Penselstrøk' }).click();
+    const b = (await page.locator('canvas').first().boundingBox())!;
+    await page.mouse.move(b.x + b.width * 0.2, b.y + b.height * 0.25);
+    await page.mouse.down();
+    for (let i = 1; i <= 20; i++)
+      await page.mouse.move(b.x + b.width * (0.2 + i * 0.02), b.y + b.height * 0.25);
+    await page.mouse.up();
+    // the points show with the Select tool, like the width controls
+    await page.keyboard.press('v');
+    const insp = page.getByRole('region', { name: 'Strek' });
+    await expect(insp).toContainText('Senterlinjen har 2 punkter');
+    await page.getByRole('button', { name: 'Legg til punkt på senterlinjen' }).click();
+    await expect(insp).toContainText('Senterlinjen har 3 punkter');
+    const bredder = await page.getByRole('list', { name: 'Breddepunkter' }).locator('li').count();
+    // the new point sits in the middle of the line: drag it down, and the stroke bends
+    const hoyde = () => page.locator('.statuslinje').innerText();
+    const for_ = await hoyde();
+    await page.mouse.move(b.x + b.width * 0.4, b.y + b.height * 0.25);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.4, b.y + b.height * 0.45, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(hoyde).not.toBe(for_);
+    await expect(page.getByRole('list', { name: 'Breddepunkter' }).locator('li')).toHaveCount(bredder);
+    await expect(insp.getByRole('radio', { name: 'Penselstrøk' })).toBeChecked();
+    // one drag is one undo step
+    await page.getByRole('button', { name: 'Angre', exact: true }).click();
+    await expect.poll(hoyde).toBe(for_);
+    // Delete takes the chosen point away again
+    await page.keyboard.press('Delete');
+    await expect(insp).toContainText('Senterlinjen har 2 punkter');
+  });
+
+  test('Mønster gjentar de valgte vektorene i en retning, med forhåndsvisning og ett angretrinn', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Verktøyet testes på brede skjermer');
+    // a decoration to repeat
+    await page.getByRole('button', { name: 'Dekor', exact: true }).click();
+    const g = page.getByRole('dialog', { name: 'Dekor' });
+    await g.locator('.dekor-celle', { hasText: 'Hjerte' }).hover();
+    await g.getByRole('button', { name: 'Sett inn Hjerte' }).click();
+    const rader = page.locator('.objektliste li');
+    const for_ = await rader.count();
+    await page.locator('.objektliste li .objekt-navn', { hasText: 'Hjerte' }).click();
+    await page.getByRole('button', { name: 'Mønster', exact: true }).click();
+    const linje = page.getByRole('toolbar').or(page.locator('.kontekstlinje'));
+    await expect(linje.getByRole('radio', { name: 'I en retning' })).toBeChecked();
+    await page.getByLabel('Antall kopier').fill('3');
+    await page.getByLabel('Antall kopier').press('Enter');
+    await page.getByRole('button', { name: 'Lag mønster' }).click();
+    await expect(rader).toHaveCount(for_ + 3);
+    // back on the Select tool, the copies are selected, and one undo takes them all away
+    await page.getByRole('button', { name: 'Angre', exact: true }).click();
+    await expect(rader).toHaveCount(for_);
+    // the tool can pick a path
+    await page.locator('.objektliste li .objekt-navn', { hasText: 'Hjerte' }).click();
+    await page.getByRole('button', { name: 'Mønster', exact: true }).click();
+    await page.getByRole('radio', { name: 'Langs en bane' }).click();
+    await expect(page.getByLabel('Banen kopiene følger')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Lag mønster', exact: true })).toBeDisabled();
   });
 
   test('Paint lager et strøk med breddepunkter som kan endres etterpå', async ({ page, isMobile }) => {
@@ -1306,7 +1751,7 @@ test.describe('Signgen', () => {
     await expect(panel).toBeVisible();
     // the layer sits on the build plate
     await expect(panel.locator('.profilgraf')).toContainText('byggeplaten');
-    await panel.getByLabel('Veggen').selectOption('konveks');
+    await panel.getByRole('radio', { name: 'Bue ut' }).click();
     const topp = panel.getByLabel('Toppkant, innover');
     await expect(topp).toHaveValue('1,5');
     await topp.fill('2,5');
@@ -1347,7 +1792,7 @@ test.describe('Signgen', () => {
     await panel.getByRole('button', { name: 'Fjern punkt' }).click();
     await expect(panel.locator('#profil-punkt option')).toHaveCount(3);
     // an older profile type stays selectable
-    await panel.getByLabel('Veggen').selectOption('egendefinert');
+    await panel.getByRole('radio', { name: 'Egendefinert kurve' }).click();
     await expect(panel.getByRole('button', { name: /Gjør (glatt|til hjørne)/ })).toBeVisible();
     const r = await new AxeBuilder({ page }).exclude('canvas').analyze();
     expect(

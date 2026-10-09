@@ -5,18 +5,22 @@ import { tall } from '../../core/enheter';
 import { mal } from '../../shell/mal';
 import { meta } from './meta';
 import { Filvalg } from './Maldialog';
+import { Innstillingsvalg } from './Prosjektinnstillinger';
 import { fargeplasser, lesInnSigngen, nyttSigngenDokument } from './dokument';
 import { byggSigngen, forelopigMal } from './modell';
 import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
 import { Lagpanel } from './Lagpanel';
+import { Kontekstlinje } from './Kontekstlinje';
+import { HJELPEEMNER } from './hjelpeemner';
 import { SigngenInspektor } from './Inspektor';
 import { ARBEIDSROM, PANELER } from './paneler';
 import { signtilstand } from './tilstand';
 import { apneCsv } from './csvhandlinger';
-import { Csvbrett } from './Csvbrett';
+import { SigngenBunnbrett } from './Bunnbrett';
 import { dupliserValgte, flyttValgte, slettValgte, velgAlle } from './handlinger';
 import { avsluttKurveredigering, dyttValgte, settKurve, slettKurveValg } from './kurver';
+import { fjernStrekpunkt, valgtStrekpunkt } from './strekpunkter';
 import { angrePennpunkt, fullforPenn, pennPagar } from './Pennverktoy';
 import { flyttHjelpelinjeTil, hjelpelinjerAv, slettHjelpelinjeI } from './hjelpelinjer';
 
@@ -36,9 +40,13 @@ const plugin: GeneratorPlugin = {
     Paneler: PANELER,
     Arbeidsrom: ARBEIDSROM,
     Filvalg: Filvalg,
-    Bunnbrett: Csvbrett,
+    Innstillingsvalg: Innstillingsvalg,
+    Bunnbrett: SigngenBunnbrett,
+    Kontekstlinje: Kontekstlinje,
   },
   gjestelagring: { maksDager: 30 },
+  hjelpeemner: HJELPEEMNER,
+  bunnbrettNavn: 'Nederst i editoren',
   hurtigtaster(e, benk) {
     const mod = e.ctrlKey || e.metaKey;
     const tast = e.key.toLowerCase();
@@ -81,6 +89,16 @@ const plugin: GeneratorPlugin = {
         const s = e.shiftKey ? 1 : 0.1;
         if (dyttValgte(benk, r[0] * s, r[1] * s)) return true;
       }
+    }
+    // a centre-line point of a Paint stroke chosen on the canvas takes Delete
+    const sp = valgtStrekpunkt(benk);
+    if (
+      sp &&
+      (e.key === 'Delete' || e.key === 'Backspace') &&
+      benk.tilstand.utvalg.objekter.includes(sp.id)
+    ) {
+      fjernStrekpunkt(benk, sp.id, sp.indeks);
+      return true;
     }
     // a guide line chosen on the canvas or in the Justér panel takes the keys while no object is
     const guide = lager.t.valgtGuide
@@ -165,6 +183,7 @@ const plugin: GeneratorPlugin = {
     ['Penn: Shift', 'Neste segment (eller håndtaket) låses til 45°'],
     ['Paint: dra', 'Mal et strøk; bredde, breddepunkter, Smooth og tupp endres etterpå'],
     ['Penn: Enter, dobbeltklikk', 'Fullfør åpen bane (klikk første punkt lukker)'],
+    ['Alt + klikk på strekens linje', 'Nytt punkt på senterlinjen (Delete fjerner det valgte punktet)'],
     ['Punkter: Delete, piler', 'Slett punkt, kurve eller form · flytt 0,1 mm (Shift: 1 mm)'],
     ['Dobbeltklikk på kurve / punkt', 'Legg til punkt / bytt mellom hjørne og jevn'],
     ['Dra ut fra linjalen', 'Ny hjelpelinje (dra tilbake på linjalen for å fjerne den)'],

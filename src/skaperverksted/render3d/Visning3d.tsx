@@ -13,6 +13,7 @@ import { finnMateriale, materialtyper, standardPrinter } from '../core/materiale
 import { avgrensning, type ModellDel } from '../geometri/mesh';
 import { brukUtdrag } from '../shell/bruk-benk';
 import { mm } from '../core/enheter';
+import { brukInnstillinger } from '../shell/innstillinger';
 import { cssFarge, horisontStopp, lesHorisont, reduserBevegelse } from '../shell/tema';
 import { leggTilPrintlag, settPrintlag } from './printlag';
 
@@ -61,6 +62,10 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
   const forsteTilpasning = useRef(true);
   const plugin = benk.generator;
   const Overlegg = kompakt ? undefined : plugin.ui.Overlegg3d;
+
+  // the colours come from the CSS tokens, so the view is built again when the user changes them
+  const inn = brukInnstillinger();
+  const fargeNokkel = `${inn.tema}|${inn.bakgrunn}|${inn.egenFarge}`;
 
   // renderer, camera, controls
   useEffect(() => {
@@ -270,7 +275,7 @@ export function Visning3d({ benk, kompakt = false, etikett }: Visning3dProps) {
       lerret.remove();
       settScene(null);
     };
-  }, [benk, plugin, kompakt]);
+  }, [benk, plugin, kompakt, fargeNokkel]);
 
   // build plate
   useEffect(() => {

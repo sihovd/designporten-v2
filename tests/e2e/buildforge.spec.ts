@@ -87,18 +87,20 @@ test.describe('BuildForge-klikker', () => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
     await expect(dialog.getByText('Kontrollen fant feil')).toBeVisible({ timeout: 20_000 });
-    await expect(dialog.getByRole('button', { name: 'Last ned 3MF' })).toHaveCount(0);
-    await expect(dialog.getByRole('button', { name: /kontrollrapport/ })).toBeVisible();
+    await dialog.locator('summary', { hasText: 'Last ned' }).click();
+    await expect(dialog.getByRole('menuitem', { name: 'Last ned 3MF' })).toHaveCount(0);
+    await expect(dialog.getByRole('menuitem', { name: /kontrollrapport/ })).toBeVisible();
   });
 
   test('grønn prototype eksporteres som én STL per del med rapport', async ({ page }) => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
     await expect(dialog.getByText('Dette er en prototype')).toBeVisible({ timeout: 20_000 });
-    await expect(dialog.getByRole('button', { name: 'STL: Topp' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'STL: Underdel' })).toBeVisible();
+    await dialog.locator('summary', { hasText: 'Last ned' }).click();
+    await expect(dialog.getByRole('menuitem', { name: 'Last ned STL: Topp' })).toBeVisible();
+    await expect(dialog.getByRole('menuitem', { name: 'Last ned STL: Underdel' })).toBeVisible();
     const nedlasting = page.waitForEvent('download');
-    await dialog.getByRole('button', { name: /kontrollrapport/ }).click();
+    await dialog.getByRole('menuitem', { name: /kontrollrapport/ }).click();
     const fil = await nedlasting;
     expect(fil.suggestedFilename()).toMatch(/\.kontroll\.json$/);
     await expect(dialog.getByRole('button', { name: /Legg i handlekurven/ })).toHaveCount(0);
@@ -185,7 +187,8 @@ test.describe('BuildForge-modulbygger', () => {
     await page.getByRole('button', { name: /Eksporter/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
     await expect(dialog.getByText('Leddene er ikke fysisk testet')).toBeVisible({ timeout: 20_000 });
-    await expect(dialog.getByRole('button', { name: 'STL: Dragehode' })).toBeVisible();
+    await dialog.locator('summary', { hasText: 'Last ned' }).click();
+    await expect(dialog.getByRole('menuitem', { name: 'Last ned STL: Dragehode' })).toBeVisible();
   });
 
   test('gjør et ledd om til kuleledd og bøyer det innenfor grensen', async ({ page }) => {

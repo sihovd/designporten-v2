@@ -26,7 +26,17 @@ import { forhandslast3d, Visning3d } from '../render3d/Lat3d';
 import { filnavn } from '../eksport/tremf';
 import { brukBenk } from './bruk-benk';
 import { Eksportdialog } from './Eksportdialog';
+import { Brukerfelt } from './Brukerfelt';
 import { Hjelp } from './Hjelp';
+import { Hjelpesok } from './Hjelpesok';
+import { Innstillingsmeny } from './Innstillingsmeny';
+import {
+  bakgrunnErLys,
+  bakgrunnVariabler,
+  brukInnstillinger,
+  FARGER_ENDRET,
+  valgtHorisont,
+} from './innstillinger';
 import { useLukkMeny } from './lukk-meny';
 import { Statuslinje } from './Statuslinje';
 import { Ark } from './Ark';
@@ -130,6 +140,15 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   const filmeny = useRef<HTMLDetailsElement>(null);
   useLukkMeny(filmeny);
   const ui = plugin.ui;
+  const inn = brukInnstillinger();
+  const lys = inn.tema === 'lys' || (inn.tema === 'standard' && plugin.flate === 'lys');
+  const bakgrunnVar = bakgrunnVariabler(inn);
+  const bakgrunn = valgtHorisont(inn);
+  const fargeNokkel = `${inn.tema}|${inn.bakgrunn}|${inn.egenFarge}`;
+  // the canvases read their colours from the CSS tokens, so they are told when the tokens change
+  useEffect(() => {
+    dispatchEvent(new Event(FARGER_ENDRET));
+  }, [fargeNokkel]);
   // generators with dockable panels get the panel system on wide screens; the rest keep the fixed layout
   const smalDesktop = useMemo(
     () => typeof matchMedia !== 'undefined' && !matchMedia('(min-width: 1280px)').matches,
@@ -299,7 +318,8 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
 
   return (
     <div
-      class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}${plugin.flate === 'lys' ? ' lys' : ''}${harPaneler ? ' med-paneler' : ''}`}
+      class={`verksted${bred ? ' bred' : ' smal'}${lerretForst ? ' lerret-forst' : ''}${lys ? ' lys' : ''}${bakgrunn ? ' egen-bakgrunn' : ''}${bakgrunn && bakgrunnErLys(bakgrunn) ? ' lerret-lys' : ''}${harPaneler ? ' med-paneler' : ''}`}
+      style={bakgrunnVar ?? undefined}
     >
       <header class="verkstedlinje">
         <a class="hjem" href="/" aria-label="Designporten, til forsiden">
@@ -419,6 +439,9 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             </p>
           </div>
         </details>
+        {plugin.flate === 'lys' && (
+          <Innstillingsmeny>{ui.Innstillingsvalg && <ui.Innstillingsvalg benk={benk} />}</Innstillingsmeny>
+        )}
         <input
           ref={filvelger}
           type="file"
@@ -471,10 +494,17 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
             standardPlass={paneler.standardPlass}
           />
         )}
-        <button type="button" class="ikonknapp" onClick={() => settHjelp(true)} title="Hurtigtaster (?)">
+        {plugin.hjelpeemner && <Hjelpesok emner={plugin.hjelpeemner} klasse="i-linje" />}
+        <button
+          type="button"
+          class="ikonknapp"
+          onClick={() => settHjelp(true)}
+          title="Hjelp og hurtigtaster (?)"
+        >
           <Ikon id="help" storrelse={18} />
           <span class="visuelt-skjult">Hjelp og hurtigtaster</span>
         </button>
+        {plugin.flate === 'lys' && <Brukerfelt />}
         <button type="button" class="primar med-ikon" onClick={() => settEksport(true)}>
           <Ikon id="export" storrelse={16} />
           <span>
@@ -488,6 +518,14 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
           </span>
         </button>
       </header>
+
+      {ui.Kontekstlinje && (
+        <section class="kontekstlinje" aria-label="Verktøyvalg">
+          <div class="kontekstlinje-rad" role="toolbar" aria-label="Valg for verktøyet">
+            <ui.Kontekstlinje benk={benk} />
+          </div>
+        </section>
+      )}
 
       {ui.Verktoy && (
         <nav class="verktoyskinne" aria-label="Verktøy">
@@ -591,7 +629,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
       )}
 
       {ui.Bunnbrett && (
-        <section class="bunnbrett" aria-label="Varianter">
+        <section class="bunnbrett" aria-label={plugin.bunnbrettNavn ?? 'Varianter'}>
           <ui.Bunnbrett benk={benk} />
         </section>
       )}

@@ -32,7 +32,7 @@ import {
   type Reparasjon,
 } from '../../geometri/bane';
 import {
-  leggTilObjekt,
+  leggTilObjektEtter,
   nyttObjekt,
   oppdaterKilde,
   oppdaterLag,
@@ -383,10 +383,14 @@ export function fargeValgtForm(benk: Arbeidsbenk, materialId: string): boolean {
       `${c.o.navn} (ny farge)`,
     ),
     materialId: eget,
+    // the shape keeps what the vector had: role (add or cut), lock, visibility, and its place in the stack
+    operasjon: c.o.operasjon,
+    last: c.o.last,
+    synlig: c.o.synlig,
   };
   benk.endre({
     navn: 'Bytt farge på formen',
-    anvend: (x) => oppdaterKilde(leggTilObjekt(x, nytt), id, { stier: [banerTilSti(rest)] }),
+    anvend: (x) => oppdaterKilde(leggTilObjektEtter(x, nytt, id), id, { stier: [banerTilSti(rest)] }),
   });
   settKurve(benk, ingenValg(c));
   benk.melde('Formen er et eget objekt i samme lag, med egen farge. Laget har samme omriss som før.');

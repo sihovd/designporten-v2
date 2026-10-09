@@ -32,6 +32,8 @@ import { signtilstand, brukSigntilstand, type Snaplinje, type VerktoyId } from '
 import { dupliserValgte, leggTil, redigerbare, slettValgte, utvalgsboks, valgte } from './handlinger';
 import { laas45Punkt, snapPunkt, treff } from './plukk';
 import { erDobbeltklikk } from './dobbeltklikk';
+import { tegnMonster } from './monsterforhandsvisning';
+import { fjernStrekpunkt, flyttStrekpunkt, leggTilStrekpunkt, treffStrekpunkt } from './strekpunkter';
 import {
   flyttHjelpelinjeTil,
   hjelpelinjerAv,
@@ -55,7 +57,6 @@ import {
 } from './Strekverktoy';
 import { lagPennverktoy } from './Pennverktoy';
 import { leggTilStrek, strekFraPunkter } from './paint';
-import { Paintbar } from './Strekpanel';
 import { BOOLSKE, boolskHinder, kombinerValgte } from './boolsk';
 import { Tips } from '../../shell/Tips';
 import { Ikon } from '../../shell/ikoner';
@@ -376,6 +377,7 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
   }
   tegnKurver(ctx, v, f, benk);
   if (st.verktoy === 'velg') tegnBreddehandtak(ctx, v, f, benk);
+  if (st.verktoy === 'monster') tegnMonster(ctx, v, f, benk);
 }
 
 // ---------- hit testing ----------
@@ -484,6 +486,7 @@ type Drag =
   | { type: 'utkast'; start: Vec2 }
   | { type: 'paint' }
   | { type: 'bredde'; id: string; indeks: number }
+  | { type: 'strekpunkt'; id: string; indeks: number }
   | { type: 'maal'; a: Vec2 }
   | { type: 'guide'; id: string; akse: 'x' | 'y'; start: number; flyttet: boolean };
 
@@ -574,7 +577,8 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
   const lager = signtilstand(benk);
   let drag: Drag | null = null;
 
-  if (id === 'velg') {
+  // the Pattern tool selects and moves like the Select tool; its choices are in the context bar
+  if (id === 'velg' || id === 'monster') {
     let ventendeBredde: { id: string; t: number } | null = null;
     return {
       markor: 'default',
@@ -585,7 +589,30 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         ventendeBredde = null;
         const sv = kanEndre ? strekvisning(benk) : null;
         if (sv && !e.shiftKey) {
-          const hit = treffBreddehandtak(sv, modell, (e.pointerType === 'touch' ? 14 : 9) / v.pxPerMm);
+          const htol = (e.pointerType === 'touch' ? 14 : 9) / v.pxPerMm;
+          // the width controls on the edge first, then the points of the centre line, then the rest
+          const kant = treffBreddehandtak(sv, modell, htol, false);
+          if (kant !== null) {
+            drag = { type: 'bredde', id: sv.o.id, indeks: kant };
+            return;
+          }
+          const sp = treffStrekpunkt(sv, modell, htol);
+          if (sp !== null) {
+            if (erDobbeltklikk(skjerm)) {
+              fjernStrekpunkt(benk, sv.o.id, sp);
+              return;
+            }
+            lager.sett({ strekPunkt: { id: sv.o.id, indeks: sp } });
+            drag = { type: 'strekpunkt', id: sv.o.id, indeks: sp };
+            return;
+          }
+          // Alt on the centre line puts a new point there and drags it
+          if (e.altKey && treffSenterlinje(sv, modell, tol) !== null) {
+            const ny = leggTilStrekpunkt(benk, sv.o.id, modell);
+            if (ny !== null) drag = { type: 'strekpunkt', id: sv.o.id, indeks: ny };
+            return;
+          }
+          const hit = treffBreddehandtak(sv, modell, htol);
           if (hit !== null) {
             if (erDobbeltklikk(skjerm) && hit > 0 && hit < sv.handtak.length - 1) {
               fjernBreddepunkt(benk, sv.o.id, hit);
@@ -641,7 +668,8 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
             window.dispatchEvent(new CustomEvent('signgen:rediger-tekst'));
             return;
           }
-          if (dobbel && o.kilde.type === 'svg' && !e.shiftKey) {
+          // a Paint stroke is edited by its centre line and widths; «Gjør til vanlig vektor» opens its outline
+          if (dobbel && o.kilde.type === 'svg' && !o.kilde.strek && !e.shiftKey) {
             drag = null;
             startKurveredigering(benk, o.id);
             return;
@@ -684,6 +712,10 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         }
         if (drag.type === 'bredde') {
           settBreddeVed(benk, drag.id, drag.indeks, modell);
+          return;
+        }
+        if (drag.type === 'strekpunkt') {
+          flyttStrekpunkt(benk, drag.id, drag.indeks, modell);
           return;
         }
         if (drag.type === 'flytt') {
@@ -953,7 +985,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
     ned({ modell, e, visning }) {
       const p = snapPunkt(benk, modell, visning, e.altKey);
       if (form === 'hull') {
-        leggTil(benk, nyForm('hull', 5, 5), { x: p.x, y: p.y });
+        leggTil(benk, { ...nyForm('hull', 5, 5), hullform: lager.t.hullform }, { x: p.x, y: p.y });
         lager.sett({ verktoy: 'velg' });
         return;
       }
@@ -1239,7 +1271,6 @@ export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
     >
       {st.verktoy === 'velg' && !st.kurve && <Flytlinje benk={benk} />}
       {st.verktoy === 'velg' && !st.kurve && <Boolskbar benk={benk} />}
-      {st.verktoy === 'paint' && <Paintbar benk={benk} />}
       {st.valgtGuide && <Guidebar benk={benk} />}
     </Lerret>
   );

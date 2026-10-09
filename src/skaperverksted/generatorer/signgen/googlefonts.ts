@@ -80,6 +80,23 @@ export function soekFamilier(liste: readonly GoogleFamilie[], sok: string, maks 
   return treff.sort((a, b) => start(a) - start(b) || a.familie.localeCompare(b.familie)).slice(0, maks);
 }
 
+/** All families matching the query (all of them when it is empty), name matches that start with it first. */
+export function filtrerFamilier(liste: readonly GoogleFamilie[], sok: string): GoogleFamilie[] {
+  const ord = sok.toLowerCase().split(/\s+/).filter(Boolean);
+  const treff = liste.filter((f) => ord.every((o) => f.familie.toLowerCase().includes(o)));
+  const start = (f: GoogleFamilie) => (ord.length && f.familie.toLowerCase().startsWith(ord[0]!) ? 0 : 1);
+  return treff.sort((a, b) => start(a) - start(b) || a.familie.localeCompare(b.familie));
+}
+
+/** The small latin file used to show a family in the font window (the regular weight, or the closest). */
+export function forhandsvisningVekt(f: GoogleFamilie): number {
+  return f.vekter.includes(400) ? 400 : (f.vekter[0] ?? 400);
+}
+
+export function forhandsvisningUrl(f: GoogleFamilie): string {
+  return `https://cdn.jsdelivr.net/fontsource/fonts/${encodeURIComponent(f.id)}@latest/latin-${forhandsvisningVekt(f)}-normal.woff2`;
+}
+
 export function googleFontId(f: GoogleFamilie, vekt: number): string {
   return `gf-${f.id}-${vekt}`;
 }

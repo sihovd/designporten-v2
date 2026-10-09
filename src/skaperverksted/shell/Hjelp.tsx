@@ -1,5 +1,6 @@
 import type { GeneratorPlugin } from '../core/generator';
 import { Dialog } from './Dialog';
+import { Hjelpesok } from './Hjelpesok';
 
 const FELLES: [string, string][] = [
   ['Ctrl/Cmd + Z', 'Angre'],
@@ -16,7 +17,8 @@ const FELLES: [string, string][] = [
 export function Hjelp({ plugin, lukk }: { plugin: GeneratorPlugin; lukk: () => void }) {
   const liste = [...FELLES, ...(plugin.hurtigtastListe ?? [])];
   return (
-    <Dialog tittel="Hurtigtaster" lukk={lukk}>
+    <Dialog tittel="Hjelp og hurtigtaster" lukk={lukk}>
+      {plugin.hjelpeemner && <Hjelpesok emner={plugin.hjelpeemner} klasse="i-dialog" />}
       <dl class="hurtigtaster">
         {liste.map(([k, b]) => (
           <div key={k}>

@@ -6,13 +6,25 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { Boks, Vec2 } from '../../core/geometri2d';
+import type { Hullform } from '../../core/dokument';
 import type { Bane, NodeRef } from '../../geometri/bane';
 import type { ProfilId } from '../../geometri/strek';
 import type { SvgDeler } from './svgdeler';
 import type { Csvsteg } from './csvflyt';
+import { STANDARD_MONSTER, type Monstervalg } from './monstervalg';
 
 export type VerktoyId =
-  'velg' | 'tekst' | 'rektangel' | 'ellipse' | 'polygon' | 'trekant' | 'hull' | 'penn' | 'paint' | 'mal';
+  | 'velg'
+  | 'tekst'
+  | 'rektangel'
+  | 'ellipse'
+  | 'polygon'
+  | 'trekant'
+  | 'hull'
+  | 'penn'
+  | 'paint'
+  | 'mal'
+  | 'monster';
 
 /** A line shown while dragging to say what the edge snapped to (transient). */
 export interface Snaplinje {
@@ -114,7 +126,11 @@ export interface Signtilstand {
   utkastForm: { form: 'rektangel' | 'ellipse' | 'polygon'; sider: number } | null;
   /** The number of sides last used for polygons (the mouse wheel changes it while drawing). */
   formSider: number;
+  /** The shape the Hole tool makes next. */
+  hullform: Hullform;
   paint: Paintvalg;
+  /** What the Pattern tool makes next. */
+  monster: Monstervalg;
   /** The Paint stroke being drawn: the points so far (model coordinates). */
   paintUtkast: Vec2[] | null;
   /** Live dimension label while dragging (screen anchored in mm space). */
@@ -123,6 +139,8 @@ export interface Signtilstand {
   omriss: string | null;
   /** The colour profile window is open (it also opens by itself for a new sign). */
   fargeprofil: boolean;
+  /** The project settings window is open (build plate, colours in use, print layer height). */
+  prosjektinnstillinger: boolean;
   /** A new sign: which step of the start the user is on (the three entries, then the colours). */
   startsteg: 'valg' | 'farger';
   /** «Fra CSV» was chosen at the start: open the CSV window once the sign has been started. */
@@ -133,6 +151,8 @@ export interface Signtilstand {
   fontvindu: boolean;
   /** The decoration gallery is open. */
   dekor: boolean;
+  /** The «Lagre dekorelement» window: the selected vectors become one gallery element. */
+  lagreDekor: boolean;
   /** The CSV workflow's step on screen (null: the workflow is closed). */
   csv: Csvsteg | null;
   /** The generated sign shown in the plates view (CSV row index). */
@@ -141,6 +161,8 @@ export interface Signtilstand {
   svgdeler: SvgOppgave | null;
   /** The vector whose curves are being edited. */
   kurve: KurveRedigering | null;
+  /** The centre-line point of a Paint stroke chosen on the canvas. */
+  strekPunkt: { id: string; indeks: number } | null;
   /** The pen tool's path in progress. */
   penn: PennUtkast | null;
   snapmal: Snapmal;
@@ -158,20 +180,25 @@ class Lager {
     utkast: null,
     utkastForm: null,
     formSider: 6,
+    hullform: 'sirkel',
     paint: { bredde: 3, profil: 'jevn', glatt: 0.5, tuppStart: 0, tuppSlutt: 0 },
+    monster: { ...STANDARD_MONSTER },
     paintUtkast: null,
     maletikett: null,
     omriss: null,
     fargeprofil: false,
+    prosjektinnstillinger: false,
     startsteg: 'valg',
     startCsv: false,
     malvindu: null,
     fontvindu: false,
     dekor: false,
+    lagreDekor: false,
     csv: null,
     csvrad: null,
     svgdeler: null,
     kurve: null,
+    strekPunkt: null,
     penn: null,
     snapmal: lesSnapmal(),
     valgtGuide: null,
