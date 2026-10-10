@@ -143,6 +143,22 @@ describe('The master from the first row (§25)', () => {
     expect(lesArbeid(m)).toEqual(a);
   });
 
+  it('has no moved signs, also in work saved before it existed', () => {
+    const start = master();
+    const a = nyttArbeid(tolkCsv('navn\nOla\nKari'), 'x.csv', start);
+    expect(a.plateflytt).toEqual({});
+    const { plateflytt: _p, ...gammel } = a;
+    void _p;
+    expect(lesArbeid({ ...start, parametre: { csvarbeid: gammel } })?.plateflytt).toEqual({});
+  });
+
+  it('forgets the moves on the plates when more signs are generated, since the packing changes', () => {
+    const a = nyttArbeid(tolkCsv('navn\nOla\nKari'), 'x.csv', master());
+    const flyttet = { ...a, generert: [0], plateflytt: { 0: { dx: 3, dy: 2 } } };
+    expect(generer(flyttet, [1]).plateflytt).toEqual({});
+    expect(generer(flyttet, [1]).generert).toEqual([0, 1]);
+  });
+
   it('uses another row as the master when asked', async () => {
     const start = nyttSigngenDokument();
     const a = { ...nyttArbeid(tolkCsv('navn\nOla\nKari'), 'x.csv', start), masterRad: 1 };
@@ -171,7 +187,7 @@ describe('Reading the columns (§24, §27)', () => {
     const l = lesArbeid(settArbeid(d, eldre))!;
     expect(l.masterRad).toBe(1);
     expect(l.steg).toBe('koble');
-    expect(l.valg.plateavstand).toBe(5);
+    expect(l.valg.holdHull).toBe(true);
     expect(settArbeid(settArbeid(d, a), null).parametre).not.toHaveProperty('csvarbeid');
   });
 });

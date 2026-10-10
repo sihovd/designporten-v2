@@ -10,6 +10,8 @@ import { brukBenk } from '../../shell/bruk-benk';
 import { Ikon, type IkonId } from '../../shell/ikoner';
 import { Tips } from '../../shell/Tips';
 import { brukSigntilstand, signtilstand, type Snapmal, type VerktoyId } from './tilstand';
+import { lesSnap } from './snapmotor';
+import { endreSnapI } from './snappunkter';
 import { importerSvgSom } from './handlinger';
 import { startErValgt } from './dokument';
 import { Prosjektinnstillinger } from './Prosjektinnstillinger';
@@ -260,6 +262,7 @@ function Snapverktoy({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
   const st = brukSigntilstand(benk);
   const m = brukVerktoymeny();
+  const master = lesSnap(t.dok);
   const valg: { id: keyof Snapmal; navn: string }[] = [
     { id: 'rutenett', navn: 'Rutenett' },
     { id: 'hjelpelinjer', navn: 'Hjelpelinjer' },
@@ -322,6 +325,26 @@ function Snapverktoy({ benk }: { benk: Arbeidsbenk }) {
             >
               <span class="menyhake" aria-hidden="true">
                 {st.snapmal[v.id] ? '✓' : ''}
+              </span>
+              {v.navn}
+            </button>
+          ))}
+          {/* what the engine also snaps to; these are saved in the master and follow every CSV sign */}
+          {(
+            [
+              { id: 'konturer', navn: 'Konturer (avstand mellom objekter)' },
+              { id: 'punkter', navn: 'Snap-punkter' },
+            ] as const
+          ).map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={master[v.id]}
+              onClick={() => endreSnapI(benk, { [v.id]: !master[v.id] })}
+            >
+              <span class="menyhake" aria-hidden="true">
+                {master[v.id] ? '✓' : ''}
               </span>
               {v.navn}
             </button>

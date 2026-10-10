@@ -8,7 +8,7 @@ import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { finnLag, type Objekt } from '../../core/dokument';
 import { anvend, inverter, tilMatrise, type Boks, type Transform2D, type Vec2 } from '../../core/geometri2d';
 import { finnMateriale } from '../../core/materialer';
-import { rutenettnivaa, snapTil } from '../../core/rutenett';
+import { rutenettnivaa } from '../../core/rutenett';
 import { mm, tall } from '../../core/enheter';
 import { ellipse as ellipseRing, polygon } from '../../geometri/former';
 import type { Region } from '../../geometri/polygon';
@@ -58,6 +58,18 @@ import {
 import { lagPennverktoy } from './Pennverktoy';
 import { leggTilStrek, strekFraPunkter } from './paint';
 import { BOOLSKE, boolskHinder, kombinerValgte } from './boolsk';
+import { feltrandFor, lagSilhuettFraRegioner, type Silhuett } from './silhuett';
+import {
+  boksAnkere,
+  lesSnap,
+  snapKanter,
+  snapPunkter,
+  snapSkilt,
+  type PlassertSkilt,
+  type SnapKontakt,
+  type Snapoppsett,
+} from './snapmotor';
+import { snappunkterAv, type PlassertPunkt } from './snappunkter';
 import { Tips } from '../../shell/Tips';
 import { Ikon } from '../../shell/ikoner';
 import { strekRing } from '../../geometri/strek';
@@ -299,6 +311,50 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
     }
     ctx.stroke();
   }
+  // the snap points of the master, on the geometry they follow
+  if (benk.tilstand.innstillinger.snap && lesSnap(benk.dok).punktliste.length) {
+    ctx.lineWidth = 1.5;
+    for (const p of snappunkterAv(benk.dok)) {
+      const q = v.tilSkjerm(p);
+      ctx.beginPath();
+      ctx.moveTo(q.x, q.y - 5);
+      ctx.lineTo(q.x + 5, q.y);
+      ctx.lineTo(q.x, q.y + 5);
+      ctx.lineTo(q.x - 5, q.y);
+      ctx.closePath();
+      ctx.fillStyle = f.tekst;
+      ctx.fill();
+      ctx.strokeStyle = f.cyan;
+      ctx.stroke();
+    }
+  }
+  // where a move holds on: the distance between two contours, or a snap point
+  const sk = st.snapkontakt;
+  if (sk) {
+    ctx.strokeStyle = f.cyan;
+    ctx.fillStyle = f.cyan;
+    ctx.lineWidth = 1.5;
+    const a = v.tilSkjerm({ x: sk.a[0], y: sk.a[1] });
+    const b = v.tilSkjerm({ x: sk.b[0], y: sk.b[1] });
+    if (sk.type === 'punkt') {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      for (const q of [a, b]) {
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.font = '600 11px sans-serif';
+      ctx.fillStyle = f.tekst;
+      ctx.fillText(`${tall(sk.d)} mm`, (a.x + b.x) / 2 + 6, (a.y + b.y) / 2 - 6);
+    }
+  }
   if (st.markering) {
     const a = v.tilSkjerm({ x: st.markering.minX, y: st.markering.maksY });
     const b = v.tilSkjerm({ x: st.markering.maksX, y: st.markering.minY });
@@ -384,69 +440,126 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
 
 // ---------- snapping ----------
 
+/** What the snap engine reads for one drag: the contours and points as they were when it began. */
+interface Snapmotor2D {
+  /** Snap points of what is not moved, and the places of the moved objects' own points. */
+  punkterMal: PlassertPunkt[];
+  punkterMine: Vec2[];
+  /** The contour of everything that is moved, and of every other object (only when the contour target is on). */
+  mover: PlassertSkilt | null;
+  naboer: PlassertSkilt[];
+}
+
 interface Snapresultat {
   dx: number;
   dy: number;
   linjer: Snaplinje[];
+  /** Set while the move holds on to a contour or a snap point. */
+  kontakt: SnapKontakt | null;
 }
 
+/** The contour of one object, kept as long as the object is the same and the margin is wide enough. */
+const objektSilhuett = new WeakMap<Objekt, Silhuett>();
+
+function silhuettAv(o: Objekt, felt: number): Silhuett | null {
+  const c = objektSilhuett.get(o);
+  if (c && c.felt >= felt) return c;
+  const r = verdensRegion(o);
+  if (!r?.length) return null;
+  const s = lagSilhuettFraRegioner([r], felt);
+  objektSilhuett.set(o, s);
+  return s;
+}
+
+function byggMotor(benk: Arbeidsbenk, utelat: Set<string>, b: Boks, oppsett: Snapoppsett): Snapmotor2D {
+  const dok = benk.dok;
+  const punkter = oppsett.punkter ? snappunkterAv(dok, oppsett.punktliste) : [];
+  const motor: Snapmotor2D = {
+    punkterMal: punkter.filter((p) => !utelat.has(p.mal)),
+    punkterMine: punkter.filter((p) => utelat.has(p.mal)).map(({ x, y }) => ({ x, y })),
+    mover: null,
+    naboer: [],
+  };
+  if (oppsett.konturer) {
+    const felt = feltrandFor(oppsett.avstand, oppsett.fangavstand);
+    const regioner = [...utelat]
+      .map((id) => dok.objekter[id])
+      .flatMap((o) => (o?.synlig ? [verdensRegion(o)] : []))
+      .filter((r): r is Region => !!r?.length);
+    if (regioner.length) {
+      motor.mover = { id: -1, silhuett: lagSilhuettFraRegioner(regioner, felt), boks: b, dx: 0, dy: 0 };
+    }
+    let id = 0;
+    for (const o of Object.values(dok.objekter)) {
+      if (!o.synlig || utelat.has(o.id)) continue;
+      const silhuett = silhuettAv(o, felt);
+      if (silhuett) motor.naboer.push({ id: id++, silhuett, boks: verdensBoks(o), dx: 0, dy: 0 });
+    }
+  }
+  return motor;
+}
+
+/**
+ * Where a move of the box `b` by (dx, dy) lands: on a snap point, at the wanted distance from a contour, or
+ * against the edges, centres, guide lines and the grid, in that order. The result is the correction to add.
+ * The engine is in `snapmotor.ts`; this only reads the document for it and draws what it found.
+ */
 function snapBoks(
   benk: Arbeidsbenk,
   b: Boks,
+  dx: number,
+  dy: number,
   utelat: Set<string>,
   v: Visning,
   deaktivert: boolean,
+  drag: { motor?: Snapmotor2D },
 ): Snapresultat {
-  if (deaktivert || !benk.tilstand.innstillinger.snap) return { dx: 0, dy: 0, linjer: [] };
+  if (deaktivert || !benk.tilstand.innstillinger.snap) return { dx: 0, dy: 0, linjer: [], kontakt: null };
   const mal = signtilstand(benk).t.snapmal;
-  const terskel = 7 / v.pxPerMm;
+  const oppsett = lesSnap(benk.dok);
+  const motor = (drag.motor ??= byggMotor(benk, utelat, b, oppsett));
+  const flyttet: Boks = { minX: b.minX + dx, maksX: b.maksX + dx, minY: b.minY + dy, maksY: b.maksY + dy };
+
+  if (motor.punkterMal.length) {
+    const mine = [...boksAnkere(flyttet), ...motor.punkterMine.map((p) => ({ x: p.x + dx, y: p.y + dy }))];
+    const f = snapPunkter(mine, motor.punkterMal, oppsett.fangavstand);
+    if (f) {
+      const til: [number, number] = [f.til.x, f.til.y];
+      return { dx: f.dx, dy: f.dy, linjer: [], kontakt: { type: 'punkt', nabo: -1, a: til, b: til, d: 0 } };
+    }
+  }
+  if (motor.mover && motor.naboer.length) {
+    const r = snapSkilt(motor.mover, dx, dy, motor.naboer, null, {
+      paa: true,
+      avstand: oppsett.avstand,
+      radius: oppsett.fangavstand,
+    });
+    if (r.kontakt) return { dx: r.dx - dx, dy: r.dy - dy, linjer: [], kontakt: r.kontakt };
+  }
+
   const andre = Object.values(benk.dok.objekter)
     .filter((o) => o.synlig && !utelat.has(o.id))
     .map(verdensBoks);
-  const plate: Boks = { minX: 0, maksX: 0, minY: 0, maksY: 0 };
-  const guider = mal.hjelpelinjer && benk.tilstand.innstillinger.hjelpelinjer ? hjelpelinjerAv(benk.dok) : [];
-  const mine = {
-    x: [b.minX, (b.minX + b.maksX) / 2, b.maksX],
-    y: [b.minY, (b.minY + b.maksY) / 2, b.maksY],
-  };
-  const res: Snapresultat = { dx: 0, dy: 0, linjer: [] };
-  for (const akse of ['x', 'y'] as const) {
-    let best: { d: number; mal: Boks | null; verdi: number } | null = null;
-    const prov = (a: number, t: number, m: Boks | null) => {
-      const d = t - a;
-      if (Math.abs(d) <= terskel && (!best || Math.abs(d) < Math.abs(best.d))) best = { d, mal: m, verdi: t };
-    };
-    // edges and centres of the other objects (and the plate centre), as the Snap menu allows
-    for (const m of mal.objekter || mal.sentre ? [plate, ...andre] : []) {
-      const lav = akse === 'x' ? m.minX : m.minY;
-      const hoy = akse === 'x' ? m.maksX : m.maksY;
-      const deres = [...(mal.objekter ? [lav, hoy] : []), ...(mal.sentre ? [(lav + hoy) / 2] : [])];
-      for (const a of mine[akse]) for (const t of deres) prov(a, t, m);
-    }
-    // guide lines: any edge or the centre of the dragged box
-    for (const g of guider) if (g.akse === akse) for (const a of mine[akse]) prov(a, g.verdi, null);
-    const treff = best as { d: number; mal: Boks | null; verdi: number } | null;
-    if (treff) {
-      if (akse === 'x') res.dx = treff.d;
-      else res.dy = treff.d;
-      if (treff.mal) {
-        const [fra, til] =
-          akse === 'x'
-            ? [Math.min(b.minY, treff.mal.minY), Math.max(b.maksY, treff.mal.maksY)]
-            : [Math.min(b.minX, treff.mal.minX), Math.max(b.maksX, treff.mal.maksX)];
-        const pad = 6 / v.pxPerMm;
-        res.linjer.push({ akse, verdi: treff.verdi, fra: fra - pad, til: til + pad });
-      }
-    } else if (mal.rutenett) {
-      // grid: put the leading edge on the minor grid
-      const steg = Math.max(0.1, rutenettnivaa(v.pxPerMm).liten);
-      const a = mine[akse][0]!;
-      const d = snapTil(a, steg) - a;
-      if (akse === 'x') res.dx = d;
-      else res.dy = d;
-    }
+  const guider = benk.tilstand.innstillinger.hjelpelinjer ? hjelpelinjerAv(benk.dok) : [];
+  const k = snapKanter(
+    flyttet,
+    andre,
+    guider,
+    mal,
+    7 / v.pxPerMm,
+    Math.max(0.1, rutenettnivaa(v.pxPerMm).liten),
+  );
+  const linjer: Snaplinje[] = [];
+  const pad = 6 / v.pxPerMm;
+  for (const t of k.treff) {
+    if (!t.mal) continue;
+    const [fra, til] =
+      t.akse === 'x'
+        ? [Math.min(flyttet.minY, t.mal.minY), Math.max(flyttet.maksY, t.mal.maksY)]
+        : [Math.min(flyttet.minX, t.mal.minX), Math.max(flyttet.maksX, t.mal.maksX)];
+    linjer.push({ akse: t.akse, verdi: t.verdi, fra: fra - pad, til: til + pad });
   }
-  return res;
+  return { dx: k.dx, dy: k.dy, linjer, kontakt: null };
 }
 
 /** Keep a movement on the nearest 45° line (Shift): the part of the movement along it. */
@@ -479,7 +592,15 @@ export function endreUtkastSider(benk: Arbeidsbenk, steg: number): boolean {
 // ---------- tools ----------
 
 type Drag =
-  | { type: 'flytt'; start: Vec2; orig: Map<string, Transform2D>; boks: Boks; flyttet: boolean }
+  | {
+      type: 'flytt';
+      start: Vec2;
+      orig: Map<string, Transform2D>;
+      boks: Boks;
+      flyttet: boolean;
+      /** What the snap engine reads, built when the move begins. */
+      motor?: Snapmotor2D;
+    }
   | { type: 'skaler'; indeks: number; orig: Map<string, Objekt>; start: Vec2 }
   | { type: 'roter'; orig: Objekt; senter: Vec2; start: number }
   | { type: 'marker'; start: Vec2; legg: boolean; for: string[] }
@@ -731,13 +852,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
             retning = l.retning;
           }
           const b = drag.boks;
-          const flyttetBoks = {
-            minX: b.minX + dx,
-            maksX: b.maksX + dx,
-            minY: b.minY + dy,
-            maksY: b.maksY + dy,
-          };
-          const s = snapBoks(benk, flyttetBoks, new Set(drag.orig.keys()), v, e.altKey);
+          const s = snapBoks(benk, b, dx, dy, new Set(drag.orig.keys()), v, e.altKey, drag);
           if (retning) {
             // snapping only moves the box along the locked line
             const langs = s.dx * retning.x + s.dy * retning.y;
@@ -759,6 +874,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
           });
           lager.sett({
             snaplinjer: s.linjer,
+            snapkontakt: s.kontakt,
             maletikett: {
               p: { x: b.maksX + dx, y: b.minY + dy },
               tekst: `x ${tall((b.minX + b.maksX) / 2 + dx)}  y ${tall((b.minY + b.maksY) / 2 + dy)} mm`,
@@ -877,13 +993,13 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
           if (n) benk.melde(n === 1 ? '1 objekt valgt.' : `${n} objekter valgt.`);
         }
         drag = null;
-        lager.sett({ snaplinjer: [], markering: null, maletikett: null });
+        lager.sett({ snaplinjer: [], snapkontakt: null, markering: null, maletikett: null });
       },
       avbryt() {
         if (drag?.type === 'guide') lager.sett({ guideDra: null });
         if (drag && drag.type !== 'marker') benk.historikk.avsluttSammenslaing();
         drag = null;
-        lager.sett({ snaplinjer: [], markering: null, maletikett: null });
+        lager.sett({ snaplinjer: [], snapkontakt: null, markering: null, maletikett: null });
       },
     };
   }

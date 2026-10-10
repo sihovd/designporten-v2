@@ -11,7 +11,7 @@ import { fargekode, finnMateriale } from '../core/materialer';
 import { filamentplasser } from '../eksport/tremf';
 import { tall } from '../core/enheter';
 
-interface Trekant {
+export interface Trekant {
   z: number;
   lys: number;
   hex: string;
@@ -19,7 +19,7 @@ interface Trekant {
 }
 
 /** Upward-facing triangles of every part, lowest first, so higher parts cover lower ones. */
-function trekanterOvenfra(deler: ModellDel[]): Trekant[] {
+export function trekanterOvenfra(deler: ModellDel[]): Trekant[] {
   const ut: Trekant[] = [];
   for (const d of deler) {
     const hex = finnMateriale(d.materialId).hex;
@@ -51,8 +51,40 @@ function trekanterOvenfra(deler: ModellDel[]): Trekant[] {
   return ut.sort((x, y) => x.z - y.z);
 }
 
-function farge(el: Element, navn: string, reserve: string): string {
+export function farge(el: Element, navn: string, reserve: string): string {
   return getComputedStyle(el).getPropertyValue(navn).trim() || reserve;
+}
+
+/** The plate, with a 10 mm grid and a stronger line every 50 mm. `X` and `Y` turn plate millimetres into pixels. */
+export function tegnPlate(
+  ctx: CanvasRenderingContext2D,
+  c: Element,
+  plate: { bredde: number; dybde: number },
+  X: (x: number) => number,
+  Y: (y: number) => number,
+  s: number,
+): void {
+  ctx.fillStyle = farge(c, '--overflate', '#f3f1ec');
+  ctx.fillRect(X(-plate.bredde / 2), Y(plate.dybde / 2), plate.bredde * s, plate.dybde * s);
+  const linje = farge(c, '--linje', '#d8d4cc');
+  for (let mmX = 0; mmX <= plate.bredde; mmX += 10) {
+    ctx.strokeStyle = linje;
+    ctx.globalAlpha = mmX % 50 === 0 ? 0.9 : 0.4;
+    ctx.beginPath();
+    ctx.moveTo(X(-plate.bredde / 2 + mmX), Y(plate.dybde / 2));
+    ctx.lineTo(X(-plate.bredde / 2 + mmX), Y(-plate.dybde / 2));
+    ctx.stroke();
+  }
+  for (let mmY = 0; mmY <= plate.dybde; mmY += 10) {
+    ctx.globalAlpha = mmY % 50 === 0 ? 0.9 : 0.4;
+    ctx.beginPath();
+    ctx.moveTo(X(-plate.bredde / 2), Y(-plate.dybde / 2 + mmY));
+    ctx.lineTo(X(plate.bredde / 2), Y(-plate.dybde / 2 + mmY));
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = farge(c, '--linje-sterk', '#9b968c');
+  ctx.strokeRect(X(-plate.bredde / 2), Y(plate.dybde / 2), plate.bredde * s, plate.dybde * s);
 }
 
 /** A label drawn on the plate with its top-left corner at (x, y) in plate millimetres. */
@@ -60,6 +92,28 @@ export interface Plateetikett {
   x: number;
   y: number;
   tekst: string;
+}
+
+/** The filaments of the parts shown, numbered in the order the file gives them slots. */
+export function Filamentliste({ deler }: { deler: ModellDel[] }) {
+  const plasser = filamentplasser(deler);
+  return (
+    <ul class="filamentliste">
+      {plasser.map((id, i) => {
+        const m = finnMateriale(id);
+        const navn = [...new Set(deler.filter((d) => d.materialId === id).map((d) => d.navn))];
+        return (
+          <li key={id}>
+            <span class="mono filamentnr">{i + 1}</span>
+            <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
+            <span>
+              <strong class="mono">{fargekode(m)}</strong> <span class="dempet">{navn.join(', ')}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 const INGEN: Plateetikett[] = [];
@@ -78,8 +132,6 @@ export function Plateforhandsvisning({
   beskrivelse?: string;
 }) {
   const lerret = useRef<HTMLCanvasElement>(null);
-  const plasser = filamentplasser(deler);
-
   useEffect(() => {
     const c = lerret.current;
     if (!c) return;
@@ -101,28 +153,7 @@ export function Plateforhandsvisning({
       const X = (x: number) => x0 + x * s;
       const Y = (y: number) => y0 - y * s;
 
-      // the plate, with a 10 mm grid and a stronger line every 50 mm
-      ctx.fillStyle = farge(c, '--overflate', '#f3f1ec');
-      ctx.fillRect(X(-plate.bredde / 2), Y(plate.dybde / 2), plate.bredde * s, plate.dybde * s);
-      const linje = farge(c, '--linje', '#d8d4cc');
-      for (let mmX = 0; mmX <= plate.bredde; mmX += 10) {
-        ctx.strokeStyle = linje;
-        ctx.globalAlpha = mmX % 50 === 0 ? 0.9 : 0.4;
-        ctx.beginPath();
-        ctx.moveTo(X(-plate.bredde / 2 + mmX), Y(plate.dybde / 2));
-        ctx.lineTo(X(-plate.bredde / 2 + mmX), Y(-plate.dybde / 2));
-        ctx.stroke();
-      }
-      for (let mmY = 0; mmY <= plate.dybde; mmY += 10) {
-        ctx.globalAlpha = mmY % 50 === 0 ? 0.9 : 0.4;
-        ctx.beginPath();
-        ctx.moveTo(X(-plate.bredde / 2), Y(-plate.dybde / 2 + mmY));
-        ctx.lineTo(X(plate.bredde / 2), Y(-plate.dybde / 2 + mmY));
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = farge(c, '--linje-sterk', '#9b968c');
-      ctx.strokeRect(X(-plate.bredde / 2), Y(plate.dybde / 2), plate.bredde * s, plate.dybde * s);
+      tegnPlate(ctx, c, plate, X, Y, s);
 
       // the parts, lowest first; slopes a little darker so edges and profiles read
       for (const t of trekanter) {
@@ -178,21 +209,7 @@ export function Plateforhandsvisning({
           {beskrivelse ??
             `Slik ligger delene på byggeplaten i 3MF-filen, sett ovenfra og i skala. Plate ${tall(plate.bredde)} × ${tall(plate.dybde)} mm.`}
         </p>
-        <ul class="filamentliste">
-          {plasser.map((id, i) => {
-            const m = finnMateriale(id);
-            const navn = [...new Set(deler.filter((d) => d.materialId === id).map((d) => d.navn))];
-            return (
-              <li key={id}>
-                <span class="mono filamentnr">{i + 1}</span>
-                <span class="fargeprove" style={{ background: m.hex }} aria-hidden="true" />
-                <span>
-                  <strong class="mono">{fargekode(m)}</strong> <span class="dempet">{navn.join(', ')}</span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <Filamentliste deler={deler} />
       </figcaption>
     </figure>
   );

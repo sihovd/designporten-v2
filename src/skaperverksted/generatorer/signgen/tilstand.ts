@@ -12,6 +12,7 @@ import type { ProfilId } from '../../geometri/strek';
 import type { SvgDeler } from './svgdeler';
 import type { Csvsteg } from './csvflyt';
 import { STANDARD_MONSTER, type Monstervalg } from './monstervalg';
+import type { SnapKontakt } from './snapmotor';
 
 export type VerktoyId =
   | 'velg'
@@ -118,6 +119,8 @@ export interface Paintvalg {
 export interface Signtilstand {
   verktoy: VerktoyId;
   snaplinjer: Snaplinje[];
+  /** Where a move holds on to a contour or a snap point (transient). */
+  snapkontakt: SnapKontakt | null;
   markering: Boks | null;
   maling: { a: Vec2; b: Vec2 } | null;
   /** Form being drawn with a shape tool. */
@@ -175,6 +178,7 @@ class Lager {
   t: Signtilstand = {
     verktoy: 'velg',
     snaplinjer: [],
+    snapkontakt: null,
     markering: null,
     maling: null,
     utkast: null,

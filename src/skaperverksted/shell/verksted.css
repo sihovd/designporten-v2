@@ -1843,6 +1843,30 @@
   box-shadow: inset 0 0 0 1px var(--handling);
 }
 
+/* Edge Snap on the build plate: the toolbar and the canvas the signs are moved on */
+.platebrett-verktoy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.platebrett-verktoy .kontroll-knapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.platebrett canvas {
+  cursor: default;
+}
+
+.platebrett canvas:focus-visible {
+  outline: 2px solid var(--handling);
+  outline-offset: 2px;
+}
+
 .visning3d-laster {
   display: grid;
   place-items: center;

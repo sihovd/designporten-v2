@@ -6,22 +6,17 @@
  * (its own values are kept as overrides on the master), goes back to the
  * CSV, generates more rows, or downloads the files.
  */
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
+import type { Dokument } from '../../core/dokument';
+import type { Vec2 } from '../../core/geometri2d';
 import { lastNed } from '../../core/lagring';
 import { filnavn } from '../../eksport/tremf';
 import type { ModellDel } from '../../geometri/mesh';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Segment, TallFelt } from '../../shell/kontroller';
-import { Plateforhandsvisning, type Plateetikett } from '../../shell/Plateforhandsvisning';
-import {
-  byggBatch,
-  forskyvMesh,
-  filamentkombinasjon,
-  amsRekkefolge,
-  type Utdeling,
-  type Variant,
-} from './batch';
+import { Ikon } from '../../shell/ikoner';
+import { byggBatch, filamentkombinasjon, amsRekkefolge, type Utdeling, type Variant } from './batch';
 import {
   bygSkilt,
   grunnskilt,
@@ -39,6 +34,11 @@ import { endreArbeid, gaTilSteg, startInstans } from './csvhandlinger';
 import { Filamentchip } from './Csvfelles';
 import { alleProfiler } from './batch';
 import { byggSigngen, lastFonter } from './modell';
+import { Platebrett, type Platesilt } from './Platebrett';
+import { brukPlateflytt, settFlytt, utenFlytt } from './plateflytt';
+import { feltrandFor, lagSilhuett, type Silhuett } from './silhuett';
+import { plasseringsproblemer, SNAPGRENSER, lesSnap, type Snappunkt, type Snapoppsett } from './snapmotor';
+import { endreSnapAvstandI, endreSnapI, snappunkterAv } from './snappunkter';
 import { foreldreloseOverstyringer, lesVerdi, overstyringsetikett, visVerdi } from './overstyring';
 import { signtilstand, brukSigntilstand } from './tilstand';
 
@@ -54,69 +54,247 @@ async function delerFor(v: Variant): Promise<ModellDel[]> {
   return d;
 }
 
+/** The contour of each sign, built once from its parts (and again when it has to reach farther). */
+const silhuettFraVariant = new WeakMap<object, Silhuett>();
+
+async function silhuettFor(v: Variant, felt: number): Promise<{ deler: ModellDel[]; silhuett: Silhuett }> {
+  const deler = await delerFor(v);
+  let silhuett = silhuettFraVariant.get(v.dok);
+  if (!silhuett || silhuett.felt < felt) {
+    silhuett = lagSilhuett(
+      deler.map((d) => d.mesh),
+      felt,
+    );
+    silhuettFraVariant.set(v.dok, silhuett);
+  }
+  return { deler, silhuett };
+}
+
+/** The snap points of a sign, read off its own geometry; kept while the list of points is the same. */
+const punkterFraVariant = new WeakMap<object, { liste: readonly Snappunkt[]; punkter: Vec2[] }>();
+
+function punkterFor(v: Variant, liste: readonly Snappunkt[]): Vec2[] {
+  const c = punkterFraVariant.get(v.dok);
+  if (c && c.liste === liste) return c.punkter;
+  const punkter = snappunkterAv(v.dok, liste).map(({ x, y }) => ({ x, y }));
+  punkterFraVariant.set(v.dok, { liste, punkter });
+  return punkter;
+}
+
+/** The work and the master as they were, while only the placement on the plates differs. */
+function useUtenPlateflytt(dok: Dokument, a: Csvarbeid | null): { dok: Dokument; a: Csvarbeid | null } {
+  const forrige = useRef<{ nokler: unknown[]; dok: Dokument; a: Csvarbeid | null } | null>(null);
+  const nokler = [
+    ...Object.entries(dok)
+      .filter(([k]) => k !== 'parametre')
+      .map(([, v]) => v),
+    ...Object.entries(dok.parametre)
+      .filter(([k]) => k !== 'csvarbeid' && k !== 'snap')
+      .map(([, v]) => v),
+    ...Object.entries(a ?? {})
+      .filter(([k]) => k !== 'plateflytt')
+      .map(([, v]) => v),
+  ];
+  const f = forrige.current;
+  if (f && f.nokler.length === nokler.length && f.nokler.every((v, i) => v === nokler[i])) return f;
+  forrige.current = { nokler, dok, a };
+  return forrige.current;
+}
+
 /**
- * One production plate as it will be printed: the real models of every
- * sign on it, in their colours, seen from above and to scale, with the CSV
- * row number on each sign. Built from the same models that go into the files.
+ * One production plate as it will be printed: the real models of every sign on it, in their colours, seen
+ * from above and to scale, with the CSV row number on each sign. Built from the same models that go into the
+ * files. The signs can be moved (Edge Snap helps), and the placement shown is the one the files get.
  */
 function Platekart({
+  benk,
   plate,
-  p,
+  auto,
+  vist,
   antall,
   utdeling,
+  valgt,
+  snap,
+  snapPaa,
 }: {
+  benk: Arbeidsbenk;
   plate: { bredde: number; dybde: number };
-  p: Produksjonsplate;
+  /** The plate as the automatic packing lays it out. */
+  auto: Produksjonsplate;
+  /** The plate with the user's moves applied. */
+  vist: Produksjonsplate;
   antall: number;
   utdeling: Utdeling;
+  valgt: number | null;
+  /** The snap settings of the master. */
+  snap: Snapoppsett;
+  /** The engine's switch («Snap» in the workbench). */
+  snapPaa: boolean;
 }) {
-  const [bygget, settBygget] = useState<{ plate: Produksjonsplate; deler: ModellDel[] } | null>(null);
+  const [bygget, settBygget] = useState<{
+    plate: Produksjonsplate;
+    data: Map<number, { deler: ModellDel[]; silhuett: Silhuett }>;
+  } | null>(null);
   const [ferdig, settFerdig] = useState(0);
 
   useEffect(() => {
     let aktiv = true;
     settFerdig(0);
     void (async () => {
-      const alle: ModellDel[] = [];
-      for (const [i, pl] of p.plasseringer.entries()) {
-        const deler = await delerFor(pl.variant);
+      const data = new Map<number, { deler: ModellDel[]; silhuett: Silhuett }>();
+      for (const [i, pl] of auto.plasseringer.entries()) {
+        data.set(
+          pl.variant.indeks,
+          await silhuettFor(pl.variant, feltrandFor(snap.avstand, snap.fangavstand)),
+        );
         if (!aktiv) return;
-        for (const d of deler) {
-          alle.push({ ...d, id: `${pl.variant.indeks}-${d.id}`, mesh: forskyvMesh(d.mesh, pl.dx, pl.dy) });
-        }
         settFerdig(i + 1);
         // let the browser paint and stay responsive between signs
         await new Promise((r) => setTimeout(r, 0));
       }
-      if (aktiv) settBygget({ plate: p, deler: alle });
+      if (aktiv) settBygget({ plate: auto, data });
     })();
     return () => {
       aktiv = false;
     };
-  }, [p]);
+  }, [auto, snap.avstand, snap.fangavstand]);
 
-  const etiketter: Plateetikett[] = p.plasseringer.map((pl) => ({
-    // top-left corner of the sign, where outlines are empty rather than over the letters
-    x: pl.variant.boks.minX + pl.dx + 0.5,
-    y: pl.variant.boks.maksY + pl.dy - 0.5,
-    tekst: String(pl.variant.indeks + 1),
-  }));
+  const skilt = useMemo<Platesilt[]>(() => {
+    if (bygget?.plate !== auto) return [];
+    return vist.plasseringer.flatMap((pl) => {
+      const d = bygget.data.get(pl.variant.indeks);
+      return d
+        ? [
+            {
+              id: pl.variant.indeks,
+              deler: d.deler,
+              silhuett: d.silhuett,
+              boks: pl.variant.boks,
+              punkter: punkterFor(pl.variant, snap.punktliste),
+              dx: pl.dx,
+              dy: pl.dy,
+              etikett: String(pl.variant.indeks + 1),
+            },
+          ]
+        : [];
+    });
+  }, [bygget, auto, vist, snap.punktliste]);
+
+  const problemer = useMemo(() => {
+    const p = plasseringsproblemer(skilt, plate);
+    return { alle: new Set([...p.overlapper, ...p.utenfor]), ...p };
+  }, [skilt, plate]);
+
+  const onFlytt = useCallback(
+    (id: number, dx: number, dy: number) => {
+      const a0 = auto.plasseringer.find((pl) => pl.variant.indeks === id);
+      if (!a0) return;
+      endreArbeid(
+        benk,
+        `Flytt skilt ${id + 1}`,
+        (x) => ({ ...x, plateflytt: settFlytt(x.plateflytt, id, dx, dy, a0.dx, a0.dy) }),
+        `plateflytt-${id}`,
+      );
+    },
+    [benk, auto],
+  );
+  // the one distance: the packing leaves it between the signs and to the plate edge, Edge Snap holds it between
+  // contours. A new packing makes the moves on the old one meaningless, so they go in the same step.
+  const endreAvstand = (avstand: number) => endreSnapAvstandI(benk, avstand);
+  const endreFang = (fangavstand: number) => endreSnapI(benk, { fangavstand }, 'snap-fang');
+  const onVelg = useCallback((id: number) => signtilstand(benk).sett({ csvrad: id }), [benk]);
+  const melde = useCallback((tekst: string) => benk.melde(tekst), [benk]);
+
+  const flyttede = vist.plasseringer.filter((pl, i) => {
+    const a0 = auto.plasseringer[i];
+    return a0 && (a0.dx !== pl.dx || a0.dy !== pl.dy);
+  }).length;
+  const navn = (rader: number[]) => rader.map((r) => r + 1).join(', ');
+
   return (
     <div class="batch-plate">
-      {bygget?.plate === p ? (
-        <Plateforhandsvisning
-          deler={bygget.deler}
+      <div class="platebrett-verktoy" role="group" aria-label="Plassering på plata">
+        <button
+          type="button"
+          class="kontroll-knapp"
+          aria-pressed={snapPaa}
+          title="Snap: skiltene legger seg inntil konturen til skiltet ved siden av, og på snap-punkter. Samme bryter som i editoren. Hold Alt for å slå av mens du flytter."
+          onClick={() => benk.settInnstillinger({ snap: !snapPaa })}
+        >
+          <Ikon id="snap-object" storrelse={18} />
+          <span>Edge Snap {snapPaa ? 'på' : 'av'}</span>
+        </button>
+        <TallFelt
+          etikett="Minsteavstand"
+          verdi={snap.avstand}
+          min={SNAPGRENSER.avstand.min}
+          maks={SNAPGRENSER.avstand.maks}
+          steg={0.5}
+          desimaler={1}
+          endre={endreAvstand}
+        />
+        <TallFelt
+          etikett="Snapavstand"
+          verdi={snap.fangavstand}
+          min={SNAPGRENSER.fangavstand.min}
+          maks={SNAPGRENSER.fangavstand.maks}
+          steg={0.5}
+          desimaler={1}
+          endre={endreFang}
+        />
+        <button
+          type="button"
+          class="kontroll-knapp"
+          disabled={flyttede === 0}
+          onClick={() =>
+            endreArbeid(benk, 'Tilbakestill plata', (x) => ({
+              ...x,
+              plateflytt: utenFlytt(
+                x.plateflytt,
+                auto.plasseringer.map((pl) => pl.variant.indeks),
+              ),
+            }))
+          }
+        >
+          Tilbakestill plata
+        </button>
+      </div>
+      {problemer.overlapper.length > 0 && (
+        <p class="merknad" role="status">
+          Skilt {navn(problemer.overlapper)} overlapper hverandre. Flytt dem fra hverandre før du laster ned.
+        </p>
+      )}
+      {problemer.utenfor.length > 0 && (
+        <p class="merknad" role="status">
+          Skilt {navn(problemer.utenfor)} stikker utenfor byggeplata.
+        </p>
+      )}
+      {bygget?.plate === auto ? (
+        <Platebrett
           plate={plate}
-          etiketter={etiketter}
-          beskrivelse={`Plate ${p.nummer} av ${antall}: ${p.plasseringer.length} skilt, sett ovenfra og i skala. Tallene er radnumre i CSV-filen. ${
+          skilt={skilt}
+          valgt={valgt}
+          problemer={problemer.alle}
+          snap={{
+            paa: snapPaa,
+            avstand: snap.avstand,
+            fangavstand: snap.fangavstand,
+            punkter: snap.punkter,
+          }}
+          nummer={auto.nummer}
+          antallPlater={antall}
+          merknad={
             utdeling === 'plate'
-              ? 'Slik ligger skiltene i 3MF-filen for plata.'
-              : 'Med «Én per skilt» får hvert skilt sin egen fil, midt på plata; dette er bare plasseringen i manifest.csv.'
-          }`}
+              ? ''
+              : 'Med «Én per skilt» får hvert skilt sin egen fil, midt på plata; plasseringen her gjelder bare manifest.csv.'
+          }
+          melde={melde}
+          onVelg={onVelg}
+          onFlytt={onFlytt}
         />
       ) : (
         <p class="dempet" role="status">
-          Bygger forhåndsvisning av plate {p.nummer} … {ferdig} av {p.plasseringer.length} skilt
+          Bygger forhåndsvisning av plate {auto.nummer} … {ferdig} av {auto.plasseringer.length} skilt
         </p>
       )}
     </div>
@@ -212,7 +390,8 @@ function Skiltvalg({ benk, a, rad }: { benk: Arbeidsbenk; a: Csvarbeid; rad: num
 export function PlaterSteg({ benk, tilStatus }: { benk: Arbeidsbenk; tilStatus: () => void }) {
   const t = brukBenk(benk);
   const st = brukSigntilstand(benk);
-  const a = lesArbeid(t.dok);
+  const lest = lesArbeid(t.dok);
+  const { dok: master, a } = useUtenPlateflytt(t.dok, lest);
   const [klar, settKlar] = useState(false);
   const [valgtPlate, settValgtPlate] = useState(0);
   const [utdeling, settUtdeling] = useState<Utdeling>('plate');
@@ -228,15 +407,16 @@ export function PlaterSteg({ benk, tilStatus }: { benk: Arbeidsbenk; tilStatus: 
     };
   }, [t.dok]);
 
-  const varianter = useMemo(() => (a && klar ? bygSkilt(t.dok, a, a.generert) : []), [t.dok, a, klar]);
+  const snapoppsett = lesSnap(t.dok);
+  const varianter = useMemo(() => (a && klar ? bygSkilt(master, a, a.generert) : []), [master, a, klar]);
   const oppsett = useMemo(() => {
     if (!a) return { plater: [] as Produksjonsplate[], feil: null as string | null };
     try {
       return {
         plater: lagProduksjonsplater(
           varianter,
-          t.dok.plate,
-          a.valg.plateavstand,
+          master.plate,
+          snapoppsett.avstand,
           a.valg.sortering,
           a.valg.sorterKolonne,
         ),
@@ -245,7 +425,10 @@ export function PlaterSteg({ benk, tilStatus }: { benk: Arbeidsbenk; tilStatus: 
     } catch (e) {
       return { plater: [] as Produksjonsplate[], feil: e instanceof Error ? e.message : String(e) };
     }
-  }, [a, varianter, t.dok.plate]);
+  }, [a, varianter, master.plate, snapoppsett.avstand]);
+  const flytt = lest?.plateflytt;
+  const autoplater = oppsett.plater;
+  const plater = useMemo(() => brukPlateflytt(autoplater, flytt), [autoplater, flytt]);
 
   if (!a) return <p class="merknad">Importer en CSV-fil først.</p>;
   if (!a.generert.length) {
@@ -261,8 +444,8 @@ export function PlaterSteg({ benk, tilStatus }: { benk: Arbeidsbenk; tilStatus: 
     );
   }
 
-  const plater = oppsett.plater;
   const plate = plater[Math.min(valgtPlate, plater.length - 1)];
+  const autoplate = autoplater[Math.min(valgtPlate, autoplater.length - 1)];
   const valgtRad =
     st.csvrad !== null && plate?.plasseringer.some((pl) => pl.variant.indeks === st.csvrad)
       ? st.csvrad
@@ -271,7 +454,17 @@ export function PlaterSteg({ benk, tilStatus }: { benk: Arbeidsbenk; tilStatus: 
   const venter = a.valgte.filter((i) => !a.generert.includes(i)).length;
   const medProblem = varianter.filter((v) => v.problemer.length);
   const valg = (endring: Partial<Csvarbeid['valg']>) =>
-    endreArbeid(benk, 'CSV: plater', (x) => ({ ...x, valg: { ...x.valg, ...endring } }), 'csv-valg');
+    endreArbeid(
+      benk,
+      'CSV: plater',
+      (x) => ({
+        ...x,
+        valg: { ...x.valg, ...endring },
+        // another packing: the moves made on the old one no longer fit
+        ...('sortering' in endring || 'sorterKolonne' in endring ? { plateflytt: {} } : {}),
+      }),
+      'csv-valg',
+    );
 
   const lag = async () => {
     settResultat(null);
@@ -349,7 +542,19 @@ export function PlaterSteg({ benk, tilStatus }: { benk: Arbeidsbenk; tilStatus: 
                     <Filamentchip key={id} id={id} />
                   ))}
                 </p>
-                <Platekart plate={t.dok.plate} p={plate} antall={plater.length} utdeling={utdeling} />
+                {autoplate && (
+                  <Platekart
+                    benk={benk}
+                    plate={master.plate}
+                    auto={autoplate}
+                    vist={plate}
+                    antall={plater.length}
+                    utdeling={utdeling}
+                    valgt={valgtRad}
+                    snap={snapoppsett}
+                    snapPaa={t.innstillinger.snap}
+                  />
+                )}
 
                 <div
                   class="batch-tabell"
@@ -472,15 +677,6 @@ export function PlaterSteg({ benk, tilStatus }: { benk: Arbeidsbenk; tilStatus: 
                 </select>
               </label>
             )}
-            <TallFelt
-              etikett="Avstand"
-              verdi={a.valg.plateavstand}
-              min={2}
-              maks={30}
-              steg={1}
-              desimaler={0}
-              endre={(plateavstand) => valg({ plateavstand })}
-            />
             <div class="felt">
               <span>Filer</span>
               <Segment
