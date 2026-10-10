@@ -13,6 +13,7 @@
  * master reaches every sign (Sivert §31).
  */
 import { type Dokument, type Objekt, type SvgKilde, type TekstKilde } from '../../core/dokument';
+import type { Plateflytt } from './plateflytt';
 import { feltNavn, feltObjekter, leggTilObjekt, nyTekst, nyttObjekt, oppdaterObjekter } from './dokument';
 import { dekorValg, finnDekorFraTekst, type DekorValg } from './dekor';
 import {
@@ -81,8 +82,6 @@ export interface Csvvalg {
   holdAvstand: boolean;
   /** Keep hanging holes at their distance from the name. */
   holdHull: boolean;
-  /** Space between signs on a plate and to its edge (mm). */
-  plateavstand: number;
   sortering: Sortering;
   /** The column the alphabetical order follows. */
   sorterKolonne: number;
@@ -91,7 +90,6 @@ export interface Csvvalg {
 export const STANDARDVALG: Csvvalg = {
   holdAvstand: true,
   holdHull: true,
-  plateavstand: 5,
   sortering: 'csv',
   sorterKolonne: 0,
 };
@@ -119,6 +117,8 @@ export interface Csvarbeid {
   generert: number[];
   /** Local overrides per generated sign, by row index. */
   overstyringer: Record<number, Overstyringer>;
+  /** Signs the user has moved on the build plate: offset (mm) from where the automatic packing puts them, by row. */
+  plateflytt: Plateflytt;
 }
 
 export interface CsvInstans {
@@ -136,13 +136,21 @@ export function lesArbeid(dok: Dokument): Csvarbeid | null {
   return {
     ...a,
     steg: a.steg ?? 'koble',
-    valg: { ...STANDARDVALG, ...(a.valg ?? {}) },
-    kobling: a.kolonner.map((_, i) => a.kobling?.[i] ?? { type: 'ingen' }),
+    // keep the saved objects when they are complete, so a screen that compares them can tell nothing changed
+    valg:
+      a.valg && Object.keys(STANDARDVALG).every((k) => k in a.valg)
+        ? a.valg
+        : { ...STANDARDVALG, ...(a.valg ?? {}) },
+    kobling:
+      a.kobling?.length === a.kolonner.length && a.kobling.every(Boolean)
+        ? a.kobling
+        : a.kolonner.map((_, i) => a.kobling?.[i] ?? { type: 'ingen' }),
     valgteKolonner: a.valgteKolonner ?? a.kolonner.map((_, i) => i),
     egne: a.egne ?? {},
     valgte: a.valgte ?? [],
     generert: a.generert ?? [],
     overstyringer: a.overstyringer ?? {},
+    plateflytt: a.plateflytt ?? {},
     masterRad: Math.min(Math.max(0, a.masterRad ?? 0), Math.max(0, a.rader.length - 1)),
   };
 }
@@ -213,6 +221,7 @@ export function nyttArbeid(csv: Csv, kilde: string, dok: Dokument): Csvarbeid {
     valgte: csv.rader.map((_, i) => i),
     generert: [],
     overstyringer: {},
+    plateflytt: {},
   };
 }
 
@@ -751,7 +760,8 @@ export function grunnskilt(
 
 /** Press «Generer»: the chosen rows become signs. Rows generated before stay. */
 export function generer(a: Csvarbeid, rader: readonly number[]): Csvarbeid {
-  return { ...a, generert: sortert(new Set([...a.generert, ...rader])) };
+  // more signs change the packing, so the offsets from the old packing no longer fit
+  return { ...a, generert: sortert(new Set([...a.generert, ...rader])), plateflytt: {} };
 }
 
 // ---------- overrides ----------

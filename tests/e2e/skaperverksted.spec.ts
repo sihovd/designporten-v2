@@ -418,7 +418,7 @@ test.describe('Signgen', () => {
     const plater = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
     // Lilla and Cyan are different filaments, so the two signs go on two plates
     await expect(plater.getByText('2 skilt på 2 plater')).toBeVisible();
-    await expect(plater.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
+    await expect(plater.getByRole('application', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
       timeout: 20_000,
     });
     const a4 = await new AxeBuilder({ page }).include('dialog[open]').analyze();
@@ -873,9 +873,245 @@ test.describe('Signgen', () => {
     await genererAlt(page);
     const dialog = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
     await expect(dialog.getByText('2 skilt på 1 plate')).toBeVisible();
-    await expect(dialog.getByRole('img', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
+    await expect(dialog.getByRole('application', { name: /Byggeplaten sett ovenfra/ })).toBeVisible({
       timeout: 20_000,
     });
+  });
+
+  test('Edge Snap: skilt flyttes på plata og holder minsteavstanden til konturen ved siden av', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Flytting med musa testes på brede skjermer');
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Se over før eksport' })
+      .getByRole('button', { name: 'Eksporter via CSV' })
+      .click();
+    await tilMasterSteget(page, 'navn\nOla\nKari\nPer');
+    await genererAlt(page);
+    const dialog = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
+    const plate = dialog.getByRole('application', { name: /Byggeplaten sett ovenfra/ });
+    await expect(plate).toBeVisible({ timeout: 30_000 });
+    await expect(dialog.getByText('3 skilt på 1 plate, ingen problemer.')).toBeVisible();
+    const magnet = dialog.getByRole('button', { name: /Edge Snap/ });
+    await expect(magnet).toHaveAttribute('aria-pressed', 'true');
+    await expect(dialog.getByLabel('Minsteavstand')).toHaveValue('5');
+    await expect(dialog.getByLabel('Snapavstand')).toHaveValue('3');
+
+    // the third sign: found by its dark pixels, the signs lie in a row at the top of the plate
+    const midtPaaSkilt3 = async () => {
+      await page.waitForTimeout(500);
+      const boks = (await plate.boundingBox())!;
+      const grupper = await plate.evaluate((el: HTMLCanvasElement) => {
+        const { width: w, height: h } = el;
+        const d = el.getContext('2d')!.getImageData(0, 0, w, h).data;
+        const ut: [number, number][] = [];
+        let start = -1;
+        for (let x = 0; x <= w; x++) {
+          let mork = 0;
+          if (x < w) {
+            for (let y = 0; y < h; y++) {
+              const k = (y * w + x) * 4;
+              if (d[k]! < 80 && d[k + 1]! < 80 && d[k + 2]! < 80 && d[k + 3]! > 200) mork++;
+            }
+          }
+          if (mork > 3 && start < 0) start = x;
+          if (mork <= 3 && start >= 0) {
+            if (x - start > 8) ut.push([start, x]);
+            start = -1;
+          }
+        }
+        return { ut, dpr: window.devicePixelRatio };
+      });
+      const siste = grupper.ut[grupper.ut.length - 1]!;
+      const s = Math.min((boks.width - 24) / 256, (boks.height - 24) / 256);
+      return {
+        x: boks.x + (siste[0] + siste[1]) / 2 / grupper.dpr,
+        y: boks.y + boks.height / 2 - 128 * s + 20,
+      };
+    };
+
+    // with Alt down the sign is not held: it is moved onto the next one, which is marked as a problem
+    const fra = await midtPaaSkilt3();
+    await page.keyboard.down('Alt');
+    await page.mouse.move(fra.x, fra.y);
+    await page.mouse.down();
+    await page.mouse.move(fra.x - 20, fra.y, { steps: 4 });
+    await page.mouse.move(fra.x - 45, fra.y + 3, { steps: 4 });
+    await page.mouse.up();
+    await page.keyboard.up('Alt');
+    await expect(dialog.getByText(/Skilt .* overlapper hverandre/)).toBeVisible();
+    await dialog.getByRole('button', { name: 'Tilbakestill plata' }).click();
+    await expect(dialog.getByText(/overlapper hverandre/)).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: 'Tilbakestill plata' })).toBeDisabled();
+
+    // without Alt it lies against the contour of the next sign, at the minimum distance
+    const fra2 = await midtPaaSkilt3();
+    await page.mouse.move(fra2.x, fra2.y);
+    await page.mouse.down();
+    await page.mouse.move(fra2.x - 20, fra2.y + 2, { steps: 4 });
+    await page.mouse.move(fra2.x - 40, fra2.y + 40, { steps: 4 });
+    await page.mouse.up();
+    await expect(page.getByText('Skilt 3 er flyttet og holder 5 mm avstand til skilt 2.')).toBeVisible();
+    await expect(dialog.getByText(/overlapper hverandre/)).toHaveCount(0);
+    await expect(dialog.getByRole('button', { name: 'Tilbakestill plata' })).toBeEnabled();
+
+    // the keyboard moves the chosen sign too, and keeps the distance
+    await plate.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByText(/Skilt 3 er flyttet til/)).toBeVisible();
+
+    // the magnet can be switched off and on
+    await magnet.click();
+    await expect(magnet).toHaveAttribute('aria-pressed', 'false');
+    await expect(magnet).toContainText('Edge Snap av');
+    await expect(dialog.getByLabel('Minsteavstand')).toBeEnabled();
+    await magnet.click();
+    await expect(magnet).toHaveAttribute('aria-pressed', 'true');
+    // the distance is the one setting of the plates: a new value packs the plate again and the moves go
+    await dialog.getByLabel('Minsteavstand').fill('3');
+    await dialog.getByLabel('Minsteavstand').press('Enter');
+    await expect(dialog.getByLabel('Minsteavstand')).toHaveValue('3');
+    await expect(dialog.getByRole('button', { name: 'Tilbakestill plata' })).toBeDisabled();
+    const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
+
+  test('snap-punkter ligger på masteren og følger geometrien til hvert skilt, også på byggeplata', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet og dra på plata brukes på brede skjermer');
+    // a snap point on the whole sign, in the middle: it is saved in the master
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    await page.getByRole('button', { name: 'Snap og avstand', exact: true }).click();
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    const panel = page.getByRole('region', { name: 'Snap-punkter' });
+    await expect(panel.getByText('Ingen snap-punkter ennå')).toBeVisible();
+    await panel.getByRole('radio', { name: 'Midten', exact: true }).click();
+    await panel.getByRole('button', { name: 'Legg til snap-punkt' }).click();
+    await expect(panel.getByText(/Punkt 1: Hele skiltet, midten/)).toBeVisible();
+    const a = await new AxeBuilder({ page }).exclude('canvas').analyze();
+    expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+
+    // the CSV signs get the point, on their own geometry
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Se over før eksport' })
+      .getByRole('button', { name: 'Eksporter via CSV' })
+      .click();
+    await tilMasterSteget(page, 'navn\nOla\nMargrethe-Kristine\nPer');
+    await genererAlt(page);
+    const dialog = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
+    const plate = dialog.getByRole('application', { name: /Byggeplaten sett ovenfra/ });
+    await expect(plate).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(500);
+    const boks = (await plate.boundingBox())!;
+    const s = Math.min((boks.width - 24) / 256, (boks.height - 24) / 256);
+    const grupper = await plate.evaluate((el: HTMLCanvasElement) => {
+      const { width: w, height: h } = el;
+      const d = el.getContext('2d')!.getImageData(0, 0, w, h).data;
+      const ut: [number, number][] = [];
+      let start = -1;
+      for (let x = 0; x <= w; x++) {
+        let mork = 0;
+        if (x < w) {
+          for (let y = 0; y < h; y++) {
+            const k = (y * w + x) * 4;
+            if (d[k]! < 80 && d[k + 1]! < 80 && d[k + 2]! < 80 && d[k + 3]! > 200) mork++;
+          }
+        }
+        if (mork > 3 && start < 0) start = x;
+        if (mork <= 3 && start >= 0) {
+          if (x - start > 8) ut.push([start, x]);
+          start = -1;
+        }
+      }
+      return { ut, dpr: window.devicePixelRatio };
+    });
+    // the signs lie in a row at the top: find the middle of the long name and of the last sign
+    expect(grupper.ut.length).toBeGreaterThanOrEqual(3);
+    const midt = (g: [number, number]) => boks.x + (g[0] + g[1]) / 2 / grupper.dpr;
+    // the long name may break into several dark stretches: everything between the first and the last sign is it
+    const lang = boks.x + (grupper.ut[1]![0] + grupper.ut[grupper.ut.length - 2]![1]) / 2 / grupper.dpr;
+    const siste = midt(grupper.ut[grupper.ut.length - 1]!);
+    const y = boks.y + boks.height / 2 - 128 * s + 20;
+    // drag the last sign so that its middle comes near the middle of the long name: the points meet
+    await page.mouse.move(siste, y);
+    await page.mouse.down();
+    await page.mouse.move(siste - 20, y + 2, { steps: 4 });
+    await page.mouse.move(lang + 4, y + 3, { steps: 6 });
+    await page.mouse.up();
+    await expect(page.getByText(/Skilt 3 er flyttet og sitter på snap-punktet til skilt 2\./)).toBeVisible();
+  });
+
+  test('Snap-motoren holder objekter i editoren på avstand fra konturen til de andre', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tegning og snap med musa testes på brede skjermer');
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    await page.getByRole('button', { name: 'Transform', exact: true }).click();
+    await page.getByRole('button', { name: 'Snap og avstand', exact: true }).click();
+    await page.locator('summary', { hasText: 'Paneler' }).click();
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    const transform = page.getByRole('region', { name: 'Transform' });
+    const x = transform.getByLabel('Midtpunkt X');
+    const bredde = transform.getByLabel('Total bredde');
+    const tallet = async (f: import('@playwright/test').Locator) => {
+      await expect(f).toHaveValue(/\d/);
+      return Number((await f.inputValue()).replace(',', '.').replace(/\s/g, '').replace('−', '-'));
+    };
+    // two rectangles of the same size, the second well to the right of the first
+    const tegn = async (x0: number, y0: number, x1: number, y1: number) => {
+      await page.keyboard.press('r');
+      await page.mouse.move(b.x + b.width * x0, b.y + b.height * y0);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width * x1, b.y + b.height * y1, { steps: 5 });
+      await page.mouse.up();
+    };
+    await tegn(0.2, 0.3, 0.3, 0.45);
+    const aBredde = await tallet(bredde);
+    const aX = await tallet(x);
+    const aHoyre = aX + aBredde / 2;
+    await tegn(0.6, 0.3, 0.7, 0.45);
+    const bBredde = await tallet(bredde);
+    const mal = { x: b.x + b.width * 0.65, y: b.y + b.height * 0.375 };
+    const dra = async (fraX: number, px: number) => {
+      await page.mouse.move(fraX, mal.y);
+      await page.mouse.down();
+      await page.mouse.move(fraX - px / 2, mal.y, { steps: 3 });
+      await page.mouse.move(fraX - px, mal.y, { steps: 3 });
+      await page.mouse.up();
+    };
+    const gapNa = async () => (await tallet(x)) - bBredde / 2 - aHoyre;
+
+    // how far one pixel moves it, measured with the contour target off
+    await page.getByRole('button', { name: 'Snap', exact: true }).click({ button: 'right' });
+    const meny = page.getByRole('menu', { name: 'Snap til' });
+    await expect(meny.getByRole('menuitemcheckbox', { name: /Konturer/ })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('v');
+    const gap0 = await gapNa();
+    await dra(mal.x, 60);
+    const gap1 = await gapNa();
+    expect(gap0 - gap1).toBeGreaterThan(3);
+    const pxPerMm = 60 / (gap0 - gap1);
+    expect(gap1).toBeGreaterThan(8);
+
+    // contours on: a drag aimed at a gap of 5.5 mm ends at the distance of the master (5 mm)
+    await page.getByRole('button', { name: 'Snap', exact: true }).click({ button: 'right' });
+    await meny.getByRole('menuitemcheckbox', { name: /Konturer/ }).click();
+    await page.keyboard.press('Escape');
+    await dra(mal.x - 60, (gap1 - 5.5) * pxPerMm);
+    const gap = await gapNa();
+    expect(gap).toBeGreaterThan(4.6);
+    expect(gap).toBeLessThan(5.4);
   });
 
   test('velger deler av en SVG, gir dem farger og legger dem på skiltet', async ({ page, isMobile }) => {

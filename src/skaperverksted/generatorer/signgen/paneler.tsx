@@ -13,6 +13,7 @@ import { SigngenInspektor } from './Inspektor';
 import { Profilseksjon } from './Profilseksjon';
 import { Hjelpelinjepanel, Transformpanel } from './justerpaneler';
 import { Fargepanel } from './Fargepanel';
+import { Snappanel } from './Snappanel';
 import { finnLag } from '../../core/dokument';
 
 /** The side profile of the selected layer: wall shape, bottom and top edge, and the cross-section. */
@@ -48,6 +49,14 @@ export const PANELER: PanelDef[] = [
     flytH: 400,
   },
   {
+    id: 'snapoppsett',
+    navn: 'Snap og avstand',
+    ikon: 'snap',
+    Innhold: Snappanel,
+    flytB: 320,
+    flytH: 520,
+  },
+  {
     id: 'fargeprofil',
     navn: 'Fargeprofil',
     ikon: 'palette',
@@ -77,11 +86,11 @@ export const ARBEIDSROM: Romspek[] = [
     grupper: [
       { paneler: ['lag'], side: 'venstre', vekt: 3 },
       { paneler: ['egenskaper', 'profil'], side: 'hoyre', vekt: 3 },
-      { paneler: ['transform', 'hjelpelinjer', 'fargeprofil'], side: 'hoyre', vekt: 2 },
+      { paneler: ['transform', 'hjelpelinjer', 'snapoppsett', 'fargeprofil'], side: 'hoyre', vekt: 2 },
     ],
     smal: [
       {
-        paneler: ['egenskaper', 'profil', 'transform', 'hjelpelinjer', 'fargeprofil'],
+        paneler: ['egenskaper', 'profil', 'transform', 'hjelpelinjer', 'snapoppsett', 'fargeprofil'],
         side: 'hoyre',
         vekt: 3,
       },
