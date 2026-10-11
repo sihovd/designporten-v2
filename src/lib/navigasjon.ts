@@ -1,5 +1,7 @@
 /** Site structure. Source: docs/content/information-architecture.md. */
 
+import { skaperverkstedApent } from '@/lib/flagg';
+
 export interface NavPunkt {
   navn: string;
   href: string;
@@ -7,7 +9,7 @@ export interface NavPunkt {
   sti?: boolean;
 }
 
-export const hovedmeny: readonly NavPunkt[] = [
+const alleMenypunkter: readonly NavPunkt[] = [
   { navn: 'Vårt utvalg', href: '/produkter/', sti: true },
   { navn: 'Skaperverksted', href: '/skaperverksted/', sti: true },
   { navn: 'Spesialdesign', href: '/spesialdesign/', sti: true },
@@ -16,6 +18,10 @@ export const hovedmeny: readonly NavPunkt[] = [
   { navn: 'Om', href: '/om/' },
   { navn: 'Kontakt', href: '/kontakt/' },
 ];
+
+export const hovedmeny: readonly NavPunkt[] = alleMenypunkter.filter(
+  (p) => skaperverkstedApent || p.href !== '/skaperverksted/',
+);
 
 export const juridisk: readonly NavPunkt[] = [
   { navn: 'Personvern', href: '/personvern/' },

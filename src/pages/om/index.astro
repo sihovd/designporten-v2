@@ -10,12 +10,14 @@ import { bakgrunner } from '@/lib/ressurser';
  * delivered projects) and the profile photo are added only when confirmed;
  * until then the photo is a marked placeholder and no fact tiles are shown.
  */
-const lager = [
+const alleLager = [
   { navn: 'Ferdige produkter', tekst: 'Ting vi har tegnet og printet selv.' },
   { navn: 'Spesialdesign', tekst: 'Fra idé, skisse, bilde eller ødelagt del.' },
   { navn: 'Skaperverksted', tekst: 'Verktøy der du bygger noe eget i nettleseren.' },
   { navn: 'For bedrifter', tekst: 'Prototyper, småserier og profilering.' },
 ];
+const lager = alleLager.filter((l) => skaperverkstedApent || l.navn !== 'Skaperverksted');
+import { skaperverkstedApent } from '@/lib/flagg';
 ---
 
 <Side
@@ -88,7 +90,7 @@ const lager = [
     <h2 id="lager-tittel" class="lager__tittel">
       Det vi lager
     </h2>
-    <ul class="lager" role="list">
+    <ul class="lager" role="list" style={`--antall: ${lager.length}`}>
       {lager.map((l) => (
         <li>
           <span class="lager__navn">{l.navn}</span>
@@ -206,7 +208,7 @@ const lager = [
 
   .lager {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--antall, 4), minmax(0, 1fr));
     gap: var(--r-4);
     margin: 0;
     padding: 0;

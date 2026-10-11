@@ -8,6 +8,7 @@
 import Ikon from '@/components/Ikon.astro';
 import Konseptbilde from '@/components/Konseptbilde.astro';
 import { utklippbilder, type Bilde } from '@/lib/ressurser';
+import { skaperverkstedApent } from '@/lib/flagg';
 
 interface Snarvei {
   etikett: string;
@@ -18,7 +19,7 @@ interface Snarvei {
   skjema?: boolean;
 }
 
-const snarveier: Snarvei[] = [
+const alle: Snarvei[] = [
   {
     etikett: 'Finn noe',
     tittel: 'Ferdige produkter',
@@ -42,13 +43,15 @@ const snarveier: Snarvei[] = [
     skjema: true,
   },
 ];
+
+const snarveier = alle.filter((s) => skaperverkstedApent || s.href !== '/skaperverksted/');
 ---
 
 <section class="snarveier ramme" aria-labelledby="snarveier-tittel">
   <h2 id="snarveier-tittel" class="visuelt-skjult">
     Kom i gang
   </h2>
-  <ul class="snarveier__liste" role="list">
+  <ul class="snarveier__liste" role="list" style={`--antall: ${snarveier.length}`}>
     {snarveier.map((s) => (
       <li class="snarvei">
         <span class="snarvei__bilde">
@@ -79,7 +82,7 @@ const snarveier: Snarvei[] = [
 
   .snarveier__liste {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--antall, 3), minmax(0, 1fr));
     gap: var(--r-4);
     margin: 0;
     padding: 0;

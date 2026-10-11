@@ -4,6 +4,7 @@ import { getCollection } from 'astro:content';
 import type { Sokepost } from '@/components/showroom/sok/sok';
 import { erOffentlig, typenavn } from '@/components/showroom/inspirasjon/typer';
 import { verktoy } from '@/components/showroom/verksted/verktoy';
+import { skaperverkstedApent } from '@/lib/flagg';
 
 export const prerender = true;
 
@@ -74,7 +75,7 @@ export const GET: APIRoute = async () => {
     };
   });
   // The four Forge tools; a planned tool points to the Skaperverksted hub.
-  const verktoyposter = verktoy.map<Sokepost>((v) => ({
+  const verktoyposter = (skaperverkstedApent ? verktoy : []).map<Sokepost>((v) => ({
     tittel: v.navn,
     tekst: v.beskrivelse,
     url: v.href ?? '/skaperverksted/',
@@ -90,5 +91,6 @@ export const GET: APIRoute = async () => {
     kategori: 'inspirasjon',
     ord: [...s.data.materialer, s.data.mal ?? ''].join(' '),
   }));
-  return Response.json([...sider, ...produkter, ...verktoyposter, ...inspirasjon]);
+  const synligeSider = sider.filter((s) => skaperverkstedApent || s.kategori !== 'verktoy');
+  return Response.json([...synligeSider, ...produkter, ...verktoyposter, ...inspirasjon]);
 };

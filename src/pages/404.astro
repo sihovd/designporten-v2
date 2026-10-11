@@ -2,6 +2,7 @@
 import Side from '@/layouts/Side.astro';
 import Knapp from '@/components/Knapp.astro';
 import VaseBygg from '@/components/showroom/bygg/VaseBygg.astro';
+import { skaperverkstedApent } from '@/lib/flagg';
 ---
 
 <Side tittel="Siden finnes ikke" beskrivelse="Siden du lette etter finnes ikke." ikkeIndekser>
@@ -22,9 +23,11 @@ import VaseBygg from '@/components/showroom/bygg/VaseBygg.astro';
         <li>
           <a href="/produkter/">Finn noe</a>
         </li>
-        <li>
-          <a href="/skaperverksted/">Lag noe</a>
-        </li>
+        {skaperverkstedApent && (
+          <li>
+            <a href="/skaperverksted/">Lag noe</a>
+          </li>
+        )}
         <li>
           <a href="/spesialdesign/">Har du en idé?</a>
         </li>

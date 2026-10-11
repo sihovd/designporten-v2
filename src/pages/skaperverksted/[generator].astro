@@ -2,8 +2,11 @@
 import Verksted from '@/layouts/Verksted.astro';
 import { Verksted as VerkstedApp } from '@/skaperverksted/shell/Verksted';
 import { katalog } from '@/skaperverksted/generatorer';
+import { skaperverkstedApent } from '@/lib/flagg';
 
 export function getStaticPaths() {
+  // Not built while the tools are closed (src/lib/flagg.ts): the paths answer 404.
+  if (!skaperverkstedApent) return [];
   return katalog.map((g) => ({ params: { generator: g.id }, props: { meta: g } }));
 }
 

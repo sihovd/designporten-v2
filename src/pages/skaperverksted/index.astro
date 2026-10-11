@@ -2,6 +2,8 @@
 import Side from '@/layouts/Side.astro';
 import VerktoyKort from '@/components/showroom/verksted/VerktoyKort.astro';
 import { verktoy } from '@/components/showroom/verksted/verktoy';
+import Knapp from '@/components/Knapp.astro';
+import { skaperverkstedApent } from '@/lib/flagg';
 
 const tilgjengelige = verktoy.filter((v) => v.status === 'tilgjengelig').length;
 
@@ -14,57 +16,84 @@ const steg = [
 ];
 ---
 
-<Side
-  tittel="Skaperverksted"
-  beskrivelse="Skaperverksted er Designportens verksted i nettleseren. Bygg skilt, former og figurer i ekte millimeter, se dem i 3D og last ned filen eller bestill utskrift."
->
-  <section class="hub verksted-flate" data-mork aria-labelledby="hub-tittel">
-    <div class="hub-rutenett" aria-hidden="true"></div>
-    <div class="hub-innhold">
-      <div class="hub-topp">
-        <p class="etikett hub-etikett">Skaperverksted · {tilgjengelige} verktøy · mål i mm</p>
-        <h1 id="hub-tittel">Fra idé til ferdig fil</h1>
-        <p class="hub-ingress">
-          Her bygger du selv. Alt måles i ekte millimeter, du ser resultatet i 3D mens du jobber, og det du
-          lager kan lastes ned som 3MF eller STL eller bestilles ferdig printet fra oss.
-        </p>
+{!skaperverkstedApent ? (
+  // The tools are closed in this build (src/lib/flagg.ts): a calm note, not indexed.
+  <Side tittel="Skaperverksted" beskrivelse="Skaperverksted er ikke åpnet ennå." ikkeIndekser>
+    <section class="hub verksted-flate" data-mork aria-labelledby="hub-tittel">
+      <div class="hub-rutenett" aria-hidden="true"></div>
+      <div class="hub-innhold">
+        <div class="hub-topp">
+          <p class="etikett hub-etikett">Skaperverksted</p>
+          <h1 id="hub-tittel">Kommer snart</h1>
+          <p class="hub-ingress">
+            Her skal du kunne bygge skilt, former og figurer selv i nettleseren. Verktøyene er ikke åpnet
+            ennå. Til da kan du fortelle oss hva du vil lage, så hjelper vi deg.
+          </p>
+          <div class="hub-handlinger">
+            <Knapp href="/foresporsel/" data-apne-foresporsel>
+              Fortell oss ideen din
+            </Knapp>
+            <Knapp href="/produkter/" variant="sekundar">
+              Se utvalget
+            </Knapp>
+          </div>
+        </div>
       </div>
+    </section>
+  </Side>
+) : (
+  <Side
+    tittel="Skaperverksted"
+    beskrivelse="Skaperverksted er Designportens verksted i nettleseren. Bygg skilt, former og figurer i ekte millimeter, se dem i 3D og last ned filen eller bestill utskrift."
+  >
+    <section class="hub verksted-flate" data-mork aria-labelledby="hub-tittel">
+      <div class="hub-rutenett" aria-hidden="true"></div>
+      <div class="hub-innhold">
+        <div class="hub-topp">
+          <p class="etikett hub-etikett">Skaperverksted · {tilgjengelige} verktøy · mål i mm</p>
+          <h1 id="hub-tittel">Fra idé til ferdig fil</h1>
+          <p class="hub-ingress">
+            Her bygger du selv. Alt måles i ekte millimeter, du ser resultatet i 3D mens du jobber, og det du
+            lager kan lastes ned som 3MF eller STL eller bestilles ferdig printet fra oss.
+          </p>
+        </div>
 
-      <ul class="hub-liste" role="list">
-        {verktoy.map((v) => (
-          <li>
-            <VerktoyKort verktoy={v} nivaa="h2" />
-          </li>
-        ))}
-      </ul>
-      <p class="hub-fotnote">
-        Tegningene viser startmodellen i hvert verktøy, på et rutenett med ruter på 10 mm.
-      </p>
-
-      <section class="hub-bunn" aria-labelledby="slik-tittel">
-        <h2 id="slik-tittel" class="hub-bunn__tittel">
-          Slik fungerer det
-        </h2>
-        <ol class="hub-steg">
-          {steg.map((s, i) => (
+        <ul class="hub-liste" role="list">
+          {verktoy.map((v) => (
             <li>
-              <span class="mono hub-nr">{String(i + 1).padStart(2, '0')}</span>
-              <span class="hub-steg__navn">{s.navn}</span>
-              <span class="hub-steg__tekst">{s.tekst}</span>
+              <VerktoyKort verktoy={v} nivaa="h2" />
             </li>
           ))}
-        </ol>
-        <p class="hub-spes">
-          Har du en idé som ikke passer i et verktøy?{' '}
-          <a href="/foresporsel/" data-apne-foresporsel>
-            Fortell oss om den
-          </a>
-          .
+        </ul>
+        <p class="hub-fotnote">
+          Tegningene viser startmodellen i hvert verktøy, på et rutenett med ruter på 10 mm.
         </p>
-      </section>
-    </div>
-  </section>
-</Side>
+
+        <section class="hub-bunn" aria-labelledby="slik-tittel">
+          <h2 id="slik-tittel" class="hub-bunn__tittel">
+            Slik fungerer det
+          </h2>
+          <ol class="hub-steg">
+            {steg.map((s, i) => (
+              <li>
+                <span class="mono hub-nr">{String(i + 1).padStart(2, '0')}</span>
+                <span class="hub-steg__navn">{s.navn}</span>
+                <span class="hub-steg__tekst">{s.tekst}</span>
+              </li>
+            ))}
+          </ol>
+          <p class="hub-spes">
+            Har du en idé som ikke passer i et verktøy?{' '}
+            <a href="/foresporsel/" data-apne-foresporsel>
+              Fortell oss om den
+            </a>
+            .
+          </p>
+        </section>
+      </div>
+    </section>
+  </Side>
+)}
 
 <style>
   .hub {
@@ -96,6 +125,13 @@ const steg = [
     display: grid;
     gap: var(--r-4);
     padding: var(--r-8) 0 var(--r-6);
+  }
+
+  .hub-handlinger {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--r-3);
+    padding-top: var(--r-2);
   }
 
   .hub-etikett {

@@ -24,6 +24,7 @@ import { hvorforIkkeKort, type Kassestatus, type Kassesvar } from '@/lib/handel/
 import { aktivLeverandor } from '@/lib/handel/leverandor';
 import type { ProduktVisning } from '@/lib/handel/visning';
 import { hentDesign } from '@/skaperverksted/core/lagring';
+import { skaperverkstedApent } from '@/lib/flagg';
 import './handlekurv.css';
 
 interface Props {
@@ -184,10 +185,14 @@ export default function Handlekurv({ produkter }: Props) {
     return (
       <section class="kurv__tom">
         <h2>Handlekurven er tom.</h2>
-        <p>Finn noe blant produktene, eller lag noe eget i Skaperverksted.</p>
+        <p>
+          {skaperverkstedApent
+            ? 'Finn noe blant produktene, eller lag noe eget i Skaperverksted.'
+            : 'Finn noe blant produktene.'}
+        </p>
         <p class="kurv__tom-lenker">
           <a href="/produkter/">Se produktene</a>
-          <a href="/skaperverksted/">Gå til Skaperverksted</a>
+          {skaperverkstedApent && <a href="/skaperverksted/">Gå til Skaperverksted</a>}
         </p>
       </section>
     );

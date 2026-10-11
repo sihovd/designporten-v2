@@ -15,6 +15,11 @@ import { fileURLToPath } from 'node:url';
  */
 const maal = process.env.DP_MAAL === 'php' ? 'php' : 'node';
 
+/** Forge tools published? Off on one.com until opened (src/lib/flagg.ts). */
+const skaperverksted = process.env.DP_SKAPERVERKSTED
+  ? process.env.DP_SKAPERVERKSTED === 'pa'
+  : maal === 'node';
+
 /** @returns {import('astro').AstroIntegration} */
 function serverruter() {
   return {
@@ -76,5 +81,6 @@ export default defineConfig({
   prefetch: { prefetchAll: false, defaultStrategy: 'hover' },
   vite: {
     worker: { format: 'es' },
+    define: { __DP_SKAPERVERKSTED__: JSON.stringify(skaperverksted) },
   },
 });

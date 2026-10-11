@@ -19,6 +19,7 @@ export const getStaticPaths = (() => [
 ]) satisfies GetStaticPaths;
 
 const type = Astro.params.type === 'kontakt' ? 'kontakt' : 'ide';
+import { skaperverkstedApent } from '@/lib/flagg';
 ---
 
 <Side tittel="Sendt" beskrivelse="Kvittering for skjema sendt til Designporten." ikkeIndekser>
@@ -26,7 +27,12 @@ const type = Astro.params.type === 'kontakt' ? 'kontakt' : 'ide';
     <h1 class="visuelt-skjult">Sendt</h1>
     <Kvittering type={type} referanse="DP-00000000-X" />
     <p class="kv__videre">
-      <a href="/">Til forsiden</a> · <a href="/skaperverksted/">Skaperverksted</a> ·{' '}
+      <a href="/">Til forsiden</a> ·{' '}
+      {skaperverkstedApent && (
+        <>
+          <a href="/skaperverksted/">Skaperverksted</a> ·{' '}
+        </>
+      )}
       <a href="/produkter/">Produkter</a>
     </p>
   </section>

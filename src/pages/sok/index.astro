@@ -1,6 +1,7 @@
 ---
 import Side from '@/layouts/Side.astro';
 import Ikon from '@/components/Ikon.astro';
+import { skaperverkstedApent } from '@/lib/flagg';
 ---
 
 <Side tittel="Søk" beskrivelse="Søk etter produkter, materialer, verktøy og inspirasjon hos Designporten.">
@@ -32,8 +33,12 @@ import Ikon from '@/components/Ikon.astro';
     <noscript>
       <p class="sok__uten-js">
         Søket trenger JavaScript. Du finner alt via menyen: <a href="/produkter/">Vårt utvalg</a>,
-        <a href="/skaperverksted/">Skaperverksted</a>, <a href="/spesialdesign/">Spesialdesign</a>,
-        <a href="/inspirasjon/">Inspirasjon</a>.
+        {skaperverkstedApent && (
+          <>
+            <a href="/skaperverksted/">Skaperverksted</a>,{' '}
+          </>
+        )}
+        <a href="/spesialdesign/">Spesialdesign</a>,<a href="/inspirasjon/">Inspirasjon</a>.
       </p>
     </noscript>
   </section>

@@ -26,6 +26,7 @@ interface Props {
 const { produkt: p, nivaa = 'h3', lasting = 'lazy' } = Astro.props;
 const Overskrift = nivaa;
 const mal = formaterMal(p.mal);
+import { skaperverkstedApent } from '@/lib/flagg';
 ---
 
 <article
@@ -47,7 +48,9 @@ const mal = formaterMal(p.mal);
         />
       )}
       {p.egenTekst && <span class="produktkort__tag mono">Egen tekst</span>}
-      {!p.egenTekst && p.generator && <span class="produktkort__tag mono">Lag i Skaperverksted</span>}
+      {skaperverkstedApent && !p.egenTekst && p.generator && (
+        <span class="produktkort__tag mono">Lag i Skaperverksted</span>
+      )}
     </span>
     <span class="produktkort__tekst">
       <Overskrift class="produktkort__navn">{p.navn}</Overskrift>

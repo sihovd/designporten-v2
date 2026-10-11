@@ -49,6 +49,7 @@ const strukturert =
         },
       }
     : null;
+import { skaperverkstedApent } from '@/lib/flagg';
 ---
 
 <Side tittel={p.navn} beskrivelse={p.kortBeskrivelse} delingsbilde={p.bilde.src} ikkeIndekser={plassholder}>
@@ -112,7 +113,7 @@ const strukturert =
 
         <ProduktValg client:visible produkt={p} />
 
-        {p.generator && (
+        {skaperverkstedApent && p.generator && (
           <a class="produktside__generator" href={`/skaperverksted/${p.generator}/`}>
             Tilpass i Skaperverksted
           </a>
