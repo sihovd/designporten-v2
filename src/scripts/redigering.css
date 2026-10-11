@@ -1,0 +1,148 @@
+/* Inline editing (redigeringsverktoy.ts): toolbar and editable texts. Loaded only for a signed-in editor. */
+
+.dp-har-redigering body {
+  padding-bottom: 5.5rem;
+}
+
+.dp-red {
+  position: fixed;
+  left: var(--r-4);
+  bottom: var(--r-4);
+  z-index: var(--z-varsel);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--r-2) var(--r-3);
+  max-width: min(56rem, calc(100vw - 2 * var(--r-4)));
+  padding: var(--r-2) var(--r-2) var(--r-2) var(--r-4);
+  border: 1px solid var(--linje-mork);
+  border-radius: var(--radius-kort);
+  background: var(--grafitt);
+  color: var(--tekst-mork);
+  box-shadow: var(--skygge-flyt);
+  font-family: var(--font-tekst);
+  font-size: var(--fs-liten);
+}
+
+.dp-red__merke {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-liten);
+  letter-spacing: var(--sporing-mono);
+  text-transform: uppercase;
+  color: var(--dempet-mork);
+}
+
+.dp-red__status {
+  flex: 1 1 auto;
+  margin: 0;
+  min-width: 0;
+}
+
+.dp-red__status:empty {
+  display: none;
+}
+
+.dp-red__knapp {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--r-4);
+  border: 1px solid var(--linje-mork);
+  border-radius: var(--radius-pille);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dp-red__knapp:hover {
+  border-color: var(--dempet-mork);
+}
+
+.dp-red__knapp:focus-visible {
+  outline: 2px solid var(--dp-lilla-lys);
+  outline-offset: 2px;
+}
+
+.dp-red__knapp--primar {
+  border-color: var(--dp-lilla);
+  background: var(--dp-lilla);
+  color: #fff;
+}
+
+.dp-red__knapp--primar:hover {
+  border-color: var(--dp-lilla-mork);
+  background: var(--dp-lilla-mork);
+}
+
+.dp-red__knapp--lenke {
+  border-color: transparent;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dp-red__knapp:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dp-red__knapp[hidden] {
+  display: none;
+}
+
+/* Editable texts */
+.dp-redigerer [data-rediger] {
+  outline: 1px dashed color-mix(in srgb, var(--dp-lilla) 70%, transparent);
+  outline-offset: 3px;
+  border-radius: 2px;
+  cursor: text;
+}
+
+.dp-redigerer [data-rediger]:hover {
+  outline-style: solid;
+}
+
+.dp-redigerer [data-rediger]:focus {
+  outline: 2px solid var(--dp-lilla);
+  background: color-mix(in srgb, var(--dp-lilla) 6%, transparent);
+}
+
+[data-rediger][data-endret] {
+  outline: 2px solid var(--dp-cyan) !important;
+  outline-offset: 3px;
+}
+
+[data-rediger][data-tom],
+[data-rediger][data-konflikt] {
+  outline: 2px solid var(--feil) !important;
+  outline-offset: 3px;
+}
+
+[data-rediger][data-tom]::before {
+  content: 'Tom tekst';
+  color: var(--feil);
+  font-size: var(--fs-liten);
+}
+
+@media (max-width: 600px) {
+  .dp-red {
+    left: var(--r-2);
+    right: var(--r-2);
+    bottom: var(--r-2);
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dp-redigerer [data-rediger] {
+    transition: outline-color 0.15s ease;
+  }
+}
+
+/* Texts on a filled purple button: a light outline so it shows. */
+.dp-redigerer .knapp--primar [data-rediger] {
+  outline-color: rgb(255 255 255 / 0.85);
+}

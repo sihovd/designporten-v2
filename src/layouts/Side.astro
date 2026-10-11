@@ -72,8 +72,10 @@ const bilde = new URL(delingsbilde ?? standardDelingsbilde.src, Astro.site).href
     <script>
       import { startAvsloringer } from '@/scripts/avslor';
       import { startRulling } from '@/scripts/rulle';
+      import { startRedigering } from '@/scripts/redigering';
       startAvsloringer();
       startRulling();
+      startRedigering();
     </script>
   </body>
 </html>

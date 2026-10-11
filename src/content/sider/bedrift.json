@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "tittel": "For bedrifter",
+    "beskrivelse": "Designporten er en partner for prototype og produksjon: prototyper, småserier, produktutvikling, grafisk design og profilering med 3D-print."
+  },
+  "helt": {
+    "etikett": "For bedrifter",
+    "tittel": "En partner for prototype og produksjon",
+    "ingress": "Prototyper, småserier, profilering og deler som ikke finnes. Vi tegner, printer og følger opp, fra første skisse til ferdig serie.",
+    "knapp1": "Fortell oss hva dere trenger"
+  },
+  "tjenester": {
+    "etikett": "Tjenester",
+    "tittel": "Det vi gjør for bedrifter",
+    "sendEtikett": "Send oss",
+    "liste": [
+      {
+        "navn": "Prototyper",
+        "tekst": "En fysisk versjon av produktet før dere bestemmer dere. Holde i, måle, teste passform og vise fram.",
+        "send": "Skisse, tegning eller 3D-fil, og hva prototypen skal svare på."
+      },
+      {
+        "navn": "Småserier",
+        "tekst": "Små opplag uten verktøy- og formkostnader. Samme fil gir samme del hver gang.",
+        "send": "Filen eller en godkjent prototype, antall og materiale."
+      },
+      {
+        "navn": "Produktutvikling",
+        "tekst": "Fra problem til produkt: vi tegner, printer, justerer og printer på nytt til delen gjør jobben.",
+        "send": "Problemet, målene og bilder av der delen skal brukes."
+      },
+      {
+        "navn": "Grafisk design",
+        "tekst": "Logo, skilt og grafikk tegnet slik at det faktisk kan produseres, i riktig format for print og 3D.",
+        "send": "Det dere har av logo, farger og tekst."
+      },
+      {
+        "navn": "Profilering",
+        "tekst": "Logoen i 3D, skilt til kontoret og ting med navnet på som dere kan gi bort eller bruke selv.",
+        "send": "Logo som vektorfil (SVG eller PDF) hvis dere har den, og antall."
+      },
+      {
+        "navn": "Idépartner",
+        "tekst": "Har dere et behov, men ikke en løsning? Vi tenker høyt sammen med dere og foreslår hva som kan lages.",
+        "send": "Noen setninger om hva som skal løses."
+      }
+    ]
+  },
+  "avslutning": {
+    "tittel": "Fortell oss hva dere trenger",
+    "tekst": "En setning holder for å begynne. Legg ved det dere har av skisser, filer og mål.",
+    "knapp": "Start forespørselen"
+  }
+}

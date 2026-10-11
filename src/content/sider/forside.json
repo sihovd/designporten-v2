@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "tittel": "Designporten",
+    "beskrivelse": "Designporten er et norsk verksted for 3D-print, spesialdesign og personlige produkter. Finn noe ferdig, lag noe selv i Skaperverksted, eller fortell oss ideen din."
+  },
+  "helt": {
+    "etikett": "3D-design og print",
+    "tittel": "Vi gir ideer form",
+    "ingress": "Ferdige produkter, verktøy du kan bygge med selv, og spesialdesign når det du trenger ikke finnes ennå.",
+    "knapp1": "Start å skape",
+    "knapp2": "Fortell oss ideen din"
+  },
+  "populaere": {
+    "etikett": "Vårt utvalg",
+    "tittel": "Populære produkter",
+    "lenke": "Se utvalget"
+  },
+  "snarveier": [
+    {
+      "etikett": "Finn noe",
+      "tittel": "Ferdige produkter",
+      "tekst": "Designet og printet hos oss, klare til å bestille."
+    },
+    {
+      "etikett": "Lag noe",
+      "tittel": "Skaperverksted",
+      "tekst": "Bygg ditt eget skilt, din egen form eller drage."
+    },
+    {
+      "etikett": "Har du en idé?",
+      "tittel": "Fortell oss om den",
+      "tekst": "En skisse eller et par setninger holder."
+    }
+  ],
+  "prosess": {
+    "etikett": "Prosessen",
+    "tittel": "Slik blir en idé til et ferdig produkt"
+  },
+  "portal": {
+    "etikett": "Skaperverksted",
+    "tittel": "Lag det selv, i ekte millimeter",
+    "ingress": "Bygg i nettleseren, se modellen i 3D mens du jobber, og last ned filen eller bestill den printet fra oss.",
+    "knapp": "Start å skape"
+  }
+}

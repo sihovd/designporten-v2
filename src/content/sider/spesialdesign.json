@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "tittel": "Spesialdesign",
+    "beskrivelse": "Har du tegningen, bildet eller bare ideen? Designporten hjelper deg å gjøre den fysisk: fra skisse, bilde, 3D-fil eller ødelagt del til ferdig 3D-printet produkt."
+  },
+  "helt": {
+    "etikett": "Spesialdesign",
+    "tittel": "Har du tegningen, bildet eller bare ideen?",
+    "ingress": "Vi hjelper deg å gjøre den fysisk. Du trenger ikke ha en ferdig modell. Start med ideen."
+  },
+  "innganger": {
+    "tittel": "Hvem er du?",
+    "privat": {
+      "etikett": "Privatkunde",
+      "tittel": "Noe du vil ha laget",
+      "tekst": "En reservedel, en gave, en ting som mangler hjemme. Du trenger ikke ha en ferdig modell; en skisse, et bilde eller et par setninger holder.",
+      "knapp": "Start som privatkunde"
+    },
+    "bedrift": {
+      "etikett": "Bedriftskunde",
+      "tittel": "Prototyper, småserier og profilering",
+      "tekst": "For bedrifter og organisasjoner. Fortell oss om prosjektet, antallet og kravene, så finner vi ut av resten sammen.",
+      "knapp": "Start som bedrift"
+    },
+    "merknad": "Pris og tid avhenger av størrelse, materiale, antall og hvor mye som må tegnes. Derfor regner vi på hver forespørsel."
+  },
+  "prosess": {
+    "etikett": "Prosessen",
+    "tittel": "Fra idé til ferdig produkt"
+  }
+}
