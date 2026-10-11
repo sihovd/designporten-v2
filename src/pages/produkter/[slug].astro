@@ -23,6 +23,9 @@ export const getStaticPaths = (async () => {
 const { produkt: p, alle } = Astro.props as { produkt: ProduktVisning; alle: ProduktVisning[] };
 const oppforing = await getEntry('produkter', p.id);
 const avsnitt = (oppforing?.data.beskrivelse ?? p.kortBeskrivelse).split(/\n\s*\n/).filter(Boolean);
+// Inline editing (src/scripts/redigering.ts) saves straight to the product's own file.
+const fil = `produkter/data/${p.id}`;
+const beskrivelseFelt = oppforing?.data.beskrivelse ? 'beskrivelse' : 'kortBeskrivelse';
 const mal = formaterMal(p.mal);
 const plassholder = p.status === 'plassholder';
 
@@ -80,14 +83,20 @@ const strukturert =
 
       <div class="produktside__tekst">
         <p class="produktside__kategori mono">{p.kategoriNavn}</p>
-        <h1 class="produktside__tittel">{p.navn}</h1>
+        <h1 class="produktside__tittel" data-rediger={`${fil}#navn`}>
+          {p.navn}
+        </h1>
         {plassholder && (
           <p class="produktside__plassholder">
             <strong>Plassholder.</strong> Produktet og bildet viser retningen, men modell, mål og pris er ikke
             fastsatt ennå. Du kan likevel sende en uforpliktende forespørsel.
           </p>
         )}
-        <div class="produktside__beskrivelse">
+        <div
+          class="produktside__beskrivelse"
+          data-rediger={`${fil}#${beskrivelseFelt}`}
+          data-rediger-type="avsnitt"
+        >
           {avsnitt.map((a) => (
             <p>{a}</p>
           ))}

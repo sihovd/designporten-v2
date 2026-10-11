@@ -8,3 +8,5 @@ public/
 test-results/
 playwright-report/
 *.md
+# Written by the content editor (/admin and inline editing on the pages), in its own JSON style.
+src/content/**/*.json

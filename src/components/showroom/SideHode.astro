@@ -7,22 +7,34 @@
  * draws across the full width underneath and becomes the first line of the
  * page.
  */
+import { redigerbar } from '@/lib/sidetekster';
+
 interface Props {
   eyebrow: string;
   tittel: string;
   ingress?: string;
   id?: string;
+  /** Page-text address (sidetekst().kilde) that makes etikett, tittel and ingress editable inline. */
+  kilde?: string;
 }
 
-const { eyebrow, tittel, ingress, id } = Astro.props;
+const { eyebrow, tittel, ingress, id, kilde } = Astro.props;
 const harVisuell = Astro.slots.has('visuell');
 ---
 
 <header class:list={['sidehode', { 'sidehode--visuell': harVisuell }]}>
   <div class="sidehode__tekst">
-    <p class="etikett sidehode__eyebrow">{eyebrow}</p>
-    <h1 id={id}>{tittel}</h1>
-    {ingress && <p class="ingress sidehode__ingress">{ingress}</p>}
+    <p class="etikett sidehode__eyebrow" {...redigerbar(kilde, 'etikett')}>
+      {eyebrow}
+    </p>
+    <h1 id={id} {...redigerbar(kilde, 'tittel')}>
+      {tittel}
+    </h1>
+    {ingress && (
+      <p class="ingress sidehode__ingress" {...redigerbar(kilde, 'ingress')}>
+        {ingress}
+      </p>
+    )}
     <slot />
   </div>
   {harVisuell && (

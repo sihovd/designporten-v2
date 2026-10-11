@@ -3,16 +3,20 @@ import Side from '@/layouts/Side.astro';
 import SideHode from '@/components/showroom/SideHode.astro';
 import Foresporsel from '@/components/showroom/skjema/Foresporsel.astro';
 import { kontakt } from '@/lib/kontakt';
+import { sidetekst } from '@/lib/sidetekster';
 
 // Contact details, opening hours and FAQ appear only when Sivert confirms them (src/lib/kontakt.ts).
+const t = sidetekst('kontakt');
 const harDetaljer = Boolean(kontakt.epost || kontakt.telefon || kontakt.apningstider);
 ---
 
-<Side
-  tittel="Kontakt"
-  beskrivelse="Kontakt Designporten. Skriv hva det gjelder, så svarer vi på e-post. Har du noe du vil ha laget, bruk forespørselsskjemaet."
->
-  <SideHode eyebrow="Kontakt" tittel="Skriv hva det gjelder" ingress="Vi svarer på e-post." />
+<Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
+  <SideHode
+    eyebrow={t('helt.etikett')}
+    tittel={t('helt.tittel')}
+    ingress={t('helt.ingress')}
+    kilde={t.kilde('helt')}
+  />
 
   <section class="ramme kontakt" aria-label="Kontaktskjema og kontaktinformasjon">
     <div class="kontakt__skjema">
@@ -20,10 +24,12 @@ const harDetaljer = Boolean(kontakt.epost || kontakt.telefon || kontakt.apningst
     </div>
     <aside class="kontakt__side" aria-label="Andre måter">
       <div class="kontakt__boks">
-        <p class="etikett">Vil du ha noe laget?</p>
-        <p>Forespørselsskjemaet tar imot bilder, mål og filer, for både privatpersoner og bedrifter.</p>
+        <p class="etikett" {...t.r('skjema.etikett')}>
+          {t('skjema.etikett')}
+        </p>
+        <p {...t.r('skjema.tekst')}>{t('skjema.tekst')}</p>
         <a href="/foresporsel/" data-apne-foresporsel>
-          Åpne forespørselsskjemaet
+          <span {...t.r('skjema.lenke')}>{t('skjema.lenke')}</span>
         </a>
       </div>
       {harDetaljer && (

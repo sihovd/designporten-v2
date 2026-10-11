@@ -9,6 +9,9 @@
 import Ikon from '@/components/Ikon.astro';
 import ProduktRutenett from '@/components/produkt/ProduktRutenett.astro';
 import { hentProdukter } from '@/lib/handel/katalog';
+import { sidetekst } from '@/lib/sidetekster';
+
+const t = sidetekst('forside');
 
 const alle = await hentProdukter();
 const bekreftede = alle.filter((p) => p.status === 'bekreftet');
@@ -20,16 +23,19 @@ const bareplassholdere = utvalg.every((p) => p.status === 'plassholder');
   <section class="populaere" aria-labelledby="populaere-tittel">
     <div class="ramme populaere__hode">
       <div>
-        <p class="etikett">Vårt utvalg</p>
-        <h2 id="populaere-tittel" class="populaere__tittel">
-          Populære produkter
+        <p class="etikett" {...t.r('populaere.etikett')}>
+          {t('populaere.etikett')}
+        </p>
+        <h2 id="populaere-tittel" class="populaere__tittel" {...t.r('populaere.tittel')}>
+          {t('populaere.tittel')}
         </h2>
       </div>
       <a class="populaere__alle" href="/produkter/">
-        Se utvalget <Ikon navn="pil-hoyre" storrelse={18} />
+        <span {...t.r('populaere.lenke')}>{t('populaere.lenke')}</span>{' '}
+        <Ikon navn="pil-hoyre" storrelse={18} />
       </a>
     </div>
-    <ProduktRutenett produkter={utvalg} nivaa="h3" etikett="Populære produkter" class="populaere__kort" />
+    <ProduktRutenett produkter={utvalg} nivaa="h3" etikett={t('populaere.tittel')} class="populaere__kort" />
     {bareplassholdere && (
       <p class="ramme populaere__merknad">
         Produktene er plassholdere med konseptbilder til det ekte utvalget er klart.
