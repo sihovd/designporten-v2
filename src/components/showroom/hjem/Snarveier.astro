@@ -8,43 +8,38 @@
 import Ikon from '@/components/Ikon.astro';
 import Konseptbilde from '@/components/Konseptbilde.astro';
 import { utklippbilder, type Bilde } from '@/lib/ressurser';
+import { sidetekst } from '@/lib/sidetekster';
 import { skaperverkstedApent } from '@/lib/flagg';
 
+const t = sidetekst('forside');
+
 interface Snarvei {
-  etikett: string;
-  tittel: string;
-  tekst: string;
+  /** Index of its texts in the page texts (forside.snarveier). */
+  nr: number;
   href: string;
   bilde: Bilde;
   skjema?: boolean;
 }
 
-const alle: Snarvei[] = [
+const alle: Omit<Snarvei, 'nr'>[] = [
   {
-    etikett: 'Finn noe',
-    tittel: 'Ferdige produkter',
-    tekst: 'Designet og printet hos oss, klare til å bestille.',
     href: '/produkter/',
     bilde: utklippbilder.fasettpotte,
   },
   {
-    etikett: 'Lag noe',
-    tittel: 'Skaperverksted',
-    tekst: 'Bygg ditt eget skilt, din egen form eller drage.',
     href: '/skaperverksted/',
     bilde: utklippbilder.nokkelring,
   },
   {
-    etikett: 'Har du en idé?',
-    tittel: 'Fortell oss om den',
-    tekst: 'En skisse eller et par setninger holder.',
     href: '/foresporsel/',
     bilde: utklippbilder.kabelholder,
     skjema: true,
   },
 ];
 
-const snarveier = alle.filter((s) => skaperverkstedApent || s.href !== '/skaperverksted/');
+const snarveier: Snarvei[] = alle
+  .map((s, nr) => ({ ...s, nr }))
+  .filter((s) => skaperverkstedApent || s.href !== '/skaperverksted/');
 ---
 
 <section class="snarveier ramme" aria-labelledby="snarveier-tittel">
@@ -52,19 +47,23 @@ const snarveier = alle.filter((s) => skaperverkstedApent || s.href !== '/skaperv
     Kom i gang
   </h2>
   <ul class="snarveier__liste" role="list" style={`--antall: ${snarveier.length}`}>
-    {snarveier.map((s) => (
+    {snarveier.map(({ nr: i, ...s }) => (
       <li class="snarvei">
         <span class="snarvei__bilde">
           <Konseptbilde bilde={s.bilde} sizes="96px" merke={false} />
         </span>
         <span class="snarvei__tekst">
-          <span class="etikett">{s.etikett}</span>
+          <span class="etikett" {...t.r(`snarveier.${i}.etikett`)}>
+            {t(`snarveier.${i}.etikett`)}
+          </span>
           <h3 class="snarvei__tittel">
             <a href={s.href} data-apne-foresporsel={s.skjema ? '' : undefined}>
-              {s.tittel}
+              <span {...t.r(`snarveier.${i}.tittel`)}>{t(`snarveier.${i}.tittel`)}</span>
             </a>
           </h3>
-          <span class="snarvei__linje">{s.tekst}</span>
+          <span class="snarvei__linje" {...t.r(`snarveier.${i}.tekst`)}>
+            {t(`snarveier.${i}.tekst`)}
+          </span>
         </span>
         <span class="snarvei__pil" aria-hidden="true">
           <Ikon navn="pil-hoyre" storrelse={18} />

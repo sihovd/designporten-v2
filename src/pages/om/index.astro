@@ -3,55 +3,43 @@ import Side from '@/layouts/Side.astro';
 import Knapp from '@/components/Knapp.astro';
 import Konseptbilde from '@/components/Konseptbilde.astro';
 import { bakgrunner } from '@/lib/ressurser';
+import { sidetekst } from '@/lib/sidetekster';
+import { skaperverkstedApent } from '@/lib/flagg';
 
 /*
  * Om, rewritten around skaperglede (design revision 2026-10-02, §22). The
  * story builds on Sivert's own words in the brief. Facts (years, printers,
  * delivered projects) and the profile photo are added only when confirmed;
  * until then the photo is a marked placeholder and no fact tiles are shown.
+ * The words live in src/content/sider/om.json.
  */
-const alleLager = [
-  { navn: 'Ferdige produkter', tekst: 'Ting vi har tegnet og printet selv.' },
-  { navn: 'Spesialdesign', tekst: 'Fra idé, skisse, bilde eller ødelagt del.' },
-  { navn: 'Skaperverksted', tekst: 'Verktøy der du bygger noe eget i nettleseren.' },
-  { navn: 'For bedrifter', tekst: 'Prototyper, småserier og profilering.' },
-];
-const lager = alleLager.filter((l) => skaperverkstedApent || l.navn !== 'Skaperverksted');
-import { skaperverkstedApent } from '@/lib/flagg';
+const t = sidetekst('om');
+const historie = Array.from({ length: t.antall('historie') }, (_, i) => `historie.${i}.tekst`);
+const lager = Array.from({ length: t.antall('lager.punkter') }, (_, i) => `lager.punkter.${i}`).filter(
+  (l) => skaperverkstedApent || t(`${l}.navn`) !== 'Skaperverksted',
+);
 ---
 
-<Side
-  tittel="Om Designporten"
-  beskrivelse="Designporten handler om skaperglede: å lage noe som bare er ditt, med dagens teknologi. Et verksted for 3D-design og print."
->
+<Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
   <section class="ramme om-topp" aria-labelledby="om-tittel">
-    <p class="etikett">Om Designporten</p>
-    <h1 id="om-tittel">La oss lage noe sammen</h1>
-    <p class="om-topp__ingress">
-      Designporten handler om skaperglede: følelsen av å holde noe som er laget akkurat til deg, eller som du
-      har laget selv.
+    <p class="etikett" {...t.r('topp.etikett')}>
+      {t('topp.etikett')}
+    </p>
+    <h1 id="om-tittel" {...t.r('topp.tittel')}>
+      {t('topp.tittel')}
+    </h1>
+    <p class="om-topp__ingress" {...t.r('topp.ingress')}>
+      {t('topp.ingress')}
     </p>
   </section>
 
   <section class="ramme om-historie" aria-label="Historien">
     <div class="om-historie__tekst">
-      <p class="om-historie__stor">
-        Jeg husker følelsen av at pappa hadde sittet og laget noe spesielt til meg. Han jobbet med det utover
-        kvelden, og neste morgen våknet jeg spent, fordi det fantes noe som bare var mitt.
-      </p>
-      <p>
-        Den følelsen er grunnen til Designporten. Før måtte man være snekker, modellbygger eller
-        industridesigner for å lage noe helt eget. I dag gjør 3D-design og 3D-print terskelen mye lavere.
-      </p>
-      <p>
-        Et barn har en idé. En forelder hjelper til. Vi gjør den fysisk. Det kan være en leke, et skilt, en
-        figur eller en gave, og det ender med noe dere kan peke på og si: dette har vi laget.
-      </p>
-      <p>
-        Samtidig er Designporten et ordentlig verksted. Vi tegner i CAD, printer i materialer som tåler bruk,
-        kontrollerer mål og passform, og lager prototyper og småserier for bedrifter. Håndverk og teknologi,
-        med samme omtanke enten det gjelder én nøkkelring eller hundre deler.
-      </p>
+      {historie.map((sti, i) => (
+        <p class:list={{ 'om-historie__stor': i === 0 }} {...t.r(sti)}>
+          {t(sti)}
+        </p>
+      ))}
     </div>
     <figure class="om-historie__bilde">
       <Konseptbilde bilde={bakgrunner.samarbeid} sizes="(min-width: 900px) 40vw, 100vw" />
@@ -64,37 +52,41 @@ import { skaperverkstedApent } from '@/lib/flagg';
       <span class="om-profil__tekst">Profilbilde kommer</span>
     </div>
     <div class="om-profil__innhold">
-      <p class="etikett">Personen bak</p>
-      <h2 id="profil-tittel">Sivert</h2>
-      <p>
-        Hei, jeg er Sivert, og det er jeg som står bak Designporten. Jeg liker å finne ut hvordan ting kan
-        lages, og aller best liker jeg øyeblikket når en idé på papiret blir til noe man kan holde i hånda.
+      <p class="etikett" {...t.r('profil.etikett')}>
+        {t('profil.etikett')}
       </p>
-      <p>
-        Send meg gjerne en skisse, et bilde eller bare et par setninger. Du trenger ikke vite hvordan det skal
-        konstrueres; det finner vi ut av sammen.
-      </p>
+      <h2 id="profil-tittel" {...t.r('profil.tittel')}>
+        {t('profil.tittel')}
+      </h2>
+      <p {...t.r('profil.avsnitt1')}>{t('profil.avsnitt1')}</p>
+      <p {...t.r('profil.avsnitt2')}>{t('profil.avsnitt2')}</p>
       <div class="om-profil__handlinger">
         <Knapp href="/foresporsel/" data-apne-foresporsel>
-          Fortell meg ideen din
+          <span {...t.r('profil.knapp1')}>{t('profil.knapp1')}</span>
         </Knapp>
         <Knapp href="/kontakt/" variant="sekundar">
-          Kontakt
+          <span {...t.r('profil.knapp2')}>{t('profil.knapp2')}</span>
         </Knapp>
       </div>
     </div>
   </section>
 
   <section class="ramme seksjon" aria-labelledby="lager-tittel">
-    <p class="etikett">Verkstedet</p>
-    <h2 id="lager-tittel" class="lager__tittel">
-      Det vi lager
+    <p class="etikett" {...t.r('lager.etikett')}>
+      {t('lager.etikett')}
+    </p>
+    <h2 id="lager-tittel" class="lager__tittel" {...t.r('lager.tittel')}>
+      {t('lager.tittel')}
     </h2>
     <ul class="lager" role="list" style={`--antall: ${lager.length}`}>
       {lager.map((l) => (
         <li>
-          <span class="lager__navn">{l.navn}</span>
-          <span class="lager__tekst">{l.tekst}</span>
+          <span class="lager__navn" {...t.r(`${l}.navn`)}>
+            {t(`${l}.navn`)}
+          </span>
+          <span class="lager__tekst" {...t.r(`${l}.tekst`)}>
+            {t(`${l}.tekst`)}
+          </span>
         </li>
       ))}
     </ul>

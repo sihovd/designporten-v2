@@ -1,0 +1,16 @@
+{
+  "meta": {
+    "tittel": "Kontakt",
+    "beskrivelse": "Kontakt Designporten. Skriv hva det gjelder, så svarer vi på e-post. Har du noe du vil ha laget, bruk forespørselsskjemaet."
+  },
+  "helt": {
+    "etikett": "Kontakt",
+    "tittel": "Skriv hva det gjelder",
+    "ingress": "Vi svarer på e-post."
+  },
+  "skjema": {
+    "etikett": "Vil du ha noe laget?",
+    "tekst": "Forespørselsskjemaet tar imot bilder, mål og filer, for både privatpersoner og bedrifter.",
+    "lenke": "Åpne forespørselsskjemaet"
+  }
+}

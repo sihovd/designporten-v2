@@ -17,6 +17,7 @@
 import Konseptbilde from '@/components/Konseptbilde.astro';
 import VaseBygg, { type Byggtilstand } from '@/components/showroom/bygg/VaseBygg.astro';
 import { bakgrunner, type Bilde } from '@/lib/ressurser';
+import { redigerbar } from '@/lib/sidetekster';
 
 export type Prosessscene =
   /** The vase in one construction state. */
@@ -45,9 +46,11 @@ interface Props {
   takt?: number;
   /** Heading level of the section title. */
   niva?: 2 | 3;
+  /** Page-text address (sidetekst().kilde) that makes etikett and tittel editable inline. */
+  kilde?: string;
 }
 
-const { id, tittel, etikett = 'Prosessen', steg, takt = 55, niva = 2 } = Astro.props;
+const { id, tittel, etikett = 'Prosessen', steg, takt = 55, niva = 2, kilde } = Astro.props;
 const n = steg.length;
 const to = (i: number) => String(i).padStart(2, '0');
 const Overskrift = `h${niva}` as 'h2' | 'h3';
@@ -67,8 +70,10 @@ const punkt = (i: number) => (n > 1 ? (i / (n - 1)) * 100 : 0);
   style={`--n: ${n}; --takt: ${takt}svh`}
 >
   <div class="ramme prosess__hode avslor">
-    <p class="etikett">{etikett}</p>
-    <Overskrift id={`${id}-tittel`} class="prosess__tittel">
+    <p class="etikett" {...redigerbar(kilde, 'etikett')}>
+      {etikett}
+    </p>
+    <Overskrift id={`${id}-tittel`} class="prosess__tittel" {...redigerbar(kilde, 'tittel')}>
       {tittel}
     </Overskrift>
   </div>

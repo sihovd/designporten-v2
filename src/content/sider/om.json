@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "tittel": "Om Designporten",
+    "beskrivelse": "Designporten handler om skaperglede: å lage noe som bare er ditt, med dagens teknologi. Et verksted for 3D-design og print."
+  },
+  "topp": {
+    "etikett": "Om Designporten",
+    "tittel": "La oss lage noe sammen",
+    "ingress": "Designporten handler om skaperglede: følelsen av å holde noe som er laget akkurat til deg, eller som du har laget selv."
+  },
+  "historie": [
+    {
+      "tekst": "Jeg husker følelsen av at pappa hadde sittet og laget noe spesielt til meg. Han jobbet med det utover kvelden, og neste morgen våknet jeg spent, fordi det fantes noe som bare var mitt."
+    },
+    {
+      "tekst": "Den følelsen er grunnen til Designporten. Før måtte man være snekker, modellbygger eller industridesigner for å lage noe helt eget. I dag gjør 3D-design og 3D-print terskelen mye lavere."
+    },
+    {
+      "tekst": "Et barn har en idé. En forelder hjelper til. Vi gjør den fysisk. Det kan være en leke, et skilt, en figur eller en gave, og det ender med noe dere kan peke på og si: dette har vi laget."
+    },
+    {
+      "tekst": "Samtidig er Designporten et ordentlig verksted. Vi tegner i CAD, printer i materialer som tåler bruk, kontrollerer mål og passform, og lager prototyper og småserier for bedrifter. Håndverk og teknologi, med samme omtanke enten det gjelder én nøkkelring eller hundre deler."
+    }
+  ],
+  "profil": {
+    "etikett": "Personen bak",
+    "tittel": "Sivert",
+    "avsnitt1": "Hei, jeg er Sivert, og det er jeg som står bak Designporten. Jeg liker å finne ut hvordan ting kan lages, og aller best liker jeg øyeblikket når en idé på papiret blir til noe man kan holde i hånda.",
+    "avsnitt2": "Send meg gjerne en skisse, et bilde eller bare et par setninger. Du trenger ikke vite hvordan det skal konstrueres; det finner vi ut av sammen.",
+    "knapp1": "Fortell meg ideen din",
+    "knapp2": "Kontakt"
+  },
+  "lager": {
+    "etikett": "Verkstedet",
+    "tittel": "Det vi lager",
+    "punkter": [
+      { "navn": "Ferdige produkter", "tekst": "Ting vi har tegnet og printet selv." },
+      { "navn": "Spesialdesign", "tekst": "Fra idé, skisse, bilde eller ødelagt del." },
+      { "navn": "Skaperverksted", "tekst": "Verktøy der du bygger noe eget i nettleseren." },
+      { "navn": "For bedrifter", "tekst": "Prototyper, småserier og profilering." }
+    ]
+  }
+}

@@ -5,68 +5,68 @@ import Ikon from '@/components/Ikon.astro';
 import ProsessSlider from '@/components/showroom/ProsessSlider.astro';
 import { spesialprosess } from '@/components/showroom/data/prosess';
 import { bakgrunner } from '@/lib/ressurser';
+import { sidetekst } from '@/lib/sidetekster';
 
-const innganger = [
-  {
-    kundetype: 'privat',
-    etikett: 'Privatkunde',
-    tittel: 'Noe du vil ha laget',
-    tekst:
-      'En reservedel, en gave, en ting som mangler hjemme. Du trenger ikke ha en ferdig modell; en skisse, et bilde eller et par setninger holder.',
-    knapp: 'Start som privatkunde',
-  },
-  {
-    kundetype: 'bedrift',
-    etikett: 'Bedriftskunde',
-    tittel: 'Prototyper, småserier og profilering',
-    tekst:
-      'For bedrifter og organisasjoner. Fortell oss om prosjektet, antallet og kravene, så finner vi ut av resten sammen.',
-    knapp: 'Start som bedrift',
-  },
-];
+const t = sidetekst('spesialdesign');
+const innganger = (['privat', 'bedrift'] as const).map((kundetype) => ({
+  kundetype,
+  sti: `innganger.${kundetype}`,
+}));
 ---
 
-<Side
-  tittel="Spesialdesign"
-  beskrivelse="Har du tegningen, bildet eller bare ideen? Designporten hjelper deg å gjøre den fysisk: fra skisse, bilde, 3D-fil eller ødelagt del til ferdig 3D-printet produkt."
->
+<Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
   <link slot="hode" rel="preload" as="image" href={bakgrunner.samarbeid.src} fetchpriority="high" />
   <BildeHelt
     bilde={bakgrunner.samarbeid}
-    etikett="Spesialdesign"
-    tittel="Har du tegningen, bildet eller bare ideen?"
-    ingress="Vi hjelper deg å gjøre den fysisk. Du trenger ikke ha en ferdig modell. Start med ideen."
+    etikett={t('helt.etikett')}
+    tittel={t('helt.tittel')}
+    ingress={t('helt.ingress')}
+    kilde={t.kilde('helt')}
     fokus="68% 50%"
   />
 
   <section class="ramme innganger" aria-labelledby="innganger-tittel">
-    <h2 id="innganger-tittel" class="innganger__tittel">
-      Hvem er du?
+    <h2 id="innganger-tittel" class="innganger__tittel" {...t.r('innganger.tittel')}>
+      {t('innganger.tittel')}
     </h2>
     <ul class="innganger__liste" role="list">
       {innganger.map((g) => (
         <li class="inngang">
-          <p class="etikett">{g.etikett}</p>
-          <h3 class="inngang__tittel">{g.tittel}</h3>
-          <p class="inngang__tekst">{g.tekst}</p>
+          <p class="etikett" {...t.r(`${g.sti}.etikett`)}>
+            {t(`${g.sti}.etikett`)}
+          </p>
+          <h3 class="inngang__tittel" {...t.r(`${g.sti}.tittel`)}>
+            {t(`${g.sti}.tittel`)}
+          </h3>
+          <p class="inngang__tekst" {...t.r(`${g.sti}.tekst`)}>
+            {t(`${g.sti}.tekst`)}
+          </p>
           <a
             class="inngang__knapp"
             href={`/foresporsel/?kundetype=${g.kundetype}`}
             data-apne-foresporsel
             data-kundetype={g.kundetype}
           >
-            {g.knapp} <Ikon navn="pil-hoyre" storrelse={18} />
+            <span {...t.r(`${g.sti}.knapp`)}>{t(`${g.sti}.knapp`)}</span>{' '}
+            <Ikon navn="pil-hoyre" storrelse={18} />
           </a>
         </li>
       ))}
     </ul>
     <p class="innganger__merknad">
-      Pris og tid avhenger av størrelse, materiale, antall og hvor mye som må tegnes. Derfor regner vi på hver
-      forespørsel. Les mer <a href="/bedrift/">for bedrifter</a>.
+      <span {...t.r('innganger.merknad')}>{t('innganger.merknad')}</span> Les mer
+      <a href="/bedrift/">for bedrifter</a>.
     </p>
   </section>
 
-  <ProsessSlider id="tjenesteflyt" tittel="Fra idé til ferdig produkt" steg={spesialprosess} takt={38} />
+  <ProsessSlider
+    id="tjenesteflyt"
+    etikett={t('prosess.etikett')}
+    tittel={t('prosess.tittel')}
+    kilde={t.kilde('prosess')}
+    steg={spesialprosess}
+    takt={38}
+  />
   <div class="slutt" aria-hidden="true"></div>
 </Side>
 

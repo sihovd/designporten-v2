@@ -4,80 +4,55 @@ import BildeHelt from '@/components/showroom/BildeHelt.astro';
 import Knapp from '@/components/Knapp.astro';
 import { kontakt } from '@/lib/kontakt';
 import { bakgrunner } from '@/lib/ressurser';
+import { sidetekst } from '@/lib/sidetekster';
 
 /*
  * Services from the brief (information-architecture.md#for-bedrifter).
  * Each service will show a real Inspirasjon case when one exists; none is
  * confirmed yet, so no examples are shown. 3D scanning, office signs via CSV
- * batch and other capabilities stay out until confirmed or built.
+ * batch and other capabilities stay out until confirmed or built. The words
+ * live in src/content/sider/bedrift.json.
  */
-const tjenester = [
-  {
-    navn: 'Prototyper',
-    tekst:
-      'En fysisk versjon av produktet før dere bestemmer dere. Holde i, måle, teste passform og vise fram.',
-    send: 'Skisse, tegning eller 3D-fil, og hva prototypen skal svare på.',
-  },
-  {
-    navn: 'Småserier',
-    tekst: 'Små opplag uten verktøy- og formkostnader. Samme fil gir samme del hver gang.',
-    send: 'Filen eller en godkjent prototype, antall og materiale.',
-  },
-  {
-    navn: 'Produktutvikling',
-    tekst: 'Fra problem til produkt: vi tegner, printer, justerer og printer på nytt til delen gjør jobben.',
-    send: 'Problemet, målene og bilder av der delen skal brukes.',
-  },
-  {
-    navn: 'Grafisk design',
-    tekst:
-      'Logo, skilt og grafikk tegnet slik at det faktisk kan produseres, i riktig format for print og 3D.',
-    send: 'Det dere har av logo, farger og tekst.',
-  },
-  {
-    navn: 'Profilering',
-    tekst: 'Logoen i 3D, skilt til kontoret og ting med navnet på som dere kan gi bort eller bruke selv.',
-    send: 'Logo som vektorfil (SVG eller PDF) hvis dere har den, og antall.',
-  },
-  {
-    navn: 'Idépartner',
-    tekst:
-      'Har dere et behov, men ikke en løsning? Vi tenker høyt sammen med dere og foreslår hva som kan lages.',
-    send: 'Noen setninger om hva som skal løses.',
-  },
-];
+const t = sidetekst('bedrift');
+const tjenester = Array.from({ length: t.antall('tjenester.liste') }, (_, i) => `tjenester.liste.${i}`);
 ---
 
-<Side
-  tittel="For bedrifter"
-  beskrivelse="Designporten er en partner for prototype og produksjon: prototyper, småserier, produktutvikling, grafisk design og profilering med 3D-print."
->
+<Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
   <link slot="hode" rel="preload" as="image" href={bakgrunner.verksted.src} fetchpriority="high" />
   <BildeHelt
     bilde={bakgrunner.verksted}
-    etikett="For bedrifter"
-    tittel="En partner for prototype og produksjon"
-    ingress="Prototyper, småserier, profilering og deler som ikke finnes. Vi tegner, printer og følger opp, fra første skisse til ferdig serie."
+    etikett={t('helt.etikett')}
+    tittel={t('helt.tittel')}
+    ingress={t('helt.ingress')}
+    kilde={t.kilde('helt')}
     fokus="62% 45%"
   >
     <Knapp href="/foresporsel/?kundetype=bedrift" data-apne-foresporsel data-kundetype="bedrift">
-      Fortell oss hva dere trenger
+      <span {...t.r('helt.knapp1')}>{t('helt.knapp1')}</span>
     </Knapp>
   </BildeHelt>
 
   <section class="ramme seksjon" aria-labelledby="tjenester-tittel">
-    <p class="etikett">Tjenester</p>
-    <h2 id="tjenester-tittel" class="tjenester__tittel">
-      Det vi gjør for bedrifter
+    <p class="etikett" {...t.r('tjenester.etikett')}>
+      {t('tjenester.etikett')}
+    </p>
+    <h2 id="tjenester-tittel" class="tjenester__tittel" {...t.r('tjenester.tittel')}>
+      {t('tjenester.tittel')}
     </h2>
     <ul class="tjenester" role="list">
-      {tjenester.map((t) => (
+      {tjenester.map((j) => (
         <li class="tjeneste">
-          <h3 class="tjeneste__navn">{t.navn}</h3>
-          <p class="tjeneste__tekst">{t.tekst}</p>
+          <h3 class="tjeneste__navn" {...t.r(`${j}.navn`)}>
+            {t(`${j}.navn`)}
+          </h3>
+          <p class="tjeneste__tekst" {...t.r(`${j}.tekst`)}>
+            {t(`${j}.tekst`)}
+          </p>
           <p class="tjeneste__send">
-            <span class="etikett">Send oss</span>
-            {t.send}
+            <span class="etikett" {...t.r('tjenester.sendEtikett')}>
+              {t('tjenester.sendEtikett')}
+            </span>
+            <span {...t.r(`${j}.send`)}>{t(`${j}.send`)}</span>
           </p>
         </li>
       ))}
@@ -87,9 +62,11 @@ const tjenester = [
   <section class="avslutning" aria-labelledby="avslutning-tittel">
     <div class="ramme avslutning__innhold">
       <div>
-        <h2 id="avslutning-tittel">Fortell oss hva dere trenger</h2>
-        <p class="avslutning__tekst">
-          En setning holder for å begynne. Legg ved det dere har av skisser, filer og mål.
+        <h2 id="avslutning-tittel" {...t.r('avslutning.tittel')}>
+          {t('avslutning.tittel')}
+        </h2>
+        <p class="avslutning__tekst" {...t.r('avslutning.tekst')}>
+          {t('avslutning.tekst')}
         </p>
         {(kontakt.epost || kontakt.telefon) && (
           <p class="avslutning__direkte">
@@ -100,7 +77,7 @@ const tjenester = [
         )}
       </div>
       <Knapp href="/foresporsel/?kundetype=bedrift" data-apne-foresporsel data-kundetype="bedrift">
-        Start forespørselen
+        <span {...t.r('avslutning.knapp')}>{t('avslutning.knapp')}</span>
       </Knapp>
     </div>
   </section>

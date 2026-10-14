@@ -11,6 +11,7 @@
  */
 import Konseptbilde from '@/components/Konseptbilde.astro';
 import type { Bilde } from '@/lib/ressurser';
+import { redigerbar } from '@/lib/sidetekster';
 
 interface Props {
   bilde: Bilde;
@@ -22,9 +23,20 @@ interface Props {
   /** object-position of the picture, e.g. '70% 40%'. */
   fokus?: string;
   id?: string;
+  /** Page-text address (sidetekst().kilde) that makes etikett, tittel and ingress editable inline. */
+  kilde?: string;
 }
 
-const { bilde, etikett, tittel, ingress, stor = false, fokus = '70% 45%', id = 'helt-tittel' } = Astro.props;
+const {
+  bilde,
+  etikett,
+  tittel,
+  ingress,
+  stor = false,
+  fokus = '70% 45%',
+  id = 'helt-tittel',
+  kilde,
+} = Astro.props;
 ---
 
 <section
@@ -47,11 +59,17 @@ const { bilde, etikett, tittel, ingress, stor = false, fokus = '70% 45%', id = '
   {bilde.konsept && <span class="bhelt__merke mono">Konseptbilde</span>}
   <div class="bhelt__innhold">
     <div class="bhelt__tekst">
-      <p class="etikett bhelt__etikett">{etikett}</p>
-      <h1 id={id} class="bhelt__tittel">
+      <p class="etikett bhelt__etikett" {...redigerbar(kilde, 'etikett')}>
+        {etikett}
+      </p>
+      <h1 id={id} class="bhelt__tittel" {...redigerbar(kilde, 'tittel')}>
         {tittel}
       </h1>
-      {ingress && <p class="bhelt__ingress">{ingress}</p>}
+      {ingress && (
+        <p class="bhelt__ingress" {...redigerbar(kilde, 'ingress')}>
+          {ingress}
+        </p>
+      )}
       {Astro.slots.has('default') && (
         <div class="bhelt__handlinger">
           <slot />

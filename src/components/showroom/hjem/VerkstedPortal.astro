@@ -10,6 +10,9 @@
 import Knapp from '@/components/Knapp.astro';
 import VerktoyKort from '@/components/showroom/verksted/VerktoyKort.astro';
 import { verktoy } from '@/components/showroom/verksted/verktoy';
+import { sidetekst } from '@/lib/sidetekster';
+
+const t = sidetekst('forside');
 ---
 
 <section class="portal" aria-labelledby="portal-tittel" data-rulle="inn" data-rulle-rolig="1">
@@ -19,16 +22,19 @@ import { verktoy } from '@/components/showroom/verksted/verktoy';
     <div class="portal__innhold">
       <div class="portal__hode">
         <div class="portal__tekst">
-          <p class="etikett portal__etikett">Skaperverksted</p>
-          <h2 id="portal-tittel" class="portal__tittel">
-            Lag det selv, i ekte millimeter
+          <p class="etikett portal__etikett" {...t.r('portal.etikett')}>
+            {t('portal.etikett')}
+          </p>
+          <h2 id="portal-tittel" class="portal__tittel" {...t.r('portal.tittel')}>
+            {t('portal.tittel')}
           </h2>
-          <p class="portal__ingress">
-            Bygg i nettleseren, se modellen i 3D mens du jobber, og last ned filen eller bestill den printet
-            fra oss.
+          <p class="portal__ingress" {...t.r('portal.ingress')}>
+            {t('portal.ingress')}
           </p>
         </div>
-        <Knapp href="/skaperverksted/">Start å skape</Knapp>
+        <Knapp href="/skaperverksted/">
+          <span {...t.r('portal.knapp')}>{t('portal.knapp')}</span>
+        </Knapp>
       </div>
       <ul class="portal__verktoy" role="list">
         {verktoy.map((v) => (

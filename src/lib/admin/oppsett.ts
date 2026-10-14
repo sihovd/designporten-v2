@@ -10,6 +10,7 @@
 import { kategorier } from '@/lib/handel/kategorier';
 import { utklippbilder } from '@/lib/ressurser';
 import { materialer, materialtyper } from '@/skaperverksted/core/materialer';
+import { sidetekstSamling } from '@/lib/sidetekster/admin';
 
 export const REPO = 'sihovd/designporten-v2';
 
@@ -39,6 +40,7 @@ export function lagOppsett(generatorer: { id: string; navn: string }[]) {
     public_folder: '/opplastet',
     slug: { encoding: 'ascii', clean_accents: true },
     collections: [
+      sidetekstSamling(),
       {
         name: 'produkter',
         label: 'Produkter',

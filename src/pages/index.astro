@@ -9,42 +9,54 @@ import Bevis from '@/components/showroom/hjem/Bevis.astro';
 import VerkstedPortal from '@/components/showroom/hjem/VerkstedPortal.astro';
 import { hjemmeprosess } from '@/components/showroom/data/prosess';
 import { bakgrunner } from '@/lib/ressurser';
+import { sidetekst } from '@/lib/sidetekster';
 import { skaperverkstedApent } from '@/lib/flagg';
+
+const t = sidetekst('forside');
 ---
 
 <Side
-  tittel="Designporten"
+  tittel={t('meta.tittel')}
   beskrivelse={
     skaperverkstedApent
-      ? 'Designporten er et norsk verksted for 3D-print, spesialdesign og personlige produkter. Finn noe ferdig, lag noe selv i Skaperverksted, eller fortell oss ideen din.'
+      ? t('meta.beskrivelse')
       : 'Designporten er et norsk verksted for 3D-print, spesialdesign og personlige produkter. Finn noe ferdig, eller fortell oss ideen din.'
   }
 >
   <link slot="hode" rel="preload" as="image" href={bakgrunner.verksted.src} fetchpriority="high" />
   <BildeHelt
     bilde={bakgrunner.verksted}
-    etikett="3D-design og print"
-    tittel="Vi gir ideer form"
+    etikett={t('helt.etikett')}
+    tittel={t('helt.tittel')}
     ingress={
       skaperverkstedApent
-        ? 'Ferdige produkter, verktøy du kan bygge med selv, og spesialdesign når det du trenger ikke finnes ennå.'
+        ? t('helt.ingress')
         : 'Ferdige produkter, og spesialdesign når det du trenger ikke finnes ennå.'
     }
+    kilde={t.kilde('helt')}
     stor
     fokus="72% 45%"
   >
     {skaperverkstedApent ? (
-      <Knapp href="/skaperverksted/">Start å skape</Knapp>
+      <Knapp href="/skaperverksted/">
+        <span {...t.r('helt.knapp1')}>{t('helt.knapp1')}</span>
+      </Knapp>
     ) : (
       <Knapp href="/produkter/">Se utvalget</Knapp>
     )}
     <Knapp href="/foresporsel/" variant="sekundar" data-apne-foresporsel>
-      Fortell oss ideen din
+      <span {...t.r('helt.knapp2')}>{t('helt.knapp2')}</span>
     </Knapp>
   </BildeHelt>
   <Populaere />
   <Snarveier />
-  <ProsessSlider id="prosess" tittel="Slik blir en idé til et ferdig produkt" steg={hjemmeprosess} />
+  <ProsessSlider
+    id="prosess"
+    etikett={t('prosess.etikett')}
+    tittel={t('prosess.tittel')}
+    kilde={t.kilde('prosess')}
+    steg={hjemmeprosess}
+  />
   <Bevis />
   {skaperverkstedApent && <VerkstedPortal />}
 </Side>
