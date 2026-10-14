@@ -38,7 +38,7 @@ if (!$fil || !is_file($fil) || !str_starts_with($fil, $rot . DIRECTORY_SEPARATOR
     http_response_code(404); $fil = $rot . '/404.html';
 }
 $typer = ['html' => 'text/html; charset=utf-8', 'css' => 'text/css', 'js' => 'text/javascript', 'mjs' => 'text/javascript',
-    'json' => 'application/json', 'webmanifest' => 'application/manifest+json', 'svg' => 'image/svg+xml',
+    'json' => 'application/json', 'xml' => 'application/xml; charset=utf-8', 'webmanifest' => 'application/manifest+json', 'svg' => 'image/svg+xml',
     'png' => 'image/png', 'webp' => 'image/webp', 'jpg' => 'image/jpeg', 'ico' => 'image/x-icon',
     'woff' => 'font/woff', 'woff2' => 'font/woff2', 'txt' => 'text/plain'];
 header('Content-Type: ' . ($typer[pathinfo($fil, PATHINFO_EXTENSION)] ?? 'application/octet-stream'));
