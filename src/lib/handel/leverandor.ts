@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * The commerce boundary (ADR-001). Designporten does not build its own
  * checkout or payment engine. A CommerceProvider takes the cart and either
@@ -29,7 +30,7 @@ export const foresporsel: CommerceProvider = {
   sendeTekst: 'Send bestillingsforespørsel',
   async sendBestilling(bestilling) {
     try {
-      const svar = await fetch('/api/bestilling/', {
+      const svar = await fetch(nettsti('/api/bestilling/'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(bestilling),

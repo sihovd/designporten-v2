@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * The one form engine (design revision 2026-10-02, §15–18).
  *
@@ -39,7 +40,7 @@ const endelser = opplasting.tillatteEndelser.map((e) => `.${e}`).join(',');
     class="skjema"
     id={id}
     method="post"
-    action="/api/foresporsel/"
+    action={nettsti('/api/foresporsel/')}
     enctype="multipart/form-data"
     data-skjema
     data-kunde={kundetype}
@@ -344,7 +345,8 @@ const endelser = opplasting.tillatteEndelser.map((e) => `.${e}`).join(',');
         {full ? 'Send forespørselen' : 'Send meldingen'}
       </Knapp>
       <p class="skjema__personvern">
-        Vi bruker det du sender bare til å svare deg. Les mer om <a href="/personvern/">personvern</a>.
+        Vi bruker det du sender bare til å svare deg. Les mer om{' '}
+        <a href={nettsti('/personvern/')}>personvern</a>.
       </p>
     </div>
     <p class="skjema__status" role="status" data-status></p>

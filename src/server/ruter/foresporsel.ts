@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Receives the idea form and the contact form (multipart/form-data).
  * JSON in, JSON out when the browser asks for it (enhanced form);
@@ -10,7 +11,7 @@ import { tolkSkjema } from '@/components/showroom/skjema/tolk';
 export const prerender = false;
 
 function kvittering(parametre: Record<string, string>): string {
-  return `/skjema/kvittering/?${new URLSearchParams(parametre).toString()}`;
+  return nettsti(`/skjema/kvittering/?${new URLSearchParams(parametre).toString()}`);
 }
 
 export const POST: APIRoute = async ({ request, redirect }) => {

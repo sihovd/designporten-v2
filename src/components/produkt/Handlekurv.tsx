@@ -1,3 +1,4 @@
+import { nettsti, phpmiljo } from '@/lib/nettsti';
 /**
  * Cart page island. Shows the lines kept in the browser (src/lib/handel/kurv.ts),
  * lets the visitor change quantities, and sends the cart through the active
@@ -63,7 +64,11 @@ export default function Handlekurv({ produkter }: Props) {
 
   useEffect(() => {
     // Hosts without the payment route (the static PHP build) answer 404: requests only.
-    fetch('/api/kasse/', { headers: { Accept: 'application/json' } })
+    if (phpmiljo) {
+      settKort({ aktiv: false, grunn: 'Bestillingen sendes som forespørsel uten betaling.' });
+      return;
+    }
+    fetch(nettsti('/api/kasse/'), { headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? (r.json() as Promise<Kassestatus>) : null))
       .catch(() => null)
       .then((s) => settKort(s ?? { aktiv: false, grunn: 'Kortbetaling er ikke tilgjengelig.' }));
@@ -119,7 +124,7 @@ export default function Handlekurv({ produkter }: Props) {
     };
 
     if (kortMulig) {
-      const svar: Kassesvar = await fetch('/api/kasse/', {
+      const svar: Kassesvar = await fetch(nettsti('/api/kasse/'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(bestilling),
@@ -171,7 +176,7 @@ export default function Handlekurv({ produkter }: Props) {
             </li>
           ))}
         </ul>
-        <a href="/produkter/">Tilbake til produktene</a>
+        <a href={nettsti('/produkter/')}>Tilbake til produktene</a>
       </section>
     );
   }
@@ -186,8 +191,8 @@ export default function Handlekurv({ produkter }: Props) {
         <h2>Handlekurven er tom.</h2>
         <p>Finn noe blant produktene, eller lag noe eget i Skaperverksted.</p>
         <p class="kurv__tom-lenker">
-          <a href="/produkter/">Se produktene</a>
-          <a href="/skaperverksted/">Gå til Skaperverksted</a>
+          <a href={nettsti('/produkter/')}>Se produktene</a>
+          <a href={nettsti('/skaperverksted/')}>Gå til Skaperverksted</a>
         </p>
       </section>
     );
@@ -379,7 +384,7 @@ export default function Handlekurv({ produkter }: Props) {
             {kortMulig
               ? 'Vi bruker opplysningene bare til å behandle bestillingen. '
               : 'Vi bruker opplysningene bare til å svare på forespørselen. '}
-            <a href="/personvern/">Personvern</a>
+            <a href={nettsti('/personvern/')}>Personvern</a>
           </p>
         </form>
       </aside>

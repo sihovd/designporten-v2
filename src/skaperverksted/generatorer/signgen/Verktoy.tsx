@@ -21,7 +21,7 @@ import { Startside } from './Startside';
 import { LagreSomMal, Malbibliotek } from './Maldialog';
 import { Dekorgalleri, Dekorlagringsvindu } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
-import { Csvflyt } from './Csvflyt';
+import { Csvflyt } from './CsvflytDialog';
 
 export const VERKTOY: {
   id: VerktoyId;

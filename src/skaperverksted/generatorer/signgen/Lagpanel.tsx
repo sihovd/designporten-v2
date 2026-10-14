@@ -5,7 +5,7 @@
  * outlines, each its own row (Sivert, 2026-10-05). The stack diagram was
  * removed on Sivert's request the same day.
  */
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { finnLag, objekterILag, type Dokument, type Lag, type Omriss } from '../../core/dokument';
 import { fargekode, finnMateriale } from '../../core/materialer';
@@ -204,13 +204,23 @@ interface MenyValg {
 /** Right-click (or the menu key, or Shift+F10) on a layer. Arrow keys move, Esc closes. */
 function Lagmeny({ x, y, valg, lukk }: { x: number; y: number; valg: MenyValg[]; lukk: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     ref.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     const utenfor = (e: PointerEvent) => {
       if (!ref.current?.contains(e.target as Node)) lukk();
     };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      lukk();
+    };
     window.addEventListener('pointerdown', utenfor, true);
-    return () => window.removeEventListener('pointerdown', utenfor, true);
+    window.addEventListener('keydown', esc, true);
+    return () => {
+      window.removeEventListener('pointerdown', utenfor, true);
+      window.removeEventListener('keydown', esc, true);
+    };
   }, [lukk]);
   const pos = {
     left: `${Math.min(x, window.innerWidth - 220)}px`,

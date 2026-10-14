@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * A compact look at the products right after the hero (design revision
  * 2026-10-02, §4): five product cards in one row, each opening the product,
@@ -30,7 +31,7 @@ const bareplassholdere = utvalg.every((p) => p.status === 'plassholder');
           {t('populaere.tittel')}
         </h2>
       </div>
-      <a class="populaere__alle" href="/produkter/">
+      <a class="populaere__alle" href={nettsti('/produkter/')}>
         <span {...t.r('populaere.lenke')}>{t('populaere.lenke')}</span>{' '}
         <Ikon navn="pil-hoyre" storrelse={18} />
       </a>

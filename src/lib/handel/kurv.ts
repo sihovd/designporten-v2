@@ -1,3 +1,4 @@
+import { lagernokkel } from '@/lib/nettsti';
 /**
  * Client-side cart. It only remembers what the visitor wants; it does not
  * take payment (no custom checkout engine). Checkout is handed to the
@@ -20,7 +21,7 @@ export interface KurvLinje {
   designId?: string;
 }
 
-const LAGER_NOKKEL = 'dp-kurv-v1';
+const LAGER_NOKKEL = lagernokkel('dp-kurv-v1');
 const HENDELSE = 'dp:kurv';
 
 let minne: KurvLinje[] = [];

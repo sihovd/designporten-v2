@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * The inline editor's toolbar and editing mode (loaded only for a signed-in
  * editor, see redigering.ts). Texts marked data-rediger become editable in
@@ -86,7 +87,7 @@ function visUtlopt() {
   tekst.textContent = 'Innloggingen til redigering har gått ut.';
   const lenke = document.createElement('a');
   lenke.className = 'dp-red__knapp dp-red__knapp--primar';
-  lenke.href = '/admin/';
+  lenke.href = nettsti('/admin/');
   lenke.textContent = 'Logg inn på nytt';
   const lukk = lagKnapp('Lukk', '', () => bar.remove());
   bar.append(tekst, lenke, lukk);
@@ -123,7 +124,7 @@ export async function startVerktoy(token: string) {
   const forkast = lagKnapp('Forkast', '', forkastAlt);
   const admin = document.createElement('a');
   admin.className = 'dp-red__knapp dp-red__knapp--lenke';
-  admin.href = '/admin/';
+  admin.href = nettsti('/admin/');
   admin.textContent = 'Åpne /admin';
   bar.append(merke, status, bryter, lagre, forkast, admin);
   document.body.append(bar);

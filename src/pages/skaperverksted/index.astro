@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import VerktoyKort from '@/components/showroom/verksted/VerktoyKort.astro';
 import { verktoy } from '@/components/showroom/verksted/verktoy';
@@ -56,7 +57,7 @@ const steg = [
         </ol>
         <p class="hub-spes">
           Har du en idé som ikke passer i et verktøy?{' '}
-          <a href="/foresporsel/" data-apne-foresporsel>
+          <a href={nettsti('/foresporsel/')} data-apne-foresporsel>
             Fortell oss om den
           </a>
           .

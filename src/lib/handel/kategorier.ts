@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Product categories. Source: docs/content/information-architecture.md#produkter.
  * A category with no products is not shown in the filter row; it appears as
@@ -31,7 +32,7 @@ export const kategorier: readonly Kategori[] = [
 /** The sixth category: a link into Spesialdesign, not a product list. */
 export const spesialbestillinger = {
   navn: 'Spesialbestillinger',
-  href: '/spesialdesign/',
+  href: nettsti('/spesialdesign/'),
 } as const;
 
 export function finnKategori(slug: string): Kategori | undefined {

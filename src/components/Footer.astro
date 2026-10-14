@@ -1,6 +1,7 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import { hovedmeny, juridisk } from '@/lib/navigasjon';
-import { kontakt } from '@/lib/kontakt';
+import { kontakt, virksomhet } from '@/lib/kontakt';
 import { logo } from '@/lib/ressurser';
 ---
 
@@ -38,11 +39,20 @@ import { logo } from '@/lib/ressurser';
         </p>
       ) : (
         <p class="fot__dempet">
-          <a href="/kontakt/">Send oss en melding</a>
+          <a href={nettsti('/kontakt/')}>Send oss en melding</a>
         </p>
       )}
       {kontakt.telefon && <p>{kontakt.telefon}</p>}
-      <p class="fot__dempet">Norge</p>
+      <p class="fot__dempet">
+        {virksomhet.navn}
+        <br />
+        Org.nr. {virksomhet.organisasjonsnummerVisning}
+      </p>
+      <p class="fot__dempet">
+        {virksomhet.adresse}
+        <br />
+        {virksomhet.poststed}
+      </p>
     </div>
 
     <nav aria-label="Vilkår og personvern">
@@ -69,13 +79,13 @@ import { logo } from '@/lib/ressurser';
 
   .fot__rutenett {
     display: grid;
-    grid-template-columns: 1.4fr repeat(3, 1fr);
+    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
     gap: var(--r-6);
   }
 
   @media (max-width: 860px) {
     .fot__rutenett {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .fot__merke {
@@ -115,6 +125,8 @@ import { logo } from '@/lib/ressurser';
   .fot li a,
   .fot p a {
     display: inline-block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     padding-block: 6px;
     color: var(--fg);
     text-decoration: none;

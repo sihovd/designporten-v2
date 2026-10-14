@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * The way into Skaperverksted from the homepage (design revision 2026-10-02,
  * §8 and §11). The light page darkens softly into the graphite workshop: a
@@ -32,7 +33,7 @@ const t = sidetekst('forside');
             {t('portal.ingress')}
           </p>
         </div>
-        <Knapp href="/skaperverksted/">
+        <Knapp href={nettsti('/skaperverksted/')}>
           <span {...t.r('portal.knapp')}>{t('portal.knapp')}</span>
         </Knapp>
       </div>

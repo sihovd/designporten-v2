@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Three small ways in (design revision 2026-10-02, §5): find something, make
  * something, or tell us an idea. Separate, compact cards with a picture, one
@@ -20,15 +21,15 @@ interface Snarvei {
 
 const snarveier: Snarvei[] = [
   {
-    href: '/produkter/',
+    href: nettsti('/produkter/'),
     bilde: utklippbilder.fasettpotte,
   },
   {
-    href: '/skaperverksted/',
+    href: nettsti('/skaperverksted/'),
     bilde: utklippbilder.nokkelring,
   },
   {
-    href: '/foresporsel/',
+    href: nettsti('/foresporsel/'),
     bilde: utklippbilder.kabelholder,
     skjema: true,
   },

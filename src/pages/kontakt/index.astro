@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import SideHode from '@/components/showroom/SideHode.astro';
 import Foresporsel from '@/components/showroom/skjema/Foresporsel.astro';
@@ -28,7 +29,7 @@ const harDetaljer = Boolean(kontakt.epost || kontakt.telefon || kontakt.apningst
           {t('skjema.etikett')}
         </p>
         <p {...t.r('skjema.tekst')}>{t('skjema.tekst')}</p>
-        <a href="/foresporsel/" data-apne-foresporsel>
+        <a href={nettsti('/foresporsel/')} data-apne-foresporsel>
           <span {...t.r('skjema.lenke')}>{t('skjema.lenke')}</span>
         </a>
       </div>

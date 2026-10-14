@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * The shared Skaperverksted workspace (spec: skaperverksted.md, "Workspace").
  * Workshop bar, tool rail, canvas (2D or 3D), floating left panel,
@@ -28,7 +29,7 @@ import { brukBenk } from './bruk-benk';
 import { Eksportdialog } from './Eksportdialog';
 import { Brukerfelt } from './Brukerfelt';
 import { Hjelp } from './Hjelp';
-import { Hjelpesok } from './Hjelpesok';
+import { Hjelpesok } from './HjelpesokPanel';
 import { Innstillingsmeny } from './Innstillingsmeny';
 import {
   bakgrunnErLys,
@@ -71,7 +72,7 @@ export function Verksted({ generatorId }: { generatorId: string }) {
     return (
       <div class="verksted-laster" role="alert">
         <p>Verktøyet kunne ikke lastes. Prøv å laste siden på nytt.</p>
-        <a href="/skaperverksted/">Tilbake til Skaperverksted</a>
+        <a href={nettsti('/skaperverksted/')}>Tilbake til Skaperverksted</a>
       </div>
     );
   }
@@ -322,10 +323,10 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
       style={bakgrunnVar ?? undefined}
     >
       <header class="verkstedlinje">
-        <a class="hjem" href="/" aria-label="Designporten, til forsiden">
+        <a class="hjem" href={nettsti('/')} aria-label="Designporten, til forsiden">
           <img src={logomerke.src} alt="" width={logomerke.bredde} height={logomerke.hoyde} />
         </a>
-        <a class="tilbake" href="/skaperverksted/" aria-label="Tilbake til Skaperverksted">
+        <a class="tilbake" href={nettsti('/skaperverksted/')} aria-label="Tilbake til Skaperverksted">
           <span aria-hidden="true">←</span>
           <span class="tilbake-tekst">Skaperverksted</span>
         </a>

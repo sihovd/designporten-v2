@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Configuration for the content editor at /admin (Sveltia CMS, git-based).
  * Built from the same lists the site validates against (categories, materials,
@@ -35,7 +36,7 @@ export function lagOppsett(generatorer: { id: string; navn: string }[]) {
     },
     site_url: 'https://designporten.onrender.com',
     display_url: 'https://designporten.onrender.com',
-    logo: { src: '/brand/designporten-merke.svg' },
+    logo: { src: nettsti('/brand/designporten-merke.svg') },
     media_folder: 'public/opplastet',
     public_folder: '/opplastet',
     slug: { encoding: 'ascii', clean_accents: true },

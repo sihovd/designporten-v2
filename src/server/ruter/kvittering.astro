@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /** Receipt for forms sent without JavaScript (the enhanced form shows it inline). */
 import Side from '@/layouts/Side.astro';
 import Knapp from '@/components/Knapp.astro';
@@ -12,7 +13,7 @@ const type = p.get('type') === 'kontakt' ? 'kontakt' : 'ide';
 const ref = p.get('ref') ?? '';
 const referanse = /^DP-\d{8}-[A-Z0-9]{1,8}$/.test(ref) ? ref : undefined;
 const kanal = p.get('kanal') === 'fil' ? 'fil' : 'epost';
-const tilbake = type === 'kontakt' ? '/kontakt/#skjema' : '/foresporsel/';
+const tilbake = type === 'kontakt' ? nettsti('/kontakt/#skjema') : nettsti('/foresporsel/');
 ---
 
 <Side
@@ -32,8 +33,8 @@ const tilbake = type === 'kontakt' ? '/kontakt/#skjema' : '/foresporsel/';
         <h1 class="visuelt-skjult">Sendt</h1>
         <Kvittering type={type} referanse={referanse} kanal={kanal} />
         <p class="kv__videre">
-          <a href="/">Til forsiden</a> · <a href="/skaperverksted/">Skaperverksted</a> ·{' '}
-          <a href="/produkter/">Produkter</a>
+          <a href={nettsti('/')}>Til forsiden</a> · <a href={nettsti('/skaperverksted/')}>Skaperverksted</a> ·{' '}
+          <a href={nettsti('/produkter/')}>Produkter</a>
         </p>
       </>
     )}

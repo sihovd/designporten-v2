@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * «Vårt utvalg»: the product listing (design revision 2026-10-02, §9–10).
  *
@@ -70,10 +71,10 @@ const alleTekst = {
   ingress: 'Designet og laget av oss. Kanskje finner du akkurat det du leter etter.',
 };
 const tekster = Object.fromEntries([
-  ['alle', { ...alleTekst, href: '/produkter/' }],
+  ['alle', { ...alleTekst, href: nettsti('/produkter/') }],
   ...kategorier.map((k) => [
     k.slug,
-    { tittel: k.navn, ingress: k.ingress, href: `/produkter/kategori/${k.slug}/` },
+    { tittel: k.navn, ingress: k.ingress, href: nettsti(`/produkter/kategori/${k.slug}/`) },
   ]),
 ]);
 const aktivTekst =
@@ -86,7 +87,7 @@ const data = { grunnlag, tekster };
 
 <div class="produktliste" data-produktliste data-aktiv={aktiv}>
   <header class="produktliste__topp ramme">
-    <p class="etikett">{aktiv === 'alle' ? 'Produkter' : <a href="/produkter/">Vårt utvalg</a>}</p>
+    <p class="etikett">{aktiv === 'alle' ? 'Produkter' : <a href={nettsti('/produkter/')}>Vårt utvalg</a>}</p>
     <h1 data-liste-tittel>{aktivTekst.tittel}</h1>
     <p class="ingress" data-liste-ingress>
       {aktivTekst.ingress}
@@ -99,14 +100,18 @@ const data = { grunnlag, tekster };
       <nav class="kategorirad" aria-label="Kategorier">
         <ul>
           <li>
-            <a href="/produkter/" data-kategori="alle" aria-current={aktiv === 'alle' ? 'page' : undefined}>
+            <a
+              href={nettsti('/produkter/')}
+              data-kategori="alle"
+              aria-current={aktiv === 'alle' ? 'page' : undefined}
+            >
               Alle
             </a>
           </li>
           {kategorier.map((k) => (
             <li>
               <a
-                href={`/produkter/kategori/${k.slug}/`}
+                href={nettsti(`/produkter/kategori/${k.slug}/`)}
                 data-kategori={k.slug}
                 aria-current={aktiv === k.slug ? 'page' : undefined}
               >
@@ -129,14 +134,18 @@ const data = { grunnlag, tekster };
           <legend>Kategori</legend>
           <ul class="filter__kategorier">
             <li>
-              <a href="/produkter/" data-kategori="alle" aria-current={aktiv === 'alle' ? 'page' : undefined}>
+              <a
+                href={nettsti('/produkter/')}
+                data-kategori="alle"
+                aria-current={aktiv === 'alle' ? 'page' : undefined}
+              >
                 Alle produkter
               </a>
             </li>
             {kategorier.map((k) => (
               <li>
                 <a
-                  href={`/produkter/kategori/${k.slug}/`}
+                  href={nettsti(`/produkter/kategori/${k.slug}/`)}
                   data-kategori={k.slug}
                   aria-current={aktiv === k.slug ? 'page' : undefined}
                 >
@@ -259,7 +268,7 @@ const data = { grunnlag, tekster };
     <p class="produktliste__ide-tekst">
       Vi lager også ting som ikke står her. Start med ideen, en tegning eller et bilde.
     </p>
-    <a class="produktliste__ide-lenke" href="/foresporsel/" data-apne-foresporsel>
+    <a class="produktliste__ide-lenke" href={nettsti('/foresporsel/')} data-apne-foresporsel>
       Fortell oss hva du trenger <Ikon navn="pil-hoyre" storrelse={18} />
     </a>
   </aside>
