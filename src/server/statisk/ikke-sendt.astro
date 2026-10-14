@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * «Not sent» page for forms sent without JavaScript, static version for the
  * php build. The PHP route redirects here with ?feil=&type=; the script shows
@@ -17,7 +18,7 @@ export const prerender = true;
       <p data-grunn>
         Sjekk at beskrivelse, navn og e-post er fylt ut, og at hver fil er under 15 MB. Prøv så igjen.
       </p>
-      <Knapp href="/foresporsel/" data-tilbake>
+      <Knapp href={nettsti('/foresporsel/')} data-tilbake>
         Tilbake til skjemaet
       </Knapp>
     </div>
@@ -25,12 +26,16 @@ export const prerender = true;
 </Side>
 
 <script>
+  import { nettsti } from '@/lib/nettsti';
+
   const p = new URLSearchParams(location.search);
   const grunn = p.get('feil')?.slice(0, 600);
   const felt = document.querySelector('[data-grunn]');
   if (grunn && felt) felt.textContent = grunn;
   if (p.get('type') === 'kontakt') {
-    document.querySelector<HTMLAnchorElement>('[data-tilbake]')?.setAttribute('href', '/kontakt/#skjema');
+    document
+      .querySelector<HTMLAnchorElement>('[data-tilbake]')
+      ?.setAttribute('href', nettsti('/kontakt/#skjema'));
   }
 </script>
 

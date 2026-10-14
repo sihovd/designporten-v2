@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Review step before export or order (spec: "Export / order"): the 3D
  * model, dimensions, parts and colours, printability notes, then file
@@ -327,7 +328,7 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
               )}
               {bestilt && (
                 <p role="status">
-                  Lagt i handlekurven. <a href="/handlekurv/">Gå til handlekurven</a> for å sende
+                  Lagt i handlekurven. <a href={nettsti('/handlekurv/')}>Gå til handlekurven</a> for å sende
                   forespørselen.
                 </p>
               )}

@@ -1,4 +1,5 @@
 ---
+import { nettsti, testmiljo } from '@/lib/nettsti';
 /** Showroom page shell: meta/SEO, skip link, header, main, footer. */
 import '@/styles/base.css';
 import '@/styles/bevegelse.css';
@@ -28,32 +29,35 @@ const bilde = new URL(delingsbilde ?? standardDelingsbilde.src, Astro.site).href
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" href="/favicon.ico" sizes="48x48" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="icon" href={nettsti('/favicon.ico')} sizes="48x48" />
+    <link rel="icon" href={nettsti('/favicon.svg')} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={nettsti('/apple-touch-icon.png')} />
+    <link rel="manifest" href={nettsti('/site.webmanifest')} />
     <title>{fullTittel}</title>
     <meta name="description" content={beskrivelse} />
-    <link rel="canonical" href={kanonisk.href} />
-    {ikkeIndekser && <meta name="robots" content="noindex" />}
+    {!testmiljo && <link rel="canonical" href={kanonisk.href} />}
+    {(testmiljo || ikkeIndekser) && (
+      <meta name="robots" content={testmiljo ? 'noindex, nofollow' : 'noindex'} />
+    )}
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="nb_NO" />
     <meta property="og:site_name" content="Designporten" />
     <meta property="og:title" content={fullTittel} />
     <meta property="og:description" content={beskrivelse} />
-    <meta property="og:url" content={kanonisk.href} />
+    {!testmiljo && <meta property="og:url" content={kanonisk.href} />}
     <meta property="og:image" content={bilde} />
     {!delingsbilde && <meta property="og:image:alt" content={standardDelingsbilde.alt} />}
     <meta name="theme-color" content="#f6f3ee" />
-    <script is:inline>
+    <script is:inline data-verksted={nettsti('/skaperverksted')}>
       document.documentElement.classList.add('js');
+      const verkstedSti = document.currentScript.dataset.verksted;
       // The portal: showroom → Skaperverksted gets its own page transition.
       window.addEventListener('pagereveal', function (e) {
         const vt = e.viewTransition;
         const fra = window.navigation && navigation.activation && navigation.activation.from;
         if (!vt || !fra || !vt.types) return;
-        const inn = location.pathname.indexOf('/skaperverksted') === 0;
-        const fraVerksted = new URL(fra.url).pathname.indexOf('/skaperverksted') === 0;
+        const inn = location.pathname.indexOf(verkstedSti) === 0;
+        const fraVerksted = new URL(fra.url).pathname.indexOf(verkstedSti) === 0;
         if (inn && !fraVerksted) vt.types.add('portal');
       });
     </script>

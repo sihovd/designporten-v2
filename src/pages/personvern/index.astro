@@ -1,8 +1,18 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import JuridiskSide from '@/components/showroom/JuridiskSide.astro';
+import { kontakt, virksomhet } from '@/lib/kontakt';
 ---
 
 <JuridiskSide tittel="Personvern" beskrivelse="Hvordan Designporten bruker det du sender oss.">
+  <h2>Behandlingsansvarlig</h2>
+  <p>
+    {virksomhet.navn}, org.nr. {virksomhet.organisasjonsnummerVisning}, {virksomhet.adresse},{' '}
+    {virksomhet.poststed}, er ansvarlig for behandlingen av opplysninger som sendes gjennom nettstedet.
+  </p>
+  <p>
+    Spørsmål om personvern kan sendes til <a href={`mailto:${kontakt.epost}`}>{kontakt.epost}</a>.
+  </p>
   <h2>Det du sender oss</h2>
   <p>
     Når du sender idéskjemaet eller kontaktskjemaet, får vi det du skriver, navnet ditt, e-postadressen din,
@@ -27,6 +37,6 @@ import JuridiskSide from '@/components/showroom/JuridiskSide.astro';
     bekreftet dem.
   </p>
   <p>
-    <a href="/kontakt/">Kontakt oss</a>
+    <a href={nettsti('/kontakt/')}>Kontakt oss</a>
   </p>
 </JuridiskSide>

@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /** Site structure. Source: docs/content/information-architecture.md. */
 
 export interface NavPunkt {
@@ -8,19 +9,19 @@ export interface NavPunkt {
 }
 
 export const hovedmeny: readonly NavPunkt[] = [
-  { navn: 'Vårt utvalg', href: '/produkter/', sti: true },
-  { navn: 'Skaperverksted', href: '/skaperverksted/', sti: true },
-  { navn: 'Spesialdesign', href: '/spesialdesign/', sti: true },
-  { navn: 'For bedrifter', href: '/bedrift/' },
-  { navn: 'Inspirasjon', href: '/inspirasjon/' },
-  { navn: 'Om', href: '/om/' },
-  { navn: 'Kontakt', href: '/kontakt/' },
+  { navn: 'Vårt utvalg', href: nettsti('/produkter/'), sti: true },
+  { navn: 'Skaperverksted', href: nettsti('/skaperverksted/'), sti: true },
+  { navn: 'Spesialdesign', href: nettsti('/spesialdesign/'), sti: true },
+  { navn: 'For bedrifter', href: nettsti('/bedrift/') },
+  { navn: 'Inspirasjon', href: nettsti('/inspirasjon/') },
+  { navn: 'Om', href: nettsti('/om/') },
+  { navn: 'Kontakt', href: nettsti('/kontakt/') },
 ];
 
 export const juridisk: readonly NavPunkt[] = [
-  { navn: 'Personvern', href: '/personvern/' },
-  { navn: 'Vilkår', href: '/vilkar/' },
-  { navn: 'Frakt og levering', href: '/frakt-og-levering/' },
+  { navn: 'Personvern', href: nettsti('/personvern/') },
+  { navn: 'Vilkår', href: nettsti('/vilkar/') },
+  { navn: 'Frakt og levering', href: nettsti('/frakt-og-levering/') },
 ];
 
 /** True when `sti` (current path) is inside the section `href`. */

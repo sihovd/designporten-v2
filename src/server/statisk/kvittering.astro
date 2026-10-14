@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Receipt for forms sent without JavaScript, static version for the php build.
  * Two pages: /skjema/kvittering/ for the idea form and
@@ -26,8 +27,8 @@ const type = Astro.params.type === 'kontakt' ? 'kontakt' : 'ide';
     <h1 class="visuelt-skjult">Sendt</h1>
     <Kvittering type={type} referanse="DP-00000000-X" />
     <p class="kv__videre">
-      <a href="/">Til forsiden</a> · <a href="/skaperverksted/">Skaperverksted</a> ·{' '}
-      <a href="/produkter/">Produkter</a>
+      <a href={nettsti('/')}>Til forsiden</a> · <a href={nettsti('/skaperverksted/')}>Skaperverksted</a> ·{' '}
+      <a href={nettsti('/produkter/')}>Produkter</a>
     </p>
   </section>
 </Side>

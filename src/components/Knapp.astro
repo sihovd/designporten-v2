@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Primary / secondary action. Renders <a> when href is given, else <button>.
  * One primary per view; the secondary never competes at equal strength.
@@ -19,7 +20,12 @@ const { href, variant = 'primar', type = 'button', class: klasse, ...rest } = As
 const Tag = href ? 'a' : 'button';
 ---
 
-<Tag class:list={['knapp', `knapp--${variant}`, klasse]} href={href} type={href ? undefined : type} {...rest}>
+<Tag
+  class:list={['knapp', `knapp--${variant}`, klasse]}
+  href={href ? nettsti(href) : undefined}
+  type={href ? undefined : type}
+  {...rest}
+>
   <slot />
 </Tag>
 

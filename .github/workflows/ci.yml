@@ -16,7 +16,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
-      - name: one.com build (static + PHP)
+      - name: one.com build and PHP syntax check
         run: |
-          find php -name '*.php' -exec php -l {} \;
+          npm run lint:php
           npm run build:onecom

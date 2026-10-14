@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Text → outline rings in mm (Y up) using opentype.js. Fonts are the
  * curated Open Font License set in public/skaperverksted/fonter/ and are
@@ -80,7 +81,7 @@ export function finnFont(id: string): FontInfo {
 export type FontHenter = (fil: string) => Promise<ArrayBuffer>;
 
 const nettHenter: FontHenter = async (fil) => {
-  const svar = await fetch(`/skaperverksted/fonter/${fil}`);
+  const svar = await fetch(nettsti(`/skaperverksted/fonter/${fil}`));
   if (!svar.ok) throw new Error(`Fonten ${fil} kunne ikke lastes.`);
   return svar.arrayBuffer();
 };

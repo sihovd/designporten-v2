@@ -13,8 +13,17 @@ async function startPaaNytt(page: import('@playwright/test').Page): Promise<void
   const tomt = page.getByRole('button', { name: /Tomt dokument/ });
   const start = page.getByRole('button', { name: 'Start skiltet' });
   await expect(tomt.or(start).or(page.locator('.statuslinje')).first()).toBeVisible();
-  if (await tomt.isVisible()) await tomt.click();
+  // Allow the hydrated editor's start effects to settle before deciding whether
+  // an unsaved project needs its colour profile. Status exists behind the dialog.
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+  if (await tomt.isVisible()) {
+    await tomt.click();
+    await expect(start).toBeVisible();
+  }
   if (await start.isVisible()) await start.click();
+  await expect(page.getByRole('dialog', { name: 'Velg fargene til skiltet' })).toBeHidden();
   await expect(page.locator('.statuslinje')).toContainText('mm');
 }
 

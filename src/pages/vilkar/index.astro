@@ -1,8 +1,17 @@
 ---
 import JuridiskSide from '@/components/showroom/JuridiskSide.astro';
+import { kontakt, virksomhet } from '@/lib/kontakt';
 ---
 
 <JuridiskSide tittel="Vilkår" beskrivelse="Kjøps- og bruksvilkår for Designporten.">
+  <h2>Hvem du handler med</h2>
+  <p>
+    {virksomhet.navn}, org.nr. {virksomhet.organisasjonsnummerVisning}, {virksomhet.adresse},{' '}
+    {virksomhet.poststed}.
+  </p>
+  <p>
+    E-post: <a href={`mailto:${kontakt.epost}`}>{kontakt.epost}</a>.
+  </p>
   <h2>Bestillinger</h2>
   <p>
     Nettstedet tar ikke imot betaling ennå. En bestilling fra handlekurven sendes til oss som en forespørsel,

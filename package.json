@@ -20,7 +20,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "verify": "npm run format:check && npm run lint && npm run check && npm run test && npm run build"
+    "verify": "npm run format:check && npm run lint && npm run check && npm run test && npm run test:deploy && npm run build",
+    "build:onecom:test": "node scripts/bygg-onecom.mjs --test",
+    "lint:php": "node scripts/php.mjs --lint",
+    "preview:onecom": "node scripts/php.mjs",
+    "test:e2e:onecom": "playwright test --config playwright.onecom.config.ts",
+    "test:deploy": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.6",
@@ -55,6 +60,7 @@
     "globals": "^17.12.0",
     "prettier": "^3.9.9",
     "prettier-plugin-astro": "^1.1.0",
+    "ssh2": "1.17.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",
     "vitest": "^5.0.2"

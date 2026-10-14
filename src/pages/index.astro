@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import BildeHelt from '@/components/showroom/BildeHelt.astro';
 import Knapp from '@/components/Knapp.astro';
@@ -25,10 +26,10 @@ const t = sidetekst('forside');
     stor
     fokus="72% 45%"
   >
-    <Knapp href="/skaperverksted/">
+    <Knapp href={nettsti('/skaperverksted/')}>
       <span {...t.r('helt.knapp1')}>{t('helt.knapp1')}</span>
     </Knapp>
-    <Knapp href="/foresporsel/" variant="sekundar" data-apne-foresporsel>
+    <Knapp href={nettsti('/foresporsel/')} variant="sekundar" data-apne-foresporsel>
       <span {...t.r('helt.knapp2')}>{t('helt.knapp2')}</span>
     </Knapp>
   </BildeHelt>

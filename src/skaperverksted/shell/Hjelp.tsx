@@ -1,6 +1,6 @@
 import type { GeneratorPlugin } from '../core/generator';
 import { Dialog } from './Dialog';
-import { Hjelpesok } from './Hjelpesok';
+import { Hjelpesok } from './HjelpesokPanel';
 
 const FELLES: [string, string][] = [
   ['Ctrl/Cmd + Z', 'Angre'],

@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /** Editorial card for an inspiration entry (not the product grid). */
 import type { CollectionEntry } from 'astro:content';
 import Konseptbilde from '@/components/Konseptbilde.astro';
@@ -17,7 +18,7 @@ const Overskrift = `h${niva}` as 'h2' | 'h3';
 ---
 
 <article class="ikort" data-type={type}>
-  <a href={`/inspirasjon/${sak.id}/`} class="ikort__lenke">
+  <a href={nettsti(`/inspirasjon/${sak.id}/`)} class="ikort__lenke">
     <div class:list={['ikort__bilde', { 'ikort__bilde--utklipp': bilde?.utklipp }]}>
       {bilde && <Konseptbilde bilde={bilde} />}
     </div>
