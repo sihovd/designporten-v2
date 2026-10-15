@@ -4,7 +4,7 @@ import Side from '@/layouts/Side.astro';
 import BildeHelt from '@/components/showroom/BildeHelt.astro';
 import Knapp from '@/components/Knapp.astro';
 import { kontakt } from '@/lib/kontakt';
-import { bakgrunner } from '@/lib/ressurser';
+import { nettsidebilder } from '@/lib/nettsidebilder';
 import { sidetekst } from '@/lib/sidetekster';
 
 /*
@@ -19,14 +19,14 @@ const tjenester = Array.from({ length: t.antall('tjenester.liste') }, (_, i) => 
 ---
 
 <Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
-  <link slot="hode" rel="preload" as="image" href={bakgrunner.verksted.src} fetchpriority="high" />
+  <link slot="hode" rel="preload" as="image" href={nettsidebilder.bedrift.bilde.src} fetchpriority="high" />
   <BildeHelt
-    bilde={bakgrunner.verksted}
+    bilde={nettsidebilder.bedrift.bilde}
     etikett={t('helt.etikett')}
     tittel={t('helt.tittel')}
     ingress={t('helt.ingress')}
     kilde={t.kilde('helt')}
-    fokus="62% 45%"
+    fokus={nettsidebilder.bedrift.fokus}
   >
     <Knapp href={nettsti('/foresporsel/?kundetype=bedrift')} data-apne-foresporsel data-kundetype="bedrift">
       <span {...t.r('helt.knapp1')}>{t('helt.knapp1')}</span>
