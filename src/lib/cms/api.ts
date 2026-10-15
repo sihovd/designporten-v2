@@ -6,7 +6,7 @@ export { harCmsMerke, sideSti } from './merke';
  */
 
 export type Rolle = 'admin' | 'redaktor' | 'agent';
-export type Felttype = 'linje' | 'avsnitt';
+export type Felttype = 'linje' | 'avsnitt' | 'bilde';
 
 export interface Bruker {
   id: number;
@@ -31,6 +31,95 @@ export interface Felt {
   endret: string | null;
   endretAv: string | null;
   publisertTid: string | null;
+  /** Image fields only: the published and draft picture, ready to show. */
+  bilder?: { publisert: Bildeinfo | null; utkast: Bildeinfo | null };
+}
+
+/** The stored value of an image field. `medium: null` is the picture the page was built with. */
+export interface Bildeverdi {
+  medium: number | null;
+  alt?: string;
+  dekorativ?: boolean;
+  fokus?: string;
+  fokusMobil?: string | null;
+}
+
+/** An image field value resolved to files (from the server). */
+export interface Bildeinfo {
+  medium: number;
+  src: string;
+  srcset: string;
+  miniatyr: string;
+  bredde: number;
+  hoyde: number;
+  konsept: boolean;
+  navn: string;
+  alt: string;
+  dekorativ: boolean;
+  fokus: string;
+  fokusMobil: string | null;
+}
+
+/** The picture a page was built with (an image field's `standard`, as JSON). */
+export interface Byggbilde {
+  src: string;
+  alt: string;
+  bredde: number | null;
+  hoyde: number | null;
+  konsept: boolean;
+}
+
+export interface Bruk {
+  nokkel: string;
+  publisert: boolean;
+  utkast: boolean;
+}
+
+export interface Medium {
+  id: number;
+  navn: string;
+  alt: string;
+  konsept: boolean;
+  rettigheter: string | null;
+  status: 'aktiv' | 'arkivert';
+  mime: string;
+  bredde: number;
+  hoyde: number;
+  originalBredde: number;
+  originalHoyde: number;
+  storrelse: number;
+  src: string;
+  miniatyr: string;
+  srcset: string;
+  opprettet: string;
+  bruktPa?: Bruk[];
+}
+
+export interface Drift {
+  php: string;
+  pdoMysql: boolean;
+  database: { ok: boolean; driver?: string; versjon?: string };
+  gd: boolean;
+  gdVersjon: string | null;
+  webp: boolean;
+  avif: boolean;
+  imagick: boolean;
+  exif: boolean;
+  fileinfo: boolean;
+  curl: boolean;
+  opensslHttps: boolean;
+  uploadMaxFilesize: number;
+  postMaxSize: number;
+  memoryLimit: number;
+  maxExecutionTime: number;
+  maksOpplasting: number;
+  ledigPlass: number | null;
+  dataSkrivbar: boolean;
+  medierSkrivbar: boolean;
+  https: boolean;
+  server: string;
+  publisert: boolean;
+  antallMedier: number;
 }
 
 export interface Resultat {
@@ -47,6 +136,7 @@ export interface Revisjon {
   verdi: string | null;
   av: string | null;
   tid: string;
+  bilde?: Bildeinfo | null;
 }
 
 export interface Forslag {
@@ -75,7 +165,9 @@ export interface Hendelse {
 }
 
 /** What visitors and the editor see for a field: the draft (editor only), else published, else the code default. */
-export const gjeldende = (f: Felt): string => f.publisert ?? f.standard;
+/** An image field's value for «the picture the page was built with». */
+export const BYGGET = '{"medium":null}';
+export const gjeldende = (f: Felt): string => f.publisert ?? (f.type === 'bilde' ? BYGGET : f.standard);
 export const visning = (f: Felt): string => f.utkast ?? gjeldende(f);
 
 export class CmsFeil extends Error {
@@ -121,6 +213,44 @@ async function kall<T>(
 }
 
 const post = <T>(r: string, kropp: unknown) => kall<T>(r, { metode: 'POST', kropp });
+
+/** Upload one picture with progress (fetch cannot report upload progress). */
+function lastOpp(
+  fil: File,
+  framdrift?: (andel: number) => void,
+): Promise<{ medium: Medium; gjentatt: boolean }> {
+  return new Promise((ferdig, feilet) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${nettsti('/api/cms/')}?r=last-opp`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('Accept', 'application/json');
+    if (csrf) xhr.setRequestHeader('X-CSRF-Token', csrf);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) framdrift?.(e.loaded / e.total);
+    };
+    xhr.onerror = () => feilet(new CmsFeil('Fikk ikke kontakt med serveren.', 0));
+    xhr.onload = () => {
+      let data: { medium?: Medium; gjentatt?: boolean; feil?: string } = {};
+      try {
+        data = JSON.parse(xhr.responseText) as typeof data;
+      } catch {
+        feilet(
+          new CmsFeil(
+            xhr.status === 413 ? 'Filen er større enn serveren tillater.' : `Serveren svarte ${xhr.status}.`,
+            xhr.status,
+          ),
+        );
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300 && data.medium)
+        ferdig({ medium: data.medium, gjentatt: Boolean(data.gjentatt) });
+      else feilet(new CmsFeil(data.feil ?? `Serveren svarte ${xhr.status}.`, xhr.status));
+    };
+    const skjema = new FormData();
+    skjema.append('fil', fil);
+    xhr.send(skjema);
+  });
+}
 const s = encodeURIComponent;
 
 export const cms = {
@@ -149,6 +279,20 @@ export const cms = {
   nyNokkel: (id: number) => post<{ bruker: Bruker; nokkel: string }>('ny-nokkel', { id }),
   passord: (gammelt: string, nytt: string) => post<{ ok: true }>('passord', { gammelt, nytt }),
   logg: () => kall<{ hendelser: Hendelse[] }>('logg'),
+  medier: (arkiverte = false) =>
+    kall<{ medier: Medium[]; maksOpplasting: number; kanLageBilder: boolean }>('medier', {
+      sok: arkiverte ? '&arkiverte=1' : '',
+    }),
+  lastOpp,
+  medium: (d: {
+    id: number;
+    navn?: string;
+    alt?: string;
+    konsept?: boolean;
+    rettigheter?: string;
+    arkivert?: boolean;
+  }) => post<{ medium: Medium }>('medium', d),
+  drift: () => kall<{ drift: Drift }>('drift'),
   eksportUrl: () => `${nettsti('/api/cms/')}?r=eksport`,
   importer: (data: unknown) => post<{ ok: true; antall: Record<string, number> }>('import', data),
 };
@@ -158,4 +302,24 @@ export function feltnavn(nokkel: string, sider: Record<string, string>): string 
   const m = /^sider\/([a-z0-9-]+)#(.+)$/.exec(nokkel);
   if (!m) return nokkel;
   return `${sider[m[1]!] ?? m[1]} · ${m[2]}`;
+}
+
+/** Read an image field value (stored as JSON). Anything unreadable counts as «as built». */
+export function lesBildeverdi(verdi: string | null): Bildeverdi | null {
+  if (verdi === null) return null;
+  try {
+    const d = JSON.parse(verdi) as Bildeverdi;
+    return d && typeof d === 'object' && 'medium' in d ? d : { medium: null };
+  } catch {
+    return { medium: null };
+  }
+}
+
+export function lesByggbilde(standard: string): Byggbilde | null {
+  try {
+    const d = JSON.parse(standard) as Byggbilde;
+    return d && typeof d.src === 'string' ? d : null;
+  } catch {
+    return null;
+  }
 }

@@ -16,7 +16,14 @@ const innganger = (['privat', 'bedrift'] as const).map((kundetype) => ({
 ---
 
 <Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
-  <link slot="hode" rel="preload" as="image" href={bakgrunner.samarbeid.src} fetchpriority="high" />
+  <link
+    slot="hode"
+    rel="preload"
+    as="image"
+    href={bakgrunner.samarbeid.src}
+    fetchpriority="high"
+    data-rediger-bilde-forhand={t.kilde('helt.bilde')}
+  />
   <BildeHelt
     bilde={bakgrunner.samarbeid}
     etikett={t('helt.etikett')}

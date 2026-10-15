@@ -18,6 +18,10 @@
  *   GET  brukere / POST bruker / POST ny-nokkel / POST passord
  *   GET  logg                audit log
  *   GET  eksport / POST import   backup and restore of all content
+ *   GET  medier              the media library (with where each picture is used)
+ *   POST last-opp            upload one picture (multipart, field «fil»)
+ *   POST medium              change a picture's name, alt text, labels, or archive it
+ *   GET  drift               what this server supports (admin), no secrets
  *
  * See docs/cms/README.md.
  */
@@ -71,7 +75,10 @@ function cms_felt(string $nokkel, ?array $rad, array $navn = []): array
         'endret' => $rad['endret'] ?? null,
         'endretAv' => isset($rad['endret_av']) ? ($navn[(int) $rad['endret_av']] ?? null) : null,
         'publisertTid' => $rad['publisert_tid'] ?? null,
-    ];
+    ] + (($def['type'] ?? '') === 'bilde' ? ['bilder' => [
+        'publisert' => cms_bilde_info($rad['publisert'] ?? null),
+        'utkast' => cms_bilde_info($rad['utkast'] ?? null),
+    ]] : []);
 }
 
 function cms_revisjon(string $nokkel, int $versjon, string $handling, ?string $verdi, array $aktor): void
@@ -340,10 +347,12 @@ try {
         $nokkel = (string) ($_GET['nokkel'] ?? '');
         if (!isset(cms_nokler()[$nokkel])) throw new CmsFeil('Ukjent felt.', 404);
         $navn = cms_brukernavn();
+        $bildefelt = (cms_nokler()[$nokkel]['type'] ?? '') === 'bilde';
         $liste = array_map(fn($r) => [
             'id' => (int) $r['id'], 'versjon' => (int) $r['versjon'], 'handling' => $r['handling'],
             'verdi' => $r['verdi'], 'av' => $navn[(int) $r['aktor_id']] ?? null, 'tid' => $r['opprettet'],
-        ], cms_alle('SELECT * FROM cms_revisjoner WHERE nokkel = ? ORDER BY id DESC LIMIT 200', [$nokkel]));
+        ] + ($bildefelt ? ['bilde' => cms_bilde_info($r['verdi'])] : []),
+            cms_alle('SELECT * FROM cms_revisjoner WHERE nokkel = ? ORDER BY id DESC LIMIT 200', [$nokkel]));
         cms_svar(['felt' => cms_felt($nokkel, cms_rad($nokkel), $navn), 'revisjoner' => $liste]);
     }
 
@@ -355,7 +364,16 @@ try {
         $standard = ($kropp['standard'] ?? false) === true;
         $nokkel = $standard ? (string) ($kropp['nokkel'] ?? '') : (string) ($rev['nokkel'] ?? '');
         if (!isset(cms_nokler()[$nokkel])) throw new CmsFeil('Fant ikke versjonen.', 404);
-        $verdi = $standard ? (string) cms_nokler()[$nokkel]['standard'] : $rev['verdi'];
+        $bildefelt = (cms_nokler()[$nokkel]['type'] ?? '') === 'bilde';
+        $verdi = $standard ? ($bildefelt ? json_encode(['medium' => null]) : (string) cms_nokler()[$nokkel]['standard']) : $rev['verdi'];
+        if ($bildefelt && $verdi !== null) {
+            // The picture may have been archived since; it has to be active to be used again.
+            try {
+                $verdi = cms_gyldig_bildeverdi($verdi);
+            } catch (CmsFeil $f) {
+                cms_svar(['nokkel' => $nokkel, 'status' => 'ugyldig', 'melding' => $f->getMessage()], 422);
+            }
+        }
         if ($verdi === null || $verdi === '') throw new CmsFeil('Denne versjonen har ingen tekst å gjenopprette.', 422);
         $svar = cms_utkast_en($nokkel, (int) ($kropp['versjon'] ?? -1), $verdi, $aktor, 'gjenopprettet');
         cms_svar($svar, $svar['status'] === 'ok' ? 200 : 409);
@@ -516,10 +534,75 @@ try {
         ], $rader)]);
     }
 
+    if ($r === 'medier') {
+        cms_krev('les');
+        $arkiverte = ($_GET['arkiverte'] ?? '') === '1';
+        $bruk = cms_mediebruk();
+        $rader = cms_alle('SELECT * FROM cms_medier WHERE status = ? ORDER BY id DESC LIMIT 500', [$arkiverte ? 'arkivert' : 'aktiv']);
+        cms_svar([
+            'medier' => array_map(fn($m) => cms_medium_ut($m, $bruk[(int) $m['id']] ?? []), $rader),
+            'maksOpplasting' => cms_maks_opplasting(),
+            'kanLageBilder' => cms_kan_lage_bilder(),
+        ]);
+    }
+
+    if ($r === 'last-opp') {
+        cms_metode('POST');
+        $aktor = cms_krev('utkast');
+        $lengde = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        $post = cms_ini_bytes('post_max_size');
+        if (empty($_FILES) && $post > 0 && $lengde > $post) {
+            throw new CmsFeil('Filen er større enn serveren tillater (' . cms_mb(cms_maks_opplasting()) . ').', 413);
+        }
+        cms_begrens('opplasting:' . $aktor['id'], 120, 3600);
+        cms_registrer_forsok('opplasting:' . $aktor['id']);
+        $svar = cms_last_opp((array) ($_FILES['fil'] ?? []), $aktor, (string) ($_POST['alt'] ?? ''));
+        cms_svar($svar, $svar['gjentatt'] ? 200 : 201);
+    }
+
+    if ($r === 'medium') {
+        cms_metode('POST');
+        $aktor = cms_krev('utkast');
+        $kropp = cms_kropp();
+        $m = cms_medium_rad((int) ($kropp['id'] ?? 0));
+        if (!$m) throw new CmsFeil('Fant ikke bildet.', 404);
+        $sett = [];
+        if (array_key_exists('navn', $kropp)) {
+            $navn = mb_substr(trim((string) preg_replace('/[\x00-\x1f]+/u', ' ', (string) $kropp['navn'])), 0, 191);
+            if ($navn === '') throw new CmsFeil('Bildet må ha et navn.', 422);
+            $sett['navn'] = $navn;
+        }
+        if (array_key_exists('alt', $kropp)) {
+            $alt = trim((string) preg_replace('/\s+/u', ' ', (string) $kropp['alt']));
+            if (mb_strlen($alt) > CMS_MAKS_ALT) throw new CmsFeil('Alt-teksten er for lang.', 422);
+            $sett['alt'] = $alt;
+        }
+        if (array_key_exists('konsept', $kropp)) $sett['konsept'] = $kropp['konsept'] === true ? 1 : 0;
+        if (array_key_exists('rettigheter', $kropp)) {
+            $sett['rettigheter'] = mb_substr(trim((string) $kropp['rettigheter']), 0, 1000) ?: null;
+        }
+        if (array_key_exists('arkivert', $kropp)) $sett['status'] = $kropp['arkivert'] === true ? 'arkivert' : 'aktiv';
+        if (!$sett) throw new CmsFeil('Ingenting å endre.', 422);
+        $deler = implode(', ', array_map(fn($k) => "$k = ?", array_keys($sett)));
+        cms_kjor("UPDATE cms_medier SET $deler WHERE id = ?", [...array_values($sett), $m['id']]);
+        $for = array_intersect_key($m, $sett);
+        cms_logg($aktor, isset($sett['status']) ? 'medium.' . ($sett['status'] === 'arkivert' ? 'arkiver' : 'hent-fram') : 'medium.endre',
+            $m['navn'], $for, $sett);
+        // A published picture's «Konseptbilde» label follows the library.
+        if (isset($sett['konsept'])) cms_skriv_publisert();
+        $bruk = cms_mediebruk();
+        cms_svar(['medium' => cms_medium_ut(cms_medium_rad((int) $m['id']), $bruk[(int) $m['id']] ?? [])]);
+    }
+
+    if ($r === 'drift') {
+        cms_krev('drift');
+        cms_svar(['drift' => cms_drift()]);
+    }
+
     if ($r === 'eksport') {
         $aktor = cms_krev('sikkerhetskopi');
         $data = ['format' => 'designporten-cms', 'versjon' => 1, 'laget' => cms_na(), 'tabeller' => []];
-        foreach ([...CMS_TABELLER, 'cms_brukere'] as $t) $data['tabeller'][$t] = cms_alle("SELECT * FROM $t ORDER BY id");
+        foreach ([...CMS_TABELLER, 'cms_medier', 'cms_brukere'] as $t) $data['tabeller'][$t] = cms_alle("SELECT * FROM $t ORDER BY id");
         cms_logg($aktor, 'sikkerhetskopi.eksport', null, null, null);
         header('Content-Disposition: attachment; filename="designporten-cms-' . gmdate('Ymd-His') . '.json"');
         cms_svar($data);
@@ -549,6 +632,16 @@ try {
                 $rader = (array) ($data['tabeller'][$t] ?? []);
                 foreach ($rader as $rad) $s->execute(array_map(fn($kol) => is_array($rad) ? ($rad[$kol] ?? null) : null, $k));
                 $antall[$t] = count($rader);
+            }
+            // Pictures are only added back, never removed: files on the server stay, and
+            // a backup from before an upload must not leave published pages without their picture.
+            $mk = ['id', 'fil', 'original', 'mime', 'bredde', 'hoyde', 'storrelse', 'sjekksum', 'navn', 'alt', 'konsept', 'rettigheter', 'status', 'varianter', 'opprettet', 'opprettet_av'];
+            $s = $db->prepare('INSERT INTO cms_medier (' . implode(', ', $mk) . ') VALUES (' . implode(', ', array_fill(0, count($mk), '?')) . ')');
+            $antall['cms_medier'] = 0;
+            foreach ((array) ($data['tabeller']['cms_medier'] ?? []) as $rad) {
+                if (!is_array($rad) || cms_medium_rad((int) ($rad['id'] ?? 0))) continue;
+                $s->execute(array_map(fn($kol) => $rad[$kol] ?? null, $mk));
+                $antall['cms_medier']++;
             }
             $db->commit();
         } catch (Throwable $e) {

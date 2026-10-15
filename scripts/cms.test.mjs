@@ -2,14 +2,18 @@
  * The CMS API and page server against PHP's built-in server and SQLite, with
  * the acceptance scenarios from the CMS plan (docs/cms/README.md#akseptansetester).
  * Skipped when PHP with pdo_sqlite is not installed.
+ *
+ * The same tests run against MySQL/MariaDB, the database on one.com, with
+ *   DP_CMS_MYSQL="host=127.0.0.1;port=3307" DP_CMS_BRUKER=… DP_CMS_PASSORD=… node --test scripts/cms.test.mjs
+ * (the user needs rights to create and drop databases named cmstest_*).
  */
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { ELEMENT, lagNokler } from './cms-nokler.mjs';
+import { BILDE, ELEMENT, lagNokler } from './cms-nokler.mjs';
 
 const php = process.env.PHP_BIN || 'php';
 const moduler = spawnSync(php, ['-m'], { encoding: 'utf8' });
@@ -17,7 +21,12 @@ const harPhp = moduler.status === 0 && /pdo_sqlite/i.test(moduler.stdout);
 const PORT = 4390 + Math.floor(Math.random() * 400);
 const URL_ = `http://127.0.0.1:${PORT}`;
 
-const SIDE = `<!doctype html><html><head><title>Test</title></head><body>
+const BYGGBILDE = '/midlertidig/helt.webp';
+const SIDE = `<!doctype html><html><head><title>Test</title>
+<link rel="preload" as="image" href="${BYGGBILDE}" fetchpriority="high" data-rediger-bilde-forhand="sider/forside#helt.bilde">
+</head><body>
+<span class="konseptbilde"><img src="${BYGGBILDE}" alt="Verksted" width="1600" height="900" loading="eager" sizes="100vw" data-rediger-bilde="sider/forside#helt.bilde" data-konsept="1" class="x"></span>
+<span class="bhelt__merke mono" data-konseptmerke="sider/forside#helt.bilde">Konseptbilde</span>
 <h1 class="a" data-rediger="sider/forside#helt.tittel" data-astro-cid-x>Lag noe eget</h1>
 <p data-rediger="sider/forside#helt.ingress">Vi printer &amp; tegner.</p>
 <div data-rediger="sider/om#tekst" data-rediger-type="avsnitt"><p data-astro-cid-y>En.</p><p data-astro-cid-y>To.</p></div>
@@ -29,7 +38,78 @@ const NOKLER = {
   'sider/forside#helt.ingress': { type: 'linje', standard: 'Vi printer & tegner.', sider: ['/'] },
   'sider/om#tekst': { type: 'avsnitt', standard: 'En.\n\nTo.', sider: ['/'] },
   'sider/forside#knapp': { type: 'linje', standard: 'Se mer', sider: ['/'] },
+  'sider/forside#helt.bilde': {
+    type: 'bilde',
+    standard: JSON.stringify({ src: BYGGBILDE, alt: 'Verksted', bredde: 1600, hoyde: 900, konsept: true }),
+    sider: ['/'],
+  },
 };
+
+/** Make a picture with PHP's GD (the same library the CMS uses). */
+function lagBilde(type, bredde, hoyde) {
+  const r = spawnSync(
+    php,
+    [
+      '-r',
+      `$b = imagecreatetruecolor(${bredde}, ${hoyde}); imagefilledrectangle($b, 0, 0, ${bredde / 2}, ${hoyde}, imagecolorallocate($b, 200, 40, 40));
+       ob_start(); image${type}($b); fwrite(STDOUT, ob_get_clean());`,
+    ],
+    { maxBuffer: 1 << 26 },
+  );
+  if (r.status !== 0) throw new Error(String(r.stderr));
+  return r.stdout;
+}
+
+/**
+ * A JPEG with an EXIF block that says «rotate 90°» and carries a GPS
+ * position, like a phone photo (MED-07).
+ */
+function medExif(jpeg) {
+  const tiff = Buffer.alloc(8 + 2 + 2 * 12 + 4 + 2 + 12 + 4);
+  tiff.write('II', 0);
+  tiff.writeUInt16LE(42, 2);
+  tiff.writeUInt32LE(8, 4);
+  let o = 8;
+  tiff.writeUInt16LE(2, o);
+  o += 2;
+  const gpsIfd = 8 + 2 + 2 * 12 + 4;
+  for (const [tag, type, antall, verdi] of [
+    [0x0112, 3, 1, 6],
+    [0x8825, 4, 1, gpsIfd],
+  ]) {
+    tiff.writeUInt16LE(tag, o);
+    tiff.writeUInt16LE(type, o + 2);
+    tiff.writeUInt32LE(antall, o + 4);
+    if (type === 3) tiff.writeUInt16LE(verdi, o + 8);
+    else tiff.writeUInt32LE(verdi, o + 8);
+    o += 12;
+  }
+  tiff.writeUInt32LE(0, o);
+  o += 4;
+  tiff.writeUInt16LE(1, o);
+  o += 2;
+  tiff.writeUInt16LE(0x0001, o);
+  tiff.writeUInt16LE(2, o + 2);
+  tiff.writeUInt32LE(2, o + 4);
+  tiff.write('N\0', o + 8, 'latin1');
+  o += 12;
+  tiff.writeUInt32LE(0, o);
+  const app1 = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff]);
+  const hode = Buffer.from([0xff, 0xe1, (app1.length + 2) >> 8, (app1.length + 2) & 0xff]);
+  return Buffer.concat([jpeg.subarray(0, 2), hode, app1, jpeg.subarray(2)]);
+}
+
+/** Width and height from a WebP, PNG or JPEG file. */
+function maal(buf) {
+  const r = spawnSync(
+    php,
+    ['-r', '$i = getimagesizefromstring(stream_get_contents(STDIN)); echo $i[0], "x", $i[1];'],
+    {
+      input: buf,
+    },
+  );
+  return String(r.stdout);
+}
 
 /** A tiny client with its own cookie jar, like one browser. */
 function klient() {
@@ -55,10 +135,40 @@ function klient() {
     if (data.csrf) csrf = data.csrf;
     return { status: svar.status, data };
   }
-  return { kall, kaker, settCsrf: (v) => (csrf = v) };
+  async function lastOpp(innhold, navn, type) {
+    const skjema = new FormData();
+    skjema.append('fil', new Blob([innhold], { type }), navn);
+    const svar = await fetch(`${URL_}/api/cms/?r=last-opp`, {
+      method: 'POST',
+      headers: {
+        ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
+        Cookie: [...kaker].map(([k, v]) => `${k}=${v}`).join('; '),
+      },
+      body: skjema,
+    });
+    return { status: svar.status, data: await svar.json() };
+  }
+  return { kall, kaker, lastOpp, settCsrf: (v) => (csrf = v) };
 }
 
 const side = async (sti = '/') => (await fetch(`${URL_}${sti}`)).text();
+
+let mysqlNavn = '';
+function mysqlKjor(sql) {
+  const r = spawnSync(
+    php,
+    [
+      '-r',
+      '$d = new PDO($argv[1], $argv[2], $argv[3]); $d->exec($argv[4]);',
+      `mysql:${process.env.DP_CMS_MYSQL}`,
+      process.env.DP_CMS_BRUKER ?? '',
+      process.env.DP_CMS_PASSORD ?? '',
+      sql,
+    ],
+    { encoding: 'utf8' },
+  );
+  if (r.status !== 0) throw new Error(r.stderr || r.stdout);
+}
 
 describe('CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' }, () => {
   let rot;
@@ -75,8 +185,14 @@ describe('CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' }, ()
     writeFileSync(join(rot, 'api/cms/nokler.json'), JSON.stringify(NOKLER));
     writeFileSync(join(rot, 'index.html'), SIDE);
     writeFileSync(join(rot, '404.html'), 'Fant ikke');
+    const env = { ...process.env, DP_CMS_ROT: rot };
+    if (process.env.DP_CMS_MYSQL) {
+      mysqlNavn = `cmstest_${process.pid}`;
+      mysqlKjor(`CREATE DATABASE ${mysqlNavn} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+      env.DP_CMS_DSN = `mysql:${process.env.DP_CMS_MYSQL};dbname=${mysqlNavn};charset=utf8mb4`;
+    }
     server = spawn(php, ['-S', `127.0.0.1:${PORT}`, resolve('tests/php/cms-router.php')], {
-      env: { ...process.env, DP_CMS_ROT: rot },
+      env,
       stdio: 'ignore',
     });
     for (let i = 0; i < 50; i++) {
@@ -92,11 +208,12 @@ describe('CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' }, ()
 
   after(() => {
     server?.kill();
+    if (mysqlNavn) mysqlKjor(`DROP DATABASE IF EXISTS ${mysqlNavn}`);
     if (rot) rmSync(rot, { recursive: true, force: true });
   });
 
   test('oppsett: første administrator krever oppsettkoden, og bare én gang', async () => {
-    assert.deepEqual((await admin.kall('status')).data, { oppsett: true, harBrukere: false, felt: 4 });
+    assert.deepEqual((await admin.kall('status')).data, { oppsett: true, harBrukere: false, felt: 5 });
     const feil = await admin.kall('oppsett', {
       metode: 'POST',
       kropp: { kode: 'feil', epost: 'a@b.no', navn: 'A', passord: 'et-langt-passord' },
@@ -395,6 +512,195 @@ describe('CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' }, ()
     assert.equal((await admin.kall('import', { metode: 'POST', kropp: { format: 'annet' } })).status, 422);
   });
 
+  // ---------------------------------------------------------------- Pictures
+
+  let bilde;
+
+  test('MED-02: PHP forkledd som bilde, SVG og for mange piksler avvises, og ingenting blir liggende', async () => {
+    const php1 = await admin.lastOpp(Buffer.from('<?php echo "hei"; ?>'), 'bilde.jpg', 'image/jpeg');
+    assert.equal(php1.status, 415);
+    const polyglot = Buffer.concat([Buffer.from('GIF89a'), Buffer.from('<?php system($_GET["c"]); ?>')]);
+    assert.equal((await admin.lastOpp(polyglot, 'x.php.png', 'image/png')).status, 415);
+    const svg = await admin.lastOpp(
+      Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+      'logo.svg',
+      'image/svg+xml',
+    );
+    assert.equal(svg.status, 415);
+    assert.match(svg.data.feil, /SVG/);
+    // A real PNG header that claims 10 000 × 5 000 pixels (50 megapixels).
+    const stor = Buffer.from(lagBilde('png', 4, 4));
+    stor.writeUInt32BE(10000, 16);
+    stor.writeUInt32BE(5000, 20);
+    const pikselbombe = await admin.lastOpp(stor, 'stor.png', 'image/png');
+    assert.equal(pikselbombe.status, 413);
+    assert.match(pikselbombe.data.feil, /piksler/);
+    assert.equal((await klient().lastOpp(lagBilde('png', 8, 8), 'a.png', 'image/png')).status, 401);
+    assert.equal(
+      existsSync(join(rot, 'medier'))
+        ? readdirSync(join(rot, 'medier')).filter((f) => f !== '.htaccess').length
+        : 0,
+      0,
+    );
+  });
+
+  test('MED-01 og MED-07: et mobilbilde blir snudd riktig, får flere bredder og mister EXIF og GPS', async () => {
+    const original = medExif(lagBilde('jpeg', 1700, 900));
+    assert.ok(original.includes(Buffer.from('Exif')));
+    const r = await redaktor.lastOpp(original, 'Verksted på mobil.jpg', 'image/jpeg');
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    bilde = r.data.medium;
+    // Orientation 6: stored lying down, shown standing up.
+    assert.equal(bilde.originalBredde, 900);
+    assert.equal(bilde.originalHoyde, 1700);
+    assert.equal(bilde.navn, 'Verksted på mobil.jpg');
+    const bredder = bilde.srcset.split(', ').map((d) => Number(d.split(' ')[1].replace('w', '')));
+    assert.deepEqual(bredder, [480, 800, 900]);
+    const fil = await fetch(`${URL_}${bilde.src}`);
+    assert.equal(fil.status, 200);
+    const innhold = Buffer.from(await fil.arrayBuffer());
+    assert.equal(maal(innhold), '900x1700');
+    assert.ok(!innhold.includes(Buffer.from('Exif')), 'den publiserte versjonen har ikke EXIF');
+    // The original is kept, unchanged and private.
+    const [orig] = readdirSync(join(rot, 'api/cms/data/medier'));
+    assert.deepEqual(readFileSync(join(rot, 'api/cms/data/medier', orig)), original);
+    assert.ok(!bilde.src.includes('data/'));
+    // The same file again is the same picture.
+    const igjen = await admin.lastOpp(original, 'kopi.jpg', 'image/jpeg');
+    assert.equal(igjen.status, 200);
+    assert.equal(igjen.data.gjentatt, true);
+    assert.equal(igjen.data.medium.id, bilde.id);
+    // PNG with transparency and WebP work too.
+    assert.equal((await admin.lastOpp(lagBilde('png', 300, 200), 'a.png', 'image/png')).status, 201);
+    assert.equal((await admin.lastOpp(lagBilde('webp', 320, 200), 'b.webp', 'image/webp')).status, 201);
+    const liste = (await redaktor.kall('medier')).data;
+    assert.equal(liste.medier.length, 3);
+    assert.ok(liste.maksOpplasting > 0);
+  });
+
+  test('bildefelt: alt-tekst kreves, og et utkast vises ikke for besøkende', async () => {
+    const nokkel = 'sider/forside#helt.bilde';
+    const felt = (await redaktor.kall('innhold')).data.felt.find((f) => f.nokkel === nokkel);
+    assert.equal(felt.type, 'bilde');
+    const utenAlt = await redaktor.kall('lagre', {
+      metode: 'POST',
+      kropp: {
+        endringer: [{ nokkel, verdi: JSON.stringify({ medium: bilde.id, alt: ' ' }), versjon: felt.versjon }],
+      },
+    });
+    assert.equal(utenAlt.data.resultater[0].status, 'ugyldig');
+    assert.match(utenAlt.data.resultater[0].melding, /alt-tekst/);
+    const ukjent = await redaktor.kall('lagre', {
+      metode: 'POST',
+      kropp: { endringer: [{ nokkel, verdi: { medium: 9999, alt: 'X' }, versjon: felt.versjon }] },
+    });
+    assert.equal(ukjent.data.resultater[0].status, 'ugyldig');
+    const r = await redaktor.kall('lagre', {
+      metode: 'POST',
+      kropp: {
+        endringer: [
+          {
+            nokkel,
+            verdi: JSON.stringify({
+              medium: bilde.id,
+              alt: 'Printer & "deler"',
+              fokus: '30% 40%',
+              fokusMobil: '60% 50%',
+            }),
+            versjon: felt.versjon,
+          },
+        ],
+      },
+    });
+    assert.equal(r.data.resultater[0].status, 'ok');
+    assert.equal(r.data.resultater[0].felt.bilder.utkast.medium, bilde.id);
+    const html = await side();
+    assert.match(html, new RegExp(`src="${BYGGBILDE}"`));
+    assert.doesNotMatch(html, /medier\//);
+  });
+
+  test('bildefelt: publisering setter inn bildet med srcset, alt og fokus, og fjerner konseptmerket', async () => {
+    const nokkel = 'sider/forside#helt.bilde';
+    const felt = (await redaktor.kall('innhold')).data.felt.find((f) => f.nokkel === nokkel);
+    const p = await redaktor.kall('publiser', {
+      metode: 'POST',
+      kropp: { nokler: [{ nokkel, versjon: felt.versjon }] },
+    });
+    assert.equal(p.data.resultater[0].status, 'ok');
+    const html = await side();
+    const img = html.match(BILDE)[0];
+    assert.match(img, new RegExp(`src="${bilde.src}"`));
+    assert.match(img, /srcset="[^"]*480w[^"]*900w"/);
+    assert.match(img, /alt="Printer &amp; &quot;deler&quot;"/);
+    assert.match(img, /width="900" height="1700"/);
+    assert.match(img, /style="--fokus: 30% 40%; --fokus-mobil: 60% 50%;"/);
+    assert.match(img, /loading="eager"/);
+    assert.match(img, /class="x"/);
+    assert.match(html, /<link [^>]*href="\/medier\/[^"]+"[^>]*imagesrcset=/);
+    assert.match(html, /data-konseptmerke="sider\/forside#helt.bilde" hidden>/);
+    // Marking it a concept picture in the library brings the label back.
+    await admin.kall('medium', { metode: 'POST', kropp: { id: bilde.id, konsept: true } });
+    assert.match(await side(), /data-konseptmerke="sider\/forside#helt.bilde">Konseptbilde/);
+    await admin.kall('medium', { metode: 'POST', kropp: { id: bilde.id, konsept: false } });
+    const bruk = (await admin.kall('medier')).data.medier.find((m) => m.id === bilde.id).bruktPa;
+    assert.deepEqual(bruk, [{ nokkel, publisert: true, utkast: false }]);
+  });
+
+  test('MED-04: et arkivert bilde kan ikke velges på nytt, men siden som bruker det virker', async () => {
+    const a = await admin.kall('medium', { metode: 'POST', kropp: { id: bilde.id, arkivert: true } });
+    assert.equal(a.data.medium.status, 'arkivert');
+    assert.match(await side(), new RegExp(`src="${bilde.src}"`));
+    assert.equal((await fetch(`${URL_}${bilde.src}`)).status, 200);
+    assert.ok(!(await admin.kall('medier')).data.medier.some((m) => m.id === bilde.id));
+    assert.ok(
+      (await admin.kall('medier', { sok: '&arkiverte=1' })).data.medier.some((m) => m.id === bilde.id),
+    );
+    const nokkel = 'sider/forside#helt.bilde';
+    const felt = (await redaktor.kall('innhold')).data.felt.find((f) => f.nokkel === nokkel);
+    const r = await redaktor.kall('lagre', {
+      metode: 'POST',
+      kropp: { endringer: [{ nokkel, verdi: { medium: bilde.id, alt: 'Ny' }, versjon: felt.versjon }] },
+    });
+    assert.match(r.data.resultater[0].melding, /arkivert/);
+    await admin.kall('medium', { metode: 'POST', kropp: { id: bilde.id, arkivert: false } });
+  });
+
+  test('CMS-04 for bilder: bildet siden ble laget med kan hentes tilbake og publiseres', async () => {
+    const nokkel = 'sider/forside#helt.bilde';
+    const h = (await redaktor.kall('historikk', { sok: `&nokkel=${encodeURIComponent(nokkel)}` })).data;
+    assert.equal(h.revisjoner[0].handling, 'publisert');
+    assert.equal(h.revisjoner[0].bilde.medium, bilde.id);
+    const g = await redaktor.kall('gjenopprett', {
+      metode: 'POST',
+      kropp: { standard: true, nokkel, versjon: h.felt.versjon },
+    });
+    assert.equal(g.data.status, 'ok');
+    await redaktor.kall('publiser', {
+      metode: 'POST',
+      kropp: { nokler: [{ nokkel, versjon: g.data.felt.versjon }] },
+    });
+    const html = await side();
+    assert.match(html.match(BILDE)[0], new RegExp(`src="${BYGGBILDE}"`));
+    assert.match(html, /data-konseptmerke="sider\/forside#helt.bilde">Konseptbilde/);
+    // …and the uploaded one again, from the history.
+    const igjen = (await redaktor.kall('historikk', { sok: `&nokkel=${encodeURIComponent(nokkel)}` })).data;
+    const forrige = igjen.revisjoner.find((r) => r.bilde?.medium === bilde.id);
+    const g2 = await redaktor.kall('gjenopprett', {
+      metode: 'POST',
+      kropp: { revisjon: forrige.id, versjon: igjen.felt.versjon },
+    });
+    assert.equal(g2.data.status, 'ok');
+  });
+
+  test('drift: administratoren ser hva serveren støtter, uten hemmeligheter; andre får ikke se det', async () => {
+    const d = await admin.kall('drift');
+    assert.equal(d.status, 200);
+    assert.equal(d.data.drift.gd, true);
+    assert.equal(d.data.drift.database.ok, true);
+    assert.doesNotMatch(JSON.stringify(d.data), /oppsettkode|passord|test-oppsettkode/);
+    assert.equal((await redaktor.kall('drift')).status, 403);
+  });
+
   test('innloggingen begrenses etter for mange feil', async () => {
     const k = klient();
     let siste;
@@ -416,6 +722,31 @@ describe('CMS-feltlisten', () => {
       [...html.matchAll(ELEMENT)].map((m) => m[3]),
       ['sider/a#b', 'sider/a#c'],
     );
+  });
+
+  test('bildefelt får bildet siden ble laget med som standard', () => {
+    const dist = mkdtempSync(join(tmpdir(), 'dp-cms-dist-'));
+    try {
+      writeFileSync(
+        join(dist, 'index.html'),
+        '<img src="/a.webp" alt="Et &quot;bord&quot;" width="1600" height="900" data-rediger-bilde="sider/a#helt.bilde" data-konsept="1">',
+      );
+      assert.deepEqual(lagNokler(dist, dist), {
+        'sider/a#helt.bilde': {
+          type: 'bilde',
+          standard: JSON.stringify({
+            src: '/a.webp',
+            alt: 'Et "bord"',
+            bredde: 1600,
+            hoyde: 900,
+            konsept: true,
+          }),
+          sider: ['/'],
+        },
+      });
+    } finally {
+      rmSync(dist, { recursive: true, force: true });
+    }
   });
 
   test('bygget feiler hvis et merket felt ikke kan settes inn', () => {

@@ -7,7 +7,19 @@ import { nettsti } from '@/lib/nettsti';
  * editor sees drafts on top, edits in place, saves drafts, and publishes when
  * ready; nothing is committed to GitHub and nothing needs a new deploy.
  */
-import { cms, CmsFeil, gjeldende, sideSti, visning, type Bruker, type Felt } from '@/lib/cms/api';
+import {
+  cms,
+  CmsFeil,
+  gjeldende,
+  lesBildeverdi,
+  lesByggbilde,
+  sideSti,
+  visning,
+  type Bildeinfo,
+  type Bruker,
+  type Felt,
+} from '@/lib/cms/api';
+import { velgBilde, visBilde } from './cmsbilder';
 import {
   flertall,
   lagKnapp,
@@ -25,9 +37,12 @@ const HUSK = 'dp-redigering-pa';
 interface Plass {
   el: HTMLElement;
   felt: Felt;
-  /** The text the element shows when not edited (draft or published). */
+  /** The value the element shows when not edited (draft or published): a text, or an image field's JSON. */
   vist: string;
 }
+
+const erBilde = (p: Plass) => p.felt.type === 'bilde';
+const teksttype = (p: Plass) => (p.felt.type === 'avsnitt' ? 'avsnitt' : 'linje');
 
 function husk(pa: boolean) {
   try {
@@ -72,7 +87,38 @@ export async function startCmsVerktoy() {
     const f = perNokkel.get(el.dataset.rediger!);
     if (f) plasser.push({ el, felt: f, vist: visning(f) });
   }
+  for (const el of document.querySelectorAll<HTMLImageElement>('img[data-rediger-bilde^="sider/"]')) {
+    const f = perNokkel.get(el.dataset.redigerBilde!);
+    if (f?.type === 'bilde') plasser.push({ el, felt: f, vist: visning(f) });
+  }
   if (!plasser.length) return;
+  const tekster = () => plasser.filter((p) => !erBilde(p));
+
+  // Pictures: the files behind each image field value seen so far.
+  const bildeinfo = new Map<string, Bildeinfo | null>();
+  const huskBilder = (f: Felt) => {
+    if (f.publisert !== null) bildeinfo.set(f.publisert, f.bilder?.publisert ?? null);
+    if (f.utkast !== null) bildeinfo.set(f.utkast, f.bilder?.utkast ?? null);
+  };
+  felt.forEach(huskBilder);
+
+  /** The value an element holds now (edited or not). */
+  const lesVerdi = (p: Plass) =>
+    erBilde(p) ? (p.el.dataset.cmsVerdi ?? p.vist) : lesTekst(p.el, teksttype(p));
+
+  /** Show a value in an element, the way the server would. */
+  function skrivVerdi(p: Plass, verdi: string) {
+    if (!erBilde(p)) {
+      skrivTekst(p.el, verdi, teksttype(p));
+      return;
+    }
+    const v = lesBildeverdi(verdi);
+    visBilde(
+      p.el as HTMLImageElement,
+      v?.medium == null ? null : (bildeinfo.get(verdi) ?? null),
+      lesByggbilde(p.felt.standard),
+    );
+  }
 
   const finn = (el: Element | null) => plasser.find((p) => p.el === el);
   let pa = false;
@@ -146,10 +192,12 @@ export async function startCmsVerktoy() {
   /** Show a field's current text everywhere it appears on the page. */
   function oppdaterFelt(f: Felt) {
     perNokkel.set(f.nokkel, f);
+    huskBilder(f);
     for (const p of plasser.filter((x) => x.felt.nokkel === f.nokkel)) {
       p.felt = f;
       p.vist = visning(f);
-      skrivTekst(p.el, somBesokende ? gjeldende(f) : p.vist, f.type);
+      delete p.el.dataset.cmsVerdi;
+      skrivVerdi(p, somBesokende ? gjeldende(f) : p.vist);
       p.el.removeAttribute('data-endret');
       p.el.removeAttribute('data-tom');
       p.el.removeAttribute('data-konflikt');
@@ -158,7 +206,7 @@ export async function startCmsVerktoy() {
   }
 
   function vurder(p: Plass) {
-    const naa = lesTekst(p.el, p.felt.type);
+    const naa = lesVerdi(p);
     p.el.toggleAttribute('data-endret', naa !== p.vist);
     p.el.toggleAttribute('data-tom', naa === '');
     p.el.removeAttribute('data-konflikt');
@@ -169,9 +217,11 @@ export async function startCmsVerktoy() {
     husk(pa);
     document.documentElement.classList.toggle(PA, pa);
     settRedigerbar(
-      plasser.map((p) => p.el),
+      tekster().map((p) => p.el),
       pa,
     );
+    for (const k of bildeknapper) k.hidden = !pa;
+    plasseringer.forEach((f) => f());
     if (!pa) aktiv = undefined;
     oppdaterBar();
   }
@@ -179,7 +229,7 @@ export async function startCmsVerktoy() {
   function visSomBesokende(ja: boolean) {
     somBesokende = ja;
     for (const p of plasser) {
-      skrivTekst(p.el, ja ? gjeldende(p.felt) : p.vist, p.felt.type);
+      skrivVerdi(p, ja ? gjeldende(p.felt) : (p.el.dataset.cmsVerdi ?? p.vist));
       merk(p);
     }
     oppdaterBar();
@@ -187,7 +237,8 @@ export async function startCmsVerktoy() {
 
   function angreAlt() {
     for (const p of endrede()) {
-      skrivTekst(p.el, p.vist, p.felt.type);
+      delete p.el.dataset.cmsVerdi;
+      skrivVerdi(p, p.vist);
       p.el.removeAttribute('data-endret');
       p.el.removeAttribute('data-tom');
     }
@@ -228,7 +279,7 @@ export async function startCmsVerktoy() {
         );
       } else if (r.melding) problemer.add(r.melding);
     }
-    return [ok ? `${flertall(ok, 'tekst', 'tekster')} ${ferdig}` : '', ...problemer]
+    return [ok ? `${flertall(ok, 'endring', 'endringer')} ${ferdig}` : '', ...problemer]
       .filter(Boolean)
       .join(' ');
   }
@@ -241,7 +292,7 @@ export async function startCmsVerktoy() {
       const { resultater } = await cms.lagre(
         [...unike.values()].map((p) => ({
           nokkel: p.felt.nokkel,
-          verdi: lesTekst(p.el, p.felt.type),
+          verdi: lesVerdi(p),
           versjon: p.felt.versjon,
         })),
       );
@@ -285,7 +336,16 @@ export async function startCmsVerktoy() {
     oppdaterFelt(data.felt);
     const tittel = document.createElement('h2');
     tittel.id = 'dp-red-historikk-tittel';
-    tittel.textContent = 'Historikk for teksten';
+    tittel.textContent = erBilde(p) ? 'Historikk for bildet' : 'Historikk for teksten';
+    const bygget = erBilde(p) ? lesByggbilde(data.felt.standard) : null;
+    const miniatyr = (src: string | undefined, alt: string) => {
+      const img = document.createElement('img');
+      img.className = 'dp-red-historikk__bilde';
+      img.src = src ?? '';
+      img.alt = alt;
+      img.loading = 'lazy';
+      return img;
+    };
     const liste = document.createElement('ol');
     const bruk = (verdi: { revisjon?: number; standard?: boolean }) => {
       dialog.close();
@@ -300,9 +360,12 @@ export async function startCmsVerktoy() {
     };
     const standard = document.createElement('li');
     const standardTekst = document.createElement('p');
-    standardTekst.textContent = data.felt.standard;
+    standardTekst.textContent = erBilde(p) ? (bygget?.alt ?? '') : data.felt.standard;
     standard.append(
-      Object.assign(document.createElement('strong'), { textContent: 'Standardtekst fra koden' }),
+      Object.assign(document.createElement('strong'), {
+        textContent: erBilde(p) ? 'Bildet siden ble laget med' : 'Standardtekst fra koden',
+      }),
+      ...(erBilde(p) ? [miniatyr(bygget?.src, bygget?.alt ?? '')] : []),
       standardTekst,
       lagKnapp('Bruk denne', '', () => bruk({ standard: true })),
     );
@@ -312,7 +375,21 @@ export async function startCmsVerktoy() {
       const hode = document.createElement('strong');
       hode.textContent = `${HANDLINGER[r.handling] ?? r.handling} · ${tid(r.tid)}${r.av ? ` · ${r.av}` : ''}`;
       li.append(hode);
-      if (r.verdi !== null) {
+      if (r.verdi !== null && erBilde(p)) {
+        const v = lesBildeverdi(r.verdi);
+        const tekst = document.createElement('p');
+        tekst.textContent = v?.medium == null ? 'Bildet siden ble laget med' : (r.bilde?.navn ?? 'Bilde');
+        if (r.bilde) bildeinfo.set(r.verdi, r.bilde);
+        li.append(
+          ...(v?.medium == null
+            ? [miniatyr(bygget?.src, '')]
+            : r.bilde
+              ? [miniatyr(r.bilde.miniatyr, '')]
+              : []),
+          tekst,
+          lagKnapp('Bruk denne', '', () => bruk({ revisjon: r.id })),
+        );
+      } else if (r.verdi !== null) {
         const tekst = document.createElement('p');
         tekst.textContent = r.verdi;
         li.append(
@@ -327,9 +404,74 @@ export async function startCmsVerktoy() {
     dialog.showModal();
   }
 
+  // Pictures: a «Bytt bilde» button on each while editing. It sits in the
+  // document over the visible part of the picture, so the page's own layers
+  // (hero text, veils) never cover it.
+  const bildeknapper: HTMLButtonElement[] = [];
+  const plasseringer: (() => void)[] = [];
+  for (const p of plasser.filter(erBilde)) {
+    const img = p.el as HTMLImageElement;
+    const knapp = lagKnapp('Bytt bilde', 'dp-red__knapp--primar dp-red-bildeknapp', () => void byttBilde(p));
+    knapp.hidden = true;
+    knapp.setAttribute('aria-label', `Bytt bilde: ${img.alt || 'bilde'}`);
+    knapp.addEventListener('focus', () => {
+      aktiv = p;
+      oppdaterBar();
+    });
+    // Insert next to the picture in the reading order, positioned over it.
+    const ramme = img.closest('section, figure');
+    if (ramme) ramme.prepend(knapp);
+    else img.before(knapp);
+    let klipp: Element = img;
+    for (let e = img.parentElement; e && e !== document.body; e = e.parentElement) {
+      if (getComputedStyle(e).overflow !== 'visible') {
+        klipp = e;
+        break;
+      }
+    }
+    const plasser_ = () => {
+      if (knapp.hidden) return;
+      const rom = (knapp.offsetParent ?? document.body).getBoundingClientRect();
+      const r = klipp.getBoundingClientRect();
+      knapp.style.top = `${Math.max(0, r.bottom - rom.top - knapp.offsetHeight - 56)}px`;
+      knapp.style.left = `${Math.max(0, r.right - rom.left - knapp.offsetWidth - 16)}px`;
+    };
+    new ResizeObserver(plasser_).observe(klipp);
+    plasseringer.push(plasser_);
+    bildeknapper.push(knapp);
+  }
+  window.addEventListener('resize', () => plasseringer.forEach((f) => f()));
+
+  async function byttBilde(p: Plass) {
+    aktiv = p;
+    const naa = lesVerdi(p);
+    const valg = await velgBilde({
+      tittel: 'Bytt bilde',
+      naa: lesBildeverdi(naa),
+      naaInfo: bildeinfo.get(naa) ?? null,
+      bygget: lesByggbilde(p.felt.standard),
+    });
+    if (!valg) return;
+    const verdi = JSON.stringify(valg.verdi);
+    bildeinfo.set(verdi, valg.info);
+    for (const x of plasser.filter((y) => y.felt.nokkel === p.felt.nokkel)) {
+      x.el.dataset.cmsVerdi = verdi;
+      skrivVerdi(x, verdi);
+      vurder(x);
+    }
+    oppdaterBar(
+      verdi === p.vist
+        ? 'Bildet er som før.'
+        : 'Bildet er byttet her. Trykk «Lagre utkast» for å beholde det.',
+    );
+  }
+
   lyttEtterRedigering({
     erPa: () => pa,
-    erFelt: (el) => Boolean(finn(el)),
+    erFelt: (el) => {
+      const p = finn(el);
+      return Boolean(p && !erBilde(p));
+    },
     bar,
     vedEndring: (el) => {
       vurder(finn(el)!);
@@ -352,7 +494,9 @@ export async function startCmsVerktoy() {
 
   // Drafts replace the published text for the editor (visitors never see them).
   for (const p of plasser) {
-    if (p.felt.utkast !== null || lesTekst(p.el, p.felt.type) !== p.vist)
+    if (erBilde(p)) {
+      if (p.felt.utkast !== null) skrivVerdi(p, p.vist);
+    } else if (p.felt.utkast !== null || lesTekst(p.el, teksttype(p)) !== p.vist)
       skrivTekst(p.el, p.vist, typeFor(p.el));
     merk(p);
   }

@@ -12,7 +12,8 @@ Eget innholdssystem for designporten.no, bygget etter Siverts plan «Designporte
 | 1 | CMS-kjerne: database, roller, innlogging, revisjoner, logg, publisering, API, sikkerhetskopi | Ferdig for sidetekster |
 | 2 | «Rediger innhold» på siden, utkast og publisering hver for seg | Ferdig for sidetekster |
 | 5 (del) | Agent-API: nøkler med rettigheter, forslag, godkjenningskø, idempotens | Ferdig for sidetekster |
-| 3 | Produkter, varianter, mediebibliotek, opplasting | Ikke bygget |
+| 3 (del) | Mediebibliotek, opplasting, bytte av bilde på siden ([Bilder](#bilder)) | Bygget for toppbildene på forsiden, Spesialdesign og For bedrifter. Resten av bildene kommer i neste pakke. |
+| 3 (rest) | Produkter, varianter, lager, ordre, Stripe og Vipps | Ikke bygget. Sivert valgte 15.10 at ordre, lager og betaling skal ligge i CMS-et (beslutningsloggen). |
 | 4 | Bildekomposisjon | Ikke bygget |
 | 5 (rest) | Webhooks, jobbkø | Ikke bygget |
 | 6 | Staging, lasttest, overvåkning, gradvis aktivering | Ikke bygget |
@@ -103,7 +104,11 @@ Ett inngangspunkt, `api/cms/?r=<handling>`, JSON inn og ut. Personer bruker økt
 | `GET forslag`, `POST behandle` | Les / behandle | Kø; `{id, beslutning: godkjenn|avvis, publiser}` |
 | `GET brukere`, `POST bruker`, `POST ny-nokkel`, `POST passord` | Admin (passord: alle) | Brukere og nøkler |
 | `GET logg` | Logg | De siste 300 hendelsene |
-| `GET eksport`, `POST import` | Admin | Sikkerhetskopi |
+| `GET eksport`, `POST import` | Admin | Sikkerhetskopi. Bildelisten er med; import legger bare til bilder som mangler og sletter aldri. |
+| `GET medier[&arkiverte=1]` | Les | Bildebiblioteket med hvor hvert bilde er brukt |
+| `POST last-opp` | Utkast | Multipart, feltet `fil` (ett bilde per kall), valgfritt `alt`. Maks 120 per time. |
+| `POST medium` | Utkast | `{id, navn?, alt?, konsept?, rettigheter?, arkivert?}` |
+| `GET drift` | Admin | Hva webhotellet støtter (PHP, GD, WebP, grenser, ledig plass). Ingen hemmeligheter. |
 
 Eksempel for en agent:
 
@@ -116,6 +121,17 @@ curl -X POST 'https://designporten.no/api/cms/?r=forslag' \
 ### Sikkerhet
 
 Passord med `password_hash` (minst 12 tegn). Innlogging begrenses til 10 feil per e-post og 30 per IP i 15 minutter; agenter til 120 kall i minuttet. Økten roteres ved innlogging og utløper etter 8 timer. CSRF-token på alle endringer fra nettleseren. API-nøkler lagres bare som hash, vises én gang og kan byttes. Tekst lagres som ren tekst og escapes både på serveren og i nettleseren, så HTML eller skript i en tekst vises som tegn (testet). Agentens tekst behandles alltid som data. Publiserte svar inneholder aldri utkast. `konfig.php`, kjernefilene, feltlisten og datamappen er sperret i `.htaccess`. Alt som nektes, logges.
+
+## Bilder
+
+Et bildefelt merkes i byggets HTML med `<img data-rediger-bilde="sider/forside#helt.bilde" data-konsept="1|0">`. Samme nøkkel kan stå på en forhåndslastingslenke (`<link data-rediger-bilde-forhand="…">`) og på «Konseptbilde»-merket (`<span data-konseptmerke="…">`). `scripts/cms-nokler.mjs` tar med bildefeltene i feltlisten, med bildet siden ble bygget med som standard.
+
+- **Verdien** i databasen er JSON: `{"medium": id, "alt": "…", "dekorativ": false, "fokus": "50% 50%", "fokusMobil": "…"}`. `{"medium": null}` betyr bildet siden ble laget med. Alt-tekst kreves med mindre bildet er merket som pynt, og et arkivert bilde kan ikke velges.
+- **Publisering** skriver bildet ferdig oppslått inn i `publisert.json`. `side.php` bytter `src`, `srcset`, `width`, `height`, `alt` og fokuspunktet (`--fokus`, `--fokus-mobil`) i `<img>`, oppdaterer forhåndslastingen og skjuler «Konseptbilde» når bildet ikke er et konseptbilde. Ingen bygging eller opplasting trengs.
+- **Opplasting** godtar JPEG, PNG og WebP (sjekket med innholdet, ikke filnavnet), opptil 20 MB og 40 megapiksler, og avviser SVG. Like filer gjenkjennes på sjekksum. GD lager versjoner i 480–2560 px bredde (aldri større enn originalen) som WebP, eller JPEG/PNG når WebP mangler. Det fjerner EXIF og GPS, og bildet snus riktig først. Originalen ligger privat i `api/cms/data/medier/`, versjonene i `medier/ÅÅÅÅ/` på nettstedet, der `.htaccess` bare slipper ut bildefiler og ikke kjører PHP. `api/cms/.user.ini` ber om store nok opplastingsgrenser.
+- **Bilder slettes aldri**, de arkiveres. Sider og revisjoner som bruker et arkivert bilde, viser det fortsatt.
+- **På siden:** «Rediger innhold» gir en «Bytt bilde»-knapp på hvert bildefelt. Dialogen har bibliotek med søk, opplasting, fokuspunkt for stor skjerm og eget for mobil, alt-tekst, «Bildet er bare pynt» og «Bruk bildet siden ble laget med». Byttet blir et utkast som publiseres og har historikk som tekstene.
+- **I /cms/:** fanen «Bilder» (opplasting, navn, alt-tekst, rettigheter, konseptbilde, arkiver) og, for administratorer, «Drift».
 
 ## Slik slås CMS-et på
 
@@ -151,7 +167,14 @@ Ikke del passord eller oppsettkode i chat.
 | CMS-03 ny utrulling beholder innhold | Bestått i prinsippet: innholdet ligger utenfor `dist/`. Ikke prøvd med en ekte opplasting. | Denne siden |
 | CMS-04 gjenopprette tidligere versjon med historikk | Bestått | Begge |
 | CMS-05 to redaktører på samme felt | Bestått: konflikt, ingen overskriving | `scripts/cms.test.mjs` |
-| PRD-01–03, MED-01–03 | Ikke bygget (fase 3–4) | |
+| MED-01 opplasting, mobilutsnitt, responsive versjoner og alt-tekst | Bestått for toppbildene | Begge |
+| MED-02 PHP med bildeendelse, SVG, for mange piksler | Bestått | `scripts/cms.test.mjs` |
+| MED-03 konvertering feiler | Delvis: halvferdige filer ryddes bort og publisert bilde endres ikke. Full disk er ikke prøvd. | |
+| MED-04 bilde i bruk eller i en revisjon | Bestått: arkivering i stedet for sletting, siden og historikken virker | `scripts/cms.test.mjs` |
+| MED-05 delt bildebruk | Ikke prøvd: hvert felt har sin egen verdi, så ett bytte endrer ikke andre felt | |
+| MED-06 alle redaksjonelle bilder | Ikke bygget (neste pakke: bildematrise) | |
+| MED-07 EXIF/GPS fjernet | Bestått | `scripts/cms.test.mjs` |
+| PRD-01–03 | Ikke bygget | |
 | AGT-01 forslag med aktør, kilde og før/etter | Bestått | `scripts/cms.test.mjs` |
 | AGT-02 publisering uten rettighet avvist og logget | Bestått | `scripts/cms.test.mjs` |
 | AGT-03 samme jobb to ganger gir ikke duplikat | Bestått | `scripts/cms.test.mjs` |
@@ -161,7 +184,15 @@ Ikke del passord eller oppsettkode i chat.
 
 Kjør selv: `npm run test:deploy` (API-et mot PHP og SQLite, hoppes over uten PHP med pdo_sqlite) og `npm run build:onecom:test && npm run test:e2e:onecom` (nettleser mot PHP).
 
-**Ikke prøvd:** MySQL (testene bruker SQLite; SQL-en er skrevet for begge), Apache-regelen i `.htaccess` (lokal test etterligner den i `tests/php/router.php`), og en ekte opplasting til one.com.
+API-testene kan også kjøres mot ekte MySQL/MariaDB. De lager og sletter en egen database `cmstest_<pid>`, så brukeren må kunne lage databaser:
+
+```sh
+DP_CMS_MYSQL='mysql:host=127.0.0.1;port=3306' DP_CMS_BRUKER=cms DP_CMS_PASSORD=… npm run test:deploy
+```
+
+Alle API-testene er kjørt mot MariaDB 10.11 lokalt (15.10).
+
+**Ikke prøvd:** one.com sin MySQL-versjon, Apache-regelen i `.htaccess` (lokal test etterligner den i `tests/php/router.php`), og en ekte opplasting til one.com.
 
 ## Åpne beslutninger
 
@@ -169,4 +200,5 @@ Kjør selv: `npm run test:deploy` (API-et mot PHP og SQLite, hoppes over uten PH
 2. Skal SEO-tittel og -beskrivelse inn i CMS-et nå, eller sammen med produktene?
 3. Fase 3: skal produktene flyttes fra GitHub til databasen nå? Det betyr at produktsidene også må lages av PHP, fordi nye produkter ellers trenger et nytt bygg.
 4. Fase 4: hvilke formater og maler skal bildekomponisten ha først?
+6. Hvilke rettighetstekster skal bildene ha (fotograf, lisens)? Feltet finnes, men er fritt.
 5. Skal `/admin` (Sveltia) fases ut for sidetekster når CMS-et er slått på?

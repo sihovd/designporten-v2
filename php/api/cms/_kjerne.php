@@ -135,6 +135,19 @@ function cms_migreringer(): array
             'CREATE TABLE cms_forsok (id {ID}, nokkel VARCHAR(191) NOT NULL, tid INTEGER NOT NULL){TABELL}',
             'CREATE INDEX cms_forsok_nokkel ON cms_forsok (nokkel)',
         ],
+        2 => [
+            // The media library (_medier.php). Rows are archived, never deleted, so
+            // revisions and published pages keep their pictures.
+            'CREATE TABLE cms_medier (
+                id {ID}, fil VARCHAR(64) NOT NULL UNIQUE, original VARCHAR(96) NOT NULL,
+                mime VARCHAR(32) NOT NULL, bredde INTEGER NOT NULL, hoyde INTEGER NOT NULL,
+                storrelse INTEGER NOT NULL, sjekksum CHAR(64) NOT NULL, navn VARCHAR(191) NOT NULL,
+                alt TEXT NOT NULL, konsept INTEGER NOT NULL DEFAULT 0, rettigheter TEXT NULL,
+                status VARCHAR(16) NOT NULL, varianter TEXT NOT NULL,
+                opprettet VARCHAR(32) NOT NULL, opprettet_av INTEGER NULL
+            ){TABELL}',
+            'CREATE INDEX cms_medier_sjekksum ON cms_medier (sjekksum)',
+        ],
     ];
 }
 
@@ -209,6 +222,7 @@ function cms_gyldig_verdi(string $nokkel, mixed $verdi): string
 {
     $felt = cms_nokler()[$nokkel] ?? null;
     if ($felt === null) throw new CmsFeil("Feltet «{$nokkel}» finnes ikke på siden.", 422);
+    if (($felt['type'] ?? '') === 'bilde') return cms_gyldig_bildeverdi($verdi);
     if (!is_string($verdi)) throw new CmsFeil('Teksten må være tekst.', 422);
     if (!mb_check_encoding($verdi, 'UTF-8')) throw new CmsFeil('Teksten har ugyldige tegn.', 422);
     $verdi = cms_normaliser($verdi, $felt['type'] ?? 'linje');
@@ -220,14 +234,23 @@ function cms_gyldig_verdi(string $nokkel, mixed $verdi): string
 // ---------------------------------------------------------------- Published snapshot
 
 /**
- * Pages are served from a JSON snapshot of the published texts, so a visit
- * never waits for (or depends on) the database.
+ * Pages are served from a JSON snapshot of the published texts and pictures,
+ * so a visit never waits for (or depends on) the database. A text is a
+ * string; a picture is the finished attributes its <img> gets (side.php).
  */
 function cms_skriv_publisert(): void
 {
     $data = [];
     foreach (cms_alle('SELECT nokkel, publisert FROM cms_innhold WHERE publisert IS NOT NULL ORDER BY nokkel') as $rad) {
-        $data[$rad['nokkel']] = $rad['publisert'];
+        if ((cms_nokler()[$rad['nokkel']]['type'] ?? '') !== 'bilde') {
+            $data[$rad['nokkel']] = $rad['publisert'];
+            continue;
+        }
+        $bilde = cms_bilde_info($rad['publisert']);
+        if ($bilde === null) continue;
+        $data[$rad['nokkel']] = ['type' => 'bilde'] + array_intersect_key($bilde, array_flip(
+            ['src', 'srcset', 'bredde', 'hoyde', 'alt', 'fokus', 'fokusMobil', 'konsept'],
+        ));
     }
     $fil = cms_datamappe() . '/publisert.json';
     $tmp = $fil . '.' . bin2hex(random_bytes(4)) . '.tmp';
@@ -378,3 +401,5 @@ function cms_krev(string $rett): array
     }
     return $aktor;
 }
+
+require_once __DIR__ . '/_medier.php';

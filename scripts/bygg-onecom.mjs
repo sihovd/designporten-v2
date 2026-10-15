@@ -75,6 +75,8 @@ for (const fil of [
   'api/cms/nokler.json',
   'api/cms/.htaccess',
   'api/cms/data/.htaccess',
+  'api/cms/_medier.php',
+  'medier/.htaccess',
   'skjema/ikke-sendt/index.html',
 ]) {
   if (!existsSync(`dist/${fil}`)) {

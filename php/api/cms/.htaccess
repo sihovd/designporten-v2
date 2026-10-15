@@ -1,6 +1,6 @@
 # Only index.php (the API) and side.php (the page server) are reachable.
 # Settings, shared code, the field list and the data folder never are.
-<FilesMatch "^(_kjerne|_side|konfig|konfig\.eksempel)\.php$|^nokler\.json$">
+<FilesMatch "^(_kjerne|_side|_medier|konfig|konfig\.eksempel)\.php$|^nokler\.json$|^\.user\.ini$">
   Require all denied
 </FilesMatch>
 <IfModule mod_rewrite.c>

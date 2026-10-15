@@ -19,7 +19,14 @@ const tjenester = Array.from({ length: t.antall('tjenester.liste') }, (_, i) => 
 ---
 
 <Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
-  <link slot="hode" rel="preload" as="image" href={bakgrunner.verksted.src} fetchpriority="high" />
+  <link
+    slot="hode"
+    rel="preload"
+    as="image"
+    href={bakgrunner.verksted.src}
+    fetchpriority="high"
+    data-rediger-bilde-forhand={t.kilde('helt.bilde')}
+  />
   <BildeHelt
     bilde={bakgrunner.verksted}
     etikett={t('helt.etikett')}
