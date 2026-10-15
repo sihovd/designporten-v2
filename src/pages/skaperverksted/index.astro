@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import VerktoyKort from '@/components/showroom/verksted/VerktoyKort.astro';
 import { verktoy } from '@/components/showroom/verksted/verktoy';
@@ -30,10 +31,10 @@ const steg = [
             ennå. Til da kan du fortelle oss hva du vil lage, så hjelper vi deg.
           </p>
           <div class="hub-handlinger">
-            <Knapp href="/foresporsel/" data-apne-foresporsel>
+            <Knapp href={nettsti('/foresporsel/')} data-apne-foresporsel>
               Fortell oss ideen din
             </Knapp>
-            <Knapp href="/produkter/" variant="sekundar">
+            <Knapp href={nettsti('/produkter/')} variant="sekundar">
               Se utvalget
             </Knapp>
           </div>
@@ -84,7 +85,7 @@ const steg = [
           </ol>
           <p class="hub-spes">
             Har du en idé som ikke passer i et verktøy?{' '}
-            <a href="/foresporsel/" data-apne-foresporsel>
+            <a href={nettsti('/foresporsel/')} data-apne-foresporsel>
               Fortell oss om den
             </a>
             .

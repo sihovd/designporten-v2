@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import Ikon from '@/components/Ikon.astro';
 import { skaperverkstedApent } from '@/lib/flagg';
@@ -10,7 +11,7 @@ import { skaperverkstedApent } from '@/lib/flagg';
     <h1 id="sok-tittel" class="sok__overskrift">
       Hva leter du etter?
     </h1>
-    <form class="sok__skjema" role="search" action="/sok/" method="get" data-sokeskjema>
+    <form class="sok__skjema" role="search" action={nettsti('/sok/')} method="get" data-sokeskjema>
       <label for="sok-felt" class="visuelt-skjult">
         Søk
       </label>
@@ -32,19 +33,22 @@ import { skaperverkstedApent } from '@/lib/flagg';
 
     <noscript>
       <p class="sok__uten-js">
-        Søket trenger JavaScript. Du finner alt via menyen: <a href="/produkter/">Vårt utvalg</a>,
+        Søket trenger JavaScript. Du finner alt via menyen: <a href={nettsti('/produkter/')}>Vårt utvalg</a>,
         {skaperverkstedApent && (
           <>
-            <a href="/skaperverksted/">Skaperverksted</a>,{' '}
+            <a href={nettsti('/skaperverksted/')}>Skaperverksted</a>,{' '}
           </>
         )}
-        <a href="/spesialdesign/">Spesialdesign</a>,<a href="/inspirasjon/">Inspirasjon</a>.
+        <a href={nettsti('/spesialdesign/')}>Spesialdesign</a>,
+        <a href={nettsti('/inspirasjon/')}>Inspirasjon</a>.
       </p>
     </noscript>
   </section>
 </Side>
 
 <script>
+  import { nettsti } from '@/lib/nettsti';
+
   import { grupper, sok, type Sokepost } from '@/components/showroom/sok/sok';
 
   const skjema = document.querySelector<HTMLFormElement>('[data-sokeskjema]')!;
@@ -54,7 +58,7 @@ import { skaperverkstedApent } from '@/lib/flagg';
   let poster: Sokepost[] | null = null;
 
   async function hent(): Promise<Sokepost[]> {
-    if (!poster) poster = (await (await fetch('/sok.json')).json()) as Sokepost[];
+    if (!poster) poster = (await (await fetch(nettsti('/sok.json'))).json()) as Sokepost[];
     return poster;
   }
 

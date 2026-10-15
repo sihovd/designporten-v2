@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * The Forge tools as the showroom presents them (design revision
  * 2026-10-02, §11): the registered generators in their order. Clicker Forge,
@@ -29,7 +30,7 @@ export const verktoy: Verktoy[] = [
     undertittel: g.undertittel,
     beskrivelse: g.beskrivelse,
     status: g.status,
-    href: `/skaperverksted/${g.id}/`,
+    href: nettsti(`/skaperverksted/${g.id}/`),
     forhandsvisning: forhandsvisbare.has(g.id) ? (g.id as Forhandsvisning) : undefined,
   })),
 ];

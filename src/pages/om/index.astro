@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import Knapp from '@/components/Knapp.astro';
 import Konseptbilde from '@/components/Konseptbilde.astro';
@@ -61,10 +62,10 @@ const lager = Array.from({ length: t.antall('lager.punkter') }, (_, i) => `lager
       <p {...t.r('profil.avsnitt1')}>{t('profil.avsnitt1')}</p>
       <p {...t.r('profil.avsnitt2')}>{t('profil.avsnitt2')}</p>
       <div class="om-profil__handlinger">
-        <Knapp href="/foresporsel/" data-apne-foresporsel>
+        <Knapp href={nettsti('/foresporsel/')} data-apne-foresporsel>
           <span {...t.r('profil.knapp1')}>{t('profil.knapp1')}</span>
         </Knapp>
-        <Knapp href="/kontakt/" variant="sekundar">
+        <Knapp href={nettsti('/kontakt/')} variant="sekundar">
           <span {...t.r('profil.knapp2')}>{t('profil.knapp2')}</span>
         </Knapp>
       </div>

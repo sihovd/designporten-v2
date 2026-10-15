@@ -4,6 +4,7 @@ import node from '@astrojs/node';
 import preact from '@astrojs/preact';
 import { cp, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { byggoppsett } from './scripts/onecom-oppsett.mjs';
 
 /**
  * Two build targets from the same pages (docs/development.md#deploy):
@@ -14,6 +15,7 @@ import { fileURLToPath } from 'node:url';
  *    such as one.com that run PHP but not Node.
  */
 const maal = process.env.DP_MAAL === 'php' ? 'php' : 'node';
+const { base, test } = byggoppsett();
 
 /** Forge tools published? Off on one.com until opened (src/lib/flagg.ts). */
 const skaperverksted = process.env.DP_SKAPERVERKSTED
@@ -74,13 +76,18 @@ function sveltiaAdmin() {
 
 export default defineConfig({
   site: 'https://www.designporten.no',
+  base,
   output: 'static',
   adapter: maal === 'node' ? node({ mode: 'standalone' }) : undefined,
   integrations: [preact(), serverruter(), sveltiaAdmin()],
   trailingSlash: 'always',
   prefetch: { prefetchAll: false, defaultStrategy: 'hover' },
   vite: {
+    define: {
+      'import.meta.env.PUBLIC_DP_TEST': JSON.stringify(String(test)),
+      'import.meta.env.PUBLIC_DP_PHP': JSON.stringify(String(maal === 'php')),
+      __DP_SKAPERVERKSTED__: JSON.stringify(skaperverksted),
+    },
     worker: { format: 'es' },
-    define: { __DP_SKAPERVERKSTED__: JSON.stringify(skaperverksted) },
   },
 });

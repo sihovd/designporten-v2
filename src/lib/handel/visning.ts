@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * The serialisable view of a product that client code (card capsule,
  * product window, cart page) receives. Built on the server from the content
@@ -38,7 +39,7 @@ export interface ProduktVisning {
 }
 
 export function produktHref(id: string): string {
-  return `/produkter/${id}/`;
+  return nettsti(`/produkter/${id}/`);
 }
 
 /** The uploaded photo when there is one, else the registry image. */

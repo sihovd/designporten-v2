@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Proof: real projects from Inspirasjon. Only confirmed entries are shown;
  * with none, the section is left out (no invented references or reviews).
@@ -17,7 +18,7 @@ const saker = (
   <section class="ramme seksjon bevis" aria-labelledby="bevis-tittel">
     <div class="bevis__hode">
       <h2 id="bevis-tittel">Laget i verkstedet</h2>
-      <a href="/inspirasjon/">Se flere prosjekter</a>
+      <a href={nettsti('/inspirasjon/')}>Se flere prosjekter</a>
     </div>
     <div class="bevis__rutenett">
       {saker.map((s) => (

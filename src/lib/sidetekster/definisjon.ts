@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Page texts: the words on the showroom pages, kept in one JSON file per page
  * (src/content/sider/<side>.json) so they can be edited in two places that
@@ -85,7 +86,7 @@ export const sider = {
   },
   om: {
     etikett: 'Om Designporten',
-    sti: '/om/',
+    sti: nettsti('/om/'),
     felt: {
       meta,
       topp: gruppe('Toppen av siden', {
@@ -127,7 +128,7 @@ export const sider = {
   },
   spesialdesign: {
     etikett: 'Spesialdesign',
-    sti: '/spesialdesign/',
+    sti: nettsti('/spesialdesign/'),
     felt: {
       meta,
       helt: helt(),
@@ -152,7 +153,7 @@ export const sider = {
   },
   bedrift: {
     etikett: 'For bedrifter',
-    sti: '/bedrift/',
+    sti: nettsti('/bedrift/'),
     felt: {
       meta,
       helt: helt(1),
@@ -183,7 +184,7 @@ export const sider = {
   },
   kontakt: {
     etikett: 'Kontakt',
-    sti: '/kontakt/',
+    sti: nettsti('/kontakt/'),
     felt: {
       meta,
       helt: helt(),

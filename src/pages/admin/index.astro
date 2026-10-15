@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Content editor (Sveltia CMS). Sign in with GitHub; publishing commits to
  * `main`, and the host rebuilds the site. The script is self-hosted: the
@@ -13,9 +14,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <title>Redigering – Designporten</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href={nettsti('/favicon.svg')} type="image/svg+xml" />
   </head>
   <body>
-    <script is:inline src="/admin/sveltia-cms.js"></script>
+    <script is:inline src={nettsti('/admin/sveltia-cms.js')}></script>
   </body>
 </html>

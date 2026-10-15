@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Case template (information-architecture.md#inspirasjon): the problem, the
  * starting material, the process in stages, the result, materials and
@@ -36,7 +37,7 @@ const dato = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'long' }).format(d.da
   <article class="sak">
     <header class="ramme sak__hode">
       <p class="mono sak__meta">
-        <a href="/inspirasjon/">Inspirasjon</a>
+        <a href={nettsti('/inspirasjon/')}>Inspirasjon</a>
         <span aria-hidden="true">/</span>
         <span>{typenavn[d.type].en}</span>
         <span aria-hidden="true">·</span>
@@ -128,7 +129,7 @@ const dato = new Intl.DateTimeFormat('nb-NO', { dateStyle: 'long' }).format(d.da
       {d.lenke && (
         <div class="sak__videre">
           <Knapp href={d.lenke.href}>{d.lenke.tekst}</Knapp>
-          <a href="/inspirasjon/">Tilbake til Inspirasjon</a>
+          <a href={nettsti('/inspirasjon/')}>Tilbake til Inspirasjon</a>
         </div>
       )}
     </div>

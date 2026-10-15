@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import Knapp from '@/components/Knapp.astro';
 import VaseBygg from '@/components/showroom/bygg/VaseBygg.astro';
@@ -14,22 +15,22 @@ import { skaperverkstedApent } from '@/lib/flagg';
         Kanskje er adressen feil, eller så er siden flyttet. Noen ting må tegnes før de finnes.
       </p>
       <div class="ikkefunnet__handlinger">
-        <Knapp href="/">Til forsiden</Knapp>
-        <Knapp href="/sok/" variant="sekundar">
+        <Knapp href={nettsti('/')}>Til forsiden</Knapp>
+        <Knapp href={nettsti('/sok/')} variant="sekundar">
           Søk
         </Knapp>
       </div>
       <ul class="ikkefunnet__veier">
         <li>
-          <a href="/produkter/">Finn noe</a>
+          <a href={nettsti('/produkter/')}>Finn noe</a>
         </li>
         {skaperverkstedApent && (
           <li>
-            <a href="/skaperverksted/">Lag noe</a>
+            <a href={nettsti('/skaperverksted/')}>Lag noe</a>
           </li>
         )}
         <li>
-          <a href="/spesialdesign/">Har du en idé?</a>
+          <a href={nettsti('/spesialdesign/')}>Har du en idé?</a>
         </li>
       </ul>
     </div>

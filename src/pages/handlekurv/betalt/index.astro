@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Return page after Stripe Checkout. Asks the server whether the session is
  * paid before it says so; only then is the cart in this browser emptied.
@@ -26,16 +27,18 @@ import Side from '@/layouts/Side.astro';
     <div data-betalt-ukjent hidden>
       <p>
         Vi fant ikke en fullført betaling for denne lenken. Har du betalt, får du kvittering på e-post. Ellers
-        ligger varene fortsatt i <a href="/handlekurv/">handlekurven</a>.
+        ligger varene fortsatt i <a href={nettsti('/handlekurv/')}>handlekurven</a>.
       </p>
     </div>
     <p>
-      <a href="/produkter/">Tilbake til produktene</a>
+      <a href={nettsti('/produkter/')}>Tilbake til produktene</a>
     </p>
   </div>
 </Side>
 
 <script>
+  import { nettsti } from '@/lib/nettsti';
+
   import { tomKurv } from '@/lib/handel/kurv';
 
   const rot = document.querySelector<HTMLElement>('[data-betalt]');
@@ -43,7 +46,7 @@ import Side from '@/layouts/Side.astro';
   const status = rot?.querySelector<HTMLElement>('[data-betalt-status]');
 
   async function sjekk() {
-    const svar = await fetch(`/api/kasse/okt/?okt=${encodeURIComponent(okt)}`)
+    const svar = await fetch(nettsti(`/api/kasse/okt/?okt=${encodeURIComponent(okt)}`))
       .then((r) => r.json() as Promise<{ betalt: boolean; referanse?: string | null }>)
       .catch(() => ({ betalt: false, referanse: null }));
     if (!rot || !status) return;

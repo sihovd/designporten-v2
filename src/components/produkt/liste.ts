@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Listing behaviour: category change in place (with history), colour /
  * material / text filters, sorting, and the filter column that becomes a
@@ -83,7 +84,7 @@ export function startProduktliste(): void {
   }
 
   function url(): string {
-    const base = data.tekster[kategori]?.href ?? '/produkter/';
+    const base = data.tekster[kategori]?.href ?? nettsti('/produkter/');
     return sortering === 'utvalgt' ? base : `${base}?sortering=${sortering}`;
   }
 

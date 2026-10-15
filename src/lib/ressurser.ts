@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Asset registry. Every brand and photo asset the site uses is referenced
  * from here, so final files replace temporary ones in one place.
@@ -18,7 +19,7 @@ export interface Bilde {
   utklipp?: boolean;
 }
 
-const k = '/midlertidig/konsept';
+const k = nettsti('/midlertidig/konsept');
 
 function utklipp(navn: string, alt: string): Bilde {
   return {
@@ -82,7 +83,7 @@ export const utklippbilder = {
  * is generated from `logomerke`.
  */
 export const logo: Bilde = {
-  src: '/brand/designporten-logo.svg',
+  src: nettsti('/brand/designporten-logo.svg'),
   alt: 'Designporten',
   bredde: 2684,
   hoyde: 1205,
@@ -91,7 +92,7 @@ export const logo: Bilde = {
 };
 
 export const logomerke: Bilde = {
-  src: '/brand/designporten-merke.svg',
+  src: nettsti('/brand/designporten-merke.svg'),
   alt: 'Designporten',
   bredde: 731,
   hoyde: 731,
@@ -101,7 +102,7 @@ export const logomerke: Bilde = {
 
 /** Default social preview: the full logo on the showroom paper colour. */
 export const standardDelingsbilde: Bilde = {
-  src: '/brand/delingsbilde.png',
+  src: nettsti('/brand/delingsbilde.png'),
   alt: 'Designporten',
   bredde: 1200,
   hoyde: 630,

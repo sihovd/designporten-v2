@@ -20,6 +20,7 @@ const DP_ENDELSER = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'pdf', 'stl', '3mf', 
 
 function dp_oppsett(): ?array
 {
+    if (PHP_SAPI === 'cli-server' && defined('DP_LOKAL_OPPSETT')) return DP_LOKAL_OPPSETT;
     $fil = __DIR__ . '/oppsett.php';
     if (!is_file($fil)) {
         return null;
@@ -53,6 +54,8 @@ function dp_json(array $data, int $status = 200): never
 
 function dp_videre(string $sti, array $parametre): never
 {
+    $bygg = is_file(__DIR__ . '/bygg.php') ? require __DIR__ . '/bygg.php' : ['base' => '/'];
+    $sti = rtrim($bygg['base'], '/') . $sti;
     http_response_code(303);
     header('Location: ' . $sti . ($parametre ? '?' . http_build_query($parametre) : ''));
     exit;
@@ -112,7 +115,9 @@ function dp_send(array $oppsett, string $emne, array $felter, string $svarTil, a
     $kropp .= "--$grense--\r\n";
 
     $emneHode = mb_encode_mimeheader(dp_linje("[$ref] $emne"), 'UTF-8', 'B');
-    $ok = mail((string) $oppsett['til'], $emneHode, $kropp, implode("\r\n", $hoder), '-f' . $oppsett['fra']);
+    $ok = PHP_SAPI === 'cli-server' && function_exists('dp_testmail')
+        ? dp_testmail($ref, $tekst, $vedlegg)
+        : mail((string) $oppsett['til'], $emneHode, $kropp, implode("\r\n", $hoder), '-f' . $oppsett['fra']);
     if (!$ok) {
         error_log('Designporten skjema: mail() feilet for ' . $ref);
         return null;

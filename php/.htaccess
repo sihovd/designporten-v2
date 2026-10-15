@@ -5,8 +5,20 @@ DirectoryIndex index.html index.php
 ErrorDocument 404 /404.html
 Options -Indexes
 
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # The archived pre-launch site must never be browsable.
+  RewriteRule ^gammel-side-2026-10-14(?:/|$) - [F,L]
+  RewriteRule ^tjenester\.html$ /spesialdesign/ [R=301,L]
+  RewriteRule ^designverksted\.html$ /skaperverksted/ [R=301,L]
+  RewriteRule ^om-oss\.html$ /om/ [R=301,L]
+  RewriteRule ^kontakt\.html$ /kontakt/ [R=301,L]
+  RewriteRule ^inspirasjon\.html$ /inspirasjon/ [R=301,L]
+</IfModule>
+
 AddType text/javascript .js .mjs
 AddType application/manifest+json .webmanifest
+AddType application/xml .xml
 AddType application/wasm .wasm
 AddType font/woff2 .woff2
 AddCharset utf-8 .html .css .js .mjs .json .txt .xml .svg

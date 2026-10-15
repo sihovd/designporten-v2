@@ -56,16 +56,7 @@ What stays in code: links, pictures, prices, product facts, the process timeline
 
 Setup in Stripe: create the account, take the **test** secret key (Developers → API keys) and put it in Render → Environment as `STRIPE_SECRET_KEY`. Then add a webhook endpoint `https://<site>/api/stripe/webhook/` with the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`, and put its signing secret in `STRIPE_WEBHOOK_SECRET`. Turn on customer e-mail receipts under Settings → Customer emails. Orders, refunds and disputes are handled in the Stripe dashboard. Swap to live keys when the shop is ready. The PHP/one.com build has no payment routes; there the cart falls back to order requests.
 
-**Publishing to one.com** is automatic on every push to `main` once these GitHub secrets exist (Settings → Secrets and variables → Actions); without them the workflow skips itself:
-
-| Secret | Value |
-|---|---|
-| `ONECOM_SFTP_HOST`, `ONECOM_SFTP_BRUKER`, `ONECOM_SFTP_PASSORD` | From one.com: Advanced settings → SSH & SFTP |
-| `ONECOM_MAPPE` | The site's own folder on the server, relative to where SFTP logs in (for example `ny` for a subdomain `ny.designporten.no`). Never the root, and the workflow refuses a folder with WordPress files in it (`wp-config.php`, `wp-content`, `wp-admin`, `oc-migrator`) |
-| `SKJEMA_TIL` | Where form e-mails go |
-| `SKJEMA_FRA` | Sender address; must be a mailbox on the site's own domain |
-
-The workflow (`.github/workflows/onecom.yml`) builds, writes `api/oppsett.php` from the two e-mail secrets, and mirrors `dist/` into the folder, deleting files that are no longer part of the site. It can also be run by hand from the Actions tab; with «Bare vis mappene på serveren» ticked it only lists the folders SFTP sees (three levels), to find the value for `ONECOM_MAPPE`.
+**Publishing to one.com:** see [the launch procedure](lansering-onecom.md) for verified backups, root cutover, release provenance, local PHP tests and the exact secrets for the safe test workflow. Root publication is separate from the test SFTP job.
 
 ## Project structure and ownership
 

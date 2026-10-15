@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Site header (preserved behaviour, Sivert 2026-09-02/03):
  * sticky; shrinks, rounds and turns translucent on scroll; mobile shows
@@ -23,7 +24,7 @@ const sti = Astro.url.pathname;
 </div>
 <header class="hd" data-header>
   <div class="hd__rad">
-    <a class="hd__logo" href="/" aria-label="Designporten, til forsiden">
+    <a class="hd__logo" href={nettsti('/')} aria-label="Designporten, til forsiden">
       <img src={logomerke.src} alt="" width={logomerke.bredde} height={logomerke.hoyde} />
     </a>
 
@@ -41,10 +42,15 @@ const sti = Astro.url.pathname;
     </nav>
 
     <div class="hd__verktoy">
-      <a class="hd__ikon hd__sok" href="/sok/" aria-label="Søk">
+      <a class="hd__ikon hd__sok" href={nettsti('/sok/')} aria-label="Søk">
         <Ikon navn="sok" />
       </a>
-      <a class="hd__ikon hd__kurv" href="/handlekurv/" data-kurvlenke aria-label="Handlekurv, 0 varer">
+      <a
+        class="hd__ikon hd__kurv"
+        href={nettsti('/handlekurv/')}
+        data-kurvlenke
+        aria-label="Handlekurv, 0 varer"
+      >
         <Ikon navn="handlekurv" />
         <span class="hd__antall tall" data-kurvantall hidden>
           0
@@ -81,7 +87,7 @@ const sti = Astro.url.pathname;
         </li>
       ))}
       <li>
-        <a href="/sok/">Søk</a>
+        <a href={nettsti('/sok/')}>Søk</a>
       </li>
     </ul>
   </nav>

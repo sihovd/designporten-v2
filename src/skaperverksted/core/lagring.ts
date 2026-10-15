@@ -1,3 +1,4 @@
+import { lagernokkel } from '@/lib/nettsti';
 /**
  * Local persistence: autosave of the open project and stored designs that
  * cart lines reference (KurvLinje.designId). Browser storage only; server
@@ -6,11 +7,11 @@
  */
 import { fraJson, tilJson, type Dokument } from './dokument';
 
-const AUTOLAGRING = (generator: string) => `dp-verksted:${generator}`;
-const DESIGN = (id: string) => `dp-design:${id}`;
-const SIST_BRUKT = (generator: string) => `dp-verksted:${generator}:sist-brukt`;
-const APNER = (generator: string) => `dp-verksted:${generator}:apner`;
-const RESERVE = (generator: string) => `dp-verksted:${generator}:reserve`;
+const AUTOLAGRING = (generator: string) => lagernokkel(`dp-verksted:${generator}`);
+const DESIGN = (id: string) => lagernokkel(`dp-design:${id}`);
+const SIST_BRUKT = (generator: string) => lagernokkel(`dp-verksted:${generator}:sist-brukt`);
+const APNER = (generator: string) => lagernokkel(`dp-verksted:${generator}:apner`);
+const RESERVE = (generator: string) => lagernokkel(`dp-verksted:${generator}:reserve`);
 
 const DAG = 24 * 60 * 60 * 1000;
 

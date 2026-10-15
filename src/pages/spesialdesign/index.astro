@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import BildeHelt from '@/components/showroom/BildeHelt.astro';
 import Ikon from '@/components/Ikon.astro';
@@ -43,7 +44,7 @@ const innganger = (['privat', 'bedrift'] as const).map((kundetype) => ({
           </p>
           <a
             class="inngang__knapp"
-            href={`/foresporsel/?kundetype=${g.kundetype}`}
+            href={nettsti(`/foresporsel/?kundetype=${g.kundetype}`)}
             data-apne-foresporsel
             data-kundetype={g.kundetype}
           >
@@ -55,7 +56,7 @@ const innganger = (['privat', 'bedrift'] as const).map((kundetype) => ({
     </ul>
     <p class="innganger__merknad">
       <span {...t.r('innganger.merknad')}>{t('innganger.merknad')}</span> Les mer
-      <a href="/bedrift/">for bedrifter</a>.
+      <a href={nettsti('/bedrift/')}>for bedrifter</a>.
     </p>
   </section>
 

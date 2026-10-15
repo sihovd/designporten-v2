@@ -1,4 +1,5 @@
 ---
+import { nettsti } from '@/lib/nettsti';
 /**
  * Product page: shareable URL for every product (the window is the quick
  * view). Placeholder products are marked and kept out of search indexes.
@@ -62,10 +63,10 @@ import { skaperverkstedApent } from '@/lib/flagg';
     <nav class="produktside__sti mono" aria-label="Brødsmuler">
       <ol>
         <li>
-          <a href="/produkter/">Produkter</a>
+          <a href={nettsti('/produkter/')}>Produkter</a>
         </li>
         <li>
-          <a href={`/produkter/kategori/${p.kategori}/`}>{p.kategoriNavn}</a>
+          <a href={nettsti(`/produkter/kategori/${p.kategori}/`)}>{p.kategoriNavn}</a>
         </li>
         <li aria-current="page">{p.navn}</li>
       </ol>
@@ -123,7 +124,7 @@ import { skaperverkstedApent } from '@/lib/flagg';
         <ProduktValg client:visible produkt={p} />
 
         {skaperverkstedApent && p.generator && (
-          <a class="produktside__generator" href={`/skaperverksted/${p.generator}/`}>
+          <a class="produktside__generator" href={nettsti(`/skaperverksted/${p.generator}/`)}>
             Tilpass i Skaperverksted
           </a>
         )}

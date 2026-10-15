@@ -1,3 +1,4 @@
+import { nettsti } from '@/lib/nettsti';
 /**
  * Choices for one product: colour, material (with what it tolerates), optional
  * custom text with a counter, the price for the choices and «Legg i
@@ -123,7 +124,7 @@ export default function ProduktValg({ produkt: p, vedLagtTil }: Props) {
         {lagtTil > 0 && (
           <>
             Lagt i handlekurven{lagtTil > 1 ? ` (${lagtTil} ganger nå)` : ''}.{' '}
-            <a href="/handlekurv/">Gå til handlekurven</a>
+            <a href={nettsti('/handlekurv/')}>Gå til handlekurven</a>
           </>
         )}
       </p>
