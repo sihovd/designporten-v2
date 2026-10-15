@@ -1,0 +1,350 @@
+/* The CMS at /cms/ (CmsPanel.tsx). */
+
+.cms {
+  display: grid;
+  gap: var(--r-5);
+}
+
+.cms h2 {
+  margin: 0 0 var(--r-3);
+  font-size: var(--fs-h3);
+}
+
+.cms h3 {
+  margin: 0 0 var(--r-3);
+  font-size: var(--fs-tekst);
+}
+
+.cms__innlogget,
+.cms__ingress {
+  margin: 0 0 var(--r-4);
+  color: var(--fg-dempet);
+  max-width: var(--tekst-maks);
+}
+
+.cms__faner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--r-2);
+  padding-bottom: var(--r-3);
+  border-bottom: 1px solid var(--linje);
+}
+
+.cms__fane,
+.cms__knapp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--mal-beroring);
+  padding: 0 var(--r-4);
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-pille);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cms__fane[aria-current='page'],
+.cms__knapp--primar {
+  border-color: var(--handling);
+  background: var(--handling);
+  color: var(--pa-handling);
+}
+
+.cms__knapp--primar:hover {
+  background: var(--handling-hover);
+}
+
+.cms__knapp:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cms__lenkeknapp {
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lenke);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+:is(.cms__fane, .cms__knapp, .cms__lenkeknapp):focus-visible,
+.cms :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--fokus);
+  outline-offset: 2px;
+}
+
+.cms__inngang,
+.cms__ny {
+  display: grid;
+  gap: var(--r-4);
+  max-width: 28rem;
+}
+
+.cms__ny {
+  margin-top: var(--r-6);
+  padding: var(--r-5);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kort);
+}
+
+.cms__felt {
+  display: grid;
+  gap: var(--r-1);
+  font-weight: 600;
+}
+
+.cms :is(input:not([type='checkbox']), select, textarea) {
+  width: 100%;
+  min-height: var(--mal-beroring);
+  padding: var(--r-2) var(--r-3);
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--overflate);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 400;
+}
+
+.cms textarea {
+  resize: vertical;
+  line-height: var(--lh-tekst);
+}
+
+.cms__avkryss {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--r-2);
+  min-height: var(--mal-beroring);
+}
+
+.cms__avkryss input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.cms__verktoy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--r-3) var(--r-5);
+  margin-bottom: var(--r-4);
+}
+
+.cms__felt--sok {
+  flex: 1 1 14rem;
+  max-width: 24rem;
+}
+
+.cms__gruppe {
+  margin-top: var(--r-6);
+}
+
+.cms__gruppe h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--r-3);
+  font-size: var(--fs-h3);
+}
+
+.cms__liste {
+  display: grid;
+  gap: var(--r-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cms__rad {
+  padding: var(--r-4);
+  border: 1px solid var(--linje);
+  border-left-width: 4px;
+  border-radius: var(--radius-felt);
+  background: var(--overflate);
+  min-width: 0;
+}
+
+.cms__rad--utkast {
+  border-left-color: var(--advarsel);
+}
+
+.cms__rad--publisert {
+  border-left-color: var(--ok);
+}
+
+.cms__radhode {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--r-2);
+  margin-bottom: var(--r-2);
+}
+
+.cms__feltnavn {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cms__merke {
+  padding: 0.125rem var(--r-2);
+  border-radius: var(--radius-pille);
+  background: var(--linje);
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono-liten);
+  letter-spacing: var(--sporing-mono);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cms__merke--utkast {
+  background: color-mix(in srgb, var(--advarsel) 14%, transparent);
+  color: var(--advarsel);
+}
+
+.cms__merke--publisert {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--ok);
+}
+
+.cms__tekst {
+  margin: 0 0 var(--r-2);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.cms__tekst--gammel {
+  color: var(--fg-dempet);
+}
+
+.cms__dempet {
+  color: var(--fg-dempet);
+}
+
+.cms__liten {
+  font-size: var(--fs-liten);
+  font-weight: 400;
+}
+
+.cms__knapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--r-2) var(--r-4);
+  margin-top: var(--r-2);
+}
+
+.cms__rediger {
+  display: grid;
+  gap: var(--r-2);
+}
+
+.cms__historikk {
+  display: grid;
+  gap: var(--r-2);
+  margin: var(--r-3) 0 0;
+  padding: var(--r-3) 0 0;
+  border-top: 1px solid var(--linje);
+  list-style: none;
+}
+
+.cms__historikk strong {
+  display: block;
+  font-size: var(--fs-liten);
+  color: var(--fg-dempet);
+}
+
+.cms__historikk p {
+  margin: var(--r-1) 0;
+  white-space: pre-line;
+}
+
+.cms__sammenlign {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--r-3);
+  margin: 0 0 var(--r-2);
+}
+
+.cms__sammenlign dt {
+  font-size: var(--fs-liten);
+  color: var(--fg-dempet);
+}
+
+.cms__sammenlign dd {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.cms__rettigheter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--r-4);
+  margin: var(--r-2) 0;
+  padding: 0;
+  border: 0;
+}
+
+.cms__rettigheter legend {
+  padding: 0;
+  font-size: var(--fs-liten);
+  color: var(--fg-dempet);
+}
+
+.cms__nokkel {
+  margin-bottom: var(--r-4);
+  padding: var(--r-4);
+  border: 2px solid var(--advarsel);
+  border-radius: var(--radius-felt);
+}
+
+.cms__nokkeltekst {
+  display: block;
+  margin: var(--r-2) 0;
+  padding: var(--r-2);
+  background: var(--overflate);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.cms__melding {
+  margin: var(--r-2) 0 0;
+}
+
+.cms__melding--feil {
+  color: var(--feil);
+  font-weight: 600;
+}
+
+.cms__tabell {
+  overflow-x: auto;
+}
+
+.cms__tabell table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-liten);
+}
+
+.cms__tabell :is(th, td) {
+  padding: var(--r-2);
+  border-bottom: 1px solid var(--linje);
+  text-align: left;
+  vertical-align: top;
+}
+
+.cms__tabell td:last-child {
+  min-width: 16rem;
+  overflow-wrap: anywhere;
+}
+
+.cms__avvist {
+  color: var(--feil);
+}

@@ -14,6 +14,14 @@ Options -Indexes
   RewriteRule ^om-oss\.html$ /om/ [R=301,L]
   RewriteRule ^kontakt\.html$ /kontakt/ [R=301,L]
   RewriteRule ^inspirasjon\.html$ /inspirasjon/ [R=301,L]
+
+  # CMS: once something has been published, pages are served through
+  # api/cms/side.php, which puts the published texts in place (and serves
+  # the page as built if anything fails). Before that, nothing changes.
+  RewriteCond %{REQUEST_URI} /$
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI}index.html -f
+  RewriteCond %{DOCUMENT_ROOT}/api/cms/data/publisert.json -f
+  RewriteRule ^ api/cms/side.php [L]
 </IfModule>
 
 AddType text/javascript .js .mjs

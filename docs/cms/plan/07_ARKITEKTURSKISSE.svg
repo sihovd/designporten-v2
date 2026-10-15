@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920">
+<defs><style>.title{font:700 35px Arial,sans-serif;fill:#192b3a}.subtitle{font:18px Arial,sans-serif;fill:#536473}.head{font:700 23px Arial,sans-serif;fill:#1a2e3c}.body{font:17px Arial,sans-serif;fill:#3c5362}.line{stroke:#637d8e;stroke-width:3;fill:none;marker-end:url(#arr)}.dashed{stroke-dasharray:9 8}.tag{font:700 16px Arial,sans-serif;fill:#38566a}</style><marker id="arr" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12Z" fill="#637d8e"/></marker></defs>
+<rect width="1400" height="920" fill="#f7f9fb"/><text x="80" y="76" class="title">Designporten – CMS og publiseringsflyt</text><text x="80" y="110" class="subtitle">Nettstedet eier innholdet. GitHub eier koden. AI-agenter bruker kontrollert API.</text>
+<rect x="70" y="155" width="560" height="590" rx="20" fill="#eaf3f7" stroke="#a3c8d7" stroke-width="2"/><text x="95" y="195" class="tag">INNHOLD OG PUBLISERING</text>
+<rect x="105" y="232" width="220" height="115" rx="13" fill="#fff" stroke="#aac3cf"/><text x="125" y="270" class="head">Eier / redaktør</text><text x="125" y="300" class="body">Rediger på nettsiden</text><text x="125" y="326" class="body">Produkter og bilder</text>
+<rect x="375" y="232" width="220" height="115" rx="13" fill="#fff" stroke="#aac3cf"/><text x="395" y="270" class="head">AI-agenter</text><text x="395" y="300" class="body">Forslag og utkast</text><text x="395" y="326" class="body">via sikret API</text>
+<rect x="195" y="425" width="310" height="116" rx="15" fill="#d7e8f0" stroke="#7faabb" stroke-width="2"/><text x="220" y="467" class="head">Designporten CMS</text><text x="220" y="495" class="body">API · godkjenning · revisjoner</text><text x="220" y="520" class="body">produkt- og innholdsadmin</text>
+<path class="line" d="M215 348V390H285V422"/><path class="line" d="M485 348V390H410V422"/>
+<rect x="100" y="614" width="228" height="99" rx="12" fill="#fff" stroke="#aac3cf"/><text x="122" y="652" class="head">Database</text><text x="122" y="682" class="body">Tekster · produkter</text><text x="122" y="703" class="body">status · historikk</text>
+<rect x="367" y="614" width="228" height="99" rx="12" fill="#fff" stroke="#aac3cf"/><text x="389" y="652" class="head">Medielager</text><text x="389" y="682" class="body">Originaler · kompositt</text><text x="389" y="703" class="body">avledede formater</text>
+<path class="line" d="M285 543V580H215V610"/><path class="line" d="M415 543V580H481V610"/>
+<rect x="750" y="155" width="570" height="430" rx="20" fill="#f0edfa" stroke="#c2b7df" stroke-width="2"/><text x="780" y="195" class="tag">DESIGN, KODE OG UTRULLING</text>
+<rect x="790" y="242" width="210" height="116" rx="12" fill="#fff" stroke="#c2b7df"/><text x="815" y="285" class="head">Claude Code</text><text x="815" y="315" class="body">Design og utvikling</text><text x="815" y="340" class="body">Komponenter og tester</text>
+<rect x="1060" y="242" width="215" height="116" rx="12" fill="#fff" stroke="#c2b7df"/><text x="1085" y="285" class="head">GitHub</text><text x="1085" y="315" class="body">Kode og versjoner</text><text x="1085" y="340" class="body">Pull requests</text>
+<path class="line" d="M1002 300H1055"/>
+<rect x="940" y="428" width="210" height="103" rx="12" fill="#fff" stroke="#c2b7df"/><text x="965" y="470" class="head">CI/CD · deploy</text><text x="965" y="499" class="body">Tester og utrulling</text><path class="line" d="M1165 360V390H1045V424"/>
+<rect x="760" y="670" width="550" height="130" rx="17" fill="#d9eee7" stroke="#8ebbac" stroke-width="2"/><text x="790" y="714" class="head">Designporten.no – offentlig nettsted</text><text x="790" y="747" class="body">Leser publisert innhold fra CMS/databasen</text><text x="790" y="777" class="body">Viser design og komponenter fra deployet kode</text>
+<path class="line" d="M630 486H685V736H756"/><path class="line" d="M1045 533V664"/>
+<text x="77" y="850" class="subtitle">Prinsipp: Endringer i innhold krever ikke deploy. Endringer i design skal ikke overskrive innhold.</text>
+</svg>
