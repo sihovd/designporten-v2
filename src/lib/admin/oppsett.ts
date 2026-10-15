@@ -9,9 +9,10 @@ import { nettsti } from '@/lib/nettsti';
  * site from there (Render auto-deploy).
  */
 import { kategorier } from '@/lib/handel/kategorier';
-import { utklippbilder } from '@/lib/ressurser';
+import { bakgrunner, utklippbilder } from '@/lib/ressurser';
 import { materialer, materialtyper } from '@/skaperverksted/core/materialer';
 import { sidetekstSamling } from '@/lib/sidetekster/admin';
+import { inspirasjonstyper, tilgangsnivaer } from '@/content/inspirasjon/verdier';
 
 export const REPO = 'sihovd/designporten-v2';
 
@@ -21,6 +22,23 @@ export function lagOppsett(generatorer: { id: string; navn: string }[]) {
   const bilder = valg(
     Object.entries(utklippbilder).map(([k, b]) => ({ label: `${b.alt} (konseptbilde)`, value: k })),
   );
+  const inspirasjonsbilder = valg([
+    ...Object.entries(bakgrunner).map(([k, b]) => ({
+      label: `${b.alt}${b.konsept ? ' (konseptbilde)' : ''}`,
+      value: `bakgrunner.${k}`,
+    })),
+    ...Object.entries(utklippbilder).map(([k, b]) => ({
+      label: `${b.alt}${b.konsept ? ' (konseptbilde)' : ''}`,
+      value: `utklippbilder.${k}`,
+    })),
+  ]);
+  const bildevalg = (navn: string, label = 'Bilde fra bildebiblioteket') => ({
+    name: navn,
+    label,
+    widget: 'select',
+    required: false,
+    options: inspirasjonsbilder,
+  });
   return {
     backend: {
       name: 'github',
@@ -34,14 +52,108 @@ export function lagOppsett(generatorer: { id: string; navn: string }[]) {
         deleteMedia: 'Innhold: sletter «{{path}}»',
       },
     },
-    site_url: 'https://designporten.onrender.com',
-    display_url: 'https://designporten.onrender.com',
+    site_url: 'https://designporten.no',
+    display_url: 'https://designporten.no',
     logo: { src: nettsti('/brand/designporten-merke.svg') },
     media_folder: 'public/opplastet',
     public_folder: '/opplastet',
     slug: { encoding: 'ascii', clean_accents: true },
     collections: [
       sidetekstSamling(),
+      {
+        name: 'nettsidebilder',
+        label: 'Nettsidebilder',
+        description:
+          'Bytt hovedbildene på forsiden, Spesialdesign, For bedrifter og Om. Nye bilder lastes opp i bildebiblioteket.',
+        files: [
+          {
+            name: 'bilder',
+            label: 'Sidebilder',
+            file: 'src/content/sider/bilder.json',
+            preview_path: '/',
+            fields: [
+              {
+                name: 'forside',
+                label: 'Forsiden',
+                widget: 'object',
+                fields: [
+                  {
+                    name: 'fil',
+                    label: 'Last opp eller velg bilde',
+                    widget: 'image',
+                    required: false,
+                    hint: 'Tomt felt bruker det merkede konseptbildet.',
+                  },
+                  { name: 'alt', label: 'Hva viser bildet?', widget: 'string' },
+                  {
+                    name: 'fokus',
+                    label: 'Fokuspunkt',
+                    widget: 'string',
+                    hint: 'Prosent fra venstre og topp, for eksempel 72% 45%.',
+                  },
+                ],
+              },
+              {
+                name: 'spesialdesign',
+                label: 'Spesialdesign',
+                widget: 'object',
+                fields: [
+                  {
+                    name: 'fil',
+                    label: 'Last opp eller velg bilde',
+                    widget: 'image',
+                    required: false,
+                    hint: 'Tomt felt bruker det merkede konseptbildet.',
+                  },
+                  { name: 'alt', label: 'Hva viser bildet?', widget: 'string' },
+                  {
+                    name: 'fokus',
+                    label: 'Fokuspunkt',
+                    widget: 'string',
+                    hint: 'Prosent fra venstre og topp, for eksempel 68% 50%.',
+                  },
+                ],
+              },
+              {
+                name: 'bedrift',
+                label: 'For bedrifter',
+                widget: 'object',
+                fields: [
+                  {
+                    name: 'fil',
+                    label: 'Last opp eller velg bilde',
+                    widget: 'image',
+                    required: false,
+                    hint: 'Tomt felt bruker det merkede konseptbildet.',
+                  },
+                  { name: 'alt', label: 'Hva viser bildet?', widget: 'string' },
+                  {
+                    name: 'fokus',
+                    label: 'Fokuspunkt',
+                    widget: 'string',
+                    hint: 'Prosent fra venstre og topp, for eksempel 62% 45%.',
+                  },
+                ],
+              },
+              {
+                name: 'omHistorie',
+                label: 'Om – historiebilde',
+                widget: 'object',
+                fields: [
+                  {
+                    name: 'fil',
+                    label: 'Last opp eller velg bilde',
+                    widget: 'image',
+                    required: false,
+                    hint: 'Tomt felt bruker det merkede konseptbildet.',
+                  },
+                  { name: 'alt', label: 'Hva viser bildet?', widget: 'string' },
+                ],
+              },
+            ],
+          },
+        ],
+      },
       {
         name: 'produkter',
         label: 'Produkter',
@@ -209,6 +321,102 @@ export function lagOppsett(generatorer: { id: string; navn: string }[]) {
             format: 'YYYY-MM-DD',
             default: '{{now}}',
           },
+        ],
+      },
+      {
+        name: 'inspirasjon',
+        label: 'Inspirasjon',
+        label_singular: 'Artikkel',
+        description: 'Artikler, veiledninger og bekreftede kundeprosjekter.',
+        folder: 'src/content/inspirasjon/data',
+        extension: 'md',
+        format: 'frontmatter',
+        create: true,
+        delete: true,
+        slug: '{{slug}}',
+        summary: '{{tittel}} · {{status}}',
+        sortable_fields: ['dato', 'tittel', 'status', 'type'],
+        fields: [
+          { name: 'tittel', label: 'Tittel', widget: 'string' },
+          { name: 'ingress', label: 'Ingress', widget: 'text' },
+          {
+            name: 'type',
+            label: 'Innholdstype',
+            widget: 'select',
+            options: inspirasjonstyper.map((value) => ({ label: value, value })),
+          },
+          {
+            name: 'status',
+            label: 'Status',
+            widget: 'select',
+            default: 'plassholder',
+            hint: 'Bruk «Bekreftet» bare for innhold Designporten har godkjent.',
+            options: [
+              { label: 'Plassholder', value: 'plassholder' },
+              { label: 'Bekreftet', value: 'bekreftet' },
+            ],
+          },
+          {
+            name: 'dato',
+            label: 'Dato',
+            widget: 'datetime',
+            time_format: false,
+            date_format: 'YYYY-MM-DD',
+            format: 'YYYY-MM-DD',
+          },
+          {
+            name: 'tilgang',
+            label: 'Synlighet',
+            widget: 'select',
+            default: 'offentlig',
+            options: tilgangsnivaer.map((value) => ({ label: value, value })),
+          },
+          {
+            name: 'offentligFra',
+            label: 'Offentlig fra',
+            widget: 'datetime',
+            time_format: false,
+            date_format: 'YYYY-MM-DD',
+            format: 'YYYY-MM-DD',
+            required: false,
+          },
+          bildevalg('bilde', 'Hovedbilde'),
+          { name: 'problem', label: 'Utfordring', widget: 'text', required: false },
+          { name: 'utgangspunkt', label: 'Hva kunden startet med', widget: 'text', required: false },
+          {
+            name: 'stadier',
+            label: 'Stegene i prosessen',
+            label_singular: 'Steg',
+            widget: 'list',
+            collapsed: true,
+            summary: '{{tittel}}',
+            fields: [
+              { name: 'tittel', label: 'Stegtittel', widget: 'string' },
+              { name: 'tekst', label: 'Beskrivelse', widget: 'text' },
+              bildevalg('bilde'),
+            ],
+          },
+          { name: 'resultat', label: 'Resultat', widget: 'text', required: false },
+          {
+            name: 'materialer',
+            label: 'Materialer',
+            label_singular: 'Materiale',
+            widget: 'list',
+            field: { name: 'materiale', label: 'Materiale', widget: 'string' },
+            required: false,
+          },
+          { name: 'mal', label: 'Mål', widget: 'string', required: false },
+          {
+            name: 'lenke',
+            label: 'Neste steg',
+            widget: 'object',
+            required: false,
+            fields: [
+              { name: 'tekst', label: 'Lenketekst', widget: 'string' },
+              { name: 'href', label: 'Adresse', widget: 'string' },
+            ],
+          },
+          { name: 'body', label: 'Artikkelinnhold', widget: 'markdown' },
         ],
       },
       {

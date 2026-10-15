@@ -3,7 +3,7 @@ import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import Knapp from '@/components/Knapp.astro';
 import Konseptbilde from '@/components/Konseptbilde.astro';
-import { bakgrunner } from '@/lib/ressurser';
+import { nettsidebilder } from '@/lib/nettsidebilder';
 import { sidetekst } from '@/lib/sidetekster';
 
 /*
@@ -40,7 +40,7 @@ const lager = Array.from({ length: t.antall('lager.punkter') }, (_, i) => `lager
       ))}
     </div>
     <figure class="om-historie__bilde">
-      <Konseptbilde bilde={bakgrunner.samarbeid} sizes="(min-width: 900px) 40vw, 100vw" />
+      <Konseptbilde bilde={nettsidebilder.omHistorie} sizes="(min-width: 900px) 40vw, 100vw" />
     </figure>
   </section>
 

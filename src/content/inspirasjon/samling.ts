@@ -14,10 +14,9 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
+import { inspirasjonstyper, tilgangsnivaer } from './verdier';
 
-export const inspirasjonstyper = ['prosjekt', 'historie', 'prosess', 'guide', 'tips', 'nyhet'] as const;
-
-export const tilgangsnivaer = ['offentlig', 'medlemmer-forst'] as const;
+export { inspirasjonstyper, tilgangsnivaer } from './verdier';
 
 export const inspirasjon = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/inspirasjon/data' }),

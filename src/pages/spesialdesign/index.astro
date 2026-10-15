@@ -5,7 +5,7 @@ import BildeHelt from '@/components/showroom/BildeHelt.astro';
 import Ikon from '@/components/Ikon.astro';
 import ProsessSlider from '@/components/showroom/ProsessSlider.astro';
 import { spesialprosess } from '@/components/showroom/data/prosess';
-import { bakgrunner } from '@/lib/ressurser';
+import { nettsidebilder } from '@/lib/nettsidebilder';
 import { sidetekst } from '@/lib/sidetekster';
 
 const t = sidetekst('spesialdesign');
@@ -16,14 +16,20 @@ const innganger = (['privat', 'bedrift'] as const).map((kundetype) => ({
 ---
 
 <Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
-  <link slot="hode" rel="preload" as="image" href={bakgrunner.samarbeid.src} fetchpriority="high" />
+  <link
+    slot="hode"
+    rel="preload"
+    as="image"
+    href={nettsidebilder.spesialdesign.bilde.src}
+    fetchpriority="high"
+  />
   <BildeHelt
-    bilde={bakgrunner.samarbeid}
+    bilde={nettsidebilder.spesialdesign.bilde}
     etikett={t('helt.etikett')}
     tittel={t('helt.tittel')}
     ingress={t('helt.ingress')}
     kilde={t.kilde('helt')}
-    fokus="68% 50%"
+    fokus={nettsidebilder.spesialdesign.fokus}
   />
 
   <section class="ramme innganger" aria-labelledby="innganger-tittel">

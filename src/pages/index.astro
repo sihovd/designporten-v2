@@ -9,22 +9,22 @@ import ProsessSlider from '@/components/showroom/ProsessSlider.astro';
 import Bevis from '@/components/showroom/hjem/Bevis.astro';
 import VerkstedPortal from '@/components/showroom/hjem/VerkstedPortal.astro';
 import { hjemmeprosess } from '@/components/showroom/data/prosess';
-import { bakgrunner } from '@/lib/ressurser';
+import { nettsidebilder } from '@/lib/nettsidebilder';
 import { sidetekst } from '@/lib/sidetekster';
 
 const t = sidetekst('forside');
 ---
 
 <Side tittel={t('meta.tittel')} beskrivelse={t('meta.beskrivelse')}>
-  <link slot="hode" rel="preload" as="image" href={bakgrunner.verksted.src} fetchpriority="high" />
+  <link slot="hode" rel="preload" as="image" href={nettsidebilder.forside.bilde.src} fetchpriority="high" />
   <BildeHelt
-    bilde={bakgrunner.verksted}
+    bilde={nettsidebilder.forside.bilde}
     etikett={t('helt.etikett')}
     tittel={t('helt.tittel')}
     ingress={t('helt.ingress')}
     kilde={t.kilde('helt')}
     stor
-    fokus="72% 45%"
+    fokus={nettsidebilder.forside.fokus}
   >
     <Knapp href={nettsti('/skaperverksted/')}>
       <span {...t.r('helt.knapp1')}>{t('helt.knapp1')}</span>
