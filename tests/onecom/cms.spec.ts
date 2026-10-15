@@ -20,6 +20,8 @@ async function nullstill() {
   await rm('var/cms-test.sqlite-wal', { force: true });
   await rm('var/cms-test.sqlite-shm', { force: true });
   await rm('dist/api/cms/data/publisert.json', { force: true });
+  await rm('dist/api/cms/data/medier', { recursive: true, force: true });
+  await rm('dist/medier/2026', { recursive: true, force: true });
 }
 
 test.beforeAll(nullstill);
@@ -36,7 +38,7 @@ test('første administrator opprettes med oppsettkoden, og /cms/ viser tekstene'
   await redaktor.getByLabel('E-post').fill('eier@example.invalid');
   await redaktor.getByLabel('Passord (minst 12 tegn)').fill('et-langt-passord');
   await redaktor.getByRole('button', { name: 'Opprett og logg inn' }).click();
-  await expect(redaktor.getByRole('heading', { name: 'Tekster på sidene' })).toBeVisible();
+  await expect(redaktor.getByRole('heading', { name: 'Tekster og bilder på sidene' })).toBeVisible();
   await expect(redaktor.getByRole('link', { name: 'Åpne siden' }).first()).toBeVisible();
   const axe = await new AxeBuilder({ page: redaktor }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
@@ -109,12 +111,12 @@ test('CMS-04: standardteksten kan hentes tilbake fra historikken og publiseres',
 
 test('/cms/-panelet lagrer utkast, viser loggen og legger til en agent', async () => {
   await redaktor.goto(`${base}/cms/`);
-  await redaktor.getByRole('searchbox', { name: 'Søk i tekstene' }).fill('La oss lage');
+  await redaktor.getByRole('searchbox', { name: 'Søk i tekster og bilder' }).fill('La oss lage');
   const rad = redaktor.locator('.cms__rad').filter({ hasText: 'Toppen av siden › Tittel' }).first();
   await rad.getByRole('button', { name: 'Endre' }).click();
   await rad.getByRole('textbox').fill('Fra panelet');
   await rad.getByRole('button', { name: 'Lagre utkast' }).click();
-  await redaktor.getByRole('searchbox', { name: 'Søk i tekstene' }).fill('Fra panelet');
+  await redaktor.getByRole('searchbox', { name: 'Søk i tekster og bilder' }).fill('Fra panelet');
   await expect(redaktor.locator('.cms__rad').filter({ hasText: 'Fra panelet' })).toContainText('Utkast');
   await redaktor.getByRole('button', { name: /Forkast utkast/ }).click();
 
@@ -128,4 +130,90 @@ test('/cms/-panelet lagrer utkast, viser loggen og legger til en agent', async (
   await expect(redaktor.getByRole('status').filter({ hasText: 'API-nøkkelen til Testagent' })).toContainText(
     /dpcms_/,
   );
+});
+
+test('bilde: forsidebildet byttes på siden, publiseres uten bygg og hentes tilbake fra historikken', async ({
+  browser,
+}) => {
+  const helt = '[data-rediger-bilde="sider/forside#helt.bilde"]';
+  await redaktor.goto(`${base}/`);
+  const bygget = await redaktor.locator(helt).getAttribute('src');
+  const bar = redaktor.getByRole('region', { name: 'Redigering av innhold' });
+  await bar.getByRole('button', { name: 'Rediger innhold' }).click();
+  await redaktor.getByRole('button', { name: /^Bytt bilde/ }).click();
+  const dialog = redaktor.getByRole('dialog', { name: 'Bytt bilde' });
+  await expect(dialog).toBeVisible();
+  await dialog
+    .locator('input[type="file"]')
+    .setInputFiles('public/midlertidig/konsept/utklipp/fasettpotte.webp');
+  await expect(dialog).toContainText('1 bilde lastet opp');
+  const axe = await new AxeBuilder({ page: redaktor })
+    .include('.dp-bildevelger')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+    .analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+  await expect(dialog.getByRole('button', { name: 'Bruk bildet' })).toBeDisabled();
+  await dialog.getByLabel('Hva viser bildet? (alt-tekst)').fill('En fasettert potte på et bord');
+  await dialog.getByLabel('Fra venstre').fill('30');
+  await dialog.getByLabel('Fra venstre').press('Tab');
+  await dialog.getByRole('button', { name: 'Bruk bildet' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(redaktor.locator(helt)).toHaveAttribute('src', /\/medier\//);
+  await bar.getByRole('button', { name: 'Lagre utkast' }).click();
+  await expect(bar).toContainText('lagret som utkast');
+  await expect(redaktor.locator(helt)).toHaveAttribute('data-utkast', '');
+
+  const besokende = await browser.newPage();
+  await besokende.goto(`${base}/`);
+  await expect(besokende.locator(helt)).toHaveAttribute('src', bygget!);
+  await besokende.close();
+
+  await bar.getByRole('button', { name: 'Ferdig' }).click();
+  await bar.getByRole('button', { name: 'Publiser' }).click();
+  await expect(bar).toContainText('Besøkende ser dem nå');
+
+  const ny = await browser.newPage();
+  await ny.goto(`${base}/`);
+  const img = ny.locator(helt);
+  await expect(img).toHaveAttribute('src', /\/medier\/\d{4}\/[a-f0-9]+-\d+\.webp$/);
+  await expect(img).toHaveAttribute('alt', 'En fasettert potte på et bord');
+  await expect(img).toHaveAttribute('style', /--fokus: 30% 50%/);
+  await expect(img).toHaveJSProperty('complete', true);
+  expect(await img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBeGreaterThan(0);
+  await expect(ny.locator('[data-konseptmerke="sider/forside#helt.bilde"]')).toBeHidden();
+  await ny.close();
+
+  await bar.getByRole('button', { name: 'Rediger innhold' }).click();
+  await redaktor.getByRole('button', { name: /^Bytt bilde/ }).focus();
+  await bar.getByRole('button', { name: 'Historikk' }).click();
+  const historikk = redaktor.getByRole('dialog', { name: 'Historikk for bildet' });
+  await historikk
+    .getByRole('listitem')
+    .filter({ hasText: 'Bildet siden ble laget med' })
+    .first()
+    .getByRole('button', { name: 'Bruk denne' })
+    .click();
+  await expect(bar).toContainText('gjenopprettet som utkast');
+  await expect(redaktor.locator(helt)).toHaveAttribute('src', bygget!);
+  await bar.getByRole('button', { name: 'Ferdig' }).click();
+  await bar.getByRole('button', { name: 'Publiser' }).click();
+  await expect(bar).toContainText('publisert');
+
+  const tilbake = await browser.newPage();
+  await tilbake.goto(`${base}/`);
+  await expect(tilbake.locator(helt)).toHaveAttribute('src', bygget!);
+  await expect(tilbake.locator('[data-konseptmerke="sider/forside#helt.bilde"]')).toBeVisible();
+  await tilbake.close();
+});
+
+test('/cms/ viser bildebiblioteket og driftsstatus', async () => {
+  await redaktor.goto(`${base}/cms/`);
+  await redaktor.getByRole('button', { name: 'Bilder' }).click();
+  await expect(redaktor.getByRole('heading', { name: 'Bilder' })).toBeVisible();
+  await expect(redaktor.locator('.cms__bilde')).toHaveCount(1);
+  await expect(redaktor.locator('.cms__bilde')).toContainText('fasettpotte.webp');
+  await redaktor.getByRole('button', { name: 'Drift' }).click();
+  await expect(redaktor.getByRole('table')).toContainText('Bildebehandling (GD)');
+  const axe = await new AxeBuilder({ page: redaktor }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
 });

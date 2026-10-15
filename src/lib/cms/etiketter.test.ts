@@ -11,6 +11,10 @@ describe('cmsEtikett', () => {
     expect(cmsEtikett('sider/bedrift#tjenester.liste.1.navn')?.felt).toBe('Tjenester › Tjeneste 2 › Navn');
   });
 
+  it('kaller bildet i en seksjon «Bilde»', () => {
+    expect(cmsEtikett('sider/forside#helt.bilde')?.felt).toBe('Toppen av siden › Bilde');
+  });
+
   it('gir null for nøkler utenfor sidetekstene', () => {
     expect(cmsEtikett('produkter/data/vase#navn')).toBeNull();
     expect(cmsEtikett('sider/finnesikke#a')).toBeNull();

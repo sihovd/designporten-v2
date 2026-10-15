@@ -5,6 +5,11 @@
   gap: var(--r-5);
 }
 
+/* Wide tables scroll inside their box instead of widening the page. */
+.cms > * {
+  min-width: 0;
+}
+
 .cms h2 {
   margin: 0 0 var(--r-3);
   font-size: var(--fs-h3);
@@ -132,6 +137,7 @@
 }
 
 .cms__verktoy {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: end;
@@ -347,4 +353,94 @@
 
 .cms__avvist {
   color: var(--feil);
+}
+
+.cms__tabell--drift td:last-child {
+  min-width: 8rem;
+}
+
+/* Pictures */
+.cms__fil {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.cms__fil:focus-visible + label {
+  outline: 2px solid var(--dp-lilla);
+  outline-offset: 2px;
+}
+
+.cms__verktoy progress {
+  vertical-align: middle;
+}
+
+.cms__bilder {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--r-4);
+  margin: var(--r-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cms__bilde {
+  display: grid;
+  align-content: start;
+  gap: var(--r-2);
+  padding: var(--r-3);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+}
+
+.cms__bilde > img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: calc(var(--radius-felt) - 2px);
+  background: var(--flate);
+}
+
+.cms__bildetekst p {
+  margin: 0 0 var(--r-1);
+  overflow-wrap: anywhere;
+}
+
+.cms__bildetekst .cms__merke {
+  margin-left: var(--r-2);
+}
+
+.cms__bildeskjema {
+  display: grid;
+  gap: var(--r-3);
+  margin-top: var(--r-3);
+}
+
+.cms__bilderad {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--r-4);
+  margin: var(--r-2) 0;
+}
+
+.cms__miniatyr {
+  display: grid;
+  gap: var(--r-1);
+  max-width: 14rem;
+  margin: 0;
+}
+
+.cms__miniatyr img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: var(--radius-felt);
+  background: var(--flate);
 }

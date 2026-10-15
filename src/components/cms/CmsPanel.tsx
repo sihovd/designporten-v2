@@ -11,6 +11,9 @@ import {
   cms,
   CmsFeil,
   gjeldende,
+  lesBildeverdi,
+  lesByggbilde,
+  type Bildeinfo,
   type Bruker,
   type Felt,
   type Forslag,
@@ -19,9 +22,10 @@ import {
   type Revisjon,
 } from '@/lib/cms/api';
 import { cmsEtikett } from '@/lib/cms/etiketter';
+import { DriftStatus, Medier } from './Medier';
 import './cms.css';
 
-type Fane = 'innhold' | 'forslag' | 'brukere' | 'logg' | 'kopi' | 'konto';
+type Fane = 'innhold' | 'bilder' | 'forslag' | 'brukere' | 'logg' | 'kopi' | 'drift' | 'konto';
 
 const tid = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' }) : '';
@@ -124,6 +128,23 @@ function Inngang({ harBrukere, ferdig }: { harBrukere: boolean; ferdig: (b: Bruk
 
 // ------------------------------------------------------------ Content
 
+/** A small picture for an image field value: the library picture, or the one the page was built with. */
+function Miniatyr({ felt, verdi, info }: { felt: Felt; verdi: string | null; info?: Bildeinfo | null }) {
+  const v = lesBildeverdi(verdi);
+  const bygget = lesByggbilde(felt.standard);
+  const src = v?.medium != null ? info?.miniatyr : bygget?.src;
+  const tekst =
+    v?.medium != null
+      ? `${info?.navn ?? 'Bilde'}${info?.dekorativ ? ' (pynt)' : info?.alt ? `: ${info.alt}` : ''}`
+      : `Bildet siden ble laget med${bygget?.konsept ? ' (konseptbilde)' : ''}`;
+  return (
+    <figure class="cms__miniatyr">
+      {src && <img src={src} alt="" loading="lazy" />}
+      <figcaption class="cms__liten">{tekst}</figcaption>
+    </figure>
+  );
+}
+
 function Historikk({ felt, ferdig }: { felt: Felt; ferdig: (r: Resultat) => void }) {
   const [revisjoner, settRevisjoner] = useState<Revisjon[] | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
@@ -144,11 +165,12 @@ function Historikk({ felt, ferdig }: { felt: Felt; ferdig: (r: Resultat) => void
 
   if (feil) return <Melding tekst={feil} feil />;
   if (!revisjoner) return <p class="cms__dempet">Henter historikken …</p>;
+  const bilde = felt.type === 'bilde';
   return (
     <ol class="cms__historikk">
       <li>
-        <strong>Standardtekst fra koden</strong>
-        <p>{felt.standard}</p>
+        <strong>{bilde ? 'Bildet siden ble laget med' : 'Standardtekst fra koden'}</strong>
+        {bilde ? <Miniatyr felt={felt} verdi={null} /> : <p>{felt.standard}</p>}
         <button type="button" class="cms__lenkeknapp" onClick={() => void bruk({ standard: true })}>
           Bruk denne som utkast
         </button>
@@ -161,7 +183,7 @@ function Historikk({ felt, ferdig }: { felt: Felt; ferdig: (r: Resultat) => void
           </strong>
           {r.verdi !== null && (
             <>
-              <p>{r.verdi}</p>
+              {bilde ? <Miniatyr felt={felt} verdi={r.verdi} info={r.bilde} /> : <p>{r.verdi}</p>}
               <button type="button" class="cms__lenkeknapp" onClick={() => void bruk({ revisjon: r.id })}>
                 Bruk denne som utkast
               </button>
@@ -204,6 +226,80 @@ function Feltrad({
   }
 
   const id = `felt-${felt.nokkel.replace(/[^a-z0-9]/gi, '-')}`;
+  if (felt.type === 'bilde')
+    return (
+      <li class={`cms__rad cms__rad--${status}`}>
+        <div class="cms__radhode">
+          <span id={id} class="cms__feltnavn">
+            {navn?.felt ?? felt.nokkel}
+          </span>
+          <span class={`cms__merke cms__merke--${status}`}>
+            {status === 'utkast' ? 'Utkast' : status === 'publisert' ? 'Publisert' : 'Standard'}
+          </span>
+        </div>
+        <div class="cms__bilderad">
+          {felt.utkast !== null && (
+            <div>
+              <p class="cms__dempet cms__liten">Utkast:</p>
+              <Miniatyr felt={felt} verdi={felt.utkast} info={felt.bilder?.utkast} />
+            </div>
+          )}
+          <div>
+            {felt.utkast !== null && <p class="cms__dempet cms__liten">Publisert nå:</p>}
+            <Miniatyr felt={felt} verdi={felt.publisert} info={felt.bilder?.publisert} />
+          </div>
+        </div>
+        {felt.endret && (
+          <p class="cms__dempet cms__liten">
+            Sist endret {tid(felt.endret)}
+            {felt.endretAv && ` av ${felt.endretAv}`}
+          </p>
+        )}
+        <div class="cms__knapper">
+          <a class="cms__lenkeknapp" href={nettsti(felt.sider[0] ?? '/')} aria-describedby={id}>
+            Bytt på siden
+          </a>
+          {felt.utkast !== null && kanPublisere && (
+            <button
+              type="button"
+              class="cms__lenkeknapp"
+              onClick={() =>
+                void kjor(
+                  async () =>
+                    (await cms.publiser([{ nokkel: felt.nokkel, versjon: felt.versjon }])).resultater,
+                )
+              }
+            >
+              Publiser
+            </button>
+          )}
+          {felt.utkast !== null && (
+            <button
+              type="button"
+              class="cms__lenkeknapp"
+              onClick={() =>
+                void kjor(
+                  async () =>
+                    (await cms.forkast([{ nokkel: felt.nokkel, versjon: felt.versjon }])).resultater,
+                )
+              }
+            >
+              Forkast utkast
+            </button>
+          )}
+          <button
+            type="button"
+            class="cms__lenkeknapp"
+            aria-expanded={visHistorikk}
+            onClick={() => settVisHistorikk(!visHistorikk)}
+          >
+            Historikk
+          </button>
+        </div>
+        {feil && <Melding tekst={feil} feil />}
+        {visHistorikk && <Historikk felt={felt} ferdig={(r) => void kjor(async () => [r])} />}
+      </li>
+    );
   return (
     <li class={`cms__rad cms__rad--${status}`}>
       <div class="cms__radhode">
@@ -338,7 +434,11 @@ function Innhold({ bruker }: { bruker: Bruker }) {
     for (const f of felt ?? []) {
       if (bareUtkast && f.utkast === null) continue;
       const navn = cmsEtikett(f.nokkel);
-      const tekst = `${navn?.side} ${navn?.felt} ${f.utkast ?? ''} ${gjeldende(f)}`.toLowerCase();
+      const tekst = (
+        f.type === 'bilde'
+          ? `${navn?.side} ${navn?.felt} bilde ${f.bilder?.utkast?.alt ?? ''} ${f.bilder?.publisert?.alt ?? ''}`
+          : `${navn?.side} ${navn?.felt} ${f.utkast ?? ''} ${gjeldende(f)}`
+      ).toLowerCase();
       if (ord && !tekst.includes(ord)) continue;
       const nokkel = navn?.sideId ?? 'annet';
       if (!ut.has(nokkel)) ut.set(nokkel, { side: navn?.side ?? 'Annet', sti: f.sider[0] ?? '/', felt: [] });
@@ -358,7 +458,7 @@ function Innhold({ bruker }: { bruker: Bruker }) {
       const ok = resultater.filter((r) => r.status === 'ok').length;
       const ikke = resultater.length - ok;
       settMelding({
-        tekst: `${ok} ${ok === 1 ? 'tekst' : 'tekster'} publisert.${ikke ? ` ${ikke} ble endret av andre i mellomtiden og ble ikke publisert.` : ''}`,
+        tekst: `${ok} ${ok === 1 ? 'endring' : 'endringer'} publisert.${ikke ? ` ${ikke} ble endret av andre i mellomtiden og ble ikke publisert.` : ''}`,
         feil: ikke > 0,
       });
     } catch (e) {
@@ -366,18 +466,18 @@ function Innhold({ bruker }: { bruker: Bruker }) {
     }
   }
 
-  if (!felt) return melding ? <Melding {...melding} /> : <p class="cms__dempet">Henter tekstene …</p>;
+  if (!felt) return melding ? <Melding {...melding} /> : <p class="cms__dempet">Henter innholdet …</p>;
   return (
     <section aria-labelledby="cms-innhold">
-      <h2 id="cms-innhold">Tekster på sidene</h2>
+      <h2 id="cms-innhold">Tekster og bilder på sidene</h2>
       <p class="cms__ingress">
         Endringer lagres som utkast. Besøkende ser dem først når du publiserer, og da med en gang, uten ny
-        opplasting. Du kan også endre tekstene rett på sidene: åpne en side mens du er logget inn, og trykk
-        «Rediger innhold».
+        opplasting. Du kan også endre tekster og bytte bilder rett på sidene: åpne en side mens du er logget
+        inn, og trykk «Rediger innhold».
       </p>
       <div class="cms__verktoy">
         <label class="cms__felt cms__felt--sok">
-          <span>Søk i tekstene</span>
+          <span>Søk i tekster og bilder</span>
           <input type="search" value={sok} onInput={(e) => settSok((e.target as HTMLInputElement).value)} />
         </label>
         <label class="cms__avkryss">
@@ -395,7 +495,7 @@ function Innhold({ bruker }: { bruker: Bruker }) {
         )}
       </div>
       {melding && <Melding {...melding} />}
-      {grupper.length === 0 && <p class="cms__dempet">Ingen tekster passer.</p>}
+      {grupper.length === 0 && <p class="cms__dempet">Ingenting passer.</p>}
       {grupper.map((g) => (
         <section key={g.side} class="cms__gruppe" aria-label={g.side}>
           <h3>
@@ -899,12 +999,14 @@ export default function CmsPanel() {
 
   const { bruker } = tilstand;
   const faner: [Fane, string][] = [
-    ['innhold', 'Tekster'],
+    ['innhold', 'Sidene'],
+    ['bilder', 'Bilder'],
     ['forslag', 'Forslag'],
     ...(bruker.rolle === 'admin'
       ? ([
           ['brukere', 'Brukere'],
           ['kopi', 'Sikkerhetskopi'],
+          ['drift', 'Drift'],
         ] as [Fane, string][])
       : []),
     ['logg', 'Logg'],
@@ -930,6 +1032,8 @@ export default function CmsPanel() {
         ))}
       </nav>
       {fane === 'innhold' && <Innhold bruker={bruker} />}
+      {fane === 'bilder' && <Medier />}
+      {fane === 'drift' && <DriftStatus />}
       {fane === 'forslag' && <Forslagsliste bruker={bruker} />}
       {fane === 'brukere' && <Brukere meg={bruker} />}
       {fane === 'logg' && <Logg />}

@@ -9,9 +9,24 @@ interface Props {
   prioritet?: 'high' | 'auto';
   sizes?: string;
   merke?: boolean;
+  /**
+   * CMS address (e.g. 'sider/forside#helt.bilde') that lets an editor swap the
+   * picture on the page; the one.com server then writes the published one in
+   * (api/cms/side.php). See docs/cms/README.md#bilder.
+   */
+  rediger?: string;
 }
 
-const { bilde, class: klasse, lasting = 'lazy', prioritet = 'auto', sizes, merke = true } = Astro.props;
+const {
+  bilde,
+  class: klasse,
+  lasting = 'lazy',
+  prioritet = 'auto',
+  sizes,
+  merke = true,
+  rediger,
+} = Astro.props;
+const cms = rediger ? { 'data-rediger-bilde': rediger, 'data-konsept': bilde.konsept ? '1' : '0' } : {};
 ---
 
 <span class:list={['konseptbilde', klasse]}>
@@ -24,8 +39,13 @@ const { bilde, class: klasse, lasting = 'lazy', prioritet = 'auto', sizes, merke
     decoding="async"
     fetchpriority={prioritet}
     sizes={sizes}
+    {...cms}
   />
-  {bilde.konsept && merke && <span class="konseptbilde__merke mono">Konseptbilde</span>}
+  {merke && (bilde.konsept || rediger) && (
+    <span class="konseptbilde__merke mono" data-konseptmerke={rediger} hidden={!bilde.konsept}>
+      Konseptbilde
+    </span>
+  )}
 </span>
 
 <style>
@@ -47,6 +67,21 @@ const { bilde, class: klasse, lasting = 'lazy', prioritet = 'auto', sizes, merke
     width: 100%;
     height: 100%;
     object-fit: inherit;
+  }
+
+  /* A picture swapped in the CMS carries its focus point (api/cms/side.php). */
+  :global(:where(.konseptbilde) > img[data-rediger-bilde]) {
+    object-position: var(--fokus, 50% 50%);
+  }
+
+  @media (max-width: 720px) {
+    :global(:where(.konseptbilde) > img[data-rediger-bilde]) {
+      object-position: var(--fokus-mobil, var(--fokus, 50% 50%));
+    }
+  }
+
+  .konseptbilde__merke[hidden] {
+    display: none;
   }
 
   .konseptbilde__merke {

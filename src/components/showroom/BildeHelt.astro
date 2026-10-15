@@ -37,6 +37,8 @@ const {
   id = 'helt-tittel',
   kilde,
 } = Astro.props;
+// The picture is editable with the texts: «sider/forside#helt.bilde».
+const bildeNokkel = kilde ? `${kilde}.bilde` : undefined;
 ---
 
 <section
@@ -54,9 +56,14 @@ const {
       prioritet="high"
       sizes="100vw"
       merke={false}
+      rediger={bildeNokkel}
     />
   </div>
-  {bilde.konsept && <span class="bhelt__merke mono">Konseptbilde</span>}
+  {(bilde.konsept || bildeNokkel) && (
+    <span class="bhelt__merke mono" data-konseptmerke={bildeNokkel} hidden={!bilde.konsept}>
+      Konseptbilde
+    </span>
+  )}
   <div class="bhelt__innhold">
     <div class="bhelt__tekst">
       <p class="etikett bhelt__etikett" {...redigerbar(kilde, 'etikett')}>
@@ -124,6 +131,10 @@ const {
       color-mix(in srgb, var(--papir) 30%, transparent) 54%,
       transparent 70%
     );
+  }
+
+  .bhelt__merke[hidden] {
+    display: none;
   }
 
   .bhelt__merke {
@@ -209,6 +220,11 @@ const {
       inset: auto;
       z-index: 0;
       aspect-ratio: 4 / 3;
+    }
+
+    /* A picture from the CMS can have its own crop for phones. */
+    .bhelt__bilde :global(.bhelt__img img) {
+      object-position: var(--fokus-mobil, var(--fokus));
     }
 
     .bhelt__merke {

@@ -9,6 +9,8 @@ export function feltEtikett(felt: Record<string, Felt>, sti: string[]): string |
   let naa: Record<string, Felt> | undefined = felt;
   for (let i = 0; i < sti.length; i++) {
     const f: Felt | undefined = naa?.[sti[i]!];
+    // A component's picture next to its texts («sider/forside#helt.bilde»).
+    if (!f && sti[i] === 'bilde' && i === sti.length - 1) return [...deler, 'Bilde'].join(' › ');
     if (!f) return null;
     if (f.type === 'tekst') {
       deler.push(f.etikett);

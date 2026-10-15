@@ -14,7 +14,7 @@ For people and AI agents (Claude, Codex and others) working in this repository.
 2. **Stay inside your area.** Parallel threads each own a phase or area from the master spec's phase table. Shared files (tokens, domain types, the spec) change only through small, explicit changes.
 3. **No fake content or features.** No invented prices, reviews, stats, contact details or subscription behaviour. Placeholders are labelled as placeholders. Unfinished features are not shown as working.
 4. **AI images are labelled «Konseptbilde».** Functional programmatic geometry is allowed; decorative vector artwork and invented decorative SVG icons are not (D-3).
-5. **No custom cart, checkout or payment engine.**
+5. **Payment only through the providers' hosted flows** (Stripe Checkout, Vipps ePayment); no card data on our server. Orders and stock live in the CMS (decision log 2026-10-15). Live payment is switched on only by Sivert.
 6. **Accessibility (WCAG 2.2 AA), reduced motion and responsive behaviour are part of every component**, not a later pass.
 7. **Before adding a dependency,** check whether the project already has a solution.
 8. **Finish the task.** Implement, run the checks, inspect visually at 320/390/768/1024/1440 px, fix what you find, then report IMPLEMENTED vs NOT IMPLEMENTED / BLOCKED. Only real blockers stop work.

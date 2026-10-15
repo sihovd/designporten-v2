@@ -1,0 +1,13 @@
+# Only pictures the CMS made are served from here; nothing in it can run.
+Options -Indexes
+Require all denied
+<FilesMatch "^[a-z0-9-]+\.(webp|jpg|png)$">
+  Require all granted
+</FilesMatch>
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_headers.c>
+  Header set Cache-Control "public, max-age=31536000, immutable"
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>

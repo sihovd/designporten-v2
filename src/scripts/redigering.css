@@ -207,3 +207,291 @@
 .dp-redigerer .knapp--primar [data-rediger] {
   outline-color: rgb(255 255 255 / 0.85);
 }
+
+/* CMS: pictures that can be swapped (cmsbilder.ts) */
+.dp-redigerer img[data-rediger-bilde] {
+  outline: 2px dashed color-mix(in srgb, var(--dp-lilla) 80%, transparent);
+  outline-offset: -6px;
+}
+
+img[data-rediger-bilde][data-endret] {
+  outline: 3px solid var(--dp-cyan) !important;
+  outline-offset: -6px;
+}
+
+img[data-rediger-bilde][data-utkast] {
+  outline: 3px dashed var(--advarsel) !important;
+  outline-offset: -6px;
+}
+
+.dp-red-bildeknapp {
+  position: absolute;
+  z-index: 5;
+  box-shadow: var(--skygge-flyt);
+}
+
+.dp-red-historikk__bilde {
+  display: block;
+  width: 10rem;
+  height: auto;
+  margin-top: var(--r-2);
+  border-radius: var(--radius-felt);
+}
+
+.dp-bildevelger {
+  width: min(64rem, calc(100vw - 2 * var(--r-3)));
+  max-height: min(92vh, 52rem);
+  padding: var(--r-5);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kort);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-tekst);
+  box-shadow: var(--skygge-flyt);
+}
+
+.dp-bildevelger::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+.dp-bildevelger h2 {
+  margin: 0 0 var(--r-4);
+  font-size: var(--fs-h3);
+}
+
+.dp-bildevelger .dp-red__knapp {
+  border-color: var(--linje-sterk);
+}
+
+.dp-bildevelger .dp-red__knapp--primar {
+  border-color: var(--dp-lilla);
+}
+
+.dp-bildevelger .dp-red__knapp[aria-pressed='true'] {
+  border-color: var(--dp-lilla);
+  background: color-mix(in srgb, var(--dp-lilla) 12%, transparent);
+}
+
+.dp-bildevelger__innhold {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--r-5);
+}
+
+.dp-bildevelger__verktoy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--r-3);
+  margin-bottom: var(--r-3);
+}
+
+/* The file input stays reachable for keyboards and screen readers; its label is the visible button. */
+.dp-bildevelger__verktoy input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.dp-bildevelger__verktoy input[type='file']:focus-visible + label {
+  outline: 2px solid var(--dp-lilla);
+  outline-offset: 2px;
+}
+
+.dp-bildevelger__verktoy input[type='search'] {
+  flex: 1 1 10rem;
+  min-height: 44px;
+  padding: 0 var(--r-3);
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+}
+
+.dp-bildevelger progress {
+  width: 100%;
+  margin-bottom: var(--r-3);
+}
+
+.dp-bildevelger progress[hidden] {
+  display: none;
+}
+
+.dp-bildevelger__rutenett {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: var(--r-3);
+  max-height: 26rem;
+  margin: 0;
+  padding: 2px;
+  overflow: auto;
+  list-style: none;
+}
+
+.dp-bildevelger__kort {
+  display: grid;
+  gap: var(--r-1);
+  width: 100%;
+  padding: var(--r-1);
+  border: 2px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-liten);
+  text-align: left;
+  cursor: pointer;
+}
+
+.dp-bildevelger__kort img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: calc(var(--radius-felt) - 2px);
+}
+
+.dp-bildevelger__kort span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dp-bildevelger__kort[aria-pressed='true'] {
+  border-color: var(--dp-lilla);
+}
+
+.dp-bildevelger__kort:focus-visible {
+  outline: 2px solid var(--dp-lilla);
+  outline-offset: 2px;
+}
+
+.dp-bildevelger__tom {
+  grid-column: 1 / -1;
+  color: var(--fg-dempet);
+}
+
+.dp-bildevelger__detaljer {
+  display: grid;
+  align-content: start;
+  gap: var(--r-3);
+}
+
+.dp-bildevelger__detaljer[hidden] {
+  display: none;
+}
+
+.dp-bildevelger__forhand {
+  position: relative;
+  cursor: crosshair;
+  line-height: 0;
+}
+
+.dp-bildevelger__forhand img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-felt);
+}
+
+.dp-bildevelger__punkt {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--dp-lilla),
+    0 1px 4px rgb(0 0 0 / 0.5);
+  pointer-events: none;
+}
+
+.dp-bildevelger__hjelp {
+  margin: 0;
+  font-size: var(--fs-liten);
+  color: var(--fg-dempet);
+}
+
+.dp-bildevelger__bytt,
+.dp-bildevelger__fokus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--r-2) var(--r-4);
+}
+
+.dp-bildevelger__tall {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--r-2);
+  font-size: var(--fs-liten);
+}
+
+.dp-bildevelger__tall input {
+  width: 4.5rem;
+  min-height: 40px;
+  padding: 0 var(--r-2);
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+}
+
+.dp-bildevelger__avkryss {
+  display: flex;
+  align-items: center;
+  gap: var(--r-2);
+  font-size: var(--fs-liten);
+}
+
+.dp-bildevelger__avkryss input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--dp-lilla);
+}
+
+.dp-bildevelger textarea {
+  width: 100%;
+  padding: var(--r-2) var(--r-3);
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-felt);
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+.dp-bildevelger textarea:disabled {
+  opacity: 0.55;
+}
+
+.dp-bildevelger__melding {
+  min-height: 1.5em;
+  margin: var(--r-3) 0;
+}
+
+.dp-bildevelger__melding--feil {
+  color: var(--feil);
+}
+
+.dp-bildevelger__knapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--r-3);
+}
+
+@media (max-width: 760px) {
+  .dp-bildevelger {
+    padding: var(--r-4);
+  }
+
+  .dp-bildevelger__innhold {
+    grid-template-columns: 1fr;
+  }
+
+  .dp-bildevelger__rutenett {
+    max-height: 16rem;
+  }
+}
