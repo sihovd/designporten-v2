@@ -1,0 +1,11 @@
+# Only index.php (the API) and side.php (the page server) are reachable.
+# Settings, shared code, the field list and the data folder never are.
+<FilesMatch "^(_kjerne|_side|konfig|konfig\.eksempel)\.php$|^nokler\.json$">
+  Require all denied
+</FilesMatch>
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^data(?:/|$) - [F,L]
+</IfModule>
+# Shared hosts often drop the Authorization header before PHP sees it.
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1

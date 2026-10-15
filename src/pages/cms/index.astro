@@ -1,0 +1,29 @@
+---
+/**
+ * The CMS (docs/cms/README.md): page texts with draft, publish and history,
+ * agent proposals, users, log and backup. The API runs on the PHP build
+ * (php/api/cms/); other builds show a short notice.
+ */
+import Side from '@/layouts/Side.astro';
+import CmsPanel from '@/components/cms/CmsPanel';
+---
+
+<Side tittel="Innhold" beskrivelse="Innholdsstyring for Designporten." ikkeIndekser>
+  <div class="cmsside ramme">
+    <h1>Innhold</h1>
+    <CmsPanel client:load />
+    <noscript>
+      <p>CMS-et trenger JavaScript.</p>
+    </noscript>
+  </div>
+</Side>
+
+<style>
+  .cmsside {
+    padding-block: var(--r-7) var(--r-seksjon);
+  }
+
+  h1 {
+    margin-bottom: var(--r-5);
+  }
+</style>

@@ -7,6 +7,7 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { byggoppsett } from './onecom-oppsett.mjs';
+import { lagNokler } from './cms-nokler.mjs';
 
 if (process.argv.includes('--test')) process.env.DP_TEST = 'true';
 const { base, test } = byggoppsett();
@@ -22,13 +23,16 @@ if (bygg.status !== 0) process.exit(bygg.status ?? 1);
 
 cpSync('php', 'dist', { recursive: true });
 rmSync('dist/api/oppsett.eksempel.php');
+rmSync('dist/api/cms/konfig.eksempel.php');
+writeFileSync('dist/api/cms/nokler.json', `${JSON.stringify(lagNokler('dist'), null, 2)}\n`);
 writeFileSync(
   'dist/api/bygg.php',
   `<?php\nreturn ['base' => '${base}', 'test' => ${test ? 'true' : 'false'}];\n`,
 );
 let apache = readFileSync('dist/.htaccess', 'utf8')
   .replace('ErrorDocument 404 /404.html', `ErrorDocument 404 ${base}404.html`)
-  .replace('m#^/_astro/#', `m#^${base}_astro/#`);
+  .replace('m#^/_astro/#', `m#^${base}_astro/#`)
+  .replace('%{DOCUMENT_ROOT}/api/cms/', `%{DOCUMENT_ROOT}${base}api/cms/`);
 apache = apache.replace(/(RewriteRule \^\S+\.html\$ )\/(\S+)( \[R=301,L\])/g, `$1${base}$2$3`);
 if (test)
   apache +=
@@ -66,6 +70,11 @@ for (const fil of [
   '.htaccess',
   'api/.htaccess',
   'api/.user.ini',
+  'api/cms/index.php',
+  'api/cms/side.php',
+  'api/cms/nokler.json',
+  'api/cms/.htaccess',
+  'api/cms/data/.htaccess',
   'skjema/ikke-sendt/index.html',
 ]) {
   if (!existsSync(`dist/${fil}`)) {

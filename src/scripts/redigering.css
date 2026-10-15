@@ -115,6 +115,12 @@
   outline-offset: 3px;
 }
 
+/* CMS: a saved draft visitors don't see yet. */
+[data-rediger][data-utkast] {
+  outline: 2px dashed var(--advarsel) !important;
+  outline-offset: 3px;
+}
+
 [data-rediger][data-tom],
 [data-rediger][data-konflikt] {
   outline: 2px solid var(--feil) !important;
@@ -125,6 +131,61 @@
   content: 'Tom tekst';
   color: var(--feil);
   font-size: var(--fs-liten);
+}
+
+/* CMS: history of one text */
+.dp-red-historikk {
+  width: min(36rem, calc(100vw - 2 * var(--r-4)));
+  max-height: min(80vh, 44rem);
+  padding: var(--r-5);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kort);
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-tekst);
+  box-shadow: var(--skygge-flyt);
+}
+
+.dp-red-historikk::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.dp-red-historikk h2 {
+  margin: 0 0 var(--r-4);
+  font-size: var(--fs-h3);
+}
+
+.dp-red-historikk ol {
+  display: grid;
+  gap: var(--r-3);
+  margin: 0 0 var(--r-4);
+  padding: 0;
+  list-style: none;
+}
+
+.dp-red-historikk li {
+  padding: var(--r-3);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+}
+
+.dp-red-historikk li strong {
+  display: block;
+  font-size: var(--fs-liten);
+  color: var(--fg-dempet);
+}
+
+.dp-red-historikk li p {
+  margin: var(--r-2) 0;
+  white-space: pre-line;
+}
+
+.dp-red-historikk .dp-red__knapp {
+  border-color: var(--linje-sterk);
+}
+
+.dp-red-historikk .dp-red__knapp--primar {
+  border-color: var(--dp-lilla);
 }
 
 @media (max-width: 600px) {

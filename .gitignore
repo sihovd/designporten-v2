@@ -65,3 +65,8 @@ $RECYCLE.BIN/
 var/
 test-results/
 playwright-report/
+
+# CMS (docs/cms/README.md): settings and data live only on the web host
+php/api/cms/konfig.php
+php/api/cms/data/*
+!php/api/cms/data/.htaccess

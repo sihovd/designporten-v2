@@ -4,13 +4,16 @@ import { nettsti } from '@/lib/nettsti';
  * editor, see redigering.ts). Texts marked data-rediger become editable in
  * place; «Lagre» commits them to the same files /admin edits.
  */
+import { lagreEndringer, sjekkTilgang, type Endring, type Felttype } from '@/lib/redigering/kjerne';
 import {
-  lagreEndringer,
-  normaliser,
-  sjekkTilgang,
-  type Endring,
-  type Felttype,
-} from '@/lib/redigering/kjerne';
+  flertall,
+  lagKnapp,
+  lesTekst,
+  lyttEtterRedigering,
+  settRedigerbar,
+  skrivTekst,
+  typeFor,
+} from './redigering-felles';
 import './redigering.css';
 
 const PA = 'dp-redigerer';
@@ -22,43 +25,6 @@ interface Felt {
   type: Felttype;
   original: string;
 }
-
-const typeFor = (el: HTMLElement): Felttype => (el.dataset.redigerType === 'avsnitt' ? 'avsnitt' : 'linje');
-
-/** innerText needs layout; textContent keeps the stored form for hidden elements. */
-function lesTekst(el: HTMLElement, type: Felttype): string {
-  const synlig = el.getClientRects().length > 0;
-  if (type === 'avsnitt' && !synlig) {
-    const avsnitt = [...el.querySelectorAll('p')].map((p) => p.textContent ?? '');
-    return normaliser(avsnitt.length ? avsnitt.join('\n\n') : (el.textContent ?? ''), type);
-  }
-  return normaliser(synlig ? el.innerText : (el.textContent ?? ''), type);
-}
-
-function skrivTekst(el: HTMLElement, tekst: string, type: Felttype) {
-  if (type === 'linje') {
-    el.textContent = tekst;
-    return;
-  }
-  el.replaceChildren(
-    ...tekst.split('\n\n').map((a) => {
-      const p = document.createElement('p');
-      p.textContent = a;
-      return p;
-    }),
-  );
-}
-
-function lagKnapp(tekst: string, klasse: string, handling: () => void): HTMLButtonElement {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = `dp-red__knapp ${klasse}`;
-  b.textContent = tekst;
-  b.addEventListener('click', handling);
-  return b;
-}
-
-const flertall = (n: number, en: string, flere: string) => `${n} ${n === 1 ? en : flere}`;
 
 function husk(pa: boolean) {
   try {
@@ -159,18 +125,10 @@ export async function startVerktoy(token: string) {
     pa = ny;
     husk(pa);
     document.documentElement.classList.toggle(PA, pa);
-    for (const f of felt) {
-      if (pa) {
-        try {
-          f.el.contentEditable = 'plaintext-only';
-        } catch {
-          f.el.contentEditable = 'true';
-        }
-        f.el.spellcheck = true;
-      } else {
-        f.el.removeAttribute('contenteditable');
-      }
-    }
+    settRedigerbar(
+      felt.map((f) => f.el),
+      pa,
+    );
     oppdaterBar();
   }
 
@@ -225,56 +183,16 @@ export async function startVerktoy(token: string) {
     oppdaterBar(deler.join(' '));
   }
 
-  // Typing
-  document.addEventListener('input', (e) => {
-    const f = finn((e.target as Element | null)?.closest?.('[data-rediger]') ?? null);
-    if (!f || !pa) return;
-    vurder(f);
-    oppdaterBar();
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (!pa) return;
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-      e.preventDefault();
-      void lagreAlt();
-      return;
-    }
-    const f = finn((e.target as Element | null)?.closest?.('[data-rediger]') ?? null);
-    if (!f) return;
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      f.el.blur();
-    } else if (e.key === 'Enter' && f.type === 'linje') {
-      e.preventDefault();
-    }
-  });
-
-  // Plain text only, also where contenteditable="plaintext-only" is missing.
-  document.addEventListener('paste', (e) => {
-    if (!pa || !finn((e.target as Element | null)?.closest?.('[data-rediger]') ?? null)) return;
-    const tekst = e.clipboardData?.getData('text/plain');
-    if (tekst === undefined) return;
-    e.preventDefault();
-    document.execCommand('insertText', false, tekst);
-  });
-
-  // While editing, a click on a text inside a link or button edits it instead of following it.
-  window.addEventListener(
-    'click',
-    (e) => {
-      if (!pa) return;
-      const mal = e.target as Element | null;
-      const handling = mal?.closest?.('a, button');
-      if (!handling || bar.contains(handling)) return;
-      const inni = mal?.closest?.('[data-rediger]') ?? handling.querySelector('[data-rediger]');
-      if (!inni) return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      if (!inni.contains(document.activeElement)) (inni as HTMLElement).focus();
+  lyttEtterRedigering({
+    erPa: () => pa,
+    erFelt: (el) => Boolean(finn(el)),
+    bar,
+    vedEndring: (el) => {
+      vurder(finn(el)!);
+      oppdaterBar();
     },
-    true,
-  );
+    vedLagre: () => void lagreAlt(),
+  });
 
   window.addEventListener('beforeunload', (e) => {
     if (endrede().length) e.preventDefault();
