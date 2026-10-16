@@ -29,6 +29,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_kjerne.php';
+require_once __DIR__ . '/_studio.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -594,6 +595,8 @@ try {
         cms_svar(['medium' => cms_medium_ut(cms_medium_rad((int) $m['id']), $bruk[(int) $m['id']] ?? [])]);
     }
 
+    cms_studio_rute($r);
+
     if ($r === 'drift') {
         cms_krev('drift');
         cms_svar(['drift' => cms_drift()]);
@@ -602,7 +605,7 @@ try {
     if ($r === 'eksport') {
         $aktor = cms_krev('sikkerhetskopi');
         $data = ['format' => 'designporten-cms', 'versjon' => 1, 'laget' => cms_na(), 'tabeller' => []];
-        foreach ([...CMS_TABELLER, 'cms_medier', 'cms_brukere'] as $t) $data['tabeller'][$t] = cms_alle("SELECT * FROM $t ORDER BY id");
+        foreach ([...CMS_TABELLER, 'cms_medier', 'cms_brukere', 'cms_innlegg', 'cms_innlegg_revisjoner'] as $t) $data['tabeller'][$t] = cms_alle("SELECT * FROM $t ORDER BY id");
         cms_logg($aktor, 'sikkerhetskopi.eksport', null, null, null);
         header('Content-Disposition: attachment; filename="designporten-cms-' . gmdate('Ymd-His') . '.json"');
         cms_svar($data);
@@ -643,6 +646,7 @@ try {
                 $s->execute(array_map(fn($kol) => $rad[$kol] ?? null, $mk));
                 $antall['cms_medier']++;
             }
+            cms_blogg_import($data['tabeller'], $antall);
             $db->commit();
         } catch (Throwable $e) {
             $db->rollBack();

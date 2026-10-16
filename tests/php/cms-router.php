@@ -12,6 +12,8 @@ define('DP_CMS_KONFIG', [
 ]);
 $sti = rawurldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/');
 if ($sti === '/api/cms/') { require $rot . '/api/cms/index.php'; return; }
+if ($sti === '/blogg' || str_starts_with($sti, '/blogg/') || $sti === '/api/cms/blogg.php') { require $rot . '/api/cms/blogg.php'; return; }
+if ($sti === '/sitemap.xml') { $_GET['kart'] = '1'; require $rot . '/api/cms/blogg.php'; return; }
 // Like medier/.htaccess: only the picture files the CMS made.
 if (preg_match('~^/medier/[0-9]{4}/[a-z0-9-]+\.(webp|jpg|png)$~', $sti, $m) && is_file($rot . $sti)) {
     header('Content-Type: image/' . ($m[1] === 'jpg' ? 'jpeg' : $m[1]));

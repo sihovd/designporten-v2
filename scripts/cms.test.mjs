@@ -10,7 +10,16 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { BILDE, ELEMENT, lagNokler } from './cms-nokler.mjs';
@@ -185,6 +194,15 @@ describe('CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' }, ()
     writeFileSync(join(rot, 'api/cms/nokler.json'), JSON.stringify(NOKLER));
     writeFileSync(join(rot, 'index.html'), SIDE);
     writeFileSync(join(rot, '404.html'), 'Fant ikke');
+    mkdirSync(join(rot, 'blogg'));
+    writeFileSync(
+      join(rot, 'blogg/index.html'),
+      '<!doctype html><html lang="nb"><head><title>Blogg</title><meta name="description" content="Blogg"><link rel="canonical" href="https://designporten.no/blogg/"></head><body><!--CMS-BLOGG-START--><h1>Blogg</h1><!--CMS-BLOGG-SLUTT--></body></html>',
+    );
+    writeFileSync(
+      join(rot, 'sitemap.xml'),
+      '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>',
+    );
     const env = { ...process.env, DP_CMS_ROT: rot };
     if (process.env.DP_CMS_MYSQL) {
       mysqlNavn = `cmstest_${process.pid}`;
@@ -699,6 +717,137 @@ describe('CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' }, ()
     assert.equal(d.data.drift.database.ok, true);
     assert.doesNotMatch(JSON.stringify(d.data), /oppsettkode|passord|test-oppsettkode/);
     assert.equal((await redaktor.kall('drift')).status, 403);
+  });
+
+  test('STUDIO: real overview counts and blog lifecycle, preview isolation, version conflicts and backup', async () => {
+    assert.equal((await klient().kall('oversikt')).status, 401);
+    assert.equal((await klient().kall('innlegg')).status, 401);
+    const agent = klient();
+    assert.equal(
+      (await agent.kall('innlegg', { hoder: { Authorization: `Bearer ${agentNokkel}` } })).status,
+      403,
+    );
+    const d = {
+      tittel: 'En historie <script>alert(1)</script>',
+      slug: 'en-historie',
+      ingress: 'Fra verkstedet',
+      kategori: 'Guider',
+      forfatter: 'Eier',
+      emneknagger: ['print'],
+      bilde: null,
+      alt: '',
+      seoTittel: 'Materialer & former',
+      seoBeskrivelse: 'Les om håndverket',
+      blokker: [{ type: 'avsnitt', tekst: 'Et upublisert avsnitt <img src=x onerror=alert(1)>' }],
+    };
+    const lagret = await admin.kall('innlegg-lagre', {
+      metode: 'POST',
+      kropp: { id: 0, versjon: 0, dokument: d },
+    });
+    assert.equal(lagret.status, 200);
+    let p = lagret.data.innlegg;
+    assert.equal(p.versjon, 1);
+    assert.equal((await fetch(`${URL_}/blogg/en-historie/`)).status, 404);
+    const privat = await fetch(`${URL_}/api/cms/blogg.php?forhandsvis=${p.id}`);
+    assert.equal(privat.status, 401);
+    const preview = await fetch(`${URL_}/api/cms/blogg.php?forhandsvis=${p.id}`, {
+      headers: { Cookie: [...admin.kaker].map(([k, v]) => `${k}=${v}`).join('; ') },
+    });
+    assert.equal(preview.status, 200);
+    assert.match(preview.headers.get('cache-control'), /no-store/);
+    assert.match(preview.headers.get('x-robots-tag'), /noindex/);
+    assert.match(await preview.text(), /Privat forhåndsvisning/);
+    assert.equal(
+      (await admin.kall('innlegg-publiser', { metode: 'POST', kropp: { id: p.id, versjon: 0 } })).status,
+      409,
+    );
+    assert.equal(
+      (
+        await admin.kall('innlegg-lagre', {
+          metode: 'POST',
+          kropp: { id: 0, versjon: 0, dokument: { ...d, slug: '../hemmelig' } },
+        })
+      ).status,
+      422,
+    );
+    const publisert = await admin.kall('innlegg-publiser', {
+      metode: 'POST',
+      kropp: { id: p.id, versjon: p.versjon },
+    });
+    assert.equal(publisert.status, 200);
+    p = publisert.data.innlegg;
+    const offentlig = await side('/blogg/en-historie/');
+    assert.match(offentlig, /&lt;script&gt;/);
+    assert.doesNotMatch(offentlig, /<script>|<img src=x/);
+    assert.match(offentlig, /<title>Materialer &amp; former – Designporten<\/title>/);
+    assert.match(await side('/blogg/'), /en-historie/);
+    assert.match(await side('/sitemap.xml'), /blogg\/en-historie\//);
+    const nytt = await admin.kall('innlegg-lagre', {
+      metode: 'POST',
+      kropp: { id: p.id, versjon: p.versjon, dokument: { ...d, tittel: 'Hemmelig ny tittel' } },
+    });
+    assert.equal(nytt.status, 200);
+    p = nytt.data.innlegg;
+    assert.doesNotMatch(await side('/blogg/en-historie/'), /Hemmelig ny tittel/);
+    const kopi = (await admin.kall('eksport')).data;
+    assert.equal(kopi.tabeller.cms_innlegg.length, 1);
+    assert.equal(kopi.tabeller.cms_innlegg_revisjoner.length, 3);
+    const duplikat = (
+      await admin.kall('innlegg-lagre', { metode: 'POST', kropp: { id: 0, versjon: 0, dokument: d } })
+    ).data.innlegg;
+    assert.equal(
+      (
+        await admin.kall('innlegg-publiser', {
+          metode: 'POST',
+          kropp: { id: duplikat.id, versjon: duplikat.versjon },
+        })
+      ).status,
+      409,
+    );
+    const revisjoner = (await admin.kall('innlegg-en', { sok: `&id=${p.id}` })).data.revisjoner;
+    const tilbake = await admin.kall('innlegg-gjenopprett', {
+      metode: 'POST',
+      kropp: { id: p.id, versjon: p.versjon, revisjon: revisjoner.at(-1).id },
+    });
+    assert.equal(tilbake.status, 200);
+    p = tilbake.data.innlegg;
+    assert.equal(p.utkast.tittel, d.tittel);
+    const av = await admin.kall('innlegg-avpubliser', {
+      metode: 'POST',
+      kropp: { id: p.id, versjon: p.versjon },
+    });
+    assert.equal(av.status, 200);
+    assert.equal((await fetch(`${URL_}/blogg/en-historie/`)).status, 404);
+    const restaurert = await admin.kall('import', { metode: 'POST', kropp: kopi });
+    assert.equal(restaurert.status, 200);
+    assert.match(await side('/blogg/en-historie/'), /En historie/);
+    assert.equal((await admin.kall('innlegg')).data.innlegg.length, 1);
+    const oversikt = (await admin.kall('oversikt')).data.oversikt;
+    assert.equal(oversikt.innlegg.totalt, 1);
+    assert.equal(oversikt.innlegg.utkast, 1);
+    assert.equal(oversikt.innlegg.publisert, 1);
+    assert.equal(oversikt.tilkoblinger.salg, null);
+    assert.equal(oversikt.tilkoblinger.besok, null);
+    assert.equal((await admin.kall('oversikt', { sok: '&dager=123' })).status, 422);
+    assert.equal((await redaktor.kall('oversikt')).data.oversikt.teknisk, null);
+    rmSync(join(rot, 'api/cms/data/publisert.json'));
+    assert.equal((await admin.kall('oversikt')).data.oversikt.teknisk.publisert, false);
+    assert.equal((await redaktor.kall('gjenbygg-visning', { metode: 'POST', kropp: {} })).status, 403);
+    assert.equal((await admin.kall('gjenbygg-visning', { metode: 'POST', kropp: {} })).status, 200);
+    assert.equal((await admin.kall('oversikt')).data.oversikt.teknisk.publisert, true);
+    assert.equal(
+      (
+        await admin.kall('innlegg-lagre', {
+          metode: 'POST',
+          kropp: {
+            id: 0,
+            versjon: 0,
+            dokument: { ...d, blokker: [{ type: 'html', tekst: '<script>x</script>' }] },
+          },
+        })
+      ).status,
+      422,
+    );
   });
 
   test('innloggingen begrenses etter for mange feil', async () => {

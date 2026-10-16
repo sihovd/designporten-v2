@@ -1,0 +1,90 @@
+---
+import Side from '@/layouts/Side.astro';
+---
+
+<Side tittel="Blogg og inspirasjon" beskrivelse="Historier, guider og glimt fra verkstedet hos Designporten.">
+  <div class="ramme blogg">
+    <!--CMS-BLOGG-START-->
+    <header class="blogg__hode">
+      <p class="mono">Fra idé til virkelighet</p>
+      <h1>Historier fra verkstedet</h1>
+      <p>Ingen historier er publisert ennå. Kom gjerne tilbake.</p>
+    </header>
+    <!--CMS-BLOGG-SLUTT-->
+  </div>
+</Side>
+<style is:global>
+  .blogg {
+    padding-block: 3rem 6rem;
+  }
+  .blogg__hode {
+    max-width: 52rem;
+    margin: 0 auto 2.5rem;
+  }
+  .blogg h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    line-height: 1.15;
+    margin: 1rem 0;
+  }
+  .blogg__ingress {
+    font-size: 1.2rem;
+  }
+  .blogg__bilde {
+    margin: 1.5rem auto;
+    max-width: 60rem;
+  }
+  .blogg__bilde img {
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+  }
+  .blogg__bilde figcaption,
+  .blogg__bildetekst {
+    font-size: 0.85rem;
+    color: var(--fg-dempet);
+  }
+  .blogg__tekst {
+    max-width: 46rem;
+    margin: auto;
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+  }
+  .blogg__tekst p {
+    white-space: normal;
+    margin: 1.4rem 0;
+  }
+  .blogg__tekst h2 {
+    margin-top: 2rem;
+  }
+  .blogg__rutenett {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 2rem;
+  }
+  .blogg__kort {
+    border-bottom: 1px solid var(--linje);
+    padding-bottom: 1.5rem;
+  }
+  .blogg__kort h2 {
+    font-size: 1.4rem;
+  }
+  .blogg__kort .blogg__bilde img {
+    aspect-ratio: 16/10;
+    object-fit: cover;
+  }
+  .blogg__preview {
+    padding: 1rem;
+    border: 1px solid var(--linje);
+    background: var(--flate);
+    margin-bottom: 2rem;
+  }
+  .blogg__tags {
+    color: var(--fg-dempet);
+  }
+  .blogg__paginering {
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-top: 2rem;
+  }
+</style>

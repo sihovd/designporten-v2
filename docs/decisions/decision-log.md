@@ -157,3 +157,7 @@ Not blocking implementation; content stays out until confirmed.
 | 2026-10-15 | **Orders, stock and payment in the CMS** (Sivert's choice «Egen ordre i CMS» on how the shop handles orders, stock and payment). The new CMS plan asks for product/variant/stock administration, orders, and both Stripe and Vipps. Orders and stock will live in the CMS database on one.com; payment goes through the providers' hosted flows (Stripe Checkout, Vipps ePayment), so no card data touches our server. This replaces the earlier rule «no custom cart, checkout or payment engine» (CLAUDE.md rule 5, master spec commerce line). Not built yet; live payment stays off until Sivert switches it on. |
 
 2026-10-14 — Sivert explicitly requested publication of the new GitHub site replacing the old designporten.no website. Permanent one.com web/database backups were verified before cutover. Company identity was verified via Brreg and existing email mailboxes via the authenticated one.com control panel. Added an isolated subdirectory/noindex PHP build, safe test SFTP deployment, release provenance, and documented root cutover. Unconfirmed product/contact facts are not invented. See docs/lansering-onecom.md.
+
+## 2026-10-16 — Designporten Studio og blogg
+
+Sivert ber Codex implementere Studio-konseptet, med egen administrasjonsflate, reell innholds-/driftsoversikt og databasebasert blogg. Eksisterende direkte redigering og mediebibliotek bevares. Ingen oppdiktede salgs-/besøkstall, automatisk merge eller produksjonsbytte. Se docs/cms/studio.md.

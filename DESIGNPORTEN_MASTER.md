@@ -177,6 +177,20 @@ Report clearly what is **IMPLEMENTED** and what is **NOT IMPLEMENTED / BLOCKED**
 
 ## 6. Working method
 
+### CMS Studio (Sivert, 2026-10-16)
+
+Sivert asked Codex to implement the proposed Designporten Studio administration,
+including a fresher, dedicated CMS shell, a real content/operations overview and
+blog management. Preserve existing inline editing, media, users and revisions.
+Blog drafts, preview, publication and public article URLs must work without a
+code rebuild. Dashboard numbers must come from actual data; commerce, traffic,
+scheduled publication and monitoring without a connected source are explicitly
+unavailable, never demo statistics. The portal concept is approved inspiration
+for the administration only; it does not redesign the public website.
+
+Implementation proceeds on a branch with isolated test data. No merge or
+production replacement is implied. See `docs/cms/studio.md` for scope and checks.
+
 After the spec is in place, implementation tasks run to completion without approval stops between normal steps. Only genuine blockers (missing access, assets, permissions or an owner-only decision) are raised. See [CLAUDE.md](CLAUDE.md) for the working rules every thread follows.
 
 ## 7. Resolved and open decisions

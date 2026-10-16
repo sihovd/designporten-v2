@@ -15,6 +15,10 @@ Options -Indexes
   RewriteRule ^kontakt\.html$ /kontakt/ [R=301,L]
   RewriteRule ^inspirasjon\.html$ /inspirasjon/ [R=301,L]
 
+  # Database-backed articles exist independently of static build paths.
+  RewriteRule ^blogg(?:/.*)?$ api/cms/blogg.php [L]
+  RewriteRule ^sitemap\.xml$ api/cms/blogg.php?kart=1 [L]
+
   # CMS: once something has been published, pages are served through
   # api/cms/side.php, which puts the published texts in place (and serves
   # the page as built if anything fails). Before that, nothing changes.
