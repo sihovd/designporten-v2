@@ -38,6 +38,9 @@ test('første administrator opprettes med oppsettkoden, og /cms/ viser tekstene'
   await redaktor.getByLabel('E-post').fill('eier@example.invalid');
   await redaktor.getByLabel('Passord (minst 12 tegn)').fill('et-langt-passord');
   await redaktor.getByRole('button', { name: 'Opprett og logg inn' }).click();
+  await expect(redaktor.getByRole('heading', { name: 'Oversikt', exact: true })).toBeVisible();
+  await expect(redaktor.getByText('Kilde: CMS-databasen.', { exact: false })).toBeVisible();
+  await redaktor.getByRole('button', { name: 'Sider og innhold', exact: true }).click();
   await expect(redaktor.getByRole('heading', { name: 'Tekster og bilder på sidene' })).toBeVisible();
   await expect(redaktor.getByRole('link', { name: 'Åpne siden' }).first()).toBeVisible();
   const axe = await new AxeBuilder({ page: redaktor }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
@@ -111,6 +114,7 @@ test('CMS-04: standardteksten kan hentes tilbake fra historikken og publiseres',
 
 test('/cms/-panelet lagrer utkast, viser loggen og legger til en agent', async () => {
   await redaktor.goto(`${base}/cms/`);
+  await redaktor.getByRole('button', { name: 'Sider og innhold', exact: true }).click();
   await redaktor.getByRole('searchbox', { name: 'Søk i tekster og bilder' }).fill('La oss lage');
   const rad = redaktor.locator('.cms__rad').filter({ hasText: 'Toppen av siden › Tittel' }).first();
   await rad.getByRole('button', { name: 'Endre' }).click();
@@ -120,10 +124,10 @@ test('/cms/-panelet lagrer utkast, viser loggen og legger til en agent', async (
   await expect(redaktor.locator('.cms__rad').filter({ hasText: 'Fra panelet' })).toContainText('Utkast');
   await redaktor.getByRole('button', { name: /Forkast utkast/ }).click();
 
-  await redaktor.getByRole('button', { name: 'Logg' }).click();
+  await redaktor.getByRole('button', { name: 'Aktivitetslogg', exact: true }).click();
   await expect(redaktor.getByRole('table')).toContainText('innhold.publiser');
 
-  await redaktor.getByRole('button', { name: 'Brukere' }).click();
+  await redaktor.getByRole('button', { name: 'Brukere og tilgang', exact: true }).click();
   await redaktor.getByLabel('Rolle').selectOption('agent');
   await redaktor.getByLabel('Navn').fill('Testagent');
   await redaktor.getByRole('button', { name: 'Legg til' }).click();
@@ -208,12 +212,79 @@ test('bilde: forsidebildet byttes på siden, publiseres uten bygg og hentes tilb
 
 test('/cms/ viser bildebiblioteket og driftsstatus', async () => {
   await redaktor.goto(`${base}/cms/`);
-  await redaktor.getByRole('button', { name: 'Bilder' }).click();
+  await redaktor.getByRole('button', { name: 'Mediebibliotek', exact: true }).click();
   await expect(redaktor.getByRole('heading', { name: 'Bilder' })).toBeVisible();
   await expect(redaktor.locator('.cms__bilde')).toHaveCount(1);
   await expect(redaktor.locator('.cms__bilde')).toContainText('fasettpotte.webp');
-  await redaktor.getByRole('button', { name: 'Drift' }).click();
+  await redaktor.getByRole('button', { name: 'Drift og sikkerhet', exact: true }).click();
   await expect(redaktor.getByRole('table')).toContainText('Bildebehandling (GD)');
   const axe = await new AxeBuilder({ page: redaktor }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
+});
+
+test('Studio: blogginnlegg lagres, forhåndsvises privat og publiseres uten nytt bygg', async ({
+  browser,
+}) => {
+  await redaktor.goto(`${base}/cms/`);
+  await redaktor.getByRole('button', { name: 'Blogg og inspirasjon', exact: true }).click();
+  await redaktor.getByRole('button', { name: '＋ Nytt innlegg', exact: true }).click();
+  await redaktor.getByLabel('Overskrift', { exact: true }).fill('En historie fra verkstedet');
+  await expect(redaktor.getByLabel(/^Nettadresse/)).toHaveValue('en-historie-fra-verkstedet');
+  await redaktor
+    .getByLabel('Kort introduksjon', { exact: true })
+    .fill('En ekte ende-til-ende-test av bloggfunksjonen.');
+  await redaktor.getByLabel('Avsnitt 1', { exact: true }).fill('En skisse blir til et fysisk produkt.');
+  await redaktor.getByRole('button', { name: 'Lagre utkast', exact: true }).click();
+  await expect(
+    redaktor.getByRole('status').filter({ hasText: 'Utkastet er lagret på serveren.' }),
+  ).toBeVisible();
+  const besokende = await browser.newPage();
+  const url = `${base}/blogg/en-historie-fra-verkstedet/`;
+  expect((await besokende.request.get(url)).status()).toBe(404);
+  const preview = await redaktor
+    .getByRole('link', { name: 'Vis sist lagret ↗', exact: true })
+    .getAttribute('href');
+  expect((await besokende.request.get(preview!)).status()).toBe(401);
+  const svar = await redaktor.request.get(preview!);
+  expect(svar.status()).toBe(200);
+  expect(svar.headers()['cache-control']).toContain('no-store');
+  expect(await svar.text()).toContain('En skisse blir til et fysisk produkt.');
+  const axe = await new AxeBuilder({ page: redaktor }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+  await redaktor.getByRole('button', { name: 'Publiser innlegg', exact: true }).click();
+  await expect(
+    redaktor.getByRole('status').filter({ hasText: 'Innlegget er publisert og tilgjengelig i bloggen.' }),
+  ).toBeVisible();
+  await besokende.goto(url);
+  await expect(
+    besokende.getByRole('heading', { name: 'En historie fra verkstedet', exact: true }),
+  ).toBeVisible();
+  await expect(besokende.getByText('En skisse blir til et fysisk produkt.', { exact: true })).toBeVisible();
+  expect(await (await besokende.request.get(`${base}/sitemap.xml`)).text()).toContain(
+    '/blogg/en-historie-fra-verkstedet/',
+  );
+  await besokende.close();
+});
+
+test('Studio: responsiv oversikt og bloggredaktør ved alle avtalte bredder', async () => {
+  await redaktor.goto(`${base}/cms/`);
+  for (const bredde of [320, 390, 768, 1024, 1440]) {
+    await redaktor.setViewportSize({ width: bredde, height: 1000 });
+    await expect(redaktor.getByRole('heading', { name: 'Oversikt', exact: true })).toBeVisible();
+    await expect(redaktor.getByText('Kilde: CMS-databasen.', { exact: false })).toBeVisible();
+    expect(await redaktor.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+      true,
+    );
+    await redaktor.screenshot({ path: `var/studio-qa/oversikt-${bredde}.png`, fullPage: true });
+    if (bredde < 761) await redaktor.getByRole('button', { name: 'Meny', exact: true }).click();
+    await redaktor.getByRole('button', { name: 'Blogg og inspirasjon', exact: true }).click();
+    await redaktor.getByRole('button', { name: '＋ Nytt innlegg', exact: true }).click();
+    await expect(redaktor.getByLabel('Overskrift', { exact: true })).toBeVisible();
+    expect(await redaktor.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+      true,
+    );
+    await redaktor.screenshot({ path: `var/studio-qa/redaktor-${bredde}.png`, fullPage: true });
+    if (bredde < 761) await redaktor.getByRole('button', { name: 'Meny', exact: true }).click();
+    await redaktor.getByRole('button', { name: 'Oversikt', exact: true }).click();
+  }
 });

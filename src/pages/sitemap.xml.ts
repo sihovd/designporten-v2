@@ -14,6 +14,7 @@ const statiskeSider = [
   '/spesialdesign/',
   '/bedrift/',
   '/inspirasjon/',
+  '/blogg/',
   '/om/',
   '/kontakt/',
   '/vilkar/',

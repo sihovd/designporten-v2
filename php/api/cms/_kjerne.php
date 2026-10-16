@@ -148,6 +148,20 @@ function cms_migreringer(): array
             ){TABELL}',
             'CREATE INDEX cms_medier_sjekksum ON cms_medier (sjekksum)',
         ],
+        3 => [
+            'CREATE TABLE cms_innlegg (
+                id {ID}, slug VARCHAR(191) NULL UNIQUE, utkast {DOKUMENT} NULL,
+                publisert {DOKUMENT} NULL, versjon INTEGER NOT NULL,
+                opprettet VARCHAR(32) NOT NULL, endret VARCHAR(32) NOT NULL,
+                endret_av INTEGER NULL, publisert_tid VARCHAR(32) NULL
+            ){TABELL}',
+            'CREATE TABLE cms_innlegg_revisjoner (
+                id {ID}, innlegg_id INTEGER NOT NULL, versjon INTEGER NOT NULL,
+                handling VARCHAR(32) NOT NULL, dokument {DOKUMENT} NOT NULL,
+                aktor_id INTEGER NULL, opprettet VARCHAR(32) NOT NULL
+            ){TABELL}',
+            'CREATE INDEX cms_innlegg_revisjoner_id ON cms_innlegg_revisjoner (innlegg_id)',
+        ],
     ];
 }
 
@@ -161,7 +175,7 @@ function cms_migrer(PDO $db): void
     foreach (cms_migreringer() as $versjon => $setninger) {
         if ($versjon <= $kjort) continue;
         foreach ($setninger as $sql) {
-            $db->exec(str_replace(['{ID}', '{TABELL}'], [$id, $tabell], $sql));
+            $db->exec(str_replace(['{ID}', '{TABELL}', '{DOKUMENT}'], [$id, $tabell, $sqlite ? 'TEXT' : 'LONGTEXT'], $sql));
         }
         $db->prepare('INSERT INTO cms_migrering (versjon, kjort) VALUES (?, ?)')->execute([$versjon, cms_na()]);
     }
@@ -379,7 +393,7 @@ function cms_kan(array $aktor, string $rett): bool
 {
     if ($aktor['rolle'] === 'admin') return true;
     if ($aktor['rolle'] === 'redaktor') {
-        return in_array($rett, ['les', 'utkast', 'publiser', 'forslag', 'behandle', 'logg'], true);
+        return in_array($rett, ['les', 'utkast', 'publiser', 'forslag', 'behandle', 'logg', 'blogg'], true);
     }
     $egne = $aktor['rettigheter'];
     if ($rett === 'les') return (bool) $egne;

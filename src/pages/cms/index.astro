@@ -4,26 +4,32 @@
  * agent proposals, users, log and backup. The API runs on the PHP build
  * (php/api/cms/); other builds show a short notice.
  */
-import Side from '@/layouts/Side.astro';
 import CmsPanel from '@/components/cms/CmsPanel';
+import { nettsti } from '@/lib/nettsti';
+import '@/styles/base.css';
 ---
 
-<Side tittel="Innhold" beskrivelse="Innholdsstyring for Designporten." ikkeIndekser>
-  <div class="cmsside ramme">
-    <h1>Innhold</h1>
-    <CmsPanel client:load />
+<!doctype html>
+<html lang="nb">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Designporten Studio – administrasjon</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href={nettsti('/favicon.svg')} type="image/svg+xml" />
+    <meta name="theme-color" content="#f6f5fa" />
+  </head>
+  <body class="studio-side">
+    <a class="hopp-til-innhold" href="#innhold">
+      Hopp til innholdet
+    </a>
+    <main id="innhold" tabindex="-1">
+      <CmsPanel client:load />
+    </main>
     <noscript>
-      <p>CMS-et trenger JavaScript.</p>
+      <p>
+        CMS-et trenger JavaScript. <a href={nettsti('/')}>Til nettstedet</a>.
+      </p>
     </noscript>
-  </div>
-</Side>
-
-<style>
-  .cmsside {
-    padding-block: var(--r-7) var(--r-seksjon);
-  }
-
-  h1 {
-    margin-bottom: var(--r-5);
-  }
-</style>
+  </body>
+</html>

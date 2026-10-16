@@ -76,6 +76,9 @@ for (const fil of [
   'api/cms/.htaccess',
   'api/cms/data/.htaccess',
   'api/cms/_medier.php',
+  'api/cms/_studio.php',
+  'api/cms/blogg.php',
+  'blogg/index.html',
   'medier/.htaccess',
   'skjema/ikke-sendt/index.html',
 ]) {

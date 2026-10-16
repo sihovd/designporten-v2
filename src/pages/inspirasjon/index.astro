@@ -5,6 +5,7 @@ import SideHode from '@/components/showroom/SideHode.astro';
 import InspirasjonKort from '@/components/showroom/inspirasjon/InspirasjonKort.astro';
 import { erOffentlig, typenavn } from '@/components/showroom/inspirasjon/typer';
 import { inspirasjonstyper } from '@/content/inspirasjon/samling';
+import { nettsti } from '@/lib/nettsti';
 
 // Confirmed entries first, newest first.
 const saker = (await getCollection('inspirasjon', (s) => erOffentlig(s.data))).sort(
@@ -27,6 +28,9 @@ const harPlassholdere = saker.some((s) => s.data.status === 'plassholder');
   />
 
   <section class="ramme insp" aria-label="Saker">
+    <p class="insp__merknad">
+      <a href={nettsti('/blogg/')}>Les de siste historiene og guidene i bloggen ↗</a>
+    </p>
     {typer.length > 1 && (
       <div class="insp__filter" role="group" aria-label="Vis type" data-filter>
         <button type="button" aria-pressed="true" data-type="alle">
