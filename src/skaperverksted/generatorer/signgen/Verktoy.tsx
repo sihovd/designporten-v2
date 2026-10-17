@@ -18,7 +18,9 @@ import { Prosjektinnstillinger } from './Prosjektinnstillinger';
 import { Fargeprofilvindu } from './Fargeprofilvindu';
 import { Fontvindu } from './Fontvindu';
 import { Startside } from './Startside';
-import { LagreSomMal, Malbibliotek } from './Maldialog';
+import { LagreSomMal, Malbibliotek, startFraMal } from './Maldialog';
+import { hentDeltMal } from './deling';
+import { kontoMulig } from '@/lib/konto/api';
 import { Dekorgalleri, Dekorlagringsvindu } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
 import { Csvflyt } from './CsvflytDialog';
@@ -95,6 +97,19 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
   const t = brukBenk(benk);
   const fil = useRef<HTMLInputElement>(null);
   const i2d = t.innstillinger.visning === '2d';
+  // «Bruk som mal» in the gallery on the site opens the editor with ?mal=<id>
+  useEffect(() => {
+    const url = new URL(location.href);
+    const id = url.searchParams.get('mal');
+    if (!id || !kontoMulig) return;
+    url.searchParams.delete('mal');
+    history.replaceState(history.state, '', url);
+    hentDeltMal(id)
+      .then((mal) => startFraMal(benk, mal))
+      .catch((e: unknown) =>
+        benk.melde(`Malen kunne ikke åpnes: ${e instanceof Error ? e.message : 'ukjent feil'}`),
+      );
+  }, [benk]);
   const velg = (id: VerktoyId) => {
     if (!i2d) benk.settInnstillinger({ visning: '2d' });
     signtilstand(benk).sett({ verktoy: id, maling: null });

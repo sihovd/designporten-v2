@@ -1,0 +1,19 @@
+{
+  "merknad": "Alt er gratis inntil videre. Priser er ikke satt.",
+  "tjenester": {
+    "sign-forge": {
+      "navn": "Sign Forge",
+      "betaling": "gratis",
+      "beskrivelse": "Lag skilt og last dem ned som 3MF eller STL."
+    },
+    "csv": {
+      "navn": "CSV-batch i Sign Forge",
+      "betaling": "gratis-inntil-videre",
+      "beskrivelse": "Mange skilt fra én liste. Gratis nå, blir en betalt tjeneste senere."
+    }
+  },
+  "leverandorer": {
+    "stripe": { "navn": "Kort (Stripe Checkout)", "aktiv": false },
+    "vipps": { "navn": "Vipps", "aktiv": false }
+  }
+}

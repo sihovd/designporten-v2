@@ -1,0 +1,40 @@
+---
+/**
+ * «Nylig laget»: the latest signs from Sign Forge on the homepage, right
+ * before the way into Skaperverksted. The slider itself is an island
+ * (NyligeSkilt.tsx); it loads the signs when it scrolls into view.
+ */
+import { nettsti } from '@/lib/nettsti';
+import NyligeSkilt from '@/components/showroom/verksted/NyligeSkilt';
+---
+
+<section class="ramme seksjon nylig" aria-labelledby="nylig-tittel">
+  <div class="nylig__hode">
+    <div>
+      <p class="etikett">Fra Sign Forge</p>
+      <h2 id="nylig-tittel">Nylig laget</h2>
+      <p class="nylig__ingress">
+        Skilt andre har laget i Skaperverksted. Velg et du liker og bruk det som mal for ditt eget.
+      </p>
+    </div>
+    <a href={nettsti('/skaperverksted/signgen/')}>Lag ditt eget skilt</a>
+  </div>
+  <NyligeSkilt client:visible />
+</section>
+
+<style>
+  .nylig__hode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--r-3) var(--r-5);
+    margin-bottom: var(--r-4);
+  }
+
+  .nylig__ingress {
+    max-width: 52ch;
+    margin-top: var(--r-2);
+    color: var(--fg-dempet);
+  }
+</style>

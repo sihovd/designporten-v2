@@ -101,11 +101,13 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
       TREMF_TYPE,
     );
     benk.melde('3MF-filen er lastet ned.');
+    regler.etterEksport?.();
   };
   const regler = modell && plugin.eksport ? plugin.eksport(t.dok, modell, benk) : {};
   const stl = () => {
     lastNed(tilStl(deler, t.dok.navn), filnavn(t.dok.navn, 'stl'), STL_TYPE);
     benk.melde('STL-filen er lastet ned.');
+    regler.etterEksport?.();
   };
   const stlDel = (del: (typeof deler)[number]) => {
     lastNed(
@@ -114,6 +116,7 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
       STL_TYPE,
     );
     benk.melde(`STL-filen for ${del.navn.toLowerCase()} er lastet ned.`);
+    regler.etterEksport?.();
   };
   const vedlegg = () => {
     const v = regler.vedlegg;
@@ -140,6 +143,7 @@ export function Eksportdialog({ benk, lukk }: { benk: Arbeidsbenk; lukk: () => v
     leggTil({ produktId: b.produktId, navn: b.navn, antall: 1, enhetspris: null, valg: b.valg, designId });
     settBestilt(true);
     benk.melde('Designet er lagt i handlekurven som en forespørsel.');
+    regler.etterEksport?.();
   };
 
   return (

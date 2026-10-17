@@ -1,0 +1,136 @@
+/* «Nylig laget» slider. Semantic tokens only, so it sits on the light page and on the workshop surface. */
+.nylige {
+  position: relative;
+  display: grid;
+  gap: var(--r-3);
+}
+
+.nylige__knapper {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--r-2);
+}
+
+.nylige__pil {
+  display: inline-grid;
+  place-items: center;
+  width: var(--mal-beroring);
+  height: var(--mal-beroring);
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-pille);
+  background: var(--overflate);
+  color: var(--fg);
+  font-size: 1.125rem;
+  cursor: pointer;
+  transition:
+    border-color var(--t-rask),
+    opacity var(--t-rask);
+}
+
+.nylige__pil:hover:not(:disabled) {
+  border-color: var(--handling);
+}
+
+.nylige__pil:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.nylige__spor {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 260px);
+  gap: var(--r-4);
+  margin: 0;
+  padding: 0 0 var(--r-3);
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0;
+  scrollbar-width: thin;
+}
+
+.nylige__kort {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--r-2);
+  padding: var(--r-3);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kort);
+  background: var(--overflate);
+  scroll-snap-align: start;
+}
+
+.nylige__bilde {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: calc(var(--radius-kort) - 6px);
+  /* the sign is drawn on a soft check, like a transparent picture, so every colour reads */
+  background:
+    repeating-conic-gradient(color-mix(in srgb, var(--linje) 45%, transparent) 0 25%, transparent 0 50%) 0 0 /
+      16px 16px,
+    var(--bg);
+}
+
+.nylige__bilde img {
+  width: 100%;
+  height: 100%;
+  padding: var(--r-3);
+  object-fit: contain;
+}
+
+.nylige__utenbilde {
+  color: var(--fg-dempet);
+  font-size: var(--fs-liten);
+}
+
+.nylige__tekst {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nylige__tittel {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nylige__meta {
+  color: var(--fg-dempet);
+  font-size: var(--fs-liten);
+}
+
+.nylige__lenke {
+  justify-self: start;
+  min-height: var(--mal-min);
+  color: var(--lenke);
+  font-weight: 600;
+}
+
+.nylige__kort--venter .nylige__bilde {
+  background: var(--linje);
+  opacity: 0.5;
+}
+
+.nylige__kort--venter .nylige__tekst {
+  color: var(--fg-dempet);
+}
+
+.nylige--tom {
+  justify-items: start;
+  padding: var(--r-5);
+  border: 1px dashed var(--linje-sterk);
+  border-radius: var(--radius-kort);
+  color: var(--fg-dempet);
+}
+
+@media (max-width: 480px) {
+  .nylige__spor {
+    grid-auto-columns: 78%;
+  }
+}
