@@ -1,6 +1,7 @@
 /** Package only the verified PHP/static output, including Apache dotfiles. */
 import { readFileSync, readdirSync, lstatSync, mkdirSync, writeFileSync } from 'node:fs';
 import { zipSync } from 'fflate';
+import { finnHemmeligheter } from './hemmeligheter.mjs';
 
 const bygg = JSON.parse(readFileSync('dist/deployment.json', 'utf8'));
 if (bygg.prosjekt !== 'designporten-v2') throw new Error('Unexpected build.');
@@ -28,6 +29,15 @@ for (const fil of [
 }
 if (Object.keys(filer).some((fil) => /(^|\/)(node_modules|server|var|\.env)(\/|$)/.test(fil))) {
   throw new Error('Unexpected server/source files in deployment.');
+}
+// settings with passwords are never built in, but check the contents, not only the names
+if (Object.keys(filer).some((fil) => /(^|\/)konfig\.php$/.test(fil)))
+  throw new Error('A konfig.php in the deployment.');
+const funn = Object.entries(filer).flatMap(([fil, innhold]) => finnHemmeligheter(fil, innhold));
+if (funn.length) {
+  throw new Error(
+    `Possible secrets in the deployment:\n${funn.map((f) => `  ${f.sti}:${f.linje}: ${f.type}`).join('\n')}`,
+  );
 }
 mkdirSync('var/release', { recursive: true });
 const navn = `var/release/designporten-${bygg.test ? 'test' : 'production'}.zip`;
