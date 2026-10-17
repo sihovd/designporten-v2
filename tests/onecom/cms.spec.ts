@@ -345,7 +345,7 @@ test('konto: nedlasting deler ingenting; et medlem publiserer selv, skiltet vise
   await pub.getByRole('button', { name: 'Publiser', exact: true }).click();
   await expect(pub.getByRole('status')).toHaveText('Skiltet er publisert i «Nylig laget».');
   await expect(pub.getByRole('button', { name: 'Fjern fra galleriet' })).toBeVisible();
-  await pub.getByRole('button', { name: 'Lukk' }).click();
+  await pub.locator('.knapperad').getByRole('button', { name: 'Lukk' }).click();
 
   const besokende = await browser.newPage({ baseURL: 'http://127.0.0.1:4322' });
   await besokende.goto(`${base}/`);
