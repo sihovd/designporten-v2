@@ -93,6 +93,22 @@ test.describe('Signgen', () => {
     await expect(page.locator('.statuslinje')).toContainText('mm');
   });
 
+  test('to fingre på styreflaten panorerer, og musehjulet zoomer', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Styreflate og musehjul finnes bare på desktop');
+    const lerret = page.locator('.lerret canvas');
+    const boks = (await lerret.boundingBox())!;
+    await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2);
+    const zoom = page.locator('.statuslinje .mono', { hasText: '%' });
+    const for_ = await zoom.textContent();
+    // a sideways swipe is two fingers on a trackpad: the view moves, the zoom stays
+    for (let i = 0; i < 5; i++) await page.mouse.wheel(12, 8);
+    await expect(zoom).toHaveText(for_!);
+    await page.waitForTimeout(400);
+    // a wheel notch zooms
+    await page.mouse.wheel(0, 100);
+    await expect(zoom).not.toHaveText(for_!);
+  });
+
   test('startvinduet lar deg velge og lagre en fargeprofil', async ({ page, isMobile }) => {
     await page.evaluate(() => localStorage.clear());
     await page.reload();

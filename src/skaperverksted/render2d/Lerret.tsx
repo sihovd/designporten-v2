@@ -1,8 +1,8 @@
 /**
  * Shared 2D workspace canvas: real millimetres, adaptive 1-2-5 grid,
  * rulers with the selection's extent, the printable plate, pan and zoom
- * (wheel, Space/middle drag, pinch) and pointer routing to the active
- * tool. Generators draw their content through `tegn`.
+ * (mouse wheel zooms, two fingers on a trackpad pan, Space/middle drag,
+ * pinch) and pointer routing to the active tool. Generators draw their content through `tegn`.
  */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -11,7 +11,16 @@ import type { Boks, Vec2 } from '../core/geometri2d';
 import { linjalEtikett, rutenettnivaa } from '../core/rutenett';
 import { cssFarge, horisontStopp, lesHorisont, type Horisont } from '../shell/tema';
 import { FARGER_ENDRET } from '../shell/innstillinger';
-import { LINJAL, lagVisning, tilpass, zoomRundt, type Visning } from './visning';
+import {
+  LINJAL,
+  begrensUtsnitt,
+  erStyreflate,
+  lagVisning,
+  tilpass,
+  zoomRundt,
+  type Visning,
+} from './visning';
+import type { Utsnitt } from '../core/arbeidsbenk';
 
 export interface Pekerhendelse {
   modell: Vec2;
@@ -64,6 +73,11 @@ export interface LerretProps {
   /** Pan with a plain drag (the pan tool). */
   panorer?: boolean;
   /**
+   * Keep the view near the plate (and the content, from `innhold`): panning and zooming stop
+   * before the plate leaves the screen.
+   */
+  begrensTilPlate?: boolean;
+  /**
    * Dragging out of a ruler: `topp` is the ruler along the top (it makes horizontal guides), `venstre`
    * the one down the left side. The handler gets the pointer until it is released.
    */
@@ -71,6 +85,15 @@ export interface LerretProps {
   etikett: string;
   children?: ComponentChildren;
 }
+
+/** Pause (ms) after which a new wheel event starts a new gesture. */
+const GESTPAUSE = 250;
+/** Trackpad pan speed: screen pixels the view moves per pixel the fingers report. */
+const STYREFLATEFART = 0.75;
+/** The largest pinch step one trackpad event may take (wheel delta units). */
+const KLYPESTEG = 30;
+/** Two fingers on a touch screen must spread or close by about 8 % before they zoom. */
+const KLYPESLUK = Math.log(1.08);
 
 function lesFarger(el: Element): Farger {
   return {
@@ -94,14 +117,15 @@ export function Lerret({
   markering,
   innhold,
   panorer,
+  begrensTilPlate,
   linjalverktoy,
   etikett,
   children,
 }: LerretProps) {
   const vert = useRef<HTMLDivElement>(null);
   const lerret = useRef<HTMLCanvasElement>(null);
-  const siste = useRef({ tegn, verktoy, markering, innhold, panorer, linjalverktoy });
-  siste.current = { tegn, verktoy, markering, innhold, panorer, linjalverktoy };
+  const siste = useRef({ tegn, verktoy, markering, innhold, panorer, begrensTilPlate, linjalverktoy });
+  siste.current = { tegn, verktoy, markering, innhold, panorer, begrensTilPlate, linjalverktoy };
   const planlagt = useRef(false);
   const tegnNa = useRef<() => void>(() => {});
   const markor = useRef<(() => void) | null>(null);
@@ -115,6 +139,34 @@ export function Lerret({
       h = 1;
 
     const visning = () => lagVisning(benk.tilstand.utsnitt, b, h);
+
+    // the area the view stays near: the plate and the content, worked out once per document
+    let omraadeFor: unknown = null;
+    let omraadeBoks: Boks | null = null;
+    const omraade = (): Boks => {
+      const { dok } = benk.tilstand;
+      if (omraadeFor !== dok || !omraadeBoks) {
+        const p = dok.plate;
+        let o: Boks = { minX: -p.bredde / 2, minY: -p.dybde / 2, maksX: p.bredde / 2, maksY: p.dybde / 2 };
+        const i = siste.current.innhold?.() ?? null;
+        if (i)
+          o = {
+            minX: Math.min(o.minX, i.minX),
+            minY: Math.min(o.minY, i.minY),
+            maksX: Math.max(o.maksX, i.maksX),
+            maksY: Math.max(o.maksY, i.maksY),
+          };
+        omraadeFor = dok;
+        omraadeBoks = o;
+      }
+      return omraadeBoks;
+    };
+    /** Every pan and zoom from the canvas goes through here, so the limit holds for all of them. */
+    const settUtsnitt = (endring: Partial<Utsnitt>) => {
+      const u = { ...benk.tilstand.utsnitt, ...endring };
+      u.zoom = Math.min(40, Math.max(0.05, u.zoom));
+      benk.settUtsnitt(siste.current.begrensTilPlate ? begrensUtsnitt(u, b, h, omraade()) : u);
+    };
 
     const tegnAlt = () => {
       planlagt.current = false;
@@ -233,9 +285,9 @@ export function Lerret({
     const senter = () => ({ x: LINJAL + (b - LINJAL) / 2, y: LINJAL + (h - LINJAL) / 2 });
     const kommandoer: [string, () => void][] = [
       ['tilpass', fit],
-      ['zoom-100', () => benk.settUtsnitt({ zoom: 1 })],
-      ['zoom-inn', () => benk.settUtsnitt(zoomRundt(benk.tilstand.utsnitt, b, h, senter(), 1.25))],
-      ['zoom-ut', () => benk.settUtsnitt(zoomRundt(benk.tilstand.utsnitt, b, h, senter(), 0.8))],
+      ['zoom-100', () => settUtsnitt({ zoom: 1 })],
+      ['zoom-inn', () => settUtsnitt(zoomRundt(benk.tilstand.utsnitt, b, h, senter(), 1.25))],
+      ['zoom-ut', () => settUtsnitt(zoomRundt(benk.tilstand.utsnitt, b, h, senter(), 0.8))],
       ['tegn', planlegg],
     ];
     for (const [k, f] of kommandoer) benk.kommandoer.set(k, f);
@@ -244,7 +296,9 @@ export function Lerret({
     // pointer routing, pan and pinch
     const pekere = new Map<number, Vec2>();
     let pan: { start: Vec2; senter: Vec2 } | null = null;
-    let klype: { avstand: number; midt: Vec2; zoom: number } | null = null;
+    let klype: { avstand: number; midt: Vec2; utsnitt: Utsnitt; zoomer: boolean } | null = null;
+    /** The current trackpad or wheel gesture, so one gesture is not read as both pan and zoom. */
+    let hjulgest: { styreflate: boolean; tid: number } | null = null;
     let mellomrom = false;
     let verktoyAktiv = false;
     /** A ruler drag: this handler has the pointer instead of the active tool. */
@@ -285,7 +339,8 @@ export function Lerret({
         klype = {
           avstand: Math.hypot(a.x - bb.x, a.y - bb.y),
           midt: { x: (a.x + bb.x) / 2, y: (a.y + bb.y) / 2 },
-          zoom: benk.tilstand.utsnitt.zoom,
+          utsnitt: benk.tilstand.utsnitt,
+          zoomer: false,
         };
         return;
       }
@@ -312,26 +367,31 @@ export function Lerret({
         const [a, bb] = [...pekere.values()] as [Vec2, Vec2];
         const avstand = Math.hypot(a.x - bb.x, a.y - bb.y);
         const midt = { x: (a.x + bb.x) / 2, y: (a.y + bb.y) / 2 };
-        let u = zoomRundt(
-          { ...benk.tilstand.utsnitt, zoom: klype.zoom },
-          b,
-          h,
-          klype.midt,
-          avstand / Math.max(1, klype.avstand),
-        );
+        let forhold = avstand / Math.max(1, klype.avstand);
+        // two fingers moving together pan; zoom only starts once they clearly spread or close,
+        // and then counts from that point so the view does not jump
+        if (!klype.zoomer) {
+          if (Math.abs(Math.log(forhold)) < KLYPESLUK) forhold = 1;
+          else {
+            klype.zoomer = true;
+            klype.avstand = avstand;
+            forhold = 1;
+          }
+        }
+        let u = zoomRundt(klype.utsnitt, b, h, klype.midt, forhold);
         const px = u.zoom * (96 / 25.4);
         u = {
           ...u,
           senterX: u.senterX - (midt.x - klype.midt.x) / px,
           senterY: u.senterY + (midt.y - klype.midt.y) / px,
         };
-        benk.settUtsnitt(u);
+        settUtsnitt(u);
         return;
       }
       if (pan) {
         const s = pos(e);
         const px = visning().pxPerMm;
-        benk.settUtsnitt({
+        settUtsnitt({
           senterX: pan.senter.x - (s.x - pan.start.x) / px,
           senterY: pan.senter.y + (s.y - pan.start.y) / px,
         });
@@ -368,14 +428,32 @@ export function Lerret({
     const hjul = (e: WheelEvent) => {
       e.preventDefault();
       if (verktoyAktiv && aktivtVerktoy()?.hjul?.(e)) return;
+      const px = visning().pxPerMm;
+      const u = benk.tilstand.utsnitt;
       if (e.shiftKey && !e.ctrlKey) {
-        const px = visning().pxPerMm;
-        benk.settUtsnitt({ senterX: benk.tilstand.utsnitt.senterX + (e.deltaY || e.deltaX) / px });
+        settUtsnitt({ senterX: u.senterX + (e.deltaY || e.deltaX) / px });
+        return;
+      }
+      if (e.ctrlKey) {
+        // a pinch on the trackpad (the browser sends it as Ctrl + wheel); one event is capped so a
+        // fast pinch cannot leap
+        const d = Math.max(-KLYPESTEG, Math.min(KLYPESTEG, e.deltaY));
+        settUtsnitt(zoomRundt(u, b, h, pos(e), Math.exp(-d * 0.006)));
+        return;
+      }
+      // the first event of a gesture decides whether it pans (trackpad) or zooms (mouse wheel)
+      const na = e.timeStamp;
+      if (!hjulgest || na - hjulgest.tid > GESTPAUSE) hjulgest = { styreflate: erStyreflate(e), tid: na };
+      hjulgest.tid = na;
+      if (hjulgest.styreflate) {
+        settUtsnitt({
+          senterX: u.senterX + (e.deltaX * STYREFLATEFART) / px,
+          senterY: u.senterY - (e.deltaY * STYREFLATEFART) / px,
+        });
         return;
       }
       const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-      const faktor = Math.exp(-d * (e.ctrlKey ? 0.01 : 0.0015));
-      benk.settUtsnitt(zoomRundt(benk.tilstand.utsnitt, b, h, pos(e), faktor));
+      settUtsnitt(zoomRundt(u, b, h, pos(e), Math.exp(-d * 0.0015)));
     };
     const erSkrivefelt = (t: EventTarget | null) =>
       t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));

@@ -58,3 +58,50 @@ export function tilpass(boks: Boks, bredde: number, hoyde: number, marg = 48, de
     senterY: (boks.minY + boks.maksY) / 2,
   };
 }
+
+/** How far past the edge of the allowed area the view centre may go, as a share of half the view. */
+const KANTSLUK = 0.8;
+
+/**
+ * Keep the view near the work: the view centre may go past the edge of
+ * `omraade` (the plate and the content) by at most 80 % of half the
+ * visible width or height, so some of the plate always stays in sight and
+ * the workspace cannot be panned away into nothing.
+ */
+export function begrensUtsnitt(u: Utsnitt, bredde: number, hoyde: number, omraade: Boks): Utsnitt {
+  const px = u.zoom * PX_PER_MM;
+  const halvB = ((bredde - LINJAL) / 2 / px) * KANTSLUK;
+  const halvH = ((hoyde - LINJAL) / 2 / px) * KANTSLUK;
+  const klamp = (v: number, min: number, maks: number) => Math.min(maks, Math.max(min, v));
+  return {
+    ...u,
+    senterX: klamp(u.senterX, omraade.minX - halvB, omraade.maksX + halvB),
+    senterY: klamp(u.senterY, omraade.minY - halvH, omraade.maksY + halvH),
+  };
+}
+
+export interface Hjuldata {
+  deltaX: number;
+  deltaY: number;
+  deltaMode: number;
+  /** Non-standard, but set by Chromium and Safari: ±120 per notch for a mouse wheel. */
+  wheelDeltaY?: number;
+}
+
+/**
+ * Whether a wheel event without Ctrl comes from two fingers on a trackpad
+ * (pan) rather than from a mouse wheel (zoom). Browsers do not say so
+ * directly; these are the signs that hold in Chromium, Safari and Firefox.
+ */
+export function erStyreflate(e: Hjuldata): boolean {
+  if (e.deltaMode !== 0) return false;
+  if (e.deltaX !== 0) return true;
+  const w = e.wheelDeltaY;
+  if (typeof w === 'number' && w !== 0) {
+    // a trackpad reports wheelDelta as -3 × delta; a wheel in steps of 120
+    if (Math.abs(w) === Math.abs(e.deltaY) * 3) return true;
+    if (w % 120 === 0) return false;
+  }
+  if (!Number.isInteger(e.deltaY)) return true;
+  return Math.abs(e.deltaY) < 50;
+}
