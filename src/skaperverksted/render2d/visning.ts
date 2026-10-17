@@ -111,3 +111,31 @@ export function begrensUtsnitt(u: Utsnitt, bredde: number, hoyde: number, omraad
     senterY: innen(u.senterY, omraade.minY, omraade.maksY, halvH),
   };
 }
+
+export interface Hjuldata {
+  deltaX: number;
+  deltaY: number;
+  deltaMode: number;
+  /** Non-standard, but set by Chromium and Safari: ±120 per notch for a mouse wheel. */
+  wheelDeltaY?: number;
+}
+
+/**
+ * Whether a wheel event without Ctrl comes from two fingers on a trackpad
+ * (pan) rather than from a mouse wheel (zoom). Browsers do not say so
+ * directly; these are the signs that hold in Chromium, Safari and Firefox.
+ * A free-spinning mouse wheel or a Magic Mouse can look like a trackpad;
+ * that needs a test on the real device.
+ */
+export function erStyreflate(e: Hjuldata): boolean {
+  if (e.deltaMode !== 0) return false;
+  if (e.deltaX !== 0) return true;
+  const w = e.wheelDeltaY;
+  if (typeof w === 'number' && w !== 0) {
+    // a trackpad reports wheelDelta as -3 × delta; a wheel in steps of 120
+    if (Math.abs(w) === Math.abs(e.deltaY) * 3) return true;
+    if (w % 120 === 0) return false;
+  }
+  if (!Number.isInteger(e.deltaY)) return true;
+  return Math.abs(e.deltaY) < 50;
+}

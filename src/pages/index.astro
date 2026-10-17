@@ -8,6 +8,7 @@ import Snarveier from '@/components/showroom/hjem/Snarveier.astro';
 import ProsessSlider from '@/components/showroom/ProsessSlider.astro';
 import Bevis from '@/components/showroom/hjem/Bevis.astro';
 import VerkstedPortal from '@/components/showroom/hjem/VerkstedPortal.astro';
+import NyligLaget from '@/components/showroom/hjem/NyligLaget.astro';
 import { hjemmeprosess } from '@/components/showroom/data/prosess';
 import { bakgrunner } from '@/lib/ressurser';
 import { sidetekst } from '@/lib/sidetekster';
@@ -50,5 +51,6 @@ const t = sidetekst('forside');
     steg={hjemmeprosess}
   />
   <Bevis />
+  <NyligLaget />
   <VerkstedPortal />
 </Side>

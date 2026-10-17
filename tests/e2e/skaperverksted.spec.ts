@@ -93,6 +93,22 @@ test.describe('Signgen', () => {
     await expect(page.locator('.statuslinje')).toContainText('mm');
   });
 
+  test('to fingre på styreflaten panorerer, og musehjulet zoomer', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Styreflate og musehjul finnes bare på desktop');
+    const lerret = page.locator('.lerret canvas');
+    const boks = (await lerret.boundingBox())!;
+    await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2);
+    const zoom = page.locator('.statuslinje .mono', { hasText: '%' });
+    const for_ = await zoom.textContent();
+    // a sideways swipe is two fingers on a trackpad: the view moves, the zoom stays
+    for (let i = 0; i < 5; i++) await page.mouse.wheel(12, 8);
+    await expect(zoom).toHaveText(for_!);
+    await page.waitForTimeout(400);
+    // a wheel notch zooms
+    await page.mouse.wheel(0, 100);
+    await expect(zoom).not.toHaveText(for_!);
+  });
+
   test('startvinduet lar deg velge og lagre en fargeprofil', async ({ page, isMobile }) => {
     await page.evaluate(() => localStorage.clear());
     await page.reload();
@@ -1659,14 +1675,17 @@ test.describe('Signgen', () => {
     await expect(linje.getByLabel('Antall sider')).toBeVisible();
   });
 
-  test('hjelpesøket finner korte svar, og Logg inn er en merket plassholder', async ({ page, isMobile }) => {
+  test('hjelpesøket finner korte svar, og Logg inn sier at kontoer ikke er slått på her', async ({
+    page,
+    isMobile,
+  }) => {
     test.skip(isMobile, 'Menylinjen testes på desktop');
     await page.getByPlaceholder('Søk i hjelp').fill('hull');
     await expect(page.locator('.hjelpesok-treff')).toContainText('Lage hull til oppheng');
     await page.getByPlaceholder('Søk i hjelp').fill('blablabla');
     await expect(page.locator('.hjelpesok-treff')).toContainText('Ingen treff');
     await page.locator('summary', { hasText: 'Logg inn' }).click();
-    await expect(page.locator('.brukerfelt')).toContainText('Innlogging er ikke laget ennå');
+    await expect(page.locator('.brukerfelt')).toContainText('Innlogging er ikke slått på her ennå');
     // the editor still works without logging in
     await expect(page.locator('.statuslinje')).toContainText('mm');
   });

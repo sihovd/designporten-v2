@@ -1,8 +1,14 @@
 /**
  * Shared 2D workspace canvas: real millimetres, adaptive 1-2-5 grid,
  * rulers with the selection's extent, the printable plate, pan and zoom
- * (wheel, Space/middle drag, pinch) and pointer routing to the active
- * tool. Generators draw their content through `tegn`.
+ * and pointer routing to the active tool. Generators draw their content
+ * through `tegn`.
+ *
+ * Navigation (Sivert, 2026-10-17; docs/design/skaperverksted.md «Navigation»):
+ * a mouse wheel zooms around the pointer, two fingers on a trackpad pan,
+ * a trackpad pinch (Ctrl + wheel) zooms, two fingers on a touch screen pan
+ * and pinch, Shift + wheel pans sideways, Space or the middle button drags.
+ * Every change of the view goes through one limit (`begrensUtsnitt`).
  */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -15,6 +21,7 @@ import {
   LINJAL,
   arbeidsomraade,
   begrensUtsnitt,
+  erStyreflate,
   lagVisning,
   tilpass,
   zoomRundt,
@@ -25,6 +32,12 @@ import {
 const KLYPE_DODSONE = 8;
 /** A two-finger pan moves the table this share of the fingers' movement. */
 const PAN_DEMPING = 0.6;
+/** Pause (ms) after which a new wheel event starts a new gesture. */
+const GESTPAUSE = 250;
+/** Trackpad pan speed: screen pixels the view moves per pixel the fingers report. */
+const STYREFLATEFART = 0.75;
+/** The largest pinch step one trackpad event may take (wheel delta units). */
+const KLYPESTEG = 30;
 
 export interface Pekerhendelse {
   modell: Vec2;
@@ -402,6 +415,8 @@ export function Lerret({
       verktoyAktiv = false;
       linjalHandler = null;
     };
+    /** The current wheel gesture, so one gesture is not read as both pan and zoom. */
+    let hjulgest: { styreflate: boolean; tid: number } | null = null;
     const hjul = (e: WheelEvent) => {
       e.preventDefault();
       if (verktoyAktiv && aktivtVerktoy()?.hjul?.(e)) return;
@@ -410,9 +425,28 @@ export function Lerret({
         sett({ senterX: benk.tilstand.utsnitt.senterX + (e.deltaY || e.deltaX) / px });
         return;
       }
+      const u = benk.tilstand.utsnitt;
+      if (e.ctrlKey) {
+        // a pinch on the trackpad (the browser sends it as Ctrl + wheel), or Ctrl + mouse wheel;
+        // one event is capped so a fast pinch cannot leap
+        const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+        sett(zoomRundt(u, b, h, pos(e), Math.exp(-Math.max(-KLYPESTEG, Math.min(KLYPESTEG, d)) * 0.006)));
+        return;
+      }
+      // the first event of a gesture decides whether it pans (trackpad) or zooms (mouse wheel)
+      const na = e.timeStamp;
+      if (!hjulgest || na - hjulgest.tid > GESTPAUSE) hjulgest = { styreflate: erStyreflate(e), tid: na };
+      hjulgest.tid = na;
+      if (hjulgest.styreflate) {
+        const px = visning().pxPerMm;
+        sett({
+          senterX: u.senterX + (e.deltaX * STYREFLATEFART) / px,
+          senterY: u.senterY - (e.deltaY * STYREFLATEFART) / px,
+        });
+        return;
+      }
       const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-      const faktor = Math.exp(-d * (e.ctrlKey ? 0.01 : 0.0015));
-      sett(zoomRundt(benk.tilstand.utsnitt, b, h, pos(e), faktor));
+      sett(zoomRundt(u, b, h, pos(e), Math.exp(-d * 0.0015)));
     };
     const erSkrivefelt = (t: EventTarget | null) =>
       t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));

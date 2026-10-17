@@ -1,0 +1,25 @@
+---
+import Side from '@/layouts/Side.astro';
+import SideHode from '@/components/showroom/SideHode.astro';
+import KontoSide from '@/components/konto/KontoSide';
+---
+
+<Side
+  tittel="Min konto"
+  beskrivelse="Logg inn eller lag en konto hos Designporten. Se planen din og skiltene du har delt fra Sign Forge."
+>
+  <SideHode
+    eyebrow="Konto"
+    tittel="Min konto"
+    ingress="Med en konto står navnet ditt ved skiltene du deler, og du kan se og fjerne dem herfra. Alt er gratis inntil videre."
+  />
+  <section class="ramme seksjon konto-side">
+    <KontoSide client:load />
+  </section>
+</Side>
+
+<style>
+  .konto-side {
+    padding-top: var(--r-5);
+  }
+</style>

@@ -230,6 +230,8 @@ export class CmsFeil extends Error {
 }
 
 let csrf = '';
+/** The signed-in session's CSRF token, for the other admin APIs on the same server (member accounts). */
+export const cmsCsrf = (): string => csrf;
 
 async function kall<T>(
   r: string,

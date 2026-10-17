@@ -444,3 +444,12 @@
   border-radius: var(--radius-felt);
   background: var(--flate);
 }
+
+.cms__skiltbilde {
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--bg);
+}

@@ -1,4 +1,4 @@
-import { arbeidsomraade, begrensUtsnitt, lagVisning, LINJAL } from './visning';
+import { arbeidsomraade, begrensUtsnitt, erStyreflate, lagVisning, LINJAL, zoomRundt } from './visning';
 
 const plate = { bredde: 256, dybde: 256 };
 const B = 1000;
@@ -36,5 +36,27 @@ describe('The table stays on the print bed', () => {
   it('leaves a view that is on the table alone', () => {
     const u = { zoom: 2, senterX: 10, senterY: -20 };
     expect(begrensUtsnitt(u, B, H, arbeidsomraade(plate))).toEqual(u);
+  });
+
+  it('does not creep when the wheel keeps turning at the zoom-out limit', () => {
+    const r = arbeidsomraade(plate);
+    let u = begrensUtsnitt({ zoom: 0.05, senterX: 0, senterY: 0 }, B, H, r);
+    for (let i = 0; i < 20; i++) u = begrensUtsnitt(zoomRundt(u, B, H, { x: 900, y: 650 }, 0.8), B, H, r);
+    expect(u.senterX).toBeCloseTo(0, 6);
+    expect(u.senterY).toBeCloseTo(0, 6);
+  });
+});
+
+describe('erStyreflate', () => {
+  it('reads a sideways or fine-grained wheel event as two fingers on a trackpad', () => {
+    expect(erStyreflate({ deltaX: 3, deltaY: 0, deltaMode: 0 })).toBe(true);
+    expect(erStyreflate({ deltaX: 0, deltaY: 4, deltaMode: 0, wheelDeltaY: -12 })).toBe(true);
+    expect(erStyreflate({ deltaX: 0, deltaY: 2.5, deltaMode: 0 })).toBe(true);
+  });
+
+  it('reads notches as a mouse wheel', () => {
+    expect(erStyreflate({ deltaX: 0, deltaY: 100, deltaMode: 0, wheelDeltaY: -120 })).toBe(false);
+    expect(erStyreflate({ deltaX: 0, deltaY: 3, deltaMode: 1 })).toBe(false);
+    expect(erStyreflate({ deltaX: 0, deltaY: 100, deltaMode: 0 })).toBe(false);
   });
 });

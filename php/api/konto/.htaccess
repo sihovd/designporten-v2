@@ -1,0 +1,4 @@
+# Public entry point: index.php. Shared code is included by it and never served.
+<FilesMatch "^_.*\.php$">
+  Require all denied
+</FilesMatch>

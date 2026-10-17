@@ -14,7 +14,8 @@ export type StudioFane =
   | 'kopi'
   | 'drift'
   | 'konto'
-  | 'butikk';
+  | 'butikk'
+  | 'medlemmer';
 const NAVN: Record<StudioFane, string> = {
   oversikt: 'Oversikt',
   innhold: 'Sider og innhold',
@@ -27,6 +28,7 @@ const NAVN: Record<StudioFane, string> = {
   drift: 'Drift og sikkerhet',
   konto: 'Kontoen din',
   butikk: 'Butikk og betaling',
+  medlemmer: 'Medlemmer og skilt',
 };
 const dato = (v: string) => new Date(v).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -44,7 +46,10 @@ export function StudioSkall({
   const [meny, settMeny] = useState(false);
   const grupper: { navn: string; faner: StudioFane[] }[] = [
     { navn: 'Arbeidsrom', faner: ['oversikt', 'innhold', 'blogg', 'bilder', 'forslag'] },
-    { navn: 'Butikken', faner: ['butikk'] },
+    {
+      navn: 'Butikken',
+      faner: ['butikk', ...(bruker.rolle === 'admin' ? (['medlemmer'] as StudioFane[]) : [])],
+    },
     {
       navn: 'Kontrollrom',
       faner: [
