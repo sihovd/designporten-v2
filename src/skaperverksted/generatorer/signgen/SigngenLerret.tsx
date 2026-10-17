@@ -48,11 +48,13 @@ import { lagKurveverktoy } from './Kurveverktoy';
 import { tegnKurver } from './Kurveoverlegg';
 import {
   fjernBreddepunkt,
+  flyttBreddepunkt,
   leggTilBreddepunkt,
   settBreddeVed,
   strekvisning,
   tegnBreddehandtak,
   treffBreddehandtak,
+  treffBreddesenter,
   treffSenterlinje,
 } from './Strekverktoy';
 import { lagPennverktoy } from './Pennverktoy';
@@ -607,6 +609,7 @@ type Drag =
   | { type: 'utkast'; start: Vec2 }
   | { type: 'paint' }
   | { type: 'bredde'; id: string; indeks: number }
+  | { type: 'breddepos'; id: string; indeks: number }
   | { type: 'strekpunkt'; id: string; indeks: number }
   | { type: 'maal'; a: Vec2 }
   | { type: 'guide'; id: string; akse: 'x' | 'y'; start: number; flyttet: boolean };
@@ -739,7 +742,12 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
               fjernBreddepunkt(benk, sv.o.id, hit);
               return;
             }
-            drag = { type: 'bredde', id: sv.o.id, indeks: hit };
+            // the dot on the line slides the point along the line; the control across it sets the width
+            const pa = treffBreddesenter(sv, modell, htol);
+            drag =
+              pa !== null
+                ? { type: 'breddepos', id: sv.o.id, indeks: pa }
+                : { type: 'bredde', id: sv.o.id, indeks: hit };
             return;
           }
           // a click on the spline (not a drag) adds a width point
@@ -833,6 +841,10 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         }
         if (drag.type === 'bredde') {
           settBreddeVed(benk, drag.id, drag.indeks, modell);
+          return;
+        }
+        if (drag.type === 'breddepos') {
+          flyttBreddepunkt(benk, drag.id, drag.indeks, modell);
           return;
         }
         if (drag.type === 'strekpunkt') {
