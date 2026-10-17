@@ -117,7 +117,6 @@ try {
         );
         $side = array_slice($rader, 0, $antall);
         $siste = end($side);
-        header('Cache-Control: public, max-age=60');
         konto_svar([
             'skilt' => array_map(fn($x) => konto_skilt_ut($x), $side),
             'neste' => count($rader) > $antall ? $siste['endret'] . '_' . $siste['id'] : null,

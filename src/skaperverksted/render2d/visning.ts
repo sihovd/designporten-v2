@@ -61,17 +61,41 @@ export function tilpass(boks: Boks, bredde: number, hoyde: number, marg = 48, de
 
 /** How far past the edge of the allowed area the view centre may go, as a share of half the view. */
 const KANTSLUK = 0.8;
+/** Zooming out stops when the allowed area fills this share of the view. */
+const MIN_FYLL = 0.3;
 
 /**
  * Keep the view near the work: the view centre may go past the edge of
  * `omraade` (the plate and the content) by at most 80 % of half the
- * visible width or height, so some of the plate always stays in sight and
- * the workspace cannot be panned away into nothing.
+ * visible width or height, so some of the plate always stays in sight, and
+ * zooming out stops while the area still fills about a third of the view.
+ * The workspace cannot be panned or zoomed away into nothing. `forrige` is
+ * the view before the change: at the zoom-out limit it is kept as it is, so
+ * the view does not creep while the wheel keeps turning.
  */
-export function begrensUtsnitt(u: Utsnitt, bredde: number, hoyde: number, omraade: Boks): Utsnitt {
+export function begrensUtsnitt(
+  u: Utsnitt,
+  bredde: number,
+  hoyde: number,
+  omraade: Boks,
+  forrige?: Utsnitt,
+): Utsnitt {
+  const synligB = Math.max(1, bredde - LINJAL);
+  const synligH = Math.max(1, hoyde - LINJAL);
+  const minZoom =
+    (Math.min(
+      synligB / Math.max(1, omraade.maksX - omraade.minX),
+      synligH / Math.max(1, omraade.maksY - omraade.minY),
+    ) *
+      MIN_FYLL) /
+    PX_PER_MM;
+  if (u.zoom < minZoom) {
+    if (forrige && forrige.zoom <= minZoom * 1.001) return forrige;
+    u = { ...u, zoom: minZoom };
+  }
   const px = u.zoom * PX_PER_MM;
-  const halvB = ((bredde - LINJAL) / 2 / px) * KANTSLUK;
-  const halvH = ((hoyde - LINJAL) / 2 / px) * KANTSLUK;
+  const halvB = (synligB / 2 / px) * KANTSLUK;
+  const halvH = (synligH / 2 / px) * KANTSLUK;
   const klamp = (v: number, min: number, maks: number) => Math.min(maks, Math.max(min, v));
   return {
     ...u,

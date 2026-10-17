@@ -73,8 +73,8 @@ export interface LerretProps {
   /** Pan with a plain drag (the pan tool). */
   panorer?: boolean;
   /**
-   * Keep the view near the plate (and the content, from `innhold`): panning and zooming stop
-   * before the plate leaves the screen.
+   * Keep the view near the plate (and the content, from `innhold`): panning stops before the
+   * plate leaves the screen, and zooming out stops while it still fills about a third of it.
    */
   begrensTilPlate?: boolean;
   /**
@@ -165,7 +165,9 @@ export function Lerret({
     const settUtsnitt = (endring: Partial<Utsnitt>) => {
       const u = { ...benk.tilstand.utsnitt, ...endring };
       u.zoom = Math.min(40, Math.max(0.05, u.zoom));
-      benk.settUtsnitt(siste.current.begrensTilPlate ? begrensUtsnitt(u, b, h, omraade()) : u);
+      benk.settUtsnitt(
+        siste.current.begrensTilPlate ? begrensUtsnitt(u, b, h, omraade(), benk.tilstand.utsnitt) : u,
+      );
     };
 
     const tegnAlt = () => {

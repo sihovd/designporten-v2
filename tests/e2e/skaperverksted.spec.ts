@@ -1672,14 +1672,17 @@ test.describe('Signgen', () => {
     await expect(linje.getByLabel('Antall sider')).toBeVisible();
   });
 
-  test('hjelpesøket finner korte svar, og Logg inn er en merket plassholder', async ({ page, isMobile }) => {
+  test('hjelpesøket finner korte svar, og Logg inn sier at kontoer ikke er slått på her', async ({
+    page,
+    isMobile,
+  }) => {
     test.skip(isMobile, 'Menylinjen testes på desktop');
     await page.getByPlaceholder('Søk i hjelp').fill('hull');
     await expect(page.locator('.hjelpesok-treff')).toContainText('Lage hull til oppheng');
     await page.getByPlaceholder('Søk i hjelp').fill('blablabla');
     await expect(page.locator('.hjelpesok-treff')).toContainText('Ingen treff');
     await page.locator('summary', { hasText: 'Logg inn' }).click();
-    await expect(page.locator('.brukerfelt')).toContainText('Innlogging er ikke laget ennå');
+    await expect(page.locator('.brukerfelt')).toContainText('Innlogging er ikke slått på her ennå');
     // the editor still works without logging in
     await expect(page.locator('.statuslinje')).toContainText('mm');
   });

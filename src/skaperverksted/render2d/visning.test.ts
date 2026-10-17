@@ -18,8 +18,18 @@ describe('begrensUtsnitt', () => {
     expect(u.senterX).toBeLessThan(1000);
   });
 
+  it('stops zooming out while the plate still fills about a third of the view', () => {
+    const u = begrensUtsnitt({ zoom: 0.05, senterX: 0, senterY: 0 }, 1000, 800, plate);
+    const v = lagVisning(u, 1000, 800);
+    const plateHoyde = v.tilSkjerm({ x: 0, y: plate.minY }).y - v.tilSkjerm({ x: 0, y: plate.maksY }).y;
+    expect(plateHoyde).toBeCloseTo((800 - 22) * 0.3, 0);
+    // at the limit, turning the wheel further leaves the view as it was (no creeping)
+    const videre = begrensUtsnitt({ zoom: u.zoom * 0.8, senterX: 30, senterY: 30 }, 1000, 800, plate, u);
+    expect(videre).toBe(u);
+  });
+
   it('allows less overshoot when zoomed in', () => {
-    const ut = begrensUtsnitt({ zoom: 0.5, senterX: 1e6, senterY: 0 }, 1000, 800, plate);
+    const ut = begrensUtsnitt({ zoom: 0.8, senterX: 1e6, senterY: 0 }, 1000, 800, plate);
     const inn = begrensUtsnitt({ zoom: 4, senterX: 1e6, senterY: 0 }, 1000, 800, plate);
     expect(inn.senterX).toBeLessThan(ut.senterX);
     expect(inn.senterX).toBeGreaterThan(plate.maksX);
