@@ -19,6 +19,10 @@ function git(...args) {
   return r.stdout;
 }
 
+// a bundle from a shallow clone cannot be cloned again: refuse instead of writing a broken backup
+if (git('rev-parse', '--is-shallow-repository').toString().trim() === 'true') {
+  throw new Error('Repoet er en grunn kopi (shallow). Kjør `git fetch --unshallow` først.');
+}
 const commit = git('rev-parse', 'HEAD').toString().trim();
 const kort = commit.slice(0, 7);
 const gren = git('rev-parse', '--abbrev-ref', 'HEAD').toString().trim();
