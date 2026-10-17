@@ -1,6 +1,8 @@
 /**
  * Member accounts and the public sign gallery (php/api/konto/) against PHP's
  * built-in server and SQLite. Skipped when PHP with pdo_sqlite is not installed.
+ * Against MySQL/MariaDB instead, like scripts/cms.test.mjs:
+ *   DP_CMS_MYSQL="host=127.0.0.1;port=3307" DP_CMS_BRUKER=… DP_CMS_PASSORD=… node --test scripts/konto.test.mjs
  * See docs/konto.md.
  */
 import { after, before, describe, test } from 'node:test';
@@ -63,21 +65,53 @@ function klient() {
   return { konto: (r, v) => kall('konto', r, v), cms: (r, v) => kall('cms', r, v), kaker };
 }
 
+const mysql = process.env.DP_CMS_MYSQL;
+const mysqlDatabaser = [];
+function mysqlKjor(sql) {
+  const r = spawnSync(
+    php,
+    [
+      '-r',
+      '$d = new PDO($argv[1], $argv[2], $argv[3]); $d->exec($argv[4]);',
+      `mysql:${mysql}`,
+      process.env.DP_CMS_BRUKER ?? '',
+      process.env.DP_CMS_PASSORD ?? '',
+      sql,
+    ],
+    { encoding: 'utf8' },
+  );
+  if (r.status !== 0) throw new Error(r.stderr || r.stdout);
+}
+/** The database the server in `rot` uses, as a PDO DSN. */
+const dsnFor = (rot) => rot.dsn ?? `sqlite:${join(rot.sti, 'cms.sqlite')}`;
+
 /** A PHP server over a copy of php/; `utenCms` removes the CMS and gives the accounts their own settings. */
 async function startServer({ port, utenCms = false }) {
   const rot = mkdtempSync(join(tmpdir(), 'dp-konto-'));
+  let dsn = null;
+  if (mysql) {
+    const navn = `kontotest_${process.pid}_${port}`;
+    mysqlKjor(`CREATE DATABASE ${navn} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    mysqlDatabaser.push(navn);
+    dsn = `mysql:${mysql};dbname=${navn};charset=utf8mb4`;
+  }
   cpSync(resolve('php'), rot, { recursive: true });
   writeFileSync(join(rot, 'api/bygg.php'), "<?php\nreturn ['base' => '/', 'test' => true];\n");
   if (utenCms) rmSync(join(rot, 'api/cms'), { recursive: true, force: true });
   else writeFileSync(join(rot, 'api/cms/nokler.json'), '{}');
   const server = spawn(php, ['-S', `127.0.0.1:${port}`, resolve('tests/php/cms-router.php')], {
-    env: { ...process.env, DP_CMS_ROT: rot, ...(utenCms ? { DP_UTEN_CMS: '1' } : {}) },
+    env: {
+      ...process.env,
+      DP_CMS_ROT: rot,
+      ...(dsn ? { DP_CMS_DSN: dsn } : {}),
+      ...(utenCms ? { DP_UTEN_CMS: '1' } : {}),
+    },
     stdio: 'ignore',
   });
   for (let i = 0; i < 50; i++) {
     try {
       await fetch(`http://127.0.0.1:${port}/api/konto/?r=status`);
-      return { rot, server };
+      return { rot: { sti: rot, dsn }, server };
     } catch {
       await new Promise((r) => setTimeout(r, 100));
     }
@@ -89,13 +123,15 @@ async function startServer({ port, utenCms = false }) {
 function gammeltGjesteskilt(rot, id, nokkel) {
   const r = spawnSync(php, [
     '-r',
-    `$db = new PDO('sqlite:' . $argv[1]);
+    `$db = new PDO($argv[1], $argv[5] ?: null, $argv[6] ?: null);
      $db->prepare('INSERT INTO dp_skilt (offentlig_id, nokkel_hash, medlem_id, skaper, tittel, mal, opprettet, endret) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)')
         ->execute([$argv[2], hash('sha256', $argv[3]), 'Gjest', 'Hytta', $argv[4], '2026-10-16T10:00:00Z', '2026-10-16T10:00:00Z']);`,
-    join(rot, 'cms.sqlite'),
+    dsnFor(rot),
     id,
     nokkel,
     JSON.stringify(mal('Hytta')),
+    mysql ? (process.env.DP_CMS_BRUKER ?? '') : '',
+    mysql ? (process.env.DP_CMS_PASSORD ?? '') : '',
   ]);
   assert.equal(r.status, 0, String(r.stderr));
 }
@@ -116,7 +152,8 @@ describe(
 
     after(() => {
       server?.kill();
-      if (rot) rmSync(rot, { recursive: true, force: true });
+      if (rot) rmSync(rot.sti, { recursive: true, force: true });
+      if (mysql) for (const navn of mysqlDatabaser.splice(0)) mysqlKjor(`DROP DATABASE IF EXISTS ${navn}`);
     });
 
     test('status: alt er gratis nå, CSV blir betalt senere, ingen betaling er slått på', async () => {
@@ -290,6 +327,7 @@ describe(
       const tekst = await kart.text();
       const tall = JSON.parse(tekst);
       assert.equal(tall.oppsett, 'cms');
+      assert.equal(tall.database, mysql ? 'mysql' : 'sqlite');
       assert.equal(tall.medlemmer.aktive, 1);
       assert.equal(tall.galleri.utenEier, 1);
       assert.equal(tall.migrering.konto, 2);
@@ -341,7 +379,8 @@ describe('Brukerkontoer uten CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikk
 
   after(() => {
     server?.kill();
-    if (rot) rmSync(rot, { recursive: true, force: true });
+    if (rot) rmSync(rot.sti, { recursive: true, force: true });
+    if (mysql) for (const navn of mysqlDatabaser.splice(0)) mysqlKjor(`DROP DATABASE IF EXISTS ${navn}`);
   });
 
   test('kontoene er slått på med egne innstillinger når CMS-et ikke finnes', async () => {
