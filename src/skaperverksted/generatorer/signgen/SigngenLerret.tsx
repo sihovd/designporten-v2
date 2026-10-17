@@ -17,6 +17,7 @@ import { LINJAL, lagVisning, type Visning } from '../../render2d/visning';
 import { brukBenk } from '../../shell/bruk-benk';
 import { nyForm, nyTekst, oppdaterObjekter } from './dokument';
 import {
+  harOmriss,
   hjorner,
   innholdsboks,
   fargedeler,
@@ -48,11 +49,13 @@ import { lagKurveverktoy } from './Kurveverktoy';
 import { tegnKurver } from './Kurveoverlegg';
 import {
   fjernBreddepunkt,
+  flyttBreddepunkt,
   leggTilBreddepunkt,
   settBreddeVed,
   strekvisning,
   tegnBreddehandtak,
   treffBreddehandtak,
+  treffBreddesenter,
   treffSenterlinje,
 } from './Strekverktoy';
 import { lagPennverktoy } from './Pennverktoy';
@@ -209,7 +212,7 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
     if (!region) continue;
     // a text layer: its outlines, then the text (unless it is cut out of them)
     const deler: [Region, string][] = [];
-    if (lag.tekstlag) {
+    if (harOmriss(lag)) {
       const omriss = omrissRegioner(d, lag.id);
       for (const o of lag.omriss ?? []) {
         const r = omriss?.get(o.id);
@@ -607,6 +610,7 @@ type Drag =
   | { type: 'utkast'; start: Vec2 }
   | { type: 'paint' }
   | { type: 'bredde'; id: string; indeks: number }
+  | { type: 'breddepos'; id: string; indeks: number }
   | { type: 'strekpunkt'; id: string; indeks: number }
   | { type: 'maal'; a: Vec2 }
   | { type: 'guide'; id: string; akse: 'x' | 'y'; start: number; flyttet: boolean };
@@ -739,7 +743,12 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
               fjernBreddepunkt(benk, sv.o.id, hit);
               return;
             }
-            drag = { type: 'bredde', id: sv.o.id, indeks: hit };
+            // the dot on the line slides the point along the line; the control across it sets the width
+            const pa = treffBreddesenter(sv, modell, htol);
+            drag =
+              pa !== null
+                ? { type: 'breddepos', id: sv.o.id, indeks: pa }
+                : { type: 'bredde', id: sv.o.id, indeks: hit };
             return;
           }
           // a click on the spline (not a drag) adds a width point
@@ -833,6 +842,10 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
         }
         if (drag.type === 'bredde') {
           settBreddeVed(benk, drag.id, drag.indeks, modell);
+          return;
+        }
+        if (drag.type === 'breddepos') {
+          flyttBreddepunkt(benk, drag.id, drag.indeks, modell);
           return;
         }
         if (drag.type === 'strekpunkt') {
@@ -1349,7 +1362,14 @@ function Guidebar({ benk }: { benk: Arbeidsbenk }) {
 export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
   const st = brukSigntilstand(benk);
   const t = brukBenk(benk);
-  useEffect(() => nårFontLastes(() => benk.kommando('tegn')), [benk]);
+  useEffect(
+    () =>
+      nårFontLastes(() => {
+        benk.normaliser();
+        benk.kommando('tegn');
+      }),
+    [benk],
+  );
   const redigerer = !!st.kurve;
   const verktoy = useMemo(
     () =>

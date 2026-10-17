@@ -20,6 +20,8 @@ import {
 } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Ikon } from '../../shell/ikoner';
+import { Samlingsvelger } from './Fargesamlinger';
+import { lagreSamlingFarger } from './fargesamlinger';
 import { palett, settPalett, synkFilamenter } from './dokument';
 import {
   FERDIGE_PROFILER,
@@ -535,6 +537,20 @@ export function Fargepanel({ benk }: { benk: Arbeidsbenk }) {
           </div>
         </form>
       )}
+
+      <h3 class="underoverskrift" id="fp-samlinger">
+        Fargesamlinger
+      </h3>
+      <Samlingsvelger
+        kompakt
+        bruk={(ider, navn) => {
+          lagreSamlingFarger(ider);
+          bruk(ider, `Fargesamling ${navn}`);
+          settMelding(
+            `«${navn}» er lagt inn som fargene i prosjektet. Farger som var i bruk, er byttet med den nærmeste i samlingen.`,
+          );
+        }}
+      />
 
       <details class="fp-avansert">
         <summary>Avansert</summary>

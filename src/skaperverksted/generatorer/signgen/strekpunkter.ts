@@ -8,6 +8,7 @@ import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { anvend, inverter, tilMatrise, type Vec2 } from '../../core/geometri2d';
 import type { Objekt } from '../../core/dokument';
 import type { Strek } from '../../geometri/strek';
+import { arbeidsomraade } from '../../render2d/visning';
 import { endreStrek } from './paint';
 import { signtilstand } from './tilstand';
 import type { Strekvisning } from './Strekverktoy';
@@ -47,7 +48,13 @@ export function treffStrekpunkt(sv: Strekvisning, p: Vec2, tol: number): number 
 export function flyttStrekpunkt(benk: Arbeidsbenk, id: string, indeks: number, modell: Vec2): void {
   const o = benk.dok.objekter[id];
   if (!o || o.kilde.type !== 'svg' || !o.kilde.strek || !o.kilde.strek.punkter[indeks]) return;
-  const lokal = anvend(inverter(tilMatrise(o.transform)), modell);
+  // a point cannot be dragged off the table (Sivert, 2026-10-16)
+  const rom = arbeidsomraade(benk.dok.plate);
+  const innenfor = {
+    x: Math.min(rom.maksX, Math.max(rom.minX, modell.x)),
+    y: Math.min(rom.maksY, Math.max(rom.minY, modell.y)),
+  };
+  const lokal = anvend(inverter(tilMatrise(o.transform)), innenfor);
   const naa = o.kilde.strek.punkter[indeks]!;
   if (Math.abs(naa.x - lokal.x) < 1e-6 && Math.abs(naa.y - lokal.y) < 1e-6) return;
   endreStrek(

@@ -637,7 +637,10 @@ test.describe('Signgen', () => {
       .first()
       .click();
     const dialog = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
-    await expect(dialog.getByLabel('Hold hull og øyne like langt fra navnet på alle skilt')).toBeChecked();
+    await expect(
+      dialog.getByLabel('Hold hull, dekor og andre elementer like langt fra navnet på alle skilt'),
+    ).toBeChecked();
+    await expect(dialog.getByLabel(/La plata rundt navnet vokse og krympe/)).toBeChecked();
     await expect(dialog.getByText('Klar til å generere')).toBeVisible();
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
@@ -1780,6 +1783,70 @@ test.describe('Signgen', () => {
     );
     await panel.getByRole('button', { name: 'Slett profilen Trio' }).click();
     await expect(panel.getByRole('button', { name: 'Trio', exact: true })).toHaveCount(0);
+  });
+
+  test('over 100 fargesamlinger kan brukes, og Lag samling lager en egen av valgte farger', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.getByRole('button', { name: /^Farge: Kritthvit/ }).click();
+    await page.getByRole('menuitem', { name: 'Flere filamenter …' }).click();
+    const panel = page.locator('.fargepanel');
+    const antall = await panel.locator('.samlingskort').count();
+    expect(antall).toBeGreaterThanOrEqual(100);
+    const filter = panel.getByRole('group', { name: 'Vis fargesamlinger' });
+    await filter.getByRole('button').nth(1).click();
+    await expect.poll(() => panel.locator('.samlingskort').count()).toBeLessThan(antall);
+    await filter.getByRole('button', { name: 'Alle', exact: true }).click();
+    await expect(panel.locator('.samlingskort')).toHaveCount(antall);
+    await panel.locator('.samlingskort').first().click();
+    await expect(panel.getByRole('status').filter({ hasText: 'er lagt inn som fargene' })).toBeVisible();
+
+    await panel.getByText('Lag din egen samling').click();
+    const skjema = panel.getByRole('form', { name: 'Lag samling' });
+    await skjema.getByLabel('Antall farger').fill('3');
+    await expect(skjema.locator('input[type=color]')).toHaveCount(3);
+    await skjema.locator('input[type=color]').nth(0).fill('#123456');
+    await skjema.locator('input[type=color]').nth(1).fill('#abcdef');
+    await skjema.locator('input[type=color]').nth(2).fill('#fedcba');
+    await expect(skjema.getByRole('button', { name: 'Lag samling' })).toBeDisabled();
+    await skjema.getByLabel('Navn på samlingen').fill('Bursdag');
+    await skjema.getByRole('button', { name: 'Lag samling' }).click();
+    await expect(skjema.getByText('«Bursdag» er laget')).toBeVisible();
+    await expect(panel.getByText('Fargene i prosjektet (3)')).toBeVisible();
+  });
+
+  test('fargevelgeren har en ny farge med colorpicker som blir et eget filament', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Panelsystemet brukes på brede skjermer');
+    await page.getByRole('button', { name: /^Farge: Kritthvit/ }).click();
+    await page.getByLabel('Velg en ny farge med fargevelgeren').fill('#336699');
+    await expect(page.locator('.lagrad').first()).toContainText('#336699');
+  });
+
+  test('alle former kan få sitt eget omriss, og formen flytter til et eget lag når den delte et lag', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tegning med mus testes på desktop');
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    await page.keyboard.press('r');
+    await page.mouse.move(b.x + b.width * 0.7, b.y + b.height * 0.25);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.8, b.y + b.height * 0.35, { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.press('v');
+    const for_ = await page.locator('.omrissrad').count();
+    const panel = page.getByRole('button', { name: '+ Legg til omriss' });
+    await expect(panel).toBeVisible();
+    await panel.click();
+    await expect(page.locator('.omrissrad')).toHaveCount(for_ + 1);
+    await page.keyboard.press('Control+z');
+    await expect(page.locator('.omrissrad')).toHaveCount(for_);
   });
 
   test('senterlinjen til et Paint-strøk kan redigeres som punkter, og bredden bevares', async ({

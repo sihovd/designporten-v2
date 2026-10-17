@@ -101,6 +101,21 @@ export function treffBreddehandtak(sv: Strekvisning, p: Vec2, tol: number, medSe
   return best;
 }
 
+/** The width point whose dot on the spline is under a point. The two ends stay at the ends, so they never count. */
+export function treffBreddesenter(sv: Strekvisning, p: Vec2, tol: number): number | null {
+  let best: number | null = null;
+  let bestD = tol;
+  for (const h of sv.handtak) {
+    if (h.indeks <= 0 || h.indeks >= sv.handtak.length - 1) continue;
+    const d = Math.hypot(h.senter.x - p.x, h.senter.y - p.y);
+    if (d <= bestD) {
+      best = h.indeks;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
 /** The position along the stroke (0 to 1) of the spline point nearest `p`, if it lies within `tol` mm. */
 export function treffSenterlinje(sv: Strekvisning, p: Vec2, tol: number): number | null {
   let best: number | null = null;
@@ -136,6 +151,37 @@ export function fjernBreddepunkt(benk: Arbeidsbenk, id: string, indeks: number):
     if (indeks <= 0 || indeks >= s.breddepunkter.length - 1) return s;
     return { ...s, breddepunkter: s.breddepunkter.filter((_, i) => i !== indeks) };
   });
+}
+
+/**
+ * Slide a width point along the spline (Sivert, 2026-10-16: the points must stay on the line). The pointer
+ * only decides where along the line the point goes; it can never leave the line, and it cannot pass its
+ * neighbours.
+ */
+export function flyttBreddepunkt(benk: Arbeidsbenk, id: string, indeks: number, modell: Vec2): void {
+  const sv = strekvisning(benk);
+  if (!sv || sv.o.id !== id) return;
+  const f = sv.strek.breddepunkter;
+  const naa = f[indeks];
+  if (!naa || indeks <= 0 || indeks >= f.length - 1) return;
+  let nar = Infinity;
+  let t = naa.t;
+  for (const x of sv.linje) {
+    const d = Math.hypot(x.p.x - modell.x, x.p.y - modell.y);
+    if (d < nar) [nar, t] = [d, x.t];
+  }
+  const lav = f[indeks - 1]!.t + 0.03;
+  const hoy = f[indeks + 1]!.t - 0.03;
+  if (lav > hoy) return;
+  const tt = Math.round(Math.min(hoy, Math.max(lav, t)) * 1000) / 1000;
+  if (Math.abs(tt - naa.t) < 1e-4) return;
+  endreStrek(
+    benk,
+    id,
+    'Flytt breddepunkt',
+    (s) => ({ ...s, breddepunkter: s.breddepunkter.map((q, j) => (j === indeks ? { ...q, t: tt } : q)) }),
+    'breddepunkt-pos-dra',
+  );
 }
 
 /** Drag a width control: the width at that point is the pointer's distance from the spline, both sides. */

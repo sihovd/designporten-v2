@@ -193,6 +193,11 @@ export function bareHull(dok: Dokument, lagId: LagId): boolean {
   return obj.length > 0 && obj.every((o) => o.kilde.type === 'form' && o.kilde.form === 'hull');
 }
 
+/** Any layer that prints something can have outlines; a layer of hanging holes cannot. */
+export function kanHaOmriss(dok: Dokument, lag: Lag): boolean {
+  return !!lag.tekstlag || !bareHull(dok, lag.id);
+}
+
 export function nyTekst(tekst = 'Tekst', storrelse = 16): TekstKilde {
   return {
     type: 'tekst',
@@ -625,6 +630,38 @@ export function losUtObjekt(dok: Dokument, id: ObjektId): { dok: Dokument; lagId
   return { dok: d, lagId: ny.id };
 }
 
+/**
+ * Give one object an outline of its own (Sivert, 2026-10-16). In a text layer the outline joins the layer's
+ * shared ones. A shape or vector that shares a plain layer with others moves to a layer of its own, right
+ * above and at the same level, so the outline belongs to it alone. Holes and cutting objects cannot have one.
+ */
+export function medObjektOmriss(
+  dok: Dokument,
+  id: ObjektId,
+  omriss: Omriss,
+): { dok: Dokument; lagId: LagId | null } {
+  const o = dok.objekter[id];
+  const lag = o ? finnLag(dok, o.lagId) : undefined;
+  if (!o || !lag || lag.last || o.operasjon !== 'legg-til') return { dok, lagId: null };
+  if (o.kilde.type === 'form' && o.kilde.form === 'hull') return { dok, lagId: null };
+  let d = dok;
+  let mal = lag.id;
+  const andre = (dok.rekkefolge[lag.id] ?? []).filter((x) => x !== id);
+  if (!lag.tekstlag && andre.length) {
+    const ny: Lag = {
+      ...nyttLag(ledigNavn(dok, o.navn), o.materialId ?? lag.materialId, lag.hoyde),
+      profil: structuredClone(lag.profil),
+      kontur: { ...lag.kontur },
+      sammeNivaa: true,
+    };
+    d = leggTilLag(dok, ny, lag.id);
+    d = flyttTilLag(d, [id], ny.id);
+    d = oppdaterObjekter(d, [id], (x) => ({ ...x, materialId: undefined }));
+    mal = ny.id;
+  }
+  return { dok: leggTilOmriss(d, mal, omriss), lagId: mal };
+}
+
 /** Kept for callers that only deal with text. */
 export const losUtTekst = losUtObjekt;
 
@@ -640,7 +677,7 @@ export function ledigNavn(dok: Dokument, grunn: string): string {
 function medOmriss(dok: Dokument, lagId: LagId, fn: (o: Omriss[]) => Omriss[]): Dokument {
   return stable({
     ...dok,
-    lag: dok.lag.map((l) => (l.id === lagId && l.tekstlag ? { ...l, omriss: fn(l.omriss ?? []) } : l)),
+    lag: dok.lag.map((l) => (l.id === lagId ? { ...l, omriss: fn(l.omriss ?? []) } : l)),
   });
 }
 

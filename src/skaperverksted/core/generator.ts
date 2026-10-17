@@ -131,6 +131,11 @@ export interface GeneratorPlugin {
    */
   lesInn?(dok: Dokument): Dokument;
   /**
+   * Runs after every change and when a project is opened: settles what follows from the document's
+   * geometry (Sign Forge: layers resting on what is under them). Pure; returns the input when nothing changes.
+   */
+  normaliser?(dok: Dokument): Dokument;
+  /**
    * Build printable parts from the document. Pure and deterministic; may run
    * in a worker. Throws nothing: problems become advarsler.
    */

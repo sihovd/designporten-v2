@@ -97,6 +97,12 @@ export interface Objekt {
    * layer's outline, height and profile are the same either way (Sivert, 2026-10-07).
    */
   materialId?: string;
+  /**
+   * Sign Forge, CSV batch: does the object keep its distance to the name when the name changes
+   * («navn»), keep its place on the sign («fast»), or is that decided from the sign («auto»: it follows
+   * the name unless a plate or frame round the name cannot change size).
+   */
+  plass?: 'auto' | 'navn' | 'fast';
 }
 
 /** An outline from one layer applied to another (Signgen Phase 5). */

@@ -31,26 +31,30 @@ import {
   slettOmriss,
   standardNavn,
   HULLFORMER,
+  kanHaOmriss,
 } from './dokument';
 import {
   erOye,
+  fotavtrykkBoks,
   lokalGeometri,
   MIN_OMRISSBREDDE,
   objektFarge,
   objektStorrelse,
   STANDARD_RINGBREDDE,
+  verdensBoks,
 } from './modell';
 import { dupliserValgte, settObjektFarge, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
 import { Kurvepanel, Pennpanel } from './Kurvepanel';
 import { antallAapne } from '../../geometri/bane';
 import { hentBaner, settKurve, startKurveredigering } from './kurver';
-import { nyttOmrissI } from './Lagpanel';
+import { leggOmrissPaaObjekt, nyttOmrissI } from './Lagpanel';
 import { PROFILER, Profilseksjon } from './Profilseksjon';
 import { Strekseksjon } from './Strekpanel';
 import { Fargevelger } from './Fargevelger';
 import { brukPanelKontekst } from '../../shell/paneler/kontekst';
 import { folgerNavnet, hullanker, settHullavstand } from './batch';
+import { kanForankres, kanTilpasses, kropper, plassFor } from './csvlayout';
 
 /**
  * Colour: a swatch that opens a menu of the filaments in the sign's colour
@@ -91,8 +95,12 @@ function Materialvelger({
 
 const SIDENAVN = { venstre: 'til venstre for', hoyre: 'til høyre for', topp: 'over', bunn: 'under' } as const;
 
-/** A hole's reference to the name: it keeps its distance from the letters on every sign in a CSV batch. */
-function HullReferanse({
+/**
+ * The layout rule of an object in a CSV series (Sivert, 2026-10-16): a hole, a decoration or another free
+ * object keeps its distance to the name; a plate round the name follows the content. Shown for the objects
+ * a rule can hold, with the reference the master gives.
+ */
+function Forankring({
   benk,
   o,
   endre,
@@ -102,11 +110,51 @@ function HullReferanse({
   endre: (navn: string, fn: (o: Objekt) => Objekt, slaSammen?: string) => void;
 }) {
   const t = brukBenk(benk);
-  if (o.kilde.type !== 'form') return null;
-  const kilde = o.kilde;
+  if (o.kilde.type === 'tekst') return null;
+  const erKropp = kropper(t.dok).some((k) => k.id === o.id);
+  if (!erKropp && !kanForankres(t.dok, o)) return null;
+  const valg = plassFor(o);
+  if (erKropp) {
+    return (
+      <>
+        <div class="felt stablet">
+          <span>Størrelse i en CSV-serie</span>
+          <Segment
+            etikett="Størrelse i en CSV-serie"
+            valg={[
+              { id: 'auto', navn: 'Følger innholdet' },
+              { id: 'fast', navn: 'Fast størrelse' },
+            ]}
+            verdi={valg === 'fast' ? 'fast' : 'auto'}
+            endre={(v) => endre('Størrelse i serie', (x) => ({ ...x, plass: v as 'auto' | 'fast' }))}
+          />
+        </div>
+        <p class="merknad">
+          {kanTilpasses(o)
+            ? 'Plata blir bredere og smalere med navnet. Hver kant flytter seg like langt som innholdet, så marger og avstanden fra hull og dekor til kanten er den samme på alle skilt. Høyden og hjørneradius endres ikke.'
+            : valg === 'fast'
+              ? 'Plata beholder størrelsen sin. Hull og dekor på den beholder plassen, og et navn som ikke får plass blir meldt.'
+              : 'Denne formen kan ikke endre størrelse. Da beholder hull og dekor plassen sin, og et navn som ikke får plass blir meldt.'}
+        </p>
+      </>
+    );
+  }
   const anker = hullanker(t.dok, o);
   if (!anker) return null;
   const folger = folgerNavnet(t.dok, o);
+  const b = verdensBoks(o);
+  const fot = fotavtrykkBoks(t.dok);
+  const tilKant =
+    fot &&
+    Math.min(
+      (b.minX + b.maksX) / 2 - fot.minX,
+      fot.maksX - (b.minX + b.maksX) / 2,
+      (b.minY + b.maksY) / 2 - fot.minY,
+      fot.maksY - (b.minY + b.maksY) / 2,
+    );
+  const referanse = anker.innvendig
+    ? `Ligger på navnet og holder plassen langs det: ${tall(Math.abs(anker.innvendig.dx))} mm fra ${anker.innvendig.ref === 'midt' ? 'midten' : anker.innvendig.ref === 'venstre' ? 'venstre kant' : 'høyre kant'} av navnet.`
+    : `Referanse: ${tall(Math.abs(anker.gap))} mm ${anker.gap < 0 ? 'inn i' : SIDENAVN[anker.side]} bokstavene.`;
   return (
     <>
       <div class="felt stablet">
@@ -118,16 +166,22 @@ function HullReferanse({
             { id: 'navn', navn: 'Følger navnet' },
             { id: 'fast', navn: 'Fast plass' },
           ]}
-          verdi={kilde.plass ?? 'auto'}
-          endre={(v) => endre('Plass i serie', (x) => ({ ...x, kilde: { ...kilde, plass: v } }))}
+          verdi={valg}
+          endre={(v) =>
+            endre('Plass i serie', (x) => ({
+              ...x,
+              plass: v as 'auto' | 'navn' | 'fast',
+              kilde: x.kilde.type === 'form' && x.kilde.plass ? { ...x.kilde, plass: undefined } : x.kilde,
+            }))
+          }
         />
       </div>
       <p class="merknad">
         {folger
-          ? `Referanse: ${tall(Math.abs(anker.gap))} mm ${anker.gap < 0 ? 'inn i' : SIDENAVN[anker.side]} bokstavene. På hvert skilt i en CSV-serie flyttes hullet så det får samme avstand, også når navnet blir lengre.`
-          : 'Hullet beholder plassen sin på alle skilt i en CSV-serie. «Automatisk» lar det følge navnet på skilt uten fast plate.'}
+          ? `${referanse} På hvert skilt i en CSV-serie flyttes elementet så det får samme avstand, også når navnet blir lengre.${tilKant !== null && tilKant !== undefined ? ` Midten ligger ${tall(tilKant)} mm fra skiltets kant, og plata følger med.` : ''}`
+          : 'Elementet beholder plassen sin på alle skilt i en CSV-serie. «Automatisk» lar det følge navnet så lenge plata rundt navnet kan endre størrelse.'}
       </p>
-      {folger && (
+      {folger && !anker.innvendig && (
         <TallFelt
           etikett="Avstand fra navnet"
           verdi={anker.gap}
@@ -136,7 +190,7 @@ function HullReferanse({
           steg={0.5}
           endre={(v) =>
             benk.endre({
-              navn: 'Hullets avstand fra navnet',
+              navn: 'Avstand fra navnet',
               slaSammen: 'hullavstand',
               anvend: (d) => settHullavstand(d, o.id, v),
             })
@@ -203,7 +257,7 @@ function Hullvalg({
           }
         />
       </div>
-      <HullReferanse benk={benk} o={o} endre={endre} />
+      <Forankring benk={benk} o={o} endre={endre} />
       {oye && (
         <TallFelt
           etikett="Ringbredde"
@@ -464,6 +518,9 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
           />
         )}
         {o.kilde.type === 'form' && o.kilde.form === 'hull' && <Hullvalg benk={benk} o={o} endre={endre} />}
+        {!(o.kilde.type === 'form' && o.kilde.form === 'hull') && (
+          <Forankring benk={benk} o={o} endre={endre} />
+        )}
         {o.kilde.type === 'svg' && o.kilde.strek && <Strekseksjon benk={benk} o={o} />}
         {o.kilde.type === 'svg' && !o.kilde.strek && (
           <>
@@ -610,6 +667,24 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
           «Lag» i linjen øverst for å gi den omriss.
         </p>
       )}
+      {!(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
+        o.operasjon === 'legg-til' &&
+        lagForObjekt &&
+        !o.last &&
+        !lagForObjekt.last && (
+          <Panel tittel="Omriss">
+            <p class="merknad">
+              {(lagForObjekt.omriss?.length ?? 0) > 0
+                ? `Laget «${lagForObjekt.navn}» har ${lagForObjekt.omriss!.length} omriss.${
+                    lagForObjekt.tekstlag ? ' Tekster og vektorer i samme tekstlag deler dem.' : ''
+                  }`
+                : 'Gi formen sitt eget omriss. Står den sammen med andre former, flytter den til et lag for seg selv først.'}
+            </p>
+            <button type="button" class="kontroll-knapp" onClick={() => leggOmrissPaaObjekt(benk, o.id)}>
+              + Legg til omriss
+            </button>
+          </Panel>
+        )}
       {!(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
         o.operasjon === 'legg-til' &&
         lagForObjekt && (
@@ -833,14 +908,14 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
             <p class="merknad">
               {lag.sammeNivaa
                 ? 'Laget starter på samme Z som laget under, så delene kan ligge side om side i hver sin farge.'
-                : 'Laget stables oppå laget under. Kryss av for å legge delene side om side i hver sin farge.'}
+                : 'Laget hviler på det høyeste laget under seg som det overlapper, og ligger på printplata hvis det ikke overlapper noe. Kryss av for å legge delene på samme nivå i hver sin farge.'}
             </p>
           </>
         )}
         {auto && (
           <p class="merknad">
-            Z følger lagrekkefølgen. Slå av «Stable lagene automatisk» i Prosjektinnstillinger for å sette Z
-            selv.
+            Laget henger aldri i lufta: Z følger det som ligger under. Slå av «Stable lagene automatisk» i
+            Prosjektinnstillinger for å sette Z selv.
           </p>
         )}
       </Panel>
@@ -861,7 +936,7 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
         )}
       </Panel>
 
-      {lag.tekstlag && <OmrissInspektor benk={benk} lag={lag} />}
+      {kanHaOmriss(t.dok, lag) && <OmrissInspektor benk={benk} lag={lag} />}
 
       {(!lag.tekstlag || lag.kontur.avstand !== 0 || lag.kontur.kunRing) && (
         <Panel tittel="Kontur">
@@ -1116,7 +1191,7 @@ function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
   const valgt = omriss.find((o) => o.id === st.omriss);
   return (
     <Panel
-      tittel={valgt ? `Omriss: ${valgt.navn}` : 'Omriss rundt teksten'}
+      tittel={valgt ? `Omriss: ${valgt.navn}` : lag.tekstlag ? 'Omriss rundt teksten' : 'Omriss rundt formen'}
       handling={
         <button
           type="button"
@@ -1130,8 +1205,9 @@ function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
     >
       {omriss.length === 0 && (
         <p class="tom-melding">
-          Et omriss følger teksten med teksten i midten. Det dekker aldri selve teksten og har sin egen høyde
-          og farge.
+          {lag.tekstlag
+            ? 'Et omriss følger teksten med teksten i midten. Det dekker aldri selve teksten og har sin egen høyde og farge.'
+            : 'Et omriss følger kanten på alt i laget. Det dekker aldri selve formen og har sin egen høyde og farge. Alle former og SVG-er kan få omriss.'}
         </p>
       )}
       {omriss.map((o, i) =>
@@ -1148,7 +1224,8 @@ function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
       )}
       {omriss.length > 0 && (
         <p class="merknad">
-          Innerst først. Omrissene starter på samme høyde som teksten. Grupperte tekster deler omrissene.
+          Innerst først. Omrissene starter på samme høyde som {lag.tekstlag ? 'teksten' : 'laget'}.
+          {lag.tekstlag ? ' Grupperte tekster deler omrissene.' : ''}
           {valgt ? ' Endringene gjelder bare omrisset du har valgt i lagpanelet.' : ''}
         </p>
       )}

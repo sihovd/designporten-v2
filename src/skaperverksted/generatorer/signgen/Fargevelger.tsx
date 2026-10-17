@@ -10,7 +10,8 @@ import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { fargekode, finnMateriale, visningsnavn } from '../../core/materialer';
 import { filamentLinje } from './filamenter';
 import { brukBenk } from '../../shell/bruk-benk';
-import { palett } from './dokument';
+import { leggTilFarge, palett } from './dokument';
+import { filamentForFarge, lagreSamlingFarger } from './fargesamlinger';
 import { signtilstand } from './tilstand';
 
 /** Open the colour profile: the panel where there are panels, else the dialog. */
@@ -62,7 +63,7 @@ export function Fargevelger({
   }, [apen]);
 
   const r = apen ? knapp.current?.getBoundingClientRect() : undefined;
-  const hoyde = Math.ceil(valg.length / 6) * 40 + 96;
+  const hoyde = Math.ceil(valg.length / 6) * 40 + 144;
   const stil = r
     ? {
         left: `${Math.max(8, Math.min(r.left, window.innerWidth - 248))}px`,
@@ -154,6 +155,21 @@ export function Fargevelger({
           >
             Flere filamenter …
           </button>
+          <label class="fargemeny-ny">
+            <span>Ny farge</span>
+            <input
+              type="color"
+              value={m.hex}
+              aria-label="Velg en ny farge med fargevelgeren"
+              onChange={(e) => {
+                const id = filamentForFarge((e.target as HTMLInputElement).value);
+                lagreSamlingFarger([id]);
+                benk.endre({ navn: 'Ny farge i profilen', anvend: (d) => leggTilFarge(d, id) });
+                lukk(false);
+                if (id !== verdi) endre(id);
+              }}
+            />
+          </label>
         </div>
       )}
     </span>

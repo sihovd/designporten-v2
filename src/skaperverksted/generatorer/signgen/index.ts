@@ -7,7 +7,7 @@ import { meta } from './meta';
 import { Filvalg } from './Maldialog';
 import { Innstillingsvalg } from './Prosjektinnstillinger';
 import { fargeplasser, lesInnSigngen, nyttSigngenDokument } from './dokument';
-import { byggSigngen, forelopigMal } from './modell';
+import { byggSigngen, forelopigMal, grunnfest } from './modell';
 import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
 import { Lagpanel } from './Lagpanel';
@@ -30,6 +30,7 @@ const plugin: GeneratorPlugin = {
   flate: 'lys',
   nyttDokument: nyttSigngenDokument,
   lesInn: lesInnSigngen,
+  normaliser: grunnfest,
   byggModell: byggSigngen,
   forelopigMal,
   ui: {

@@ -45,7 +45,7 @@ import { formTilRinger } from '../../geometri/former';
 import { lastFont, tekstTilRinger } from '../../geometri/tekst';
 import { ekstruder } from '../../geometri/ekstruder';
 import type { ModellDel } from '../../geometri/mesh';
-import { bareHull, parametre, tekstUtenforTekstlag } from './dokument';
+import { bareHull, parametre, stable, tekstUtenforTekstlag } from './dokument';
 import { rettProfil } from '../../core/profil';
 
 // ---------- fonts ----------
@@ -311,6 +311,14 @@ function iVerden(slot: string, p: Plassert): Region {
 
 const lagBuffer = new WeakMap<Dokument, Map<string, Region | null>>();
 
+/**
+ * A layer with outlines: every text layer, and any other layer that has been given outlines. Shapes and
+ * vectors can have outlines of their own this way (Sivert, 2026-10-16).
+ */
+export function harOmriss(lag: Lag): boolean {
+  return !!lag.tekstlag || (lag.omriss?.length ?? 0) > 0;
+}
+
 function erGjennomgaende(o: Objekt): boolean {
   return o.kilde.type === 'form' && o.kilde.form === 'hull';
 }
@@ -374,7 +382,7 @@ function lagForHull(dok: Dokument, lag: Lag): Region | null {
   const kilder: Region[] = [];
   for (const [i, { p, kilde }] of pavirkninger.entries()) {
     // a text layer acts with everything it prints: text and outlines
-    const r = kilde.tekstlag ? fotavtrykk(dok, kilde) : egenLokal(dok, kilde);
+    const r = harOmriss(kilde) ? fotavtrykk(dok, kilde) : egenLokal(dok, kilde);
     if (!r) return null;
     const slot = `pavirkning:${lag.id}:${i}`;
     const lokal =
@@ -405,7 +413,7 @@ function modellFlate(dok: Dokument): Region | null {
     const r = lagForHull(dok, lag);
     if (!r) return null;
     if (!(lag.tekstlag && lag.tekstvisning === 'kutt')) deler.push(r);
-    if (lag.tekstlag) {
+    if (harOmriss(lag)) {
       const o = omrissForHull(dok, lag);
       if (!o) return null;
       for (const x of o) deler.push(x.region);
@@ -512,7 +520,7 @@ export function erOye(dok: Dokument, objektId: string): boolean {
 function oyeMal(dok: Dokument): { lagId: string; omrissId?: string } | null {
   const lag = dok.lag.find((l) => l.synlig);
   if (!lag) return null;
-  const omriss = lag.tekstlag ? (lag.omriss ?? []).filter((o) => o.synlig) : [];
+  const omriss = harOmriss(lag) ? (lag.omriss ?? []).filter((o) => o.synlig) : [];
   return omriss.length ? { lagId: lag.id, omrissId: omriss.at(-1)!.id } : { lagId: lag.id };
 }
 
@@ -856,7 +864,7 @@ function stotteskiver(dok: Dokument): Stotteskive[] {
     if (!lag.synlig) continue;
     const region = lagRegion(dok, lag.id);
     if (!region) fullstendig = false;
-    const omriss = lag.tekstlag ? omrissRegioner(dok, lag.id) : null;
+    const omriss = harOmriss(lag) ? omrissRegioner(dok, lag.id) : null;
     if (region?.length && lag.tekstvisning !== 'kutt') {
       ut.push({
         lagId: lag.id,
@@ -963,6 +971,7 @@ export async function byggSigngen(
   };
   await meld(0);
   const fontFeil = await lastFonter(dok);
+  dok = grunnfest(dok);
   await meld(0.05);
   if (fontFeil.length)
     advarsler.push({
@@ -1030,7 +1039,7 @@ export async function byggSigngen(
     if (!lag.synlig) continue;
     await meld(0.05 + (0.8 * synlige.indexOf(lag)) / Math.max(1, synlige.length));
     const region = lagRegion(dok, lag.id) ?? [];
-    const omriss = lag.tekstlag ? (omrissRegioner(dok, lag.id) ?? new Map<string, Region>()) : new Map();
+    const omriss = harOmriss(lag) ? (omrissRegioner(dok, lag.id) ?? new Map<string, Region>()) : new Map();
     const tekstSkjult = lag.tekstvisning === 'kutt';
     if (!region.length && ![...omriss.values()].some((r) => r.length)) {
       if ((objekterILag(dok, lag.id).length && !bareHull(dok, lag.id)) || lag.pavirkninger.length) {
@@ -1209,4 +1218,106 @@ export function fotavtrykkBoks(dok: Dokument): Boks | null {
     b = slaSammen(b, { minX: e.minX, minY: e.minY, maksX: e.maksX, maksY: e.maksY });
   }
   return erTom(b) ? null : b;
+}
+
+// ---------- layers rest on what is under them (Sivert, 2026-10-16) ----------
+
+/** What a layer prints: its own footprint and each visible outline, with the height it stands at. */
+interface Trykkdel {
+  region: Region;
+  boks: Boks;
+  hoyde: number;
+}
+
+const boksBuffer = new WeakMap<Region, Boks>();
+const overlappBuffer = new WeakMap<Region, WeakMap<Region, boolean>>();
+
+/** Two footprints that share more than a sliver (mm²). Touching edges do not count. */
+const MIN_OVERLAPP = 0.25;
+
+function boksFor(r: Region): Boks {
+  let b = boksBuffer.get(r);
+  if (!b) boksBuffer.set(r, (b = regionBoks(r)));
+  return b;
+}
+
+function delerOverlapper(a: Region, b: Region): boolean {
+  const ba = boksFor(a);
+  const bb = boksFor(b);
+  if (ba.maksX <= bb.minX || bb.maksX <= ba.minX || ba.maksY <= bb.minY || bb.maksY <= ba.minY) return false;
+  let m = overlappBuffer.get(a);
+  if (!m) overlappBuffer.set(a, (m = new WeakMap()));
+  let svar = m.get(b);
+  if (svar === undefined) m.set(b, (svar = areal(snitt(a, b)) > MIN_OVERLAPP));
+  return svar;
+}
+
+/** Null while fonts load. */
+function trykkdeler(dok: Dokument, lag: Lag): Trykkdel[] | null {
+  const ut: Trykkdel[] = [];
+  const region = lagRegion(dok, lag.id);
+  if (!region) return null;
+  if (region.length && lag.tekstvisning !== 'kutt')
+    ut.push({ region, boks: boksFor(region), hoyde: lag.hoyde });
+  if (harOmriss(lag)) {
+    const omriss = omrissRegioner(dok, lag.id);
+    if (!omriss) return null;
+    for (const o of lag.omriss ?? []) {
+      const r = omriss.get(o.id);
+      if (o.synlig && r?.length) ut.push({ region: r, boks: boksFor(r), hoyde: o.hoyde });
+    }
+  }
+  return ut;
+}
+
+/**
+ * No layer hangs in mid-air: each one starts at the top of the highest layer under it in the list that it
+ * overlaps, and on the build plate when it overlaps none. Two layers that share no ground therefore sit
+ * at the same height, and a layer on top of another stands on it. A layer set to «samme nivå» keeps the
+ * height of the layer it joins. Does nothing with automatic stacking off; falls back to stacking by list
+ * order while fonts load (nothing to measure yet).
+ */
+export function grunnfest(dok: Dokument): Dokument {
+  if (!parametre(dok).autoZ) return dok;
+  let na = dok;
+  for (let runde = 0; runde < 2; runde++) {
+    const ny = grunnfestEnGang(na);
+    if (ny === na) return na;
+    na = ny;
+  }
+  return na;
+}
+
+function grunnfestEnGang(dok: Dokument): Dokument {
+  const rekke = stable(dok);
+  const under: { del: Trykkdel; topp: number }[] = [];
+  const z = new Map<string, number>();
+  let nivaaBunn = 0;
+  for (const [i, lag] of dok.lag.entries()) {
+    const reserve = rekke.lag[i]!.zBunn;
+    const deler = lag.synlig ? trykkdeler(dok, lag) : [];
+    if (deler === null) return rekke;
+    if (!deler.length) {
+      z.set(lag.id, reserve);
+      continue;
+    }
+    let bunn = 0;
+    if (lag.sammeNivaa && i > 0) bunn = nivaaBunn;
+    else {
+      for (const u of under)
+        if (u.topp > bunn && deler.some((d) => delerOverlapper(d.region, u.del.region))) bunn = u.topp;
+      nivaaBunn = bunn;
+    }
+    bunn = Math.round(bunn * 1000) / 1000;
+    z.set(lag.id, bunn);
+    for (const d of deler) under.push({ del: d, topp: bunn + d.hoyde });
+  }
+  let endret = false;
+  const lag = dok.lag.map((l) => {
+    const zBunn = z.get(l.id) ?? l.zBunn;
+    if (Math.abs(l.zBunn - zBunn) < 1e-9) return l;
+    endret = true;
+    return { ...l, zBunn };
+  });
+  return endret ? { ...dok, lag } : dok;
 }
