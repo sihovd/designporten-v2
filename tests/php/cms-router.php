@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 $rot = getenv('DP_CMS_ROT');
 // SQLite by default; DP_CMS_DSN runs the same tests against MySQL/MariaDB (see scripts/cms.test.mjs).
-define('DP_CMS_KONFIG', [
+$konfig = [
     'dsn' => getenv('DP_CMS_DSN') ?: 'sqlite:' . $rot . '/cms.sqlite',
     'bruker' => getenv('DP_CMS_BRUKER') ?: null,
     'passord' => getenv('DP_CMS_PASSORD') ?: null,
     'oppsettkode' => 'test-oppsettkode-1234',
-]);
+];
+// DP_UTEN_CMS: the accounts with their own settings and no CMS at all (scripts/konto.test.mjs)
+define(getenv('DP_UTEN_CMS') ? 'DP_KONTO_KONFIG' : 'DP_CMS_KONFIG', $konfig);
 $sti = rawurldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/');
 if ($sti === '/api/cms/') { require $rot . '/api/cms/index.php'; return; }
 if ($sti === '/api/konto/') { require $rot . '/api/konto/index.php'; return; }
+if ($sti === '/api/konto/kartlegg.php') { require $rot . '/api/konto/kartlegg.php'; return; }
 if ($sti === '/blogg' || str_starts_with($sti, '/blogg/') || $sti === '/api/cms/blogg.php') { require $rot . '/api/cms/blogg.php'; return; }
 if ($sti === '/sitemap.xml') { $_GET['kart'] = '1'; require $rot . '/api/cms/blogg.php'; return; }
 // Like medier/.htaccess: only the picture files the CMS made.

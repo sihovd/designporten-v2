@@ -43,15 +43,16 @@ export function Brukerfelt() {
         ) : medlem ? (
           <>
             <p class="meny-merknad">
-              Logget inn som {medlem.navn}. Skilt du laster ned, deles i «Nylig laget» med navnet ditt.
+              Logget inn som {medlem.navn}. Skiltene dine er private til du velger «Publiser i galleriet» i
+              Fil-menyen.
             </p>
             {kontoside}
           </>
         ) : (
           <>
             <p class="meny-merknad">
-              Du kan bruke editoren uten konto. Med en konto står navnet ditt ved skiltene du deler, og du kan
-              fjerne dem senere.
+              Du kan bruke editoren uten konto. Med en konto kan du publisere skilt i galleriet «Nylig laget»
+              med navnet ditt, og fjerne dem igjen.
             </p>
             {kontoside}
           </>

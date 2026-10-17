@@ -193,7 +193,7 @@ export function Malbibliotek({ benk }: { benk: Arbeidsbenk }) {
         <p class="merknad">
           Mine maler lagres i denne nettleseren.
           {kontoMulig
-            ? ' Skilt du laster ned, deles i «Nylig laget» og kan brukes av andre.'
+            ? ' Skilt som skaperne selv publiserer i «Nylig laget», kan brukes av andre.'
             : ' Deling og salg av maler er ikke åpnet ennå.'}
         </p>
       </div>
@@ -405,6 +405,20 @@ export function Filvalg({ benk }: { benk: Arbeidsbenk }) {
         <Ikon id="templates" storrelse={16} />
         Nytt prosjekt fra mal …
       </button>
+      {kontoMulig && (
+        <button
+          type="button"
+          role="menuitem"
+          class="med-ikon"
+          onClick={(e) => {
+            lukkMeny(e);
+            signtilstand(benk).sett({ malvindu: 'publiser' });
+          }}
+        >
+          <Ikon id="share-template" storrelse={16} />
+          Publiser i galleriet …
+        </button>
+      )}
       {plangrenser.csvBatch && (
         <button
           type="button"

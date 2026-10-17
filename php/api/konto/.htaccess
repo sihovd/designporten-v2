@@ -1,4 +1,5 @@
-# Public entry point: index.php. Shared code is included by it and never served.
-<FilesMatch "^_.*\.php$">
+# Public entry points: index.php and kartlegg.php (admin only, read-only; remove after use).
+# Settings and shared code are included by them and never served.
+<FilesMatch "^_.*\.php$|^konfig(?:\.eksempel)?\.php$">
   Require all denied
 </FilesMatch>

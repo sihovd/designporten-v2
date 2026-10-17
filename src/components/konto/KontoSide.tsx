@@ -141,8 +141,8 @@ function Innlogging({ ferdig }: { ferdig: (m: Medlem) => void }) {
             />
             <span>
               Jeg godtar <a href={nettsti('/vilkar/')}>vilkårene</a> og har lest om{' '}
-              <a href={nettsti('/personvern/')}>personvern</a>. Skilt jeg laster ned fra Sign Forge, blir
-              offentlige med navnet mitt, og andre kan bruke dem som mal.
+              <a href={nettsti('/personvern/')}>personvern</a>. Skiltene mine er private til jeg selv velger
+              «Publiser i galleriet» i Sign Forge.
             </span>
           </label>
         )}
@@ -204,7 +204,9 @@ function FraDenneNettleseren() {
   return (
     <section class="konto__kort" aria-labelledby="konto-nettleser-tittel">
       <h2 id="konto-nettleser-tittel">Delt fra denne nettleseren</h2>
-      <p class="konto__dempet">Disse skiltene kan du fjerne fra galleriet herfra, med eller uten konto.</p>
+      <p class="konto__dempet">
+        Disse skiltene ble delt fra denne nettleseren. Du kan fjerne dem fra galleriet herfra.
+      </p>
       <ul class="konto__skilt" role="list">
         {liste.map(([prosjekt, d]) => (
           <li key={d.id}>
@@ -340,8 +342,9 @@ function Profil({
         {!skilt && <p class="konto__dempet">Henter …</p>}
         {skilt?.length === 0 && (
           <p class="konto__dempet">
-            Ingen ennå. Skilt du laster ned fra <a href={nettsti('/skaperverksted/signgen/')}>Sign Forge</a>{' '}
-            mens du er logget inn, kommer her.
+            Ingen ennå. Velg «Publiser i galleriet» i Fil-menyen i{' '}
+            <a href={nettsti('/skaperverksted/signgen/')}>Sign Forge</a> mens du er logget inn, så kommer
+            skiltet her.
           </p>
         )}
         {skilt && skilt.length > 0 && <Skiltliste skilt={skilt} slett={(s) => void slettSkilt(s)} />}
@@ -368,7 +371,7 @@ function SlettKonto({ utlogget }: { utlogget: () => void }) {
   return (
     <section class="konto__kort" aria-labelledby="konto-slett-tittel">
       <h2 id="konto-slett-tittel">Slett kontoen</h2>
-      <p class="konto__dempet">Kontoen og alle skiltene du har delt med den, slettes for godt.</p>
+      <p class="konto__dempet">Kontoen og alle skiltene du har publisert med den, slettes for godt.</p>
       {!slettApen ? (
         <button type="button" class="konto__knapp konto__knapp--fare" onClick={() => settSlettApen(true)}>
           Slett kontoen …

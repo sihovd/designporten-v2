@@ -101,8 +101,8 @@ export function Medlemmer() {
       <section aria-labelledby="cms-skiltgalleri">
         <h2 id="cms-skiltgalleri">Skiltgalleriet «Nylig laget»</h2>
         <p class="cms__dempet">
-          Alle skilt som lastes ned eller bestilles fra Sign Forge, deles her. Skjul et skilt som ikke skal
-          vises offentlig; det kan vises igjen senere.
+          Skilt som medlemmer selv har publisert fra Sign Forge (og skilt som ble delt automatisk før 17.
+          oktober 2026). Skjul et skilt som ikke skal vises offentlig; det kan vises igjen senere.
         </p>
         {skilt?.length === 0 && <p class="cms__dempet">Ingen skilt er delt ennå.</p>}
         <ul class="cms__liste">

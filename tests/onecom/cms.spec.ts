@@ -297,7 +297,7 @@ test('Studio: responsiv oversikt og bloggredaktør ved alle avtalte bredder', as
 });
 
 // Member accounts and the sign gallery live in the same database (docs/konto.md).
-test('konto: et medlem deler et skilt fra Sign Forge, det vises i «Nylig laget» og åpnes som mal', async ({
+test('konto: nedlasting deler ingenting; et medlem publiserer selv, skiltet vises i «Nylig laget» og åpnes som mal', async ({
   browser,
 }) => {
   const medlem = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
@@ -319,13 +319,33 @@ test('konto: et medlem deler et skilt fra Sign Forge, det vises i «Nylig laget�
   await expect(medlem.locator('.statuslinje')).toContainText('mm');
   await medlem.getByRole('button', { name: /Eksporter/ }).click();
   const dialog = medlem.getByRole('dialog', { name: 'Se over før eksport' });
-  await expect(dialog.getByText(/deles det i «Nylig laget»/)).toBeVisible({ timeout: 20_000 });
-  await dialog.locator('summary', { hasText: 'Last ned' }).click();
+  await dialog.locator('summary', { hasText: 'Last ned' }).click({ timeout: 20_000 });
   await Promise.all([
     medlem.waitForEvent('download'),
     dialog.getByRole('menuitem', { name: 'Last ned 3MF' }).click(),
   ]);
-  await expect(medlem.getByText('Skiltet er delt i «Nylig laget».')).toBeVisible();
+  await expect(medlem.getByText('3MF-filen er lastet ned.')).toBeVisible();
+  // private by default (Sivert, 2026-10-17): a download shares nothing
+  const forPublisering = await medlem.request.get(`${base}/api/konto/?r=skilt&antall=48`);
+  expect((await forPublisering.json()).skilt.map((s: { skaper: string }) => s.skaper)).not.toContain(
+    'Kari Test',
+  );
+  await medlem.keyboard.press('Escape');
+
+  await medlem.locator('summary', { hasText: 'Fil' }).click();
+  await medlem.getByRole('menuitem', { name: 'Publiser i galleriet …' }).click();
+  const pub = medlem.getByRole('dialog', { name: 'Publiser i galleriet' });
+  await expect(pub.getByText('Publiseres som')).toContainText('Kari Test');
+  await expect(pub.getByRole('img', { name: /Forhåndsbilde av skiltet/ })).toBeVisible();
+  const axePub = await new AxeBuilder({ page: medlem })
+    .include('.publiseringsdialog')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+    .analyze();
+  expect(axePub.violations.map((v) => v.id)).toEqual([]);
+  await pub.getByRole('button', { name: 'Publiser', exact: true }).click();
+  await expect(pub.getByRole('status')).toHaveText('Skiltet er publisert i «Nylig laget».');
+  await expect(pub.getByRole('button', { name: 'Fjern fra galleriet' })).toBeVisible();
+  await pub.getByRole('button', { name: 'Lukk' }).click();
 
   const besokende = await browser.newPage({ baseURL: 'http://127.0.0.1:4322' });
   await besokende.goto(`${base}/`);

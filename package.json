@@ -25,7 +25,8 @@
     "lint:php": "node scripts/php.mjs --lint",
     "preview:onecom": "node scripts/php.mjs",
     "test:e2e:onecom": "playwright test --config playwright.onecom.config.ts",
-    "test:deploy": "node --test scripts/*.test.mjs"
+    "test:deploy": "node --test scripts/*.test.mjs",
+    "pakk:kilde": "node scripts/kildepakke.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.6",

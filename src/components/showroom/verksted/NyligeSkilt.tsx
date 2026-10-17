@@ -63,8 +63,8 @@ export default function NyligeSkilt({ antall = 16 }: { antall?: number }) {
     return (
       <div class="nylige nylige--tom">
         <p>
-          Ingen skilt er delt ennå. Skilt du laster ned fra Sign Forge, dukker opp her, og andre kan bruke dem
-          som mal.
+          Ingen skilt er publisert ennå. Skilt som skaperne selv publiserer fra Sign Forge, dukker opp her, og
+          andre kan bruke dem som mal.
         </p>
         <a class="nylige__lenke" href={lenkeTilVerktoy}>
           Lag et skilt i Sign Forge →

@@ -17,8 +17,6 @@ import { SigngenInspektor } from './Inspektor';
 import { ARBEIDSROM, PANELER } from './paneler';
 import { signtilstand } from './tilstand';
 import { apneCsv } from './csvhandlinger';
-import { DELINGSMERKNAD, delSkilt } from './deling';
-import { kontoMulig } from '@/lib/konto/api';
 import { SigngenBunnbrett } from './Bunnbrett';
 import { dupliserValgte, flyttValgte, slettValgte, velgAlle } from './handlinger';
 import { avsluttKurveredigering, dyttValgte, settKurve, slettKurveValg } from './kurver';
@@ -196,7 +194,6 @@ const plugin: GeneratorPlugin = {
   eksport(_dok, _modell, benk) {
     if (!benk) return {};
     return {
-      ...(kontoMulig ? { merknad: DELINGSMERKNAD, etterEksport: () => void delSkilt(benk) } : {}),
       handlinger: [
         {
           navn: 'Eksporter via CSV',
