@@ -1,4 +1,4 @@
-# Public entry points: index.php and kartlegg.php (admin only, read-only; remove after use).
+# Public entry point: index.php. The survey before a migration is a command-line tool (scripts/kartlegg-konto.php), never here.
 # Settings and shared code are included by them and never served.
 <FilesMatch "^_.*\.php$|^konfig(?:\.eksempel)?\.php$">
   Require all denied

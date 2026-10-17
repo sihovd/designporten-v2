@@ -25,6 +25,9 @@ function dp_testmail(string $ref, string $tekst, array $vedlegg): bool
 $cmsdb = getenv('DP_CMS_DB') ?: __DIR__ . '/../../var/cms-test.sqlite';
 if (!is_dir(dirname($cmsdb))) mkdir(dirname($cmsdb), 0700, true);
 define('DP_CMS_KONFIG', ['dsn' => 'sqlite:' . $cmsdb, 'oppsettkode' => 'lokal-test-oppsettkode']);
+// Accounts: their own settings and their own file, never the CMS's settings (no legacy fallback in tests).
+$kontodb = getenv('DP_KONTO_DB') ?: __DIR__ . '/../../var/konto-test.sqlite';
+define('DP_KONTO_KONFIG', ['dsn' => 'sqlite:' . $kontodb]);
 
 header('X-Robots-Tag: noindex, nofollow');
 if (!str_starts_with($sti, $base)) { http_response_code(404); echo 'Outside test site'; return; }
@@ -35,7 +38,6 @@ foreach (['api/foresporsel/', 'api/bestilling/'] as $api) {
 }
 if ($relativ === 'api/cms/' || $relativ === 'api/cms/index.php') { require $rot . '/api/cms/index.php'; return; }
 if ($relativ === 'api/konto/' || $relativ === 'api/konto/index.php') { require $rot . '/api/konto/index.php'; return; }
-if ($relativ === 'api/konto/kartlegg.php') { require $rot . '/api/konto/kartlegg.php'; return; }
 if ($relativ === 'sitemap.xml') { $_GET['kart'] = '1'; require $rot . '/api/cms/blogg.php'; return; }
 if ($relativ === 'blogg' || str_starts_with($relativ, 'blogg/') || $relativ === 'api/cms/blogg.php') { require $rot . '/api/cms/blogg.php'; return; }
 if (str_ends_with($relativ, '.php') || preg_match('~^api/cms/(data/|nokler\.json)~', $relativ)) { http_response_code(403); return; }

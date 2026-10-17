@@ -84,7 +84,6 @@ for (const fil of [
   'api/konto/_db.php',
   'api/konto/_admin.php',
   'api/konto/_grensesnitt.php',
-  'api/konto/kartlegg.php',
   'api/konto/tjenester.json',
   'api/konto/.htaccess',
   'blogg/index.html',

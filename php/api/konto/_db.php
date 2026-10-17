@@ -5,10 +5,12 @@
  * CMS core, so they run with the CMS switched off or not installed
  * (Sivert's work order «tjenesteplattform», 2026-10-17; docs/konto.md).
  *
- * Settings come from api/konto/konfig.php. Until that file exists, the
- * CMS's api/cms/konfig.php is read instead, as before, so a web host that
- * already runs accounts on the CMS database keeps working. Only the file is
- * read: no CMS code is loaded.
+ * Settings come from api/konto/konfig.php only. Without it the accounts are
+ * switched off: every call answers 503 and nothing connects, migrates or
+ * writes. Using the CMS's database settings is a legacy option that must be
+ * switched on in that file ('bruk_cms_database' => true), and a test build
+ * refuses it (Sivert, 2026-10-17). Only the CMS file is read then: no CMS
+ * code is loaded.
  */
 
 declare(strict_types=1);
@@ -24,7 +26,7 @@ final class KontoFeil extends RuntimeException
     }
 }
 
-/** Which settings file is in use: 'konto', 'cms' (the compatibility fallback) or null (switched off). */
+/** Which settings are in use: 'konto', 'cms' (the legacy option, switched on explicitly) or null (switched off). */
 function konto_kilde(): ?string
 {
     return konto_konfig_med_kilde()[1];
@@ -40,17 +42,20 @@ function konto_konfig_med_kilde(): array
 {
     static $svar = null;
     if ($svar !== null) return $svar;
-    if (PHP_SAPI === 'cli-server') {
-        // the test servers (scripts/*.test.mjs, tests/php/router.php) define these instead of files
-        if (defined('DP_KONTO_KONFIG')) return $svar = [DP_KONTO_KONFIG, 'konto'];
-        if (defined('DP_CMS_KONFIG')) return $svar = [DP_CMS_KONFIG, 'cms'];
-    }
-    foreach (['konto' => __DIR__ . '/konfig.php', 'cms' => dirname(__DIR__) . '/cms/konfig.php'] as $kilde => $fil) {
-        if (!is_file($fil)) continue;
-        $k = require $fil;
-        if (is_array($k) && !empty($k['dsn'])) return $svar = [$k, $kilde];
-    }
-    return $svar = [null, null];
+    // the test servers (scripts/*.test.mjs, tests/php/*router.php) define the settings instead of files
+    $test = PHP_SAPI === 'cli-server';
+    $egen = $test && defined('DP_KONTO_KONFIG') ? DP_KONTO_KONFIG : konto_les_konfig(__DIR__ . '/konfig.php');
+    if (!is_array($egen)) return $svar = [null, null];
+    if (!empty($egen['dsn'])) return $svar = [$egen, 'konto'];
+    if (($egen['bruk_cms_database'] ?? false) !== true || !empty(konto_bygg()['test'])) return $svar = [null, null];
+    $cms = $test && defined('DP_CMS_KONFIG') ? DP_CMS_KONFIG : konto_les_konfig(dirname(__DIR__) . '/cms/konfig.php');
+    if (!is_array($cms) || empty($cms['dsn'])) return $svar = [null, null];
+    return $svar = [['dsn' => $cms['dsn'], 'bruker' => $cms['bruker'] ?? null, 'passord' => $cms['passord'] ?? null], 'cms'];
+}
+
+function konto_les_konfig(string $fil): mixed
+{
+    return is_file($fil) ? require $fil : null;
 }
 
 function konto_bygg(): array

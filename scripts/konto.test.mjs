@@ -8,7 +8,7 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -85,8 +85,12 @@ function mysqlKjor(sql) {
 /** The database the server in `rot` uses, as a PDO DSN. */
 const dsnFor = (rot) => rot.dsn ?? `sqlite:${join(rot.sti, 'cms.sqlite')}`;
 
-/** A PHP server over a copy of php/; `utenCms` removes the CMS and gives the accounts their own settings. */
-async function startServer({ port, utenCms = false }) {
+/**
+ * A PHP server over a copy of php/. The accounts have their own settings
+ * (the same database as the CMS here); `utenCms` removes the CMS, `utenKonto`
+ * leaves the account settings out.
+ */
+async function startServer({ port, utenCms = false, utenKonto = false }) {
   const rot = mkdtempSync(join(tmpdir(), 'dp-konto-'));
   let dsn = null;
   if (mysql) {
@@ -105,6 +109,7 @@ async function startServer({ port, utenCms = false }) {
       DP_CMS_ROT: rot,
       ...(dsn ? { DP_CMS_DSN: dsn } : {}),
       ...(utenCms ? { DP_UTEN_CMS: '1' } : {}),
+      ...(utenKonto ? { DP_UTEN_KONTO: '1' } : {}),
     },
     stdio: 'ignore',
   });
@@ -117,6 +122,18 @@ async function startServer({ port, utenCms = false }) {
     }
   }
   throw new Error('PHP-serveren startet ikke.');
+}
+
+/** The command-line survey (scripts/kartlegg-konto.php) on a settings file pointing at `dsn`. */
+function kartlegg(mappe, dsn, ...ekstra) {
+  const konfig = join(mappe, 'kartlegg-konfig.php');
+  const [bruker, passord] = dsn.startsWith('mysql:')
+    ? [process.env.DP_CMS_BRUKER ?? '', process.env.DP_CMS_PASSORD ?? '']
+    : ['', ''];
+  writeFileSync(konfig, `<?php return json_decode('${JSON.stringify({ dsn, bruker, passord })}', true);\n`);
+  return spawnSync(php, [resolve('scripts/kartlegg-konto.php'), `--konfig=${konfig}`, ...ekstra], {
+    encoding: 'utf8',
+  });
 }
 
 /** A sign shared as a guest before 2026-10-17, written straight into the database (guests can no longer publish). */
@@ -160,8 +177,7 @@ describe(
       const { status, data } = await gjest.konto('status');
       assert.equal(status, 200);
       assert.equal(data.aktiv, true);
-      // no api/konto/konfig.php yet: the CMS's settings are used, as before
-      assert.equal(data.oppsett, 'cms');
+      assert.equal(data.oppsett, 'konto');
       assert.equal(data.tjenester.csv.betaling, 'gratis-inntil-videre');
       assert.equal(data.leverandorer.stripe.aktiv, false);
       assert.equal(data.leverandorer.vipps.aktiv, false);
@@ -320,19 +336,6 @@ describe(
           passord: 'et-langt-passord',
         },
       });
-      const kart = await fetch(`${URL_}/api/konto/kartlegg.php`, {
-        headers: { Cookie: [...admin.kaker].map(([k, v]) => `${k}=${v}`).join('; ') },
-      });
-      assert.equal(kart.status, 200);
-      const tekst = await kart.text();
-      const tall = JSON.parse(tekst);
-      assert.equal(tall.oppsett, 'cms');
-      assert.equal(tall.database, mysql ? 'mysql' : 'sqlite');
-      assert.equal(tall.medlemmer.aktive, 1);
-      assert.equal(tall.galleri.utenEier, 1);
-      assert.equal(tall.migrering.konto, 2);
-      // counts only: no addresses or names
-      assert.ok(!tekst.includes('@') && !tekst.includes('Ola'));
       const register = await admin.konto('admin-medlemmer');
       assert.equal(register.status, 200);
       assert.equal(register.data.antall, 1);
@@ -345,10 +348,43 @@ describe(
       // a member is not an administrator
       assert.equal((await ola.konto('admin-medlemmer')).status, 401);
       assert.equal((await ola.konto('admin-skjul', { kropp: { id: olasSkilt } })).status, 401);
-      const kartMedlem = await fetch(`${URL_}/api/konto/kartlegg.php`, {
-        headers: { Cookie: `${KAKE}=${ola.kaker.get(KAKE)}` },
-      });
-      assert.equal(kartMedlem.status, 401);
+    });
+
+    test('kartleggingen er et kommandolinjeverktøy som bare leser og bare viser antall', async () => {
+      // not on the web any more
+      assert.equal((await fetch(`${URL_}/api/konto/kartlegg.php`)).status, 404);
+      const r = kartlegg(rot.sti, dsnFor(rot));
+      assert.equal(r.status, 0, r.stderr);
+      const tall = JSON.parse(r.stdout);
+      assert.equal(tall.database, mysql ? 'mysql' : 'sqlite');
+      assert.equal(tall.medlemmer.aktive, 1);
+      assert.equal(tall.galleri.utenEier, 1);
+      assert.equal(tall.galleri.skjulte, 1);
+      assert.equal(tall.migrering.konto, 2);
+      // counts only: no addresses or names
+      assert.ok(!r.stdout.includes('@') && !r.stdout.includes('Ola'));
+    });
+
+    test('kartleggingen starter bare med en innstillingsfil, og migrerer eller lager ingenting', () => {
+      const uten = spawnSync(php, [resolve('scripts/kartlegg-konto.php')], { encoding: 'utf8' });
+      assert.equal(uten.status, 2);
+      assert.match(uten.stderr, /--konfig=/);
+      const mappe = mkdtempSync(join(tmpdir(), 'dp-kartlegg-'));
+      try {
+        // a missing SQLite file is not created
+        const mangler = join(mappe, 'finnes-ikke.sqlite');
+        assert.notEqual(kartlegg(mappe, `sqlite:${mangler}`).status, 0);
+        assert.equal(existsSync(mangler), false);
+        // an empty database stays empty: no tables, no migration
+        const tom = join(mappe, 'tom.sqlite');
+        writeFileSync(tom, '');
+        const r = kartlegg(mappe, `sqlite:${tom}`);
+        assert.equal(r.status, 0, r.stderr);
+        assert.deepEqual(JSON.parse(r.stdout).tabeller, {});
+        assert.equal(statSync(tom).size, 0);
+      } finally {
+        rmSync(mappe, { recursive: true, force: true });
+      }
     });
 
     test('sletting: kontoen, skiltene og innloggingene forsvinner', async () => {
@@ -404,11 +440,115 @@ describe('Brukerkontoer uten CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikk
     assert.equal((await k.konto('mine-skilt')).data.skilt[0].id, delt.data.id);
   });
 
-  test('uten CMS finnes ingen administrator: admin-handlinger og kartleggingen er stengt', async () => {
+  test('uten CMS finnes ingen administrator: admin-handlingene er stengt', async () => {
     assert.equal((await k.konto('admin-medlemmer')).status, 503);
-    const kart = await fetch(`${URL_}/api/konto/kartlegg.php`, {
-      headers: { Cookie: `${KAKE}=${k.kaker.get(KAKE)}` },
+  });
+});
+
+describe(
+  'Brukerkontoer uten kontooppsett',
+  { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' },
+  () => {
+    const port = PORT + 600;
+    let rot;
+    let server;
+    const k = klient();
+
+    before(async () => {
+      URL_ = `http://127.0.0.1:${port}`;
+      // the CMS has settings, the accounts do not: the CMS's must not be borrowed
+      ({ rot, server } = await startServer({ port, utenKonto: true }));
     });
-    assert.equal(kart.status, 503);
+
+    after(() => {
+      server?.kill();
+      if (rot) rmSync(rot.sti, { recursive: true, force: true });
+      if (mysql) for (const navn of mysqlDatabaser.splice(0)) mysqlKjor(`DROP DATABASE IF EXISTS ${navn}`);
+    });
+
+    test('status sier at kontoene er av, alle andre kall får 503, og databasen røres ikke', async () => {
+      const { status, data } = await k.konto('status');
+      assert.equal(status, 200);
+      assert.equal(data.aktiv, false);
+      assert.equal(data.oppsett, null);
+      const kall = [
+        [
+          'registrer',
+          { kropp: { navn: 'Kari', epost: 'kari@example.no', passord: 'et-langt-passord', vilkar: true } },
+        ],
+        ['logginn', { kropp: { epost: 'kari@example.no', passord: 'et-langt-passord' } }],
+        ['meg'],
+        ['skilt'],
+        ['del', { kropp: { mal: mal('Postkasse') } }],
+        ['admin-medlemmer'],
+      ];
+      for (const [r, v] of kall) {
+        const svar = await k.konto(r, v);
+        assert.equal(svar.status, 503, r);
+        assert.match(svar.data.feil, /ikke slått på/);
+      }
+      if (mysql) {
+        const navn = mysqlDatabaser.at(-1);
+        const r = kartlegg(rot.sti, `mysql:${mysql};dbname=${navn};charset=utf8mb4`);
+        assert.equal(r.status, 0, r.stderr);
+        assert.deepEqual(JSON.parse(r.stdout).tabeller, {});
+      } else {
+        // SQLite would have created the file on the first connection
+        assert.equal(existsSync(join(rot.sti, 'cms.sqlite')), false);
+      }
+    });
+  },
+);
+
+describe('Kontoinnstillinger', { skip: !harPhp && 'PHP er ikke installert' }, () => {
+  /** Which settings _db.php picks, given these files (null = the file is missing). */
+  function oppsett({ konto = null, cms = null, test = false }) {
+    const rot = mkdtempSync(join(tmpdir(), 'dp-kontooppsett-'));
+    try {
+      mkdirSync(join(rot, 'api/konto'), { recursive: true });
+      mkdirSync(join(rot, 'api/cms'), { recursive: true });
+      cpSync(resolve('php/api/konto/_db.php'), join(rot, 'api/konto/_db.php'));
+      const php_ = (v) => `<?php return ${v};\n`;
+      writeFileSync(join(rot, 'api/bygg.php'), php_(`['base' => '/', 'test' => ${test}]`));
+      if (konto) writeFileSync(join(rot, 'api/konto/konfig.php'), php_(konto));
+      if (cms) writeFileSync(join(rot, 'api/cms/konfig.php'), php_(cms));
+      const r = spawnSync(
+        php,
+        [
+          '-r',
+          'require $argv[1]; echo json_encode(konto_konfig_med_kilde());',
+          join(rot, 'api/konto/_db.php'),
+        ],
+        { encoding: 'utf8' },
+      );
+      assert.equal(r.status, 0, r.stderr);
+      return JSON.parse(r.stdout);
+    } finally {
+      rmSync(rot, { recursive: true, force: true });
+    }
+  }
+  const CMS = "['dsn' => 'sqlite:/cms.sqlite', 'oppsettkode' => 'hemmelig-kode-1234']";
+
+  test('uten api/konto/konfig.php er kontoene av, selv om CMS-et har innstillinger', () => {
+    assert.deepEqual(oppsett({ cms: CMS }), [null, null]);
+  });
+
+  test('egne innstillinger brukes', () => {
+    assert.deepEqual(oppsett({ konto: "['dsn' => 'sqlite:/konto.sqlite']", cms: CMS }), [
+      { dsn: 'sqlite:/konto.sqlite' },
+      'konto',
+    ]);
+  });
+
+  test('CMS-ets database brukes bare når det er slått på uttrykkelig, og aldri på et testbygg', () => {
+    const legacy = "['bruk_cms_database' => true]";
+    assert.deepEqual(oppsett({ konto: "['bruk_cms_database' => 'ja']", cms: CMS }), [null, null]);
+    // only the connection is taken over, not the CMS's other settings
+    assert.deepEqual(oppsett({ konto: legacy, cms: CMS }), [
+      { dsn: 'sqlite:/cms.sqlite', bruker: null, passord: null },
+      'cms',
+    ]);
+    assert.deepEqual(oppsett({ konto: legacy, cms: CMS, test: true }), [null, null]);
+    assert.deepEqual(oppsett({ konto: legacy }), [null, null]);
   });
 });

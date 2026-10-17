@@ -19,6 +19,7 @@ async function nullstill() {
   await rm('var/cms-test.sqlite', { force: true });
   await rm('var/cms-test.sqlite-wal', { force: true });
   await rm('var/cms-test.sqlite-shm', { force: true });
+  for (const del of ['', '-wal', '-shm']) await rm(`var/konto-test.sqlite${del}`, { force: true });
   await rm('dist/api/cms/data/publisert.json', { force: true });
   await rm('dist/api/cms/data/medier', { recursive: true, force: true });
   await rm('dist/medier/2026', { recursive: true, force: true });
