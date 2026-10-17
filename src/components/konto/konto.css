@@ -209,3 +209,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* a long e-mail address breaks instead of pushing the card wider than a 320 px screen */
+.konto__kort .konto__dempet {
+  overflow-wrap: anywhere;
+}

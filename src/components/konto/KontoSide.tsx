@@ -109,7 +109,7 @@ function Innlogging({ ferdig }: { ferdig: (m: Medlem) => void }) {
             navn="navn"
             etikett="Navn"
             autocomplete="name"
-            hjelp="Vises ved skiltene du deler."
+            hjelp="Vises ved skiltene du publiserer."
             verdi={navn}
             sett={settNavn}
           />
