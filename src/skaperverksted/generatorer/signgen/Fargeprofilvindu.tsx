@@ -23,6 +23,8 @@ import { nyttSigngenDokument, palett, settPalett, startErValgt } from './dokumen
 import { signtilstand } from './tilstand';
 import { lastEgneFilamenter } from './filamenter';
 import { Filamentskjema, TOMT } from './Fargepanel';
+import { Samlingsvelger } from './Fargesamlinger';
+import { SAMLINGER, lagreSamlingFarger } from './fargesamlinger';
 
 function Fargerad({ farger }: { farger: string[] }) {
   return (
@@ -46,6 +48,7 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
   const [navn, settNavn] = useState('');
   const [melding, settMelding] = useState<string | null>(null);
   const [nyttFilament, settNyttFilament] = useState(false);
+  const [samling, settSamling] = useState<string | null>(null);
 
   const velgProfil = (p: Fargeprofil) => {
     settValgt(p.id);
@@ -53,11 +56,13 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
     settMelding(null);
   };
   const endreFarger = (f: string[]) => {
+    settSamling(null);
     settFarger(f);
     settValgt([...FERDIGE_PROFILER, ...egne].find((p) => p.farger.join() === f.join())?.id ?? null);
   };
 
   const bruk = () => {
+    lagreSamlingFarger(farger);
     if (start) {
       // a fresh sign: start it in these colours (text first, base second)
       const ny = nyttSigngenDokument(farger);
@@ -146,6 +151,18 @@ export function Fargeprofilvindu({ benk }: { benk: Arbeidsbenk }) {
             </ul>
           </>
         )}
+
+        <h3 id="fargesamlinger">Fargesamlinger</h3>
+        <Samlingsvelger
+          kompakt
+          valgt={samling}
+          bruk={(ider, navn) => {
+            settFarger(ider);
+            settValgt(null);
+            settSamling(SAMLINGER.find((x) => x.navn === navn)?.id ?? null);
+            settMelding(`«${navn}» er valgt. Du kan fjerne eller legge til farger under før du går videre.`);
+          }}
+        />
 
         <h3 id="profilens-farger">Fargene i profilen ({farger.length})</h3>
         <ul class="profilfargeliste" role="list" aria-labelledby="profilens-farger">
