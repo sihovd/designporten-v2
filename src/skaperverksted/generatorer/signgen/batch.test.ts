@@ -75,7 +75,8 @@ describe('Variants', () => {
     const csv = tolkCsv(
       'navn;Tekst\nOla;Lilla\nEt veldig langt navn som ikke får plass;Cyan\nKari;Neonoransje',
     );
-    const v = lagVarianter(m, csv, foreslaKobling(csv, m));
+    // a plate of fixed size cannot take the long name (a plate that grows is tested in csvlayout.test.ts)
+    const v = lagVarianter(m, csv, foreslaKobling(csv, m), { tilpassSkilt: false });
     expect(v).toHaveLength(3);
     const tekst = (d: Dokument) =>
       (Object.values(d.objekter).find((o) => o.kilde.type === 'tekst')!.kilde as TekstKilde).tekst;

@@ -40,6 +40,7 @@ import {
   settKolonne,
   settProfilForRad,
   skiltinfo,
+  STANDARDVALG,
   synligeRader,
   tilbakestillOverstyring,
   tilbakestillSkilt,
@@ -235,7 +236,8 @@ describe('Validation before «Generer» (§29)', () => {
   it('passes with a good master, mapping and rows, and blocks on problems', () => {
     const m = master();
     const csv = tolkCsv('navn\nOla\nEt veldig langt navn som ikke får plass\nKari');
-    const a = nyttArbeid(csv, 'x.csv', m);
+    // with a plate of fixed size the long name does not fit
+    const a = { ...nyttArbeid(csv, 'x.csv', m), valg: { ...STANDARDVALG, tilpassSkilt: false } };
     const v = bygSkilt(m, a, a.valgte, { profiler: PROFILER });
     const r = valider(m, a, v, PROFILER);
     expect(r.klar).toBe(false);

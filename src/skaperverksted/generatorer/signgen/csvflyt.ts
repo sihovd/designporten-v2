@@ -80,8 +80,10 @@ export type Egenkolonne = 'dekor' | 'profil';
 export interface Csvvalg {
   /** Keep the master's gaps inside text groups. */
   holdAvstand: boolean;
-  /** Keep hanging holes at their distance from the name. */
+  /** Keep holes, decorations and other free objects at their distance from the name. */
   holdHull: boolean;
+  /** Let a plate round the name grow and shrink with it, and keep the holes' distance to its edge. */
+  tilpassSkilt: boolean;
   sortering: Sortering;
   /** The column the alphabetical order follows. */
   sorterKolonne: number;
@@ -90,6 +92,7 @@ export interface Csvvalg {
 export const STANDARDVALG: Csvvalg = {
   holdAvstand: true,
   holdHull: true,
+  tilpassSkilt: true,
   sortering: 'csv',
   sorterKolonne: 0,
 };
@@ -490,6 +493,7 @@ export async function klargjorMaster(dok: Dokument, a: Csvarbeid): Promise<Dokum
     rader: [a.masterRad],
     gruppeavstand: false,
     hullavstand: false,
+    tilpassSkilt: false,
   })[0];
   if (!v) return d;
   return settArbeid({ ...v.dok, navn: dok.navn, id: dok.id }, a);
@@ -739,6 +743,7 @@ export function bygSkilt(
   return lagVarianter(rentDokument(master), tilCsv(a), a.kobling, {
     gruppeavstand: a.valg.holdAvstand,
     hullavstand: a.valg.holdHull,
+    tilpassSkilt: a.valg.tilpassSkilt,
     ...byggvalg(a, rader, v),
   });
 }
@@ -753,6 +758,7 @@ export function grunnskilt(
   return lagVarianter(rentDokument(master), tilCsv(a), a.kobling, {
     gruppeavstand: a.valg.holdAvstand,
     hullavstand: a.valg.holdHull,
+    tilpassSkilt: a.valg.tilpassSkilt,
     ...v,
     rader: [rad],
   })[0];

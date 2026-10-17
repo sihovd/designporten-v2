@@ -6,7 +6,7 @@
  *
  * Pure functions; the dialog in Batch.tsx drives them.
  */
-import { finnLag, objekterILag, type Dokument, type Objekt, type TekstKilde } from '../../core/dokument';
+import type { Dokument, TekstKilde } from '../../core/dokument';
 import { finnMateriale, materialer } from '../../core/materialer';
 import { erTom, slaSammen, tomBoks, type Boks } from '../../core/geometri2d';
 import {
@@ -27,13 +27,14 @@ import {
 } from './fargeprofiler';
 import { brukOverstyringer, type Overstyringer } from './overstyring';
 import {
-  blekkBoks,
-  byggSigngen,
-  fotavtrykkBoks,
-  lokalGeometri,
-  objektStorrelse,
-  verdensBoks,
-} from './modell';
+  brukGruppeavstand,
+  brukLayout,
+  gruppeavstander,
+  layoutProblemer,
+  layoutregler,
+  tekstUtenforKropp,
+} from './csvlayout';
+import { byggSigngen, fotavtrykkBoks, lokalGeometri, objektStorrelse, verdensBoks } from './modell';
 import { erIngenDekor, finnDekorFraTekst, hentEgneDekor, type EgetDekor } from './dekor';
 import type { Mesh, ModellDel } from '../../geometri/mesh';
 import { filnavn as trygtFilnavn, tilTremfSamlinger, type TremfSamling } from '../../eksport/tremf';
@@ -197,284 +198,26 @@ export interface Variant {
   boks: Boks;
 }
 
-/**
- * The area a field's text must stay inside: the shapes of the plain
- * layers (a plate or an SVG frame). Text layers and their outlines grow
- * with the text, so a sign built from outlines has no such limit, and
- * other texts are not a limit either.
- */
-function feltGrense(dok: Dokument): Boks | null {
-  let b = tomBoks();
-  for (const o of Object.values(dok.objekter)) {
-    if (!o.synlig || o.operasjon === 'trekk-fra' || o.kilde.type === 'tekst') continue;
-    if (finnLag(dok, o.lagId)?.tekstlag) continue;
-    b = slaSammen(b, verdensBoks(o));
-  }
-  return erTom(b) ? null : b;
-}
+// ---------- layout rules (csvlayout.ts) ----------
 
-// ---------- spacing inside a group ----------
-
-/**
- * The gap between texts (and vectors) that belong together is a rule:
- * measured on the master sign and kept on every sign, so first and last
- * name sit the same distance apart whatever the names are (Sivert,
- * 2026-10-05). The group keeps its centre, so it grows from the middle.
- *
- * Texts that sit side by side (or stacked) form a group whether they are in
- * one text layer or in several. Side by side, the gap is the visible one,
- * from the last letter to the next text's first letter; stacked, it is the
- * gap between the lines, so the baselines keep a steady pitch whatever
- * ascenders and descenders the names have.
- */
-export interface Gruppeavstand {
-  /** The text layer of the first object. */
-  lagId: string;
-  akse: 'x' | 'y';
-  /** The group's objects in reading order: left to right, or top to bottom. */
-  ider: string[];
-  /** Gap before each object after the first (mm). */
-  gap: number[];
-  /** The group's centre along the axis (mm). */
-  senter: number;
-}
-
-/** Gaps below this are overlaps, not spacing (mm). */
-const MIN_GAP = -2;
-
-/** What gaps are measured on: the printed letters across, the line boxes down. */
-function gruppeboks(o: Objekt): Boks {
-  const ink = blekkBoks(o);
-  const linje = verdensBoks(o);
-  return { minX: ink.minX, maksX: ink.maksX, minY: linje.minY, maksY: linje.maksY };
-}
-
-interface Medlem {
-  o: Objekt;
-  b: Boks;
-}
-
-/** Along the axis: the gap between two boxes (negative when they overlap). */
-function langsAkse(akse: 'x' | 'y', a: Boks, b: Boks): number {
-  return akse === 'x'
-    ? Math.max(a.minX - b.maksX, b.minX - a.maksX)
-    : Math.max(a.minY - b.maksY, b.minY - a.maksY);
-}
-
-/** Across the axis: how far the boxes overlap (side by side: in height; stacked: in width). */
-function tversAvAkse(akse: 'x' | 'y', a: Boks, b: Boks): number {
-  return akse === 'x'
-    ? Math.min(a.maksY, b.maksY) - Math.max(a.minY, b.minY)
-    : Math.min(a.maksX, b.maksX) - Math.max(a.minX, b.minX);
-}
-
-/** The objects a gap rule can hold: text and vectors in the visible text layers. */
-function gruppemedlemmer(master: Dokument): Medlem[] {
-  const ut: Medlem[] = [];
-  for (const lag of master.lag) {
-    if (!lag.tekstlag || !lag.synlig) continue;
-    for (const o of objekterILag(master, lag.id)) {
-      if (o.synlig && o.operasjon === 'legg-til' && o.kilde.type !== 'form') ut.push({ o, b: gruppeboks(o) });
-    }
-  }
-  return ut;
-}
-
-export function gruppeavstander(master: Dokument): Gruppeavstand[] {
-  const ut: Gruppeavstand[] = [];
-  const brukt = new Set<string>();
-  // rows first: a text with something beside it belongs to the row, not to a stack
-  for (const akse of ['x', 'y'] as const) {
-    const frie = gruppemedlemmer(master).filter((m) => !brukt.has(m.o.id));
-    const forelder = frie.map((_, i) => i);
-    const rot = (i: number): number => {
-      while (forelder[i] !== i) {
-        forelder[i] = forelder[forelder[i]!]!;
-        i = forelder[i]!;
-      }
-      return i;
-    };
-    for (let i = 0; i < frie.length; i++) {
-      for (let j = i + 1; j < frie.length; j++) {
-        const a = frie[i]!.b;
-        const b = frie[j]!.b;
-        // next to each other along the axis, and level with each other across it
-        if (langsAkse(akse, a, b) >= MIN_GAP && tversAvAkse(akse, a, b) > -MIN_GAP) forelder[rot(i)] = rot(j);
-      }
-    }
-    const grupper = new Map<number, Medlem[]>();
-    frie.forEach((m, i) => grupper.set(rot(i), [...(grupper.get(rot(i)) ?? []), m]));
-    for (const g of grupper.values()) {
-      // only worth a rule when something in the group varies from sign to sign
-      if (g.length < 2 || !g.some((m) => feltNavn(m.o))) continue;
-      const sortert = [...g].sort((a, b) => (akse === 'x' ? a.b.minX - b.b.minX : b.b.maksY - a.b.maksY));
-      const gap = sortert.slice(1).map((m, i) => langsAkse(akse, sortert[i]!.b, m.b));
-      if (!gap.every((v) => v >= MIN_GAP)) continue;
-      const fra = Math.min(...g.map((m) => (akse === 'x' ? m.b.minX : m.b.minY)));
-      const til = Math.max(...g.map((m) => (akse === 'x' ? m.b.maksX : m.b.maksY)));
-      for (const m of g) brukt.add(m.o.id);
-      ut.push({
-        lagId: sortert[0]!.o.lagId,
-        akse,
-        ider: sortert.map((m) => m.o.id),
-        gap,
-        senter: (fra + til) / 2,
-      });
-    }
-  }
-  return ut;
-}
-
-/** Lay a group out again with its measured gaps, around its centre. */
-function brukGruppeavstand(dok: Dokument, regler: Gruppeavstand[]): Dokument {
-  let d = dok;
-  for (const r of regler) {
-    // a hidden member (a decoration left out) takes no room and leaves no gap
-    const med = r.ider
-      .map((id, i) => ({ o: d.objekter[id], foran: i > 0 ? r.gap[i - 1]! : 0 }))
-      .filter((m): m is { o: Objekt; foran: number } => !!m.o && m.o.synlig);
-    if (med.length < 2) continue;
-    const bokser = med.map((m) => gruppeboks(m.o));
-    const storrelse = bokser.map((b) => (r.akse === 'x' ? b.maksX - b.minX : b.maksY - b.minY));
-    const total = storrelse.reduce((a, v) => a + v, 0) + med.slice(1).reduce((a, m) => a + m.foran, 0);
-    let pos = r.akse === 'x' ? r.senter - total / 2 : r.senter + total / 2;
-    const flytt = new Map<string, number>();
-    med.forEach((m, i) => {
-      const b = bokser[i]!;
-      if (r.akse === 'x') {
-        if (i > 0) pos += m.foran;
-        flytt.set(m.o.id, pos - b.minX);
-        pos += storrelse[i]!;
-      } else {
-        if (i > 0) pos -= m.foran;
-        flytt.set(m.o.id, pos - b.maksY);
-        pos -= storrelse[i]!;
-      }
-    });
-    d = oppdaterObjekter(d, [...flytt.keys()], (o) => {
-      const v = flytt.get(o.id)!;
-      return Math.abs(v) < 1e-9
-        ? o
-        : { ...o, transform: { ...o.transform, [r.akse]: o.transform[r.akse] + v } };
-    });
-  }
-  return d;
-}
-
-// ---------- holes follow the name ----------
-
-/**
- * A hanging hole or an eye has a reference to the name (Sivert, 2026-10-05:
- * «hullet må ikke bli stående for seg selv, lik avstandsmotor som med
- * navnene»): it keeps its distance from the printed letters, on the side it
- * has on the master sign, so it follows the name when the name gets longer.
- * On a fixed plate or frame a hole keeps its place, since the plate does not
- * grow with the name.
- */
-export type Hullside = 'venstre' | 'hoyre' | 'topp' | 'bunn';
-
-export interface Hullanker {
-  id: string;
-  side: Hullside;
-  /** Clear distance from the name's box to the hole's edge on that side (mm, negative = overlap). */
-  gap: number;
-  /** How far the hole's centre lies from the name's centre across that side (mm). */
-  tvers: number;
-}
-
-/** The box of everything that makes up the name: the printed letters across, the lines down. */
-export function navneboks(dok: Dokument): Boks | null {
-  let b = tomBoks();
-  for (const m of gruppemedlemmer(dok)) b = slaSammen(b, m.b);
-  return erTom(b) ? null : b;
-}
-
-/**
- * Does a hole follow the name? Its own setting wins. Automatically it does
- * on a sign whose size comes from the name (outlines round the text) and
- * not on a fixed plate or frame, which keeps its size and its holes.
- */
-export function folgerNavnet(dok: Dokument, hull: Objekt): boolean {
-  if (hull.kilde.type !== 'form' || hull.kilde.form !== 'hull') return false;
-  const valg = hull.kilde.plass ?? 'auto';
-  return valg === 'auto' ? !feltGrense(dok) : valg === 'navn';
-}
-
-/** Where a hole lies in relation to the name: the side it is furthest out on, its gap and its place across. */
-export function hullanker(dok: Dokument, hull: Objekt): Hullanker | null {
-  const n = navneboks(dok);
-  if (!n) return null;
-  const h = verdensBoks(hull);
-  const hx = (h.minX + h.maksX) / 2,
-    hy = (h.minY + h.maksY) / 2;
-  const kandidater: { side: Hullside; gap: number }[] = [
-    { side: 'venstre', gap: n.minX - h.maksX },
-    { side: 'hoyre', gap: h.minX - n.maksX },
-    { side: 'topp', gap: h.minY - n.maksY },
-    { side: 'bunn', gap: n.minY - h.maksY },
-  ];
-  // the side the hole lies furthest out on; over the name itself, the nearest edge
-  const best = kandidater.reduce((a, b) => (b.gap > a.gap ? b : a));
-  const vannrett = best.side === 'venstre' || best.side === 'hoyre';
-  return {
-    id: hull.id,
-    side: best.side,
-    gap: best.gap,
-    tvers: vannrett ? hy - (n.minY + n.maksY) / 2 : hx - (n.minX + n.maksX) / 2,
-  };
-}
-
-/** The holes of the master that follow the name, with their references. */
-export function hullankre(master: Dokument): Hullanker[] {
-  const ut: Hullanker[] = [];
-  for (const o of Object.values(master.objekter)) {
-    if (!o.synlig || !folgerNavnet(master, o)) continue;
-    const a = hullanker(master, o);
-    if (a) ut.push(a);
-  }
-  return ut;
-}
-
-/** Put the holes at their references from the name of this sign. */
-function brukHullankre(dok: Dokument, ankre: Hullanker[]): Dokument {
-  const n = navneboks(dok);
-  if (!n || !ankre.length) return dok;
-  let d = dok;
-  for (const a of ankre) {
-    const o = d.objekter[a.id];
-    if (!o) continue;
-    const h = verdensBoks(o);
-    const cx = (n.minX + n.maksX) / 2,
-      cy = (n.minY + n.maksY) / 2;
-    let dx = 0,
-      dy = 0;
-    if (a.side === 'venstre') dx = n.minX - a.gap - h.maksX;
-    else if (a.side === 'hoyre') dx = n.maksX + a.gap - h.minX;
-    else if (a.side === 'topp') dy = n.maksY + a.gap - h.minY;
-    else dy = n.minY - a.gap - h.maksY;
-    if (a.side === 'venstre' || a.side === 'hoyre') dy = cy + a.tvers - (h.minY + h.maksY) / 2;
-    else dx = cx + a.tvers - (h.minX + h.maksX) / 2;
-    if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) continue;
-    d = oppdaterObjekter(d, [o.id], (x) => ({
-      ...x,
-      transform: { ...x.transform, x: x.transform.x + dx, y: x.transform.y + dy },
-    }));
-  }
-  return d;
-}
-
-/** Move a hole so it lies `gap` mm from the name on the side it is on (the inspector's distance field). */
-export function settHullavstand(dok: Dokument, hullId: string, gap: number): Dokument {
-  const o = dok.objekter[hullId];
-  const a = o && hullanker(dok, o);
-  return a ? brukHullankre(dok, [{ ...a, gap }]) : dok;
-}
+export {
+  gruppeavstander,
+  hullanker,
+  folgerNavnet,
+  navneboks,
+  settHullavstand,
+  type Gruppeavstand,
+  type Hullanker,
+  type Hullside,
+} from './csvlayout';
 
 export interface Varianttilvalg {
   /** Keep the master's gaps inside text groups. Default on. */
   gruppeavstand?: boolean;
-  /** Keep hanging holes and eyes at their distance from the name. Default on. */
+  /** Keep hanging holes, decorations and other free objects at their distance from the name. Default on. */
   hullavstand?: boolean;
+  /** Let a plate round the name (a rectangle or an ellipse) grow and shrink with the content. Default on. */
+  tilpassSkilt?: boolean;
   /** The user's own gallery vectors (default: those stored in this browser). */
   egneDekor?: EgetDekor[];
   /** The colour profiles a CSV cell can name (default: ready-made and the user's own). */
@@ -493,9 +236,9 @@ export function lagVarianter(
   tilvalg: Varianttilvalg = {},
 ): Variant[] {
   const feltMaster = feltObjekter(master);
-  const grense = feltGrense(master);
   const regler = tilvalg.gruppeavstand === false ? [] : gruppeavstander(master);
-  const ankre = tilvalg.hullavstand === false ? [] : hullankre(master);
+  const fullt = layoutregler(master, tilvalg.tilpassSkilt !== false);
+  const layout = tilvalg.hullavstand === false ? { ...fullt, ankre: [], kropper: [] } : fullt;
   const egne = tilvalg.egneDekor ?? hentEgneDekor();
   const profiler = tilvalg.profiler ?? alleProfiler();
   const grunnpalett = palett(master);
@@ -557,26 +300,15 @@ export function lagVarianter(
       }
     });
     if (regler.length) dok = brukGruppeavstand(dok, regler);
-    if (ankre.length) dok = brukHullankre(dok, ankre);
+    dok = brukLayout(dok, layout);
     const lokale = tilvalg.overstyringer?.[indeks];
     if (lokale) dok = brukOverstyringer(dok, lokale);
     for (const o of feltObjekter(dok)) {
       if (o.kilde.type !== 'tekst') continue;
       const g = lokalGeometri(o.kilde);
-      if (!g) continue;
-      if (g.mangler.length) problemer.push(`fonten mangler ${g.mangler.map((c) => `«${c}»`).join(', ')}`);
-      const b = verdensBoks(o);
-      const margin = 1;
-      if (
-        grense &&
-        (b.minX < grense.minX + margin ||
-          b.maksX > grense.maksX - margin ||
-          b.minY < grense.minY + margin ||
-          b.maksY > grense.maksY - margin)
-      ) {
-        problemer.push(`«${o.kilde.tekst.slice(0, 24)}» er for lang for skiltet`);
-      }
+      if (g?.mangler.length) problemer.push(`fonten mangler ${g.mangler.map((c) => `«${c}»`).join(', ')}`);
     }
+    problemer.push(...tekstUtenforKropp(dok, layout), ...layoutProblemer(master, dok, layout));
     // the footprint on the plate: what is printed, outlines and eyes too, not just the objects
     let boks = fotavtrykkBoks(dok) ?? tomBoks();
     for (const o of Object.values(dok.objekter)) if (o.synlig) boks = slaSammen(boks, verdensBoks(o));

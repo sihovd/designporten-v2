@@ -34,11 +34,13 @@ import {
 } from './dokument';
 import {
   erOye,
+  fotavtrykkBoks,
   lokalGeometri,
   MIN_OMRISSBREDDE,
   objektFarge,
   objektStorrelse,
   STANDARD_RINGBREDDE,
+  verdensBoks,
 } from './modell';
 import { dupliserValgte, settObjektFarge, slettValgte, valgte } from './handlinger';
 import { brukSigntilstand, signtilstand } from './tilstand';
@@ -51,6 +53,7 @@ import { Strekseksjon } from './Strekpanel';
 import { Fargevelger } from './Fargevelger';
 import { brukPanelKontekst } from '../../shell/paneler/kontekst';
 import { folgerNavnet, hullanker, settHullavstand } from './batch';
+import { kanForankres, kanTilpasses, kropper, plassFor } from './csvlayout';
 
 /**
  * Colour: a swatch that opens a menu of the filaments in the sign's colour
@@ -91,8 +94,12 @@ function Materialvelger({
 
 const SIDENAVN = { venstre: 'til venstre for', hoyre: 'til høyre for', topp: 'over', bunn: 'under' } as const;
 
-/** A hole's reference to the name: it keeps its distance from the letters on every sign in a CSV batch. */
-function HullReferanse({
+/**
+ * The layout rule of an object in a CSV series (Sivert, 2026-10-16): a hole, a decoration or another free
+ * object keeps its distance to the name; a plate round the name follows the content. Shown for the objects
+ * a rule can hold, with the reference the master gives.
+ */
+function Forankring({
   benk,
   o,
   endre,
@@ -102,11 +109,51 @@ function HullReferanse({
   endre: (navn: string, fn: (o: Objekt) => Objekt, slaSammen?: string) => void;
 }) {
   const t = brukBenk(benk);
-  if (o.kilde.type !== 'form') return null;
-  const kilde = o.kilde;
+  if (o.kilde.type === 'tekst') return null;
+  const erKropp = kropper(t.dok).some((k) => k.id === o.id);
+  if (!erKropp && !kanForankres(t.dok, o)) return null;
+  const valg = plassFor(o);
+  if (erKropp) {
+    return (
+      <>
+        <div class="felt stablet">
+          <span>Størrelse i en CSV-serie</span>
+          <Segment
+            etikett="Størrelse i en CSV-serie"
+            valg={[
+              { id: 'auto', navn: 'Følger innholdet' },
+              { id: 'fast', navn: 'Fast størrelse' },
+            ]}
+            verdi={valg === 'fast' ? 'fast' : 'auto'}
+            endre={(v) => endre('Størrelse i serie', (x) => ({ ...x, plass: v as 'auto' | 'fast' }))}
+          />
+        </div>
+        <p class="merknad">
+          {kanTilpasses(o)
+            ? 'Plata blir bredere og smalere med navnet. Hver kant flytter seg like langt som innholdet, så marger og avstanden fra hull og dekor til kanten er den samme på alle skilt. Høyden og hjørneradius endres ikke.'
+            : valg === 'fast'
+              ? 'Plata beholder størrelsen sin. Hull og dekor på den beholder plassen, og et navn som ikke får plass blir meldt.'
+              : 'Denne formen kan ikke endre størrelse. Da beholder hull og dekor plassen sin, og et navn som ikke får plass blir meldt.'}
+        </p>
+      </>
+    );
+  }
   const anker = hullanker(t.dok, o);
   if (!anker) return null;
   const folger = folgerNavnet(t.dok, o);
+  const b = verdensBoks(o);
+  const fot = fotavtrykkBoks(t.dok);
+  const tilKant =
+    fot &&
+    Math.min(
+      (b.minX + b.maksX) / 2 - fot.minX,
+      fot.maksX - (b.minX + b.maksX) / 2,
+      (b.minY + b.maksY) / 2 - fot.minY,
+      fot.maksY - (b.minY + b.maksY) / 2,
+    );
+  const referanse = anker.innvendig
+    ? `Ligger på navnet og holder plassen langs det: ${tall(Math.abs(anker.innvendig.dx))} mm fra ${anker.innvendig.ref === 'midt' ? 'midten' : anker.innvendig.ref === 'venstre' ? 'venstre kant' : 'høyre kant'} av navnet.`
+    : `Referanse: ${tall(Math.abs(anker.gap))} mm ${anker.gap < 0 ? 'inn i' : SIDENAVN[anker.side]} bokstavene.`;
   return (
     <>
       <div class="felt stablet">
@@ -118,16 +165,22 @@ function HullReferanse({
             { id: 'navn', navn: 'Følger navnet' },
             { id: 'fast', navn: 'Fast plass' },
           ]}
-          verdi={kilde.plass ?? 'auto'}
-          endre={(v) => endre('Plass i serie', (x) => ({ ...x, kilde: { ...kilde, plass: v } }))}
+          verdi={valg}
+          endre={(v) =>
+            endre('Plass i serie', (x) => ({
+              ...x,
+              plass: v as 'auto' | 'navn' | 'fast',
+              kilde: x.kilde.type === 'form' && x.kilde.plass ? { ...x.kilde, plass: undefined } : x.kilde,
+            }))
+          }
         />
       </div>
       <p class="merknad">
         {folger
-          ? `Referanse: ${tall(Math.abs(anker.gap))} mm ${anker.gap < 0 ? 'inn i' : SIDENAVN[anker.side]} bokstavene. På hvert skilt i en CSV-serie flyttes hullet så det får samme avstand, også når navnet blir lengre.`
-          : 'Hullet beholder plassen sin på alle skilt i en CSV-serie. «Automatisk» lar det følge navnet på skilt uten fast plate.'}
+          ? `${referanse} På hvert skilt i en CSV-serie flyttes elementet så det får samme avstand, også når navnet blir lengre.${tilKant !== null && tilKant !== undefined ? ` Midten ligger ${tall(tilKant)} mm fra skiltets kant, og plata følger med.` : ''}`
+          : 'Elementet beholder plassen sin på alle skilt i en CSV-serie. «Automatisk» lar det følge navnet så lenge plata rundt navnet kan endre størrelse.'}
       </p>
-      {folger && (
+      {folger && !anker.innvendig && (
         <TallFelt
           etikett="Avstand fra navnet"
           verdi={anker.gap}
@@ -136,7 +189,7 @@ function HullReferanse({
           steg={0.5}
           endre={(v) =>
             benk.endre({
-              navn: 'Hullets avstand fra navnet',
+              navn: 'Avstand fra navnet',
               slaSammen: 'hullavstand',
               anvend: (d) => settHullavstand(d, o.id, v),
             })
@@ -203,7 +256,7 @@ function Hullvalg({
           }
         />
       </div>
-      <HullReferanse benk={benk} o={o} endre={endre} />
+      <Forankring benk={benk} o={o} endre={endre} />
       {oye && (
         <TallFelt
           etikett="Ringbredde"
@@ -464,6 +517,9 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
           />
         )}
         {o.kilde.type === 'form' && o.kilde.form === 'hull' && <Hullvalg benk={benk} o={o} endre={endre} />}
+        {!(o.kilde.type === 'form' && o.kilde.form === 'hull') && (
+          <Forankring benk={benk} o={o} endre={endre} />
+        )}
         {o.kilde.type === 'svg' && o.kilde.strek && <Strekseksjon benk={benk} o={o} />}
         {o.kilde.type === 'svg' && !o.kilde.strek && (
           <>

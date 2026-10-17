@@ -234,7 +234,7 @@ describe('Holes keep their distance from the name in a batch', () => {
     expect(v[1]!.boks.minX).toBeLessThan(v[0]!.boks.minX);
   });
 
-  it('keeps the hole where it is when asked, and on a fixed plate', async () => {
+  it('keeps the hole where it is when asked, and on a plate that keeps its size', async () => {
     const { d, hull } = await mal(-80);
     const fast = oppdaterObjekter(d, [hull.id], (o) => ({
       ...o,
@@ -246,7 +246,7 @@ describe('Holes keep their distance from the name in a batch', () => {
     );
     const av = lagVarianter(d, csv, foreslaKobling(csv, d), { hullavstand: false });
     expect(av[0]!.dok.objekter[hull.id]!.transform.x).toBe(-80);
-    // a sign with a plate does not grow with the name
+    // a plate that is told to keep its size does not grow with the name
     const plate = skiltMedPlate();
     const p = Object.values(plate.objekter).find((o) => o.kilde.type === 'tekst')!;
     const mp = oppdaterObjekter(plate, [p.id], (o) => ({
@@ -256,7 +256,7 @@ describe('Holes keep their distance from the name in a batch', () => {
     const ph = nyttObjekt(mp.lag[0]!.id, nyForm('hull', 5, 5), { x: -60, y: 0 });
     const medHull = leggTilObjekt(mp, ph);
     await lastFonter(medHull);
-    const pv = lagVarianter(medHull, csv, foreslaKobling(csv, medHull))[0]!;
+    const pv = lagVarianter(medHull, csv, foreslaKobling(csv, medHull), { tilpassSkilt: false })[0]!;
     expect(pv.dok.objekter[ph.id]!.transform.x).toBe(-60);
   });
 });

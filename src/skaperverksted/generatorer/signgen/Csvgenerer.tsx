@@ -174,7 +174,15 @@ function Genererstatusvisning({
           checked={a.valg.holdHull}
           onChange={() => valg({ holdHull: !a.valg.holdHull })}
         />{' '}
-        Hold hull og øyne like langt fra navnet på alle skilt
+        Hold hull, dekor og andre elementer like langt fra navnet på alle skilt
+      </label>
+      <label class="csv-avkryss">
+        <input
+          type="checkbox"
+          checked={a.valg.tilpassSkilt}
+          onChange={() => valg({ tilpassSkilt: !a.valg.tilpassSkilt })}
+        />{' '}
+        La plata rundt navnet vokse og krympe med navnet, så hullene beholder avstanden til kanten
       </label>
 
       <div class="knapperad csv-fot">
