@@ -36,7 +36,7 @@ git('bundle', 'verify', `${ut}/${bundlenavn}`);
 // guard: nothing that looks like settings with passwords or a build in the source zip
 const filer = unzipSync(new Uint8Array(readFileSync(`${ut}/${zipnavn}`)));
 const forbudt = Object.keys(filer).filter((f) =>
-  /(^|\/)(node_modules|dist|var|\.env[^/]*|konfig\.php|oppsett\.php)(\/|$)/.test(f),
+  /(^|\/)(node_modules|dist|var|\.env(?!\.example)[^/]*|konfig\.php|oppsett\.php)(\/|$)/.test(f),
 );
 if (forbudt.length) throw new Error(`Uventede filer i kildepakken: ${forbudt.join(', ')}`);
 
