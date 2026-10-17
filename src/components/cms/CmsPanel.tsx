@@ -23,9 +23,12 @@ import {
 } from '@/lib/cms/api';
 import { cmsEtikett } from '@/lib/cms/etiketter';
 import { DriftStatus, Medier } from './Medier';
+import { StudioSkall, StudioOversiktSide, StudioButikk, type StudioFane } from './Studio';
+import Blogg from './Blogg';
 import './cms.css';
+import './studio.css';
 
-type Fane = 'innhold' | 'bilder' | 'forslag' | 'brukere' | 'logg' | 'kopi' | 'drift' | 'konto';
+type Fane = StudioFane;
 
 const tid = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' }) : '';
@@ -949,7 +952,15 @@ type Tilstand =
 
 export default function CmsPanel() {
   const [tilstand, settTilstand] = useState<Tilstand>({ type: 'laster' });
-  const [fane, settFane] = useState<Fane>('innhold');
+  const [fane, settFane] = useState<Fane>('oversikt');
+  const [ulagret, settUlagret] = useState(false);
+  function byttFane(ny: Fane) {
+    if (ny === fane) return;
+    if (ulagret && !window.confirm('Du har ulagrede endringer i innlegget. Vil du forlate redaktøren?'))
+      return;
+    settFane(ny);
+    settUlagret(false);
+  }
 
   useEffect(() => {
     if (!phpmiljo) {
@@ -990,47 +1001,38 @@ export default function CmsPanel() {
     }
   }
 
-  if (tilstand.type === 'laster') return <p class="cms__dempet">Kobler til CMS-et …</p>;
-  if (tilstand.type === 'mangler') return <Melding tekst={tilstand.grunn} />;
+  if (tilstand.type === 'laster')
+    return (
+      <div class="studio__inngang cms">
+        <h1>Designporten Studio</h1>
+        <p role="status">Kobler til CMS-et …</p>
+      </div>
+    );
+  if (tilstand.type === 'mangler')
+    return (
+      <div class="studio__inngang cms">
+        <h1>Designporten Studio</h1>
+        <Melding tekst={tilstand.grunn} />
+      </div>
+    );
   if (tilstand.type === 'inngang')
     return (
-      <Inngang harBrukere={tilstand.harBrukere} ferdig={(bruker) => settTilstand({ type: 'inne', bruker })} />
+      <div class="studio__inngang cms">
+        <img src={nettsti('/brand/designporten-merke.svg')} alt="Designporten" width="56" height="56" />
+        <h1>Velkommen til Studio</h1>
+        <Inngang
+          harBrukere={tilstand.harBrukere}
+          ferdig={(bruker) => settTilstand({ type: 'inne', bruker })}
+        />
+      </div>
     );
 
   const { bruker } = tilstand;
-  const faner: [Fane, string][] = [
-    ['innhold', 'Sidene'],
-    ['bilder', 'Bilder'],
-    ['forslag', 'Forslag'],
-    ...(bruker.rolle === 'admin'
-      ? ([
-          ['brukere', 'Brukere'],
-          ['kopi', 'Sikkerhetskopi'],
-          ['drift', 'Drift'],
-        ] as [Fane, string][])
-      : []),
-    ['logg', 'Logg'],
-    ['konto', 'Konto'],
-  ];
-
   return (
-    <div class="cms">
-      <p class="cms__innlogget">
-        Logget inn som <strong>{bruker.navn}</strong> ({ROLLER[bruker.rolle]})
-      </p>
-      <nav class="cms__faner" aria-label="CMS">
-        {faner.map(([id, tekst]) => (
-          <button
-            key={id}
-            type="button"
-            class="cms__fane"
-            aria-current={fane === id ? 'page' : undefined}
-            onClick={() => settFane(id)}
-          >
-            {tekst}
-          </button>
-        ))}
-      </nav>
+    <StudioSkall bruker={bruker} fane={fane} bytt={byttFane}>
+      {fane === 'oversikt' && <StudioOversiktSide bruker={bruker} bytt={byttFane} />}
+      {fane === 'blogg' && <Blogg bruker={bruker} ulagretEndret={settUlagret} />}
+      {fane === 'butikk' && <StudioButikk />}
       {fane === 'innhold' && <Innhold bruker={bruker} />}
       {fane === 'bilder' && <Medier />}
       {fane === 'drift' && <DriftStatus />}
@@ -1039,6 +1041,6 @@ export default function CmsPanel() {
       {fane === 'logg' && <Logg />}
       {fane === 'kopi' && <Sikkerhetskopi />}
       {fane === 'konto' && <Konto bruker={bruker} loggUt={() => void loggUt()} />}
-    </div>
+    </StudioSkall>
   );
 }

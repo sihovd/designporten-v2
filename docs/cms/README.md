@@ -6,6 +6,11 @@ Eget innholdssystem for designporten.no, bygget etter Siverts plan «Designporte
 
 ## Status
 
+**Studio-utvidelse (16.10.2026):** Ny administrasjonsflate, reell innholdsoversikt og
+databasebasert blogg er implementert i Studio-branchen. Se [studio.md](studio.md) for
+funksjoner, avgrensninger, datamigrering og utrulling. Dette er ikke en bekreftelse på
+at utvidelsen er publisert på one.com.
+
 | Fase | Innhold | Status |
 |---|---|---|
 | 0 | Kartlegging, feltmatrise, migrasjonsplan, testplan | Ferdig (dette dokumentet, [feltmatrise.md](feltmatrise.md)) |

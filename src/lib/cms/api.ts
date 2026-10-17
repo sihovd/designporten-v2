@@ -164,6 +164,56 @@ export interface Hendelse {
   tid: string;
 }
 
+export type InnleggBlokk =
+  | { type: 'avsnitt' | 'overskrift'; tekst: string }
+  | { type: 'bilde'; medium: number | null; alt: string; bildetekst: string };
+
+export interface InnleggDokument {
+  tittel: string;
+  slug: string;
+  ingress: string;
+  kategori: string;
+  forfatter: string;
+  emneknagger: string[];
+  bilde: number | null;
+  alt: string;
+  seoTittel: string;
+  seoBeskrivelse: string;
+  blokker: InnleggBlokk[];
+}
+
+export interface Innlegg {
+  id: number;
+  versjon: number;
+  utkast: InnleggDokument | null;
+  publisert: InnleggDokument | null;
+  endret: string;
+  opprettet: string;
+  publisertTid: string | null;
+  url: string | null;
+}
+
+export interface InnleggRevisjon {
+  id: number;
+  versjon: number;
+  handling: string;
+  tid: string;
+}
+
+export interface StudioOversikt {
+  malt: string;
+  kilde: string;
+  dager: number;
+  felt: { totalt: number; endret: number; utkast: number; publisert: number };
+  innlegg: { totalt: number; utkast: number; publisert: number };
+  medier: number;
+  forslag: number;
+  aktivitet: { dag: string; antall: number }[];
+  hendelser: { id: number; handling: string; mal: string | null; tid: string }[];
+  teknisk: { database: boolean; publisert: boolean; dataSkrivbar: boolean } | null;
+  tilkoblinger: { besok: null; salg: null; ordre: null; betaling: null; backupovervakning: null };
+}
+
 /** What visitors and the editor see for a field: the draft (editor only), else published, else the code default. */
 /** An image field's value for «the picture the page was built with». */
 export const BYGGET = '{"medium":null}';
@@ -207,7 +257,7 @@ async function kall<T>(
     throw new CmsFeil('CMS-et finnes ikke på denne serveren.', svar.status);
   const data = (await svar.json()) as T & { feil?: string; csrf?: string };
   if (data.csrf) csrf = data.csrf;
-  if (!svar.ok && svar.status !== 409)
+  if (!svar.ok && (svar.status !== 409 || data.feil))
     throw new CmsFeil(data.feil ?? `Serveren svarte ${svar.status}.`, svar.status);
   return data;
 }
@@ -254,6 +304,20 @@ function lastOpp(
 const s = encodeURIComponent;
 
 export const cms = {
+  gjenbyggVisning: () => post<{ ok: true }>('gjenbygg-visning', {}),
+  oversikt: (dager = 30) => kall<{ oversikt: StudioOversikt }>('oversikt', { sok: `&dager=${dager}` }),
+  innlegg: () => kall<{ innlegg: Innlegg[] }>('innlegg'),
+  innleggEn: (id: number) =>
+    kall<{ innlegg: Innlegg; revisjoner: InnleggRevisjon[] }>('innlegg-en', { sok: `&id=${id}` }),
+  innleggLagre: (id: number, versjon: number, dokument: InnleggDokument) =>
+    post<{ innlegg: Innlegg }>('innlegg-lagre', { id, versjon, dokument }),
+  innleggHandling: (
+    handling: 'publiser' | 'avpubliser' | 'gjenopprett',
+    id: number,
+    versjon: number,
+    revisjon?: number,
+  ) => post<{ innlegg: Innlegg }>(`innlegg-${handling}`, { id, versjon, revisjon }),
+  innleggPreview: (id: number) => `${nettsti('/api/cms/blogg.php')}?forhandsvis=${id}`,
   status: () => kall<{ oppsett: boolean; harBrukere: boolean; felt?: number }>('status'),
   meg: () => kall<{ bruker: Bruker; csrf: string }>('meg'),
   oppsett: (d: { kode: string; epost: string; navn: string; passord: string }) =>

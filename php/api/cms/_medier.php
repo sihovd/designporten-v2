@@ -146,6 +146,18 @@ function cms_mediebruk(): array
             $bruk[$id][$rad['nokkel']][] = $kol;
         }
     }
+    foreach (cms_alle('SELECT id, utkast, publisert FROM cms_innlegg') as $rad) {
+        foreach (['publisert', 'utkast'] as $kol) {
+            $d = json_decode($rad[$kol] ?? 'null', true);
+            if (!is_array($d)) continue;
+            $ids = array_filter([$d['bilde'] ?? null, ...array_map(fn($b) => $b['type'] === 'bilde' ? ($b['medium'] ?? null) : null, $d['blokker'] ?? [])]);
+            foreach (array_unique($ids) as $id) {
+                $nokkel = 'blogg/' . $rad['id'];
+                $bruk[$id][$nokkel] ??= [];
+                $bruk[$id][$nokkel][] = $kol;
+            }
+        }
+    }
     return array_map(fn($felt) => array_map(
         fn($n, $hvor) => ['nokkel' => $n, 'publisert' => in_array('publisert', $hvor, true), 'utkast' => in_array('utkast', $hvor, true)],
         array_keys($felt), $felt,
