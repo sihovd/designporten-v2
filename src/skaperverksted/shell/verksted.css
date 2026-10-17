@@ -5251,7 +5251,7 @@ button.profilfarger.fargeknapp {
   max-height: 16rem;
 }
 
-.samlingkort {
+.samlinger .samlingskort {
   display: grid;
   gap: 6px;
   width: 100%;
@@ -5265,11 +5265,11 @@ button.profilfarger.fargeknapp {
   cursor: pointer;
 }
 
-.samlingkort:hover {
+.samlinger .samlingskort:hover {
   border-color: var(--linje-sterk);
 }
 
-.samlingkort.valgt {
+.samlinger .samlingskort.valgt {
   border-color: var(--dp-lilla);
   background: var(--panel-2);
 }

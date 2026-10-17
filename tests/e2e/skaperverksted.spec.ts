@@ -637,7 +637,10 @@ test.describe('Signgen', () => {
       .first()
       .click();
     const dialog = page.getByRole('dialog', { name: 'Fra CSV: Generer skilt' });
-    await expect(dialog.getByLabel('Hold hull og øyne like langt fra navnet på alle skilt')).toBeChecked();
+    await expect(
+      dialog.getByLabel('Hold hull, dekor og andre elementer like langt fra navnet på alle skilt'),
+    ).toBeChecked();
+    await expect(dialog.getByLabel(/La plata rundt navnet vokse og krympe/)).toBeChecked();
     await expect(dialog.getByText('Klar til å generere')).toBeVisible();
     const a = await new AxeBuilder({ page }).include('dialog[open]').analyze();
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
