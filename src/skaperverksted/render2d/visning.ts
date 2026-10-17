@@ -58,3 +58,56 @@ export function tilpass(boks: Boks, bredde: number, hoyde: number, marg = 48, de
     senterY: (boks.minY + boks.maksY) / 2,
   };
 }
+
+/** How far outside the print bed the table reaches, as a share of the bed's width and depth on each side. */
+export const BORD_MARG = 0.5;
+
+/**
+ * The part of the table you can look at: the print bed with half a bed of room on every side, and everything
+ * that lies outside it (a drawing pushed off the bed must stay reachable).
+ */
+export function arbeidsomraade(
+  plate: { bredde: number; dybde: number },
+  innhold: Boks | null = null,
+  marg = BORD_MARG,
+): Boks {
+  const mx = plate.bredde * marg;
+  const my = plate.dybde * marg;
+  const bord: Boks = {
+    minX: -plate.bredde / 2 - mx,
+    maksX: plate.bredde / 2 + mx,
+    minY: -plate.dybde / 2 - my,
+    maksY: plate.dybde / 2 + my,
+  };
+  if (!innhold || !isFinite(innhold.minX) || !isFinite(innhold.maksX)) return bord;
+  return {
+    minX: Math.min(bord.minX, innhold.minX),
+    maksX: Math.max(bord.maksX, innhold.maksX),
+    minY: Math.min(bord.minY, innhold.minY),
+    maksY: Math.max(bord.maksY, innhold.maksY),
+  };
+}
+
+/**
+ * Keep the view on the table: it cannot be zoomed out further than the whole table, and the centre cannot
+ * be moved so far that the view leaves it. When the table is smaller than the view in one direction, it
+ * stays centred in that direction.
+ */
+export function begrensUtsnitt(u: Utsnitt, bredde: number, hoyde: number, omraade: Boks): Utsnitt {
+  const flateB = Math.max(1, bredde - LINJAL);
+  const flateH = Math.max(1, hoyde - LINJAL);
+  const rb = Math.max(1, omraade.maksX - omraade.minX);
+  const rh = Math.max(1, omraade.maksY - omraade.minY);
+  const minZoom = Math.min(flateB / rb, flateH / rh) / PX_PER_MM;
+  const zoom = Math.min(40, Math.max(minZoom, 0.05, u.zoom));
+  const px = zoom * PX_PER_MM;
+  const halvB = flateB / px / 2;
+  const halvH = flateH / px / 2;
+  const innen = (v: number, lav: number, hoy: number, halv: number) =>
+    2 * halv >= hoy - lav ? (lav + hoy) / 2 : Math.min(hoy - halv, Math.max(lav + halv, v));
+  return {
+    zoom,
+    senterX: innen(u.senterX, omraade.minX, omraade.maksX, halvB),
+    senterY: innen(u.senterY, omraade.minY, omraade.maksY, halvH),
+  };
+}

@@ -6,12 +6,25 @@
  */
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import type { Arbeidsbenk } from '../core/arbeidsbenk';
+import type { Arbeidsbenk, Utsnitt } from '../core/arbeidsbenk';
 import type { Boks, Vec2 } from '../core/geometri2d';
 import { linjalEtikett, rutenettnivaa } from '../core/rutenett';
 import { cssFarge, horisontStopp, lesHorisont, type Horisont } from '../shell/tema';
 import { FARGER_ENDRET } from '../shell/innstillinger';
-import { LINJAL, lagVisning, tilpass, zoomRundt, type Visning } from './visning';
+import {
+  LINJAL,
+  arbeidsomraade,
+  begrensUtsnitt,
+  lagVisning,
+  tilpass,
+  zoomRundt,
+  type Visning,
+} from './visning';
+
+/** A two-finger gesture does nothing until the fingers have moved this far (CSS px). */
+const KLYPE_DODSONE = 8;
+/** A two-finger pan moves the table this share of the fingers' movement. */
+const PAN_DEMPING = 0.6;
 
 export interface Pekerhendelse {
   modell: Vec2;
@@ -219,6 +232,12 @@ export function Lerret({
     tema.addEventListener('change', nyeFarger);
     addEventListener(FARGER_ENDRET, nyeFarger);
 
+    /** Every change of the view goes through here, so the table never leaves the print bed by more than its margin. */
+    const sett = (u: Partial<Utsnitt>) => {
+      const omraade = arbeidsomraade(benk.tilstand.dok.plate, siste.current.innhold?.() ?? null);
+      benk.settUtsnitt(begrensUtsnitt({ ...benk.tilstand.utsnitt, ...u }, b, h, omraade));
+    };
+
     // view commands for shortcuts and toolbars
     const fit = () => {
       const i = siste.current.innhold?.() ?? null;
@@ -228,14 +247,14 @@ export function Lerret({
         .closest('.arbeidsomrade')
         ?.querySelector<HTMLElement>('.flytpanel.venstre:not(.lukket)');
       const dekket = panel ? panel.getBoundingClientRect().right - el.getBoundingClientRect().left : 0;
-      benk.settUtsnitt(tilpass(boks, b, h, 48, Math.max(0, dekket)));
+      sett(tilpass(boks, b, h, 48, Math.max(0, dekket)));
     };
     const senter = () => ({ x: LINJAL + (b - LINJAL) / 2, y: LINJAL + (h - LINJAL) / 2 });
     const kommandoer: [string, () => void][] = [
       ['tilpass', fit],
-      ['zoom-100', () => benk.settUtsnitt({ zoom: 1 })],
-      ['zoom-inn', () => benk.settUtsnitt(zoomRundt(benk.tilstand.utsnitt, b, h, senter(), 1.25))],
-      ['zoom-ut', () => benk.settUtsnitt(zoomRundt(benk.tilstand.utsnitt, b, h, senter(), 0.8))],
+      ['zoom-100', () => sett({ zoom: 1 })],
+      ['zoom-inn', () => sett(zoomRundt(benk.tilstand.utsnitt, b, h, senter(), 1.25))],
+      ['zoom-ut', () => sett(zoomRundt(benk.tilstand.utsnitt, b, h, senter(), 0.8))],
       ['tegn', planlegg],
     ];
     for (const [k, f] of kommandoer) benk.kommandoer.set(k, f);
@@ -244,7 +263,18 @@ export function Lerret({
     // pointer routing, pan and pinch
     const pekere = new Map<number, Vec2>();
     let pan: { start: Vec2; senter: Vec2 } | null = null;
-    let klype: { avstand: number; midt: Vec2; zoom: number } | null = null;
+    /**
+     * Two fingers. The gesture starts as neither: only when the fingers have moved clearly does it
+     * become a zoom (the distance changes most), a pan (the middle moves most) or both. Until then a
+     * trembling hand moves nothing, and a pan is slowed down (Sivert, 2026-10-17: too sensitive).
+     */
+    let klype: {
+      avstand: number;
+      midt: Vec2;
+      /** The view when the second finger came down: every move is computed from it, never from the last move. */
+      start: Utsnitt;
+      modus: 'ukjent' | 'zoom' | 'pan' | 'begge';
+    } | null = null;
     let mellomrom = false;
     let verktoyAktiv = false;
     /** A ruler drag: this handler has the pointer instead of the active tool. */
@@ -285,7 +315,8 @@ export function Lerret({
         klype = {
           avstand: Math.hypot(a.x - bb.x, a.y - bb.y),
           midt: { x: (a.x + bb.x) / 2, y: (a.y + bb.y) / 2 },
-          zoom: benk.tilstand.utsnitt.zoom,
+          start: { ...benk.tilstand.utsnitt },
+          modus: 'ukjent',
         };
         return;
       }
@@ -312,26 +343,32 @@ export function Lerret({
         const [a, bb] = [...pekere.values()] as [Vec2, Vec2];
         const avstand = Math.hypot(a.x - bb.x, a.y - bb.y);
         const midt = { x: (a.x + bb.x) / 2, y: (a.y + bb.y) / 2 };
-        let u = zoomRundt(
-          { ...benk.tilstand.utsnitt, zoom: klype.zoom },
-          b,
-          h,
-          klype.midt,
-          avstand / Math.max(1, klype.avstand),
-        );
-        const px = u.zoom * (96 / 25.4);
-        u = {
-          ...u,
-          senterX: u.senterX - (midt.x - klype.midt.x) / px,
-          senterY: u.senterY + (midt.y - klype.midt.y) / px,
-        };
-        benk.settUtsnitt(u);
+        const dAvstand = Math.abs(avstand - klype.avstand);
+        const dMidt = Math.hypot(midt.x - klype.midt.x, midt.y - klype.midt.y);
+        if (klype.modus === 'ukjent') {
+          if (dAvstand < KLYPE_DODSONE && dMidt < KLYPE_DODSONE) return;
+          klype.modus = dAvstand > dMidt * 1.5 ? 'zoom' : dMidt > dAvstand * 1.5 ? 'pan' : 'begge';
+        }
+        const zoomer = klype.modus !== 'pan';
+        const panorerer = klype.modus !== 'zoom';
+        let u = zoomer
+          ? zoomRundt(klype.start, b, h, klype.midt, avstand / Math.max(1, klype.avstand))
+          : { ...klype.start };
+        if (panorerer) {
+          const px = u.zoom * (96 / 25.4);
+          u = {
+            ...u,
+            senterX: u.senterX - ((midt.x - klype.midt.x) * PAN_DEMPING) / px,
+            senterY: u.senterY + ((midt.y - klype.midt.y) * PAN_DEMPING) / px,
+          };
+        }
+        sett(u);
         return;
       }
       if (pan) {
         const s = pos(e);
         const px = visning().pxPerMm;
-        benk.settUtsnitt({
+        sett({
           senterX: pan.senter.x - (s.x - pan.start.x) / px,
           senterY: pan.senter.y + (s.y - pan.start.y) / px,
         });
@@ -370,12 +407,12 @@ export function Lerret({
       if (verktoyAktiv && aktivtVerktoy()?.hjul?.(e)) return;
       if (e.shiftKey && !e.ctrlKey) {
         const px = visning().pxPerMm;
-        benk.settUtsnitt({ senterX: benk.tilstand.utsnitt.senterX + (e.deltaY || e.deltaX) / px });
+        sett({ senterX: benk.tilstand.utsnitt.senterX + (e.deltaY || e.deltaX) / px });
         return;
       }
       const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
       const faktor = Math.exp(-d * (e.ctrlKey ? 0.01 : 0.0015));
-      benk.settUtsnitt(zoomRundt(benk.tilstand.utsnitt, b, h, pos(e), faktor));
+      sett(zoomRundt(benk.tilstand.utsnitt, b, h, pos(e), faktor));
     };
     const erSkrivefelt = (t: EventTarget | null) =>
       t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
