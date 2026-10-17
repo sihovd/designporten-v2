@@ -102,6 +102,13 @@ export class Historikk<T> {
     return true;
   }
 
+  /** Replace the present state without a step of its own; the last step then ends in it. */
+  justerNaa(tilstand: T): void {
+    const siste = this.angreStabel.at(-1);
+    if (siste && siste.etter === this.tilstand) siste.etter = tilstand;
+    this.sett(tilstand);
+  }
+
   /** Replace state without history (loading a project). */
   nullstill(tilstand: T): void {
     this.angreStabel = [];

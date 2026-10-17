@@ -17,6 +17,7 @@ import { LINJAL, lagVisning, type Visning } from '../../render2d/visning';
 import { brukBenk } from '../../shell/bruk-benk';
 import { nyForm, nyTekst, oppdaterObjekter } from './dokument';
 import {
+  harOmriss,
   hjorner,
   innholdsboks,
   fargedeler,
@@ -211,7 +212,7 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
     if (!region) continue;
     // a text layer: its outlines, then the text (unless it is cut out of them)
     const deler: [Region, string][] = [];
-    if (lag.tekstlag) {
+    if (harOmriss(lag)) {
       const omriss = omrissRegioner(d, lag.id);
       for (const o of lag.omriss ?? []) {
         const r = omriss?.get(o.id);
@@ -1361,7 +1362,14 @@ function Guidebar({ benk }: { benk: Arbeidsbenk }) {
 export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
   const st = brukSigntilstand(benk);
   const t = brukBenk(benk);
-  useEffect(() => nårFontLastes(() => benk.kommando('tegn')), [benk]);
+  useEffect(
+    () =>
+      nårFontLastes(() => {
+        benk.normaliser();
+        benk.kommando('tegn');
+      }),
+    [benk],
+  );
   const redigerer = !!st.kurve;
   const verktoy = useMemo(
     () =>

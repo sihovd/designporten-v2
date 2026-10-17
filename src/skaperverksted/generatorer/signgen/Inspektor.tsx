@@ -31,6 +31,7 @@ import {
   slettOmriss,
   standardNavn,
   HULLFORMER,
+  kanHaOmriss,
 } from './dokument';
 import {
   erOye,
@@ -47,7 +48,7 @@ import { brukSigntilstand, signtilstand } from './tilstand';
 import { Kurvepanel, Pennpanel } from './Kurvepanel';
 import { antallAapne } from '../../geometri/bane';
 import { hentBaner, settKurve, startKurveredigering } from './kurver';
-import { nyttOmrissI } from './Lagpanel';
+import { leggOmrissPaaObjekt, nyttOmrissI } from './Lagpanel';
 import { PROFILER, Profilseksjon } from './Profilseksjon';
 import { Strekseksjon } from './Strekpanel';
 import { Fargevelger } from './Fargevelger';
@@ -668,6 +669,24 @@ function EttObjekt({ benk, o }: { benk: Arbeidsbenk; o: Objekt }) {
       )}
       {!(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
         o.operasjon === 'legg-til' &&
+        lagForObjekt &&
+        !o.last &&
+        !lagForObjekt.last && (
+          <Panel tittel="Omriss">
+            <p class="merknad">
+              {(lagForObjekt.omriss?.length ?? 0) > 0
+                ? `Laget «${lagForObjekt.navn}» har ${lagForObjekt.omriss!.length} omriss.${
+                    lagForObjekt.tekstlag ? ' Tekster og vektorer i samme tekstlag deler dem.' : ''
+                  }`
+                : 'Gi formen sitt eget omriss. Står den sammen med andre former, flytter den til et lag for seg selv først.'}
+            </p>
+            <button type="button" class="kontroll-knapp" onClick={() => leggOmrissPaaObjekt(benk, o.id)}>
+              + Legg til omriss
+            </button>
+          </Panel>
+        )}
+      {!(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
+        o.operasjon === 'legg-til' &&
         lagForObjekt && (
           <Panel tittel="Farge">
             {
@@ -889,14 +908,14 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
             <p class="merknad">
               {lag.sammeNivaa
                 ? 'Laget starter på samme Z som laget under, så delene kan ligge side om side i hver sin farge.'
-                : 'Laget stables oppå laget under. Kryss av for å legge delene side om side i hver sin farge.'}
+                : 'Laget hviler på det høyeste laget under seg som det overlapper, og ligger på printplata hvis det ikke overlapper noe. Kryss av for å legge delene på samme nivå i hver sin farge.'}
             </p>
           </>
         )}
         {auto && (
           <p class="merknad">
-            Z følger lagrekkefølgen. Slå av «Stable lagene automatisk» i Prosjektinnstillinger for å sette Z
-            selv.
+            Laget henger aldri i lufta: Z følger det som ligger under. Slå av «Stable lagene automatisk» i
+            Prosjektinnstillinger for å sette Z selv.
           </p>
         )}
       </Panel>
@@ -917,7 +936,7 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
         )}
       </Panel>
 
-      {lag.tekstlag && <OmrissInspektor benk={benk} lag={lag} />}
+      {kanHaOmriss(t.dok, lag) && <OmrissInspektor benk={benk} lag={lag} />}
 
       {(!lag.tekstlag || lag.kontur.avstand !== 0 || lag.kontur.kunRing) && (
         <Panel tittel="Kontur">
@@ -1172,7 +1191,7 @@ function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
   const valgt = omriss.find((o) => o.id === st.omriss);
   return (
     <Panel
-      tittel={valgt ? `Omriss: ${valgt.navn}` : 'Omriss rundt teksten'}
+      tittel={valgt ? `Omriss: ${valgt.navn}` : lag.tekstlag ? 'Omriss rundt teksten' : 'Omriss rundt formen'}
       handling={
         <button
           type="button"
@@ -1186,8 +1205,9 @@ function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
     >
       {omriss.length === 0 && (
         <p class="tom-melding">
-          Et omriss følger teksten med teksten i midten. Det dekker aldri selve teksten og har sin egen høyde
-          og farge.
+          {lag.tekstlag
+            ? 'Et omriss følger teksten med teksten i midten. Det dekker aldri selve teksten og har sin egen høyde og farge.'
+            : 'Et omriss følger kanten på alt i laget. Det dekker aldri selve formen og har sin egen høyde og farge. Alle former og SVG-er kan få omriss.'}
         </p>
       )}
       {omriss.map((o, i) =>
@@ -1204,7 +1224,8 @@ function OmrissInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
       )}
       {omriss.length > 0 && (
         <p class="merknad">
-          Innerst først. Omrissene starter på samme høyde som teksten. Grupperte tekster deler omrissene.
+          Innerst først. Omrissene starter på samme høyde som {lag.tekstlag ? 'teksten' : 'laget'}.
+          {lag.tekstlag ? ' Grupperte tekster deler omrissene.' : ''}
           {valgt ? ' Endringene gjelder bare omrisset du har valgt i lagpanelet.' : ''}
         </p>
       )}

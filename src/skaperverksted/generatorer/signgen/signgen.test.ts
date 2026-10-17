@@ -18,7 +18,7 @@ import {
   slettLag,
   slettObjekter,
 } from './dokument';
-import { byggSigngen, lagRegion, lagStotte, lastFonter } from './modell';
+import { byggSigngen, grunnfest, lagRegion, lagStotte, lastFonter } from './modell';
 
 beforeAll(() => {
   settFontHenter(async (fil) => {
@@ -101,7 +101,7 @@ describe('Signgen model', () => {
     d = oppdaterLag(d, bunn!.id, { profil: forhandsvalg('avrundet', 1.5) });
     let r = await byggSigngen(d);
     expect(sjekkManifold(r.deler[0]!.mesh).lukket).toBe(true);
-    // move the text off the plate: it floats
+    // move the text off the plate: with automatic stacking it drops to the build plate
     d = {
       ...d,
       objekter: Object.fromEntries(
@@ -112,8 +112,13 @@ describe('Signgen model', () => {
       ),
     };
     r = await byggSigngen(d);
-    expect(r.advarsler.some((a) => a.tekst.includes('henger i lufta'))).toBe(true);
+    expect(grunnfest(d).lag[1]!.zBunn).toBe(0);
+    expect(r.advarsler.some((a) => a.tekst.includes('henger i lufta'))).toBe(false);
     expect(r.advarsler.some((a) => a.tekst.includes('utenfor byggeplaten'))).toBe(true);
+    // with stacking switched off the height is the user's, and a layer left at 3 mm floats
+    const manuell = { ...d, parametre: { ...d.parametre, autoZ: false } };
+    r = await byggSigngen(manuell);
+    expect(r.advarsler.some((a) => a.tekst.includes('henger i lufta'))).toBe(true);
   });
 
   it('warns when the side profile goes back down (a groove in the top)', async () => {

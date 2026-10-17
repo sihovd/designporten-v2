@@ -22,8 +22,10 @@ import {
   flyttLagTil,
   flyttObjekterInnI,
   flyttOmrissTil,
+  kanHaOmriss,
   kanLiggeI,
   losUtObjekt,
+  medObjektOmriss,
   nesteFarge,
   leggTilOmriss,
   nyttOmriss,
@@ -349,7 +351,34 @@ export function nyttOmrissI(benk: Arbeidsbenk, lag: Lag): void {
   benk.endre({ navn: 'Nytt omriss', anvend: (d) => leggTilOmriss(d, lag.id, o) });
   signtilstand(benk).sett({ omriss: o.id });
   benk.velg({ lag: lag.id, objekter: [] });
-  benk.melde(`${o.navn} er lagt til rundt teksten i «${lag.navn}», i ${fargekode(mat)}.`);
+  benk.melde(`${o.navn} er lagt til rundt «${lag.navn}», i ${fargekode(mat)}.`);
+}
+
+/** Give one shape, vector or text an outline of its own; the layer panel then shows the outline to edit. */
+export function leggOmrissPaaObjekt(benk: Arbeidsbenk, objektId: string): void {
+  const o0 = benk.dok.objekter[objektId];
+  const lag0 = o0 ? finnLag(benk.dok, o0.lagId) : undefined;
+  if (!o0 || !lag0) return;
+  const mat = finnMateriale(nesteFarge(benk.dok));
+  const n = (lag0.omriss?.length ?? 0) + 1;
+  const omriss = nyttOmriss(`Omriss ${n}`, mat.id, { hoyde: Math.max(0.6, Math.round(lag0.hoyde * 5) / 10) });
+  const utfall: { lagId: string | null } = { lagId: null };
+  benk.endre({
+    navn: 'Gi omriss',
+    anvend: (d) => {
+      const r = medObjektOmriss(d, objektId, omriss);
+      utfall.lagId = r.lagId;
+      return r.dok;
+    },
+  });
+  const lagId = utfall.lagId;
+  if (!lagId) return;
+  signtilstand(benk).sett({ omriss: omriss.id });
+  benk.velg({ lag: lagId, objekter: [] });
+  const lag = finnLag(benk.dok, lagId);
+  benk.melde(
+    `${omriss.navn} er lagt rundt «${o0.navn}»${lag && lag.id !== lag0.id ? ' i et lag for seg selv' : ''}, i ${fargekode(mat)}.`,
+  );
 }
 
 /** What is being dragged in the layers panel: an object, or a whole layer. */
@@ -608,7 +637,7 @@ function Lagrad({
         </ul>
       )}
       {apen && <Utledet benk={benk} lag={lag} />}
-      {apen && lag.tekstlag && (
+      {apen && kanHaOmriss(t.dok, lag) && (
         <div class="omrissliste">
           {(lag.omriss ?? []).length > 0 && (
             <ol role="list" aria-label={`Omriss rundt ${lag.navn}, innerst først`}>

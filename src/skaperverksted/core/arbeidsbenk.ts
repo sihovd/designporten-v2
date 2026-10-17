@@ -71,6 +71,7 @@ export class Arbeidsbenk {
     dok: Dokument,
   ) {
     dok = generator.lesInn?.(dok) ?? dok;
+    dok = generator.normaliser?.(dok) ?? dok;
     this.historikk = new Historikk(dok);
     this.t = {
       dok,
@@ -117,9 +118,18 @@ export class Arbeidsbenk {
       ...e,
       anvend: (d) => {
         const ny = e.anvend(d);
-        return ny === d ? d : { ...ny, meta: { ...ny.meta, endret: new Date().toISOString() } };
+        if (ny === d) return d;
+        const rolig = this.generator.normaliser?.(ny) ?? ny;
+        return { ...rolig, meta: { ...rolig.meta, endret: new Date().toISOString() } };
       },
     });
+  }
+
+  /** Settle the document again without a history step (fonts finished loading, so geometry can be measured). */
+  normaliser(): void {
+    const naa = this.historikk.naa;
+    const ny = this.generator.normaliser?.(naa) ?? naa;
+    if (ny !== naa) this.historikk.justerNaa(ny);
   }
 
   angre(): void {
@@ -161,6 +171,7 @@ export class Arbeidsbenk {
   /** Replace the document (load project). Clears history. */
   lastInn(dok: Dokument): void {
     dok = this.generator.lesInn?.(dok) ?? dok;
+    dok = this.generator.normaliser?.(dok) ?? dok;
     this.historikk.nullstill(dok);
     this.oppdater({ utvalg: { objekter: [], lag: dok.lag.at(-1)?.id ?? null } });
   }
