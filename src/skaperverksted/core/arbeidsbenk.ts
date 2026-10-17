@@ -130,6 +130,8 @@ export class Arbeidsbenk {
     const naa = this.historikk.naa;
     const ny = this.generator.normaliser?.(naa) ?? naa;
     if (ny !== naa) this.historikk.justerNaa(ny);
+    // what is shown from the geometry (sizes in the status line) can be read now, so draw it again
+    else this.oppdater({});
   }
 
   angre(): void {
