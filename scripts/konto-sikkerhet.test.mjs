@@ -552,74 +552,81 @@ describe('E-postfangsten sender ingenting ut', hopp, () => {
   });
 });
 
-describe('Oppgradering fra etappe A', hopp, () => {
-  const A = '27873d681dd918e7ddb1bda9c4f663602c3768bc';
-  let kilde;
-  let rot;
-  let p;
-  const ola = klient();
-  let fra;
+// The stage A code comes from git; a shallow clone or an unpacked source zip does not have it.
+const A = '27873d681dd918e7ddb1bda9c4f663602c3768bc';
+const harA = spawnSync('git', ['cat-file', '-e', `${A}^{tree}`]).status === 0;
 
-  before(async () => {
-    // the account code exactly as stage A delivered it, from git
-    kilde = mkdtempSync(join(tmpdir(), 'dp-konto-a-'));
-    const arkiv = spawnSync('sh', ['-c', `git archive ${A} php | tar -x -C ${kilde}`]);
-    assert.equal(arkiv.status, 0, String(arkiv.stderr));
-    settUrl(`http://127.0.0.1:${PORT + 7}`);
-    ({ rot, server: p } = await startServer({ port: PORT + 7, kilde: join(kilde, 'php') }));
-    await ola.konto('registrer', {
-      kropp: { navn: 'Ola', epost: 'ola@example.no', passord: PASSORD, vilkar: true },
+describe(
+  'Oppgradering fra etappe A',
+  { skip: hopp.skip || (!harA && `etappe A (${A.slice(0, 7)}) finnes ikke i git-historikken her`) },
+  () => {
+    let kilde;
+    let rot;
+    let p;
+    const ola = klient();
+    let fra;
+
+    before(async () => {
+      // the account code exactly as stage A delivered it, from git
+      kilde = mkdtempSync(join(tmpdir(), 'dp-konto-a-'));
+      const arkiv = spawnSync('sh', ['-c', `git archive ${A} php | tar -x -C ${kilde}`]);
+      assert.equal(arkiv.status, 0, String(arkiv.stderr));
+      settUrl(`http://127.0.0.1:${PORT + 7}`);
+      ({ rot, server: p } = await startServer({ port: PORT + 7, kilde: join(kilde, 'php') }));
+      await ola.konto('registrer', {
+        kropp: { navn: 'Ola', epost: 'ola@example.no', passord: PASSORD, vilkar: true },
+      });
+      await klient().konto('registrer', {
+        kropp: { navn: 'Kari', epost: 'kari@example.no', passord: PASSORD, vilkar: true },
+      });
+      assert.equal((await ola.konto('del', { kropp: { mal: mal('Fra A') } })).status, 201);
+      fra = {
+        medlemmer: sql(rot, 'SELECT id, epost, navn, opprettet FROM dp_medlemmer ORDER BY id'),
+        okter: sql(rot, 'SELECT token_hash, medlem_id FROM dp_konto_okter ORDER BY id'),
+        skilt: sql(rot, 'SELECT offentlig_id, medlem_id, tittel, mal FROM dp_skilt ORDER BY id'),
+        versjon: sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v,
+      };
+      assert.equal(Number(fra.versjon), 2);
+      p.kill();
+      await new Promise((r) => setTimeout(r, 200));
+      settUrl(`http://127.0.0.1:${PORT + 8}`);
+      ({ server: p } = await startServer({ port: PORT + 8, rot }));
     });
-    await klient().konto('registrer', {
-      kropp: { navn: 'Kari', epost: 'kari@example.no', passord: PASSORD, vilkar: true },
+
+    after(() => {
+      p?.kill();
+      for (const d of [kilde, rot?.sti, rot?.post]) if (d) rmSync(d, { recursive: true, force: true });
+      ryddMysql();
     });
-    assert.equal((await ola.konto('del', { kropp: { mal: mal('Fra A') } })).status, 201);
-    fra = {
-      medlemmer: sql(rot, 'SELECT id, epost, navn, opprettet FROM dp_medlemmer ORDER BY id'),
-      okter: sql(rot, 'SELECT token_hash, medlem_id FROM dp_konto_okter ORDER BY id'),
-      skilt: sql(rot, 'SELECT offentlig_id, medlem_id, tittel, mal FROM dp_skilt ORDER BY id'),
-      versjon: sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v,
-    };
-    assert.equal(Number(fra.versjon), 2);
-    p.kill();
-    await new Promise((r) => setTimeout(r, 200));
-    settUrl(`http://127.0.0.1:${PORT + 8}`);
-    ({ server: p } = await startServer({ port: PORT + 8, rot }));
-  });
 
-  after(() => {
-    p?.kill();
-    for (const d of [kilde, rot?.sti, rot?.post]) if (d) rmSync(d, { recursive: true, force: true });
-    ryddMysql();
-  });
+    test('kunder, innlogginger og galleriskilt er bevart med samme id-er', async () => {
+      const meg = (await ola.konto('meg')).data.medlem;
+      assert.ok(meg, 'innloggingen fra A virker fortsatt');
+      assert.equal(Number(sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v), 3);
+      assert.deepEqual(
+        sql(rot, 'SELECT id, epost, navn, opprettet FROM dp_medlemmer ORDER BY id'),
+        fra.medlemmer,
+      );
+      assert.deepEqual(sql(rot, 'SELECT token_hash, medlem_id FROM dp_konto_okter ORDER BY id'), fra.okter);
+      assert.deepEqual(
+        sql(rot, 'SELECT offentlig_id, medlem_id, tittel, mal FROM dp_skilt ORDER BY id'),
+        fra.skilt,
+      );
+      assert.equal((await klient().konto('skilt')).data.skilt[0].tittel, 'Fra A');
+    });
 
-  test('kunder, innlogginger og galleriskilt er bevart med samme id-er', async () => {
-    const meg = (await ola.konto('meg')).data.medlem;
-    assert.ok(meg, 'innloggingen fra A virker fortsatt');
-    assert.equal(Number(sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v), 3);
-    assert.deepEqual(
-      sql(rot, 'SELECT id, epost, navn, opprettet FROM dp_medlemmer ORDER BY id'),
-      fra.medlemmer,
-    );
-    assert.deepEqual(sql(rot, 'SELECT token_hash, medlem_id FROM dp_konto_okter ORDER BY id'), fra.okter);
-    assert.deepEqual(
-      sql(rot, 'SELECT offentlig_id, medlem_id, tittel, mal FROM dp_skilt ORDER BY id'),
-      fra.skilt,
-    );
-    assert.equal((await klient().konto('skilt')).data.skilt[0].tittel, 'Fra A');
-  });
-
-  test('eksisterende kunder er aktive og ubekreftet, og kan bekrefte seg selv', async () => {
-    const rader = sql(rot, 'SELECT status, epost_bekreftet FROM dp_medlemmer');
-    assert.ok(rader.every((r) => r.status === 'aktiv' && r.epost_bekreftet === null));
-    const nekt = await ola.konto('del', { kropp: { mal: mal('Etter B') } });
-    assert.equal(nekt.status, 403);
-    assert.equal((await ola.konto('send-bekreftelse', { kropp: {} })).status, 200);
-    await bekreft(ola, rot, 'ola@example.no');
-    const [skilt] = fra.skilt;
-    assert.equal(
-      (await ola.konto('del', { kropp: { id: skilt.offentlig_id, mal: mal('Oppdatert i B') } })).status,
-      200,
-    );
-  });
-});
+    test('eksisterende kunder er aktive og ubekreftet, og kan bekrefte seg selv', async () => {
+      const rader = sql(rot, 'SELECT status, epost_bekreftet FROM dp_medlemmer');
+      assert.ok(rader.every((r) => r.status === 'aktiv' && r.epost_bekreftet === null));
+      const nekt = await ola.konto('del', { kropp: { mal: mal('Etter B') } });
+      assert.equal(nekt.status, 403);
+      assert.equal((await ola.konto('send-bekreftelse', { kropp: {} })).status, 200);
+      await bekreft(ola, rot, 'ola@example.no');
+      const [skilt] = fra.skilt;
+      assert.equal(
+        (await ola.konto('del', { kropp: { id: skilt.offentlig_id, mal: mal('Oppdatert i B') } })).status,
+        200,
+      );
+    });
+  },
+);
