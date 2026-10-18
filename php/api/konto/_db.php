@@ -50,7 +50,9 @@ function konto_konfig_med_kilde(): array
     if (($egen['bruk_cms_database'] ?? false) !== true || !empty(konto_bygg()['test'])) return $svar = [null, null];
     $cms = $test && defined('DP_CMS_KONFIG') ? DP_CMS_KONFIG : konto_les_konfig(dirname(__DIR__) . '/cms/konfig.php');
     if (!is_array($cms) || empty($cms['dsn'])) return $svar = [null, null];
-    return $svar = [['dsn' => $cms['dsn'], 'bruker' => $cms['bruker'] ?? null, 'passord' => $cms['passord'] ?? null], 'cms'];
+    // only the connection is borrowed; e-mail and the public address stay the account's own
+    unset($egen['bruk_cms_database']);
+    return $svar = [['dsn' => $cms['dsn'], 'bruker' => $cms['bruker'] ?? null, 'passord' => $cms['passord'] ?? null] + $egen, 'cms'];
 }
 
 function konto_les_konfig(string $fil): mixed

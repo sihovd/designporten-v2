@@ -7,14 +7,27 @@
  *   POST logginn / loggut
  *   GET  meg            the signed-in member, or null
  *   POST profil         change the name
- *   POST slett-konto    delete the member, their signs and sign-ins (passord)
+ *   POST send-bekreftelse   a new link to confirm the member's address
+ *   POST bekreft-epost  token: confirms the address the link was sent to
+ *   POST glemt-passord  epost: a reset link if the account exists (the answer never says)
+ *   POST nytt-passord   token, passord: sets it, ends every sign-in (sign in again)
+ *   POST endre-passord  passord, nytt: ends every other sign-in, this browser gets a new one
+ *   POST endre-epost    passord, epost: sends a link to the new address; the old one stays until then
+ *   POST bytt-epost     token: switches to the new address
+ *   POST slett-konto    delete the member, their signs, sign-ins, links and access exceptions (passord)
  *   GET  skilt          the gallery, newest first (?antall, ?for = cursor)
  *   GET  mine-skilt     the member's own signs
  *   POST del            publish a sign in the gallery (signed-in members only): mal, bilde; with id it updates that sign
  *   POST bruk           a sign's template, to start from (counts the use)
  *   POST slett-skilt    remove a shared sign (id + nokkel, or the member who shared it)
  *   GET  bilde          a sign's preview (PNG)
- *   GET  admin-medlemmer / admin-skilt, POST admin-skjul   for CMS administrators (_admin.php)
+ *   GET  admin-medlemmer / admin-skilt, POST admin-skjul / admin-status / admin-tilgang,
+ *   GET  admin-testpost (test builds only)   for CMS administrators (_admin.php)
+ *
+ * Links in e-mails open «Min konto» with the token after «#»; the page asks
+ * for an explicit click and POSTs it. A GET never changes anything, since
+ * mail scanners open links. One-time tokens are used up atomically
+ * (_konto.php konto_bruk_token).
  *
  * POSTs need JSON and the header X-Konto: 1, which a form on another site
  * cannot send, and when the browser names an Origin it must be this site,
@@ -29,6 +42,7 @@ require_once __DIR__ . '/_admin.php';
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: no-referrer');
 
 function konto_svar(array $data, int $status = 200): never
 {
@@ -44,6 +58,8 @@ function konto_kropp(): array
     if (($_SERVER['HTTP_X_KONTO'] ?? '') !== '1' || !str_starts_with((string) ($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) {
         throw new KontoFeil('Forespørselen ble avvist.', 403);
     }
+    // a browser that says the request comes from another site is refused, whatever else it sends
+    if (($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site') throw new KontoFeil('Forespørselen ble avvist.', 403);
     $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
     if ($origin !== '' && parse_url($origin, PHP_URL_HOST) !== parse_url('//' . ($_SERVER['HTTP_HOST'] ?? ''), PHP_URL_HOST)) {
         throw new KontoFeil('Forespørselen ble avvist.', 403);
@@ -152,7 +168,14 @@ try {
         );
         $m = konto_en('SELECT * FROM dp_medlemmer WHERE epost = ?', [$epost]);
         konto_logg_inn($m);
-        konto_svar(['medlem' => konto_ut($m)], 201);
+        // the account exists either way; the page says whether the link went out
+        $epostFeil = null;
+        try {
+            konto_send_bekreftelse($m);
+        } catch (KontoFeil $f) {
+            $epostFeil = $f->getMessage();
+        }
+        konto_svar(['medlem' => konto_ut($m), 'bekreftelse' => ['sendt' => $epostFeil === null, 'feil' => $epostFeil]], 201);
     }
 
     if ($r === 'logginn') {
@@ -161,11 +184,13 @@ try {
         $passord = (string) ($k['passord'] ?? '');
         $nokler = ['konto-inn:' . konto_ip(), 'konto-inn:' . hash('sha256', $epost)];
         foreach ($nokler as $n) konto_begrens($n, KONTO_INNLOGGING_FORSOK, KONTO_INNLOGGING_VINDU);
-        $m = konto_en('SELECT * FROM dp_medlemmer WHERE epost = ? AND aktiv = 1', [$epost]);
+        $m = konto_en('SELECT * FROM dp_medlemmer WHERE epost = ?', [$epost]);
         if (!$m || !password_verify($passord, $m['passord_hash'])) {
             foreach ($nokler as $n) konto_registrer_forsok($n);
             throw new KontoFeil('Feil e-postadresse eller passord.', 401);
         }
+        // said only to someone who knows the password
+        if ($m['status'] !== 'aktiv') throw new KontoFeil('Kontoen er stengt. Ta kontakt med oss hvis du mener det er feil.', 403);
         if (password_needs_rehash($m['passord_hash'], PASSWORD_DEFAULT)) {
             konto_kjor('UPDATE dp_medlemmer SET passord_hash = ? WHERE id = ?', [password_hash($passord, PASSWORD_DEFAULT), $m['id']]);
         }
@@ -192,14 +217,162 @@ try {
         $k = konto_kropp();
         $m = konto_krev_medlem();
         if (!password_verify((string) ($k['passord'] ?? ''), $m['passord_hash'])) throw new KontoFeil('Feil passord.', 403);
-        $db = konto_db();
-        $db->beginTransaction();
-        konto_kjor('DELETE FROM dp_skilt WHERE medlem_id = ?', [$m['id']]);
-        konto_kjor('DELETE FROM dp_konto_okter WHERE medlem_id = ?', [$m['id']]);
-        konto_kjor('DELETE FROM dp_medlemmer WHERE id = ?', [$m['id']]);
-        $db->commit();
+        konto_slett_medlem((int) $m['id']);
         konto_kake('', time() - 3600);
         konto_svar(['ok' => true]);
+    }
+
+    if ($r === 'send-bekreftelse') {
+        konto_kropp();
+        $m = konto_krev_medlem();
+        if ($m['epost_bekreftet']) konto_svar(['ok' => true, 'alleredeBekreftet' => true]);
+        konto_epost_klar();
+        foreach (['konto-bekreft:' . $m['id'] => 3, 'konto-bekreft:' . konto_ip() => 10] as $n => $maks) konto_begrens($n, $maks, 3600);
+        foreach (['konto-bekreft:' . $m['id'], 'konto-bekreft:' . konto_ip()] as $n) konto_registrer_forsok($n);
+        konto_send_bekreftelse($m);
+        konto_svar(['ok' => true]);
+    }
+
+    if ($r === 'bekreft-epost') {
+        $k = konto_kropp();
+        konto_begrens('konto-lenke:' . konto_ip(), 20, 900);
+        try {
+            $m = konto_transaksjon(function () use ($k) {
+                [, $m] = konto_bruk_token($k['token'] ?? null, 'bekreft');
+                konto_kjor('UPDATE dp_medlemmer SET epost_bekreftet = ? WHERE id = ?', [konto_na(), $m['id']]);
+                return $m;
+            });
+        } catch (KontoFeil $f) {
+            konto_registrer_forsok('konto-lenke:' . konto_ip());
+            throw $f;
+        }
+        konto_svar(['ok' => true, 'epost' => $m['epost']]);
+    }
+
+    if ($r === 'glemt-passord') {
+        $k = konto_kropp();
+        $epost = konto_epost($k['epost'] ?? null);
+        // before looking anything up: without e-mail no one gets a link, whether the account exists or not
+        konto_epost_klar();
+        konto_begrens('konto-glemt:' . konto_ip(), 5, 900);
+        konto_registrer_forsok('konto-glemt:' . konto_ip());
+        $adresse = 'konto-glemt:' . hash('sha256', $epost);
+        $m = konto_en("SELECT * FROM dp_medlemmer WHERE epost = ? AND status = 'aktiv'", [$epost]);
+        // at most 3 links an hour to one address; above that, and for an unknown address, the answer is the same
+        $antall = (int) konto_en('SELECT COUNT(*) AS n FROM dp_konto_forsok WHERE nokkel = ? AND tid >= ?', [$adresse, time() - 3600])['n'];
+        if ($m && $antall < 3) {
+            konto_registrer_forsok($adresse);
+            try {
+                $lenke = konto_lenke('nytt-passord', konto_lag_token($m, 'reset'));
+                konto_send_epost(
+                    $m['epost'],
+                    'Nytt passord hos Designporten',
+                    "Hei {$m['navn']},\n\nNoen (forhåpentlig du) ba om å sette nytt passord for kontoen din. Åpne lenken og velg et nytt passord:\n\n$lenke\n\n"
+                    . "Lenken virker i én time og kan brukes én gang. Ba du ikke om dette, kan du se bort fra e-posten; passordet ditt er ikke endret.\n\nHilsen Designporten\n",
+                );
+            } catch (KontoFeil $f) {
+                // the answer must not differ for a known address; the failure is logged without the address
+                error_log('Designporten konto: lenke for nytt passord ble ikke sendt.');
+            }
+        }
+        konto_svar(['ok' => true, 'melding' => 'Hvis det finnes en konto med denne adressen, har vi sendt en lenke for å velge nytt passord. Sjekk innboksen (og søppelposten).']);
+    }
+
+    if ($r === 'nytt-passord') {
+        $k = konto_kropp();
+        $passord = konto_passord($k['passord'] ?? null);
+        konto_begrens('konto-lenke:' . konto_ip(), 20, 900);
+        try {
+            konto_transaksjon(function () use ($k, $passord) {
+                [$t, $m] = konto_bruk_token($k['token'] ?? null, 'reset');
+                // the link reached the inbox, so the address is confirmed too
+                konto_kjor(
+                    'UPDATE dp_medlemmer SET passord_hash = ?, epost_bekreftet = COALESCE(epost_bekreftet, ?) WHERE id = ?',
+                    [password_hash($passord, PASSWORD_DEFAULT), konto_na(), $m['id']],
+                );
+                konto_logg_ut_overalt((int) $m['id']);
+                konto_kjor("DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND formal = 'reset' AND brukt IS NULL", [$m['id']]);
+            });
+        } catch (KontoFeil $f) {
+            konto_registrer_forsok('konto-lenke:' . konto_ip());
+            throw $f;
+        }
+        konto_kake('', time() - 3600);
+        konto_svar(['ok' => true]);
+    }
+
+    if ($r === 'endre-passord' || $r === 'endre-epost') {
+        $k = konto_kropp();
+        $m = konto_krev_medlem();
+        $nokkel = 'konto-passord:' . $m['id'];
+        konto_begrens($nokkel, 5, 900);
+        if (!password_verify((string) ($k['passord'] ?? ''), $m['passord_hash'])) {
+            konto_registrer_forsok($nokkel);
+            throw new KontoFeil('Feil passord.', 403);
+        }
+        if ($r === 'endre-passord') {
+            $nytt = konto_passord($k['nytt'] ?? null);
+            konto_transaksjon(function () use ($m, $nytt) {
+                konto_kjor('UPDATE dp_medlemmer SET passord_hash = ? WHERE id = ?', [password_hash($nytt, PASSWORD_DEFAULT), $m['id']]);
+                konto_logg_ut_overalt((int) $m['id']);
+                konto_kjor("DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND formal = 'reset' AND brukt IS NULL", [$m['id']]);
+            });
+            // every sign-in ended, this one included; this browser gets a fresh one
+            konto_logg_inn($m);
+            konto_svar(['medlem' => konto_ut(konto_en('SELECT * FROM dp_medlemmer WHERE id = ?', [$m['id']]))]);
+        }
+        $ny = konto_epost($k['epost'] ?? null);
+        if ($ny === $m['epost']) throw new KontoFeil('Det er allerede e-postadressen din.', 422);
+        if (konto_en('SELECT id FROM dp_medlemmer WHERE epost = ?', [$ny])) throw new KontoFeil('Adressen er allerede i bruk på en annen konto.', 409);
+        konto_epost_klar();
+        konto_begrens('konto-nyepost:' . $m['id'], 3, 3600);
+        konto_registrer_forsok('konto-nyepost:' . $m['id']);
+        $lenke = konto_lenke('ny-epost', konto_lag_token($m, 'epost', $ny));
+        konto_send_epost(
+            $ny,
+            'Bekreft den nye e-postadressen din hos Designporten',
+            "Hei {$m['navn']},\n\nÅpne lenken og trykk «Bytt adresse» for å bruke denne adressen på Designporten-kontoen din:\n\n$lenke\n\n"
+            . "Lenken virker i et døgn. Til da gjelder den gamle adressen. Ba du ikke om dette, kan du se bort fra e-posten.\n\nHilsen Designporten\n",
+        );
+        try {
+            konto_send_epost(
+                $m['epost'],
+                'Noen vil bytte e-postadressen på Designporten-kontoen din',
+                "Hei {$m['navn']},\n\nDet er bedt om å bytte e-postadressen på kontoen din. Adressen endres først når den nye er bekreftet.\n"
+                . "Var det ikke deg, bør du bytte passord under Min konto.\n\nHilsen Designporten\n",
+            );
+        } catch (KontoFeil) {
+            // the notice to the old address is a courtesy; the link went out
+        }
+        konto_svar(['ok' => true]);
+    }
+
+    if ($r === 'bytt-epost') {
+        $k = konto_kropp();
+        konto_begrens('konto-lenke:' . konto_ip(), 20, 900);
+        try {
+            $ny = konto_transaksjon(function () use ($k) {
+                [$t, $m] = konto_bruk_token($k['token'] ?? null, 'epost');
+                $ny = (string) $t['ny_epost'];
+                // still free now, and the address unchanged since the link was made; the UNIQUE
+                // column stops a sign-up that slips in between (accounts are never merged)
+                if (konto_en('SELECT id FROM dp_medlemmer WHERE epost = ? AND id <> ?', [$ny, $m['id']])) {
+                    throw new KontoFeil('Adressen er tatt i bruk på en annen konto i mellomtiden.', 409);
+                }
+                try {
+                    $n = konto_kjor('UPDATE dp_medlemmer SET epost = ?, epost_bekreftet = ? WHERE id = ? AND epost = ?', [$ny, konto_na(), $m['id'], $t['epost']]);
+                } catch (PDOException) {
+                    throw new KontoFeil('Adressen er tatt i bruk på en annen konto i mellomtiden.', 409);
+                }
+                if ($n !== 1) throw new KontoFeil(KONTO_UGYLDIG_LENKE, 400);
+                konto_kjor('DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND brukt IS NULL', [$m['id']]);
+                return $ny;
+            });
+        } catch (KontoFeil $f) {
+            konto_registrer_forsok('konto-lenke:' . konto_ip());
+            throw $f;
+        }
+        konto_svar(['ok' => true, 'epost' => $ny]);
     }
 
     if ($r === 'mine-skilt') {
@@ -214,6 +387,7 @@ try {
         // publishing is a member's own choice (Sivert, 2026-10-17): guests no longer publish, so
         // every new sign in the gallery has an owner who can take it down again
         $medlem = konto_krev_medlem();
+        konto_krev_funksjon($medlem, 'sign-forge', 'publisering');
         $mal = konto_gyldig_mal($k['mal'] ?? null);
         $bilde = konto_gyldig_bilde($k['bilde'] ?? null);
         $tittel = konto_tekst($k['mal']['navn'] ?? 'Skilt', 'tittel', 80, false) ?: 'Skilt';
@@ -266,7 +440,11 @@ try {
                  FROM dp_medlemmer m ORDER BY m.opprettet DESC LIMIT 1000',
             );
             konto_svar([
-                'medlemmer' => array_map(fn($m) => konto_ut($m) + ['antallSkilt' => (int) $m['antall_skilt'], 'aktiv' => (bool) $m['aktiv']], $rader),
+                'medlemmer' => array_map(fn($m) => konto_ut($m) + [
+                    'antallSkilt' => (int) $m['antall_skilt'], 'aktiv' => $m['status'] === 'aktiv',
+                    'unntak' => array_column(konto_alle('SELECT nokkel, verdi FROM dp_konto_tilganger WHERE medlem_id = ?', [$m['id']]), 'verdi', 'nokkel'),
+                ], $rader),
+                'tilgangsnokler' => konto_tilgangsnokler(),
                 'antall' => (int) konto_en('SELECT COUNT(*) AS n FROM dp_medlemmer')['n'],
                 'gjesteskilt' => (int) konto_en('SELECT COUNT(*) AS n FROM dp_skilt WHERE medlem_id IS NULL')['n'],
             ]);
@@ -285,6 +463,38 @@ try {
             }
             konto_admin_logg($aktor, $skjult ? 'skilt.skjul' : 'skilt.vis', $id);
             konto_svar(['ok' => true]);
+        }
+        if ($r === 'admin-status') {
+            $k = konto_kropp();
+            $id = (int) ($k['id'] ?? 0);
+            $status = (string) ($k['status'] ?? '');
+            konto_sett_status($id, $status);
+            konto_admin_logg($aktor, 'medlem.' . $status, (string) $id);
+            konto_svar(['ok' => true]);
+        }
+        if ($r === 'admin-tilgang') {
+            $k = konto_kropp();
+            $id = (int) ($k['id'] ?? 0);
+            $nokkel = (string) ($k['nokkel'] ?? '');
+            $verdi = $k['verdi'] ?? null;
+            if (!in_array($nokkel, konto_tilgangsnokler(), true)) throw new KontoFeil('Ukjent tjeneste eller funksjon.', 422);
+            if ($verdi !== null && $verdi !== 'ja' && $verdi !== 'nei') throw new KontoFeil('Verdien må være ja, nei eller tom.', 422);
+            if (!konto_en('SELECT id FROM dp_medlemmer WHERE id = ?', [$id])) throw new KontoFeil('Fant ikke medlemmet.', 404);
+            konto_transaksjon(function () use ($id, $nokkel, $verdi, $aktor) {
+                konto_kjor('DELETE FROM dp_konto_tilganger WHERE medlem_id = ? AND nokkel = ?', [$id, $nokkel]);
+                if ($verdi !== null) {
+                    konto_kjor(
+                        'INSERT INTO dp_konto_tilganger (medlem_id, nokkel, verdi, endret, endret_av) VALUES (?, ?, ?, ?, ?)',
+                        [$id, $nokkel, $verdi, konto_na(), mb_substr((string) ($aktor['navn'] ?? 'admin'), 0, 80)],
+                    );
+                }
+            });
+            konto_admin_logg($aktor, 'tilgang.' . ($verdi ?? 'standard'), "$id:$nokkel");
+            konto_svar(['ok' => true]);
+        }
+        if ($r === 'admin-testpost') {
+            konto_get();
+            konto_svar(['eposter' => konto_fangede_eposter()]);
         }
     }
 

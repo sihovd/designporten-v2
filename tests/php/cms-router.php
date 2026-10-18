@@ -15,7 +15,10 @@ $konfig = [
 // DP_UTEN_CMS: no CMS at all. DP_UTEN_KONTO: no account settings (scripts/konto.test.mjs).
 if (!getenv('DP_UTEN_CMS')) define('DP_CMS_KONFIG', $konfig);
 if (!getenv('DP_UTEN_KONTO')) {
-    define('DP_KONTO_KONFIG', ['dsn' => $konfig['dsn'], 'bruker' => $konfig['bruker'], 'passord' => $konfig['passord']]);
+    // e-mail is captured in a folder outside the site (DP_KONTO_POST); without it, e-mail is not set up
+    define('DP_KONTO_KONFIG', ['dsn' => $konfig['dsn'], 'bruker' => $konfig['bruker'], 'passord' => $konfig['passord']]
+        + (getenv('DP_KONTO_POST') ? ['epost' => ['driver' => getenv('DP_KONTO_EPOSTDRIVER') ?: 'fil', 'mappe' => getenv('DP_KONTO_POST'), 'fra' => 'konto@example.invalid']] : [])
+        + ['offentlig_adresse' => 'http://127.0.0.1:' . $_SERVER['SERVER_PORT']]);
 }
 $sti = rawurldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/');
 if ($sti === '/api/cms/') { require $rot . '/api/cms/index.php'; return; }

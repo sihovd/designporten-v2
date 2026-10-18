@@ -7,151 +7,48 @@
  */
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import {
+  bekreft,
+  dsnFor,
+  harGd,
+  harPhp,
+  kartlegg,
+  KAKE,
+  klient,
+  mal,
+  mysql,
+  php,
+  png,
+  ryddMysql,
+  settUrl,
+  sql,
+  startServer,
+  url,
+} from './konto-testhjelp.mjs';
 
-const php = process.env.PHP_BIN || 'php';
-const moduler = spawnSync(php, ['-m'], { encoding: 'utf8' });
-const harPhp = moduler.status === 0 && /pdo_sqlite/i.test(moduler.stdout);
-const harGd = harPhp && /^gd$/im.test(moduler.stdout);
 const PORT = 4800 + Math.floor(Math.random() * 400);
-/** The test build's own sign-in cookie, so a test never touches a real sign-in. */
-const KAKE = 'dp_konto_test';
-let URL_ = `http://127.0.0.1:${PORT}`;
-
-function png() {
-  const r = spawnSync(php, [
-    '-r',
-    '$b = imagecreatetruecolor(40, 20); imagefilledrectangle($b, 0, 0, 20, 20, imagecolorallocate($b, 136, 61, 255)); ob_start(); imagepng($b); fwrite(STDOUT, base64_encode(ob_get_clean()));',
-  ]);
-  return `data:image/png;base64,${String(r.stdout)}`;
-}
-
-const mal = (navn) => ({
-  versjon: 1,
-  id: 'x',
-  navn,
-  dokument: { generator: 'signgen', navn, lag: [], objekter: {} },
-});
-
-/** A tiny client with its own cookie jar, like one browser. */
-function klient() {
-  const kaker = new Map();
-  let csrf = '';
-  async function kall(api, r, { kropp, hoder = {}, sok = '' } = {}) {
-    const svar = await fetch(`${URL_}/api/${api}/?r=${r}${sok}`, {
-      method: kropp ? 'POST' : 'GET',
-      headers: {
-        ...(kropp ? { 'Content-Type': 'application/json', 'X-Konto': '1' } : {}),
-        ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
-        Cookie: [...kaker].map(([k, v]) => `${k}=${v}`).join('; '),
-        ...hoder,
-      },
-      body: kropp ? JSON.stringify(kropp) : undefined,
-    });
-    for (const k of svar.headers.getSetCookie()) {
-      const [par] = k.split(';');
-      const [navn, ...v] = par.split('=');
-      if (v.join('=') === '' || /expires=Thu, 01 Jan 1970|Max-Age=0/i.test(k)) kaker.delete(navn.trim());
-      else kaker.set(navn.trim(), v.join('='));
-    }
-    const type = svar.headers.get('content-type') ?? '';
-    const data = type.includes('json') ? await svar.json() : await svar.arrayBuffer();
-    if (data.csrf) csrf = data.csrf;
-    return { status: svar.status, data, type };
-  }
-  return { konto: (r, v) => kall('konto', r, v), cms: (r, v) => kall('cms', r, v), kaker };
-}
-
-const mysql = process.env.DP_CMS_MYSQL;
-const mysqlDatabaser = [];
-function mysqlKjor(sql) {
-  const r = spawnSync(
-    php,
-    [
-      '-r',
-      '$d = new PDO($argv[1], $argv[2], $argv[3]); $d->exec($argv[4]);',
-      `mysql:${mysql}`,
-      process.env.DP_CMS_BRUKER ?? '',
-      process.env.DP_CMS_PASSORD ?? '',
-      sql,
-    ],
-    { encoding: 'utf8' },
-  );
-  if (r.status !== 0) throw new Error(r.stderr || r.stdout);
-}
-/** The database the server in `rot` uses, as a PDO DSN. */
-const dsnFor = (rot) => rot.dsn ?? `sqlite:${join(rot.sti, 'cms.sqlite')}`;
-
-/**
- * A PHP server over a copy of php/. The accounts have their own settings
- * (the same database as the CMS here); `utenCms` removes the CMS, `utenKonto`
- * leaves the account settings out.
- */
-async function startServer({ port, utenCms = false, utenKonto = false }) {
-  const rot = mkdtempSync(join(tmpdir(), 'dp-konto-'));
-  let dsn = null;
-  if (mysql) {
-    const navn = `kontotest_${process.pid}_${port}`;
-    mysqlKjor(`CREATE DATABASE ${navn} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-    mysqlDatabaser.push(navn);
-    dsn = `mysql:${mysql};dbname=${navn};charset=utf8mb4`;
-  }
-  cpSync(resolve('php'), rot, { recursive: true });
-  writeFileSync(join(rot, 'api/bygg.php'), "<?php\nreturn ['base' => '/', 'test' => true];\n");
-  if (utenCms) rmSync(join(rot, 'api/cms'), { recursive: true, force: true });
-  else writeFileSync(join(rot, 'api/cms/nokler.json'), '{}');
-  const server = spawn(php, ['-S', `127.0.0.1:${port}`, resolve('tests/php/cms-router.php')], {
-    env: {
-      ...process.env,
-      DP_CMS_ROT: rot,
-      ...(dsn ? { DP_CMS_DSN: dsn } : {}),
-      ...(utenCms ? { DP_UTEN_CMS: '1' } : {}),
-      ...(utenKonto ? { DP_UTEN_KONTO: '1' } : {}),
-    },
-    stdio: 'ignore',
-  });
-  for (let i = 0; i < 50; i++) {
-    try {
-      await fetch(`http://127.0.0.1:${port}/api/konto/?r=status`);
-      return { rot: { sti: rot, dsn }, server };
-    } catch {
-      await new Promise((r) => setTimeout(r, 100));
-    }
-  }
-  throw new Error('PHP-serveren startet ikke.');
-}
-
-/** The command-line survey (scripts/kartlegg-konto.php) on a settings file pointing at `dsn`. */
-function kartlegg(mappe, dsn, ...ekstra) {
-  const konfig = join(mappe, 'kartlegg-konfig.php');
-  const [bruker, passord] = dsn.startsWith('mysql:')
-    ? [process.env.DP_CMS_BRUKER ?? '', process.env.DP_CMS_PASSORD ?? '']
-    : ['', ''];
-  writeFileSync(konfig, `<?php return json_decode('${JSON.stringify({ dsn, bruker, passord })}', true);\n`);
-  return spawnSync(php, [resolve('scripts/kartlegg-konto.php'), `--konfig=${konfig}`, ...ekstra], {
-    encoding: 'utf8',
-  });
-}
 
 /** A sign shared as a guest before 2026-10-17, written straight into the database (guests can no longer publish). */
 function gammeltGjesteskilt(rot, id, nokkel) {
-  const r = spawnSync(php, [
-    '-r',
-    `$db = new PDO($argv[1], $argv[5] ?: null, $argv[6] ?: null);
-     $db->prepare('INSERT INTO dp_skilt (offentlig_id, nokkel_hash, medlem_id, skaper, tittel, mal, opprettet, endret) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)')
-        ->execute([$argv[2], hash('sha256', $argv[3]), 'Gjest', 'Hytta', $argv[4], '2026-10-16T10:00:00Z', '2026-10-16T10:00:00Z']);`,
-    dsnFor(rot),
-    id,
-    nokkel,
-    JSON.stringify(mal('Hytta')),
-    mysql ? (process.env.DP_CMS_BRUKER ?? '') : '',
-    mysql ? (process.env.DP_CMS_PASSORD ?? '') : '',
-  ]);
-  assert.equal(r.status, 0, String(r.stderr));
+  sql(
+    rot,
+    'INSERT INTO dp_skilt (offentlig_id, nokkel_hash, medlem_id, skaper, tittel, mal, opprettet, endret) VALUES (?, ?, NULL, ?, ?, ?, ?, ?)',
+    [
+      id,
+      hashHex(nokkel),
+      'Gjest',
+      'Hytta',
+      JSON.stringify(mal('Hytta')),
+      '2026-10-16T10:00:00Z',
+      '2026-10-16T10:00:00Z',
+    ],
+  );
 }
+const hashHex = (v) => String(spawnSync(php, ['-r', 'echo hash("sha256", $argv[1]);', v]).stdout);
 
 describe(
   'Brukerkontoer og skiltgalleri',
@@ -163,14 +60,14 @@ describe(
     const ola = klient();
 
     before(async () => {
-      URL_ = `http://127.0.0.1:${PORT}`;
+      settUrl(`http://127.0.0.1:${PORT}`);
       ({ rot, server } = await startServer({ port: PORT }));
     });
 
     after(() => {
       server?.kill();
-      if (rot) rmSync(rot.sti, { recursive: true, force: true });
-      if (mysql) for (const navn of mysqlDatabaser.splice(0)) mysqlKjor(`DROP DATABASE IF EXISTS ${navn}`);
+      if (rot) for (const d of [rot.sti, rot.post]) rmSync(d, { recursive: true, force: true });
+      ryddMysql();
     });
 
     test('status: alt er gratis nå, CSV blir betalt senere, ingen betaling er slått på', async () => {
@@ -203,6 +100,15 @@ describe(
       assert.ok(ola.kaker.get(KAKE));
       const meg = await ola.konto('meg');
       assert.equal(meg.data.medlem.navn, 'Ola Nordmann');
+      // a confirmation link went out; until it is used, publishing is closed
+      assert.equal(ok.data.bekreftelse.sendt, true);
+      assert.equal(ok.data.medlem.epostBekreftet, null);
+      assert.equal(ok.data.medlem.tilganger['sign-forge'].funksjoner.publisering.tilgang, false);
+      const forTidlig = await ola.konto('del', { kropp: { mal: mal('For tidlig') } });
+      assert.equal(forTidlig.status, 403);
+      assert.match(forTidlig.data.feil, /Bekreft e-postadressen/);
+      await bekreft(ola, rot, 'ola@example.no');
+      assert.ok((await ola.konto('meg')).data.medlem.epostBekreftet);
       const igjen = await klient().konto('registrer', {
         kropp: { navn: 'X', epost: 'ola@example.no', passord: 'et-langt-passord', vilkar: true },
       });
@@ -210,7 +116,7 @@ describe(
     });
 
     test('POST uten X-Konto-hodet avvises, så skjemaer på andre nettsteder ikke kan bruke innloggingen', async () => {
-      const svar = await fetch(`${URL_}/api/konto/?r=loggut`, {
+      const svar = await fetch(`${url()}/api/konto/?r=loggut`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: `${KAKE}=${ola.kaker.get(KAKE)}` },
         body: '{}',
@@ -285,7 +191,7 @@ describe(
       assert.equal(forste.skaper, 'Ola Nordmann');
       assert.equal(forste.tittel, 'Navneskilt');
       if (harGd) {
-        const bilde = await fetch(`${URL_}${forste.bilde}`);
+        const bilde = await fetch(`${url()}${forste.bilde}`);
         assert.equal(bilde.headers.get('content-type'), 'image/png');
       }
       const endret = await ola.konto('del', { kropp: { id: olasSkilt, mal: mal('Navneskilt 2') } });
@@ -296,6 +202,7 @@ describe(
       await kari.konto('registrer', {
         kropp: { navn: 'Kari', epost: 'kari@example.no', passord: 'et-annet-langt-passord', vilkar: true },
       });
+      await bekreft(kari, rot, 'kari@example.no');
       assert.equal((await kari.konto('del', { kropp: { id: olasSkilt, mal: mal('Kapret') } })).status, 403);
       assert.equal((await kari.konto('slett-skilt', { kropp: { id: olasSkilt } })).status, 403);
       assert.equal(
@@ -352,7 +259,7 @@ describe(
 
     test('kartleggingen er et kommandolinjeverktøy som bare leser og bare viser antall', async () => {
       // not on the web any more
-      assert.equal((await fetch(`${URL_}/api/konto/kartlegg.php`)).status, 404);
+      assert.equal((await fetch(`${url()}/api/konto/kartlegg.php`)).status, 404);
       const r = kartlegg(rot.sti, dsnFor(rot));
       assert.equal(r.status, 0, r.stderr);
       const tall = JSON.parse(r.stdout);
@@ -360,7 +267,7 @@ describe(
       assert.equal(tall.medlemmer.aktive, 1);
       assert.equal(tall.galleri.utenEier, 1);
       assert.equal(tall.galleri.skjulte, 1);
-      assert.equal(tall.migrering.konto, 2);
+      assert.equal(tall.migrering.konto, 3);
       // counts only: no addresses or names
       assert.ok(!r.stdout.includes('@') && !r.stdout.includes('Ola'));
     });
@@ -409,14 +316,14 @@ describe('Brukerkontoer uten CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikk
   const k = klient();
 
   before(async () => {
-    URL_ = `http://127.0.0.1:${port}`;
+    settUrl(`http://127.0.0.1:${port}`);
     ({ rot, server } = await startServer({ port, utenCms: true }));
   });
 
   after(() => {
     server?.kill();
-    if (rot) rmSync(rot.sti, { recursive: true, force: true });
-    if (mysql) for (const navn of mysqlDatabaser.splice(0)) mysqlKjor(`DROP DATABASE IF EXISTS ${navn}`);
+    if (rot) for (const d of [rot.sti, rot.post]) rmSync(d, { recursive: true, force: true });
+    ryddMysql();
   });
 
   test('kontoene er slått på med egne innstillinger når CMS-et ikke finnes', async () => {
@@ -430,6 +337,7 @@ describe('Brukerkontoer uten CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikk
       kropp: { navn: 'Per', epost: 'per@example.no', passord: 'et-langt-passord', vilkar: true },
     });
     assert.equal(ny.status, 201);
+    await bekreft(k, rot, 'per@example.no');
     await k.konto('loggut', { kropp: {} });
     assert.equal(
       (await k.konto('logginn', { kropp: { epost: 'per@example.no', passord: 'et-langt-passord' } })).status,
@@ -455,15 +363,15 @@ describe(
     const k = klient();
 
     before(async () => {
-      URL_ = `http://127.0.0.1:${port}`;
+      settUrl(`http://127.0.0.1:${port}`);
       // the CMS has settings, the accounts do not: the CMS's must not be borrowed
       ({ rot, server } = await startServer({ port, utenKonto: true }));
     });
 
     after(() => {
       server?.kill();
-      if (rot) rmSync(rot.sti, { recursive: true, force: true });
-      if (mysql) for (const navn of mysqlDatabaser.splice(0)) mysqlKjor(`DROP DATABASE IF EXISTS ${navn}`);
+      if (rot) for (const d of [rot.sti, rot.post]) rmSync(d, { recursive: true, force: true });
+      ryddMysql();
     });
 
     test('status sier at kontoene er av, alle andre kall får 503, og databasen røres ikke', async () => {
@@ -488,8 +396,7 @@ describe(
         assert.match(svar.data.feil, /ikke slått på/);
       }
       if (mysql) {
-        const navn = mysqlDatabaser.at(-1);
-        const r = kartlegg(rot.sti, `mysql:${mysql};dbname=${navn};charset=utf8mb4`);
+        const r = kartlegg(rot.post, rot.dsn);
         assert.equal(r.status, 0, r.stderr);
         assert.deepEqual(JSON.parse(r.stdout).tabeller, {});
       } else {

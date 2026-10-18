@@ -27,7 +27,12 @@ if (!is_dir(dirname($cmsdb))) mkdir(dirname($cmsdb), 0700, true);
 define('DP_CMS_KONFIG', ['dsn' => 'sqlite:' . $cmsdb, 'oppsettkode' => 'lokal-test-oppsettkode']);
 // Accounts: their own settings and their own file, never the CMS's settings (no legacy fallback in tests).
 $kontodb = getenv('DP_KONTO_DB') ?: __DIR__ . '/../../var/konto-test.sqlite';
-define('DP_KONTO_KONFIG', ['dsn' => 'sqlite:' . $kontodb]);
+define('DP_KONTO_KONFIG', [
+    'dsn' => 'sqlite:' . $kontodb,
+    'offentlig_adresse' => 'http://127.0.0.1:' . $_SERVER['SERVER_PORT'],
+    // captured outside dist/, so it is never in a package
+    'epost' => ['driver' => 'fil', 'mappe' => getenv('DP_KONTO_POST') ?: dirname(__DIR__, 2) . '/var/konto-post'],
+]);
 
 header('X-Robots-Tag: noindex, nofollow');
 if (!str_starts_with($sti, $base)) { http_response_code(404); echo 'Outside test site'; return; }
