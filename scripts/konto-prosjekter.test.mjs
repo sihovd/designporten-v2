@@ -201,20 +201,16 @@ describe('Prosjekter på kontoen', hopp, () => {
     assert.equal((await k.konto('prosjekt', { sok: '&id=../../etc' })).status, 404);
   });
 
-  test('pakkestyring: en betalt pakke gir egen kvote og CSV; når den utløper, kan alt fortsatt åpnes og lastes ned', async () => {
-    medTjenester((t) => ({
-      ...t,
-      planer: { ...t.planer, testpakke: { navn: 'Testpakke', prosjekter: 8, tjenester: ['csv'] } },
-    }));
-    try {
+  test('pakkestyring: Skaper gir 50 prosjekter og CSV; når den utløper, kan alt fortsatt åpnes og lastes ned', async () => {
+    {
       const k = klient();
       const m = await nyttMedlem(k, s.rot, 'betaler@example.no');
       sql(
         s.rot,
-        "UPDATE dp_medlemmer SET plan = 'testpakke', betaling_status = 'aktiv', betalt_til = '2999-01-01T00:00:00Z' WHERE id = ?",
+        "UPDATE dp_medlemmer SET plan = 'skaper', betaling_status = 'aktiv', betalt_til = '2999-01-01T00:00:00Z' WHERE id = ?",
         [m.id],
       );
-      assert.equal((await k.konto('prosjekter')).data.kvote.maks, 8);
+      assert.equal((await k.konto('prosjekter')).data.kvote.maks, 50);
       for (let i = 0; i < 7; i++) assert.equal((await lagre(k, `Pakke ${i}`)).status, 201);
 
       // the package ends: back to the free quota, nothing deleted or locked away
@@ -230,8 +226,6 @@ describe('Prosjekter på kontoen', hopp, () => {
       const forste = liste.prosjekter[0];
       assert.equal((await lagre(k, 'Fortsatt mitt', { felt: { id: forste.id, revisjon: 1 } })).status, 200);
       assert.equal((await lagre(k, 'Nytt over kvoten')).status, 403);
-    } finally {
-      medTjenester((t) => t);
     }
   });
 

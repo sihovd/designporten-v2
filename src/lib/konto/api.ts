@@ -7,7 +7,7 @@
  * only shows it.
  */
 import { nettsti, phpmiljo } from '@/lib/nettsti';
-import type { Betaling, Gratisperiode } from './tjenester';
+import type { Betaling, Gratisperiode, Plan } from './tjenester';
 
 /** A service or feature the member may or may not use, and why not. */
 export interface Tilgang {
@@ -84,6 +84,8 @@ export interface Kontostatus {
     { navn: string; betaling: Betaling; beskrivelse: string; gratisperiode?: Gratisperiode }
   >;
   leverandorer: Record<string, { navn: string; aktiv: boolean }>;
+  /** With the price and quota set in Studio. */
+  planer: Record<string, Plan>;
 }
 
 export class KontoFeil extends Error {
@@ -201,6 +203,13 @@ export const konto = {
       kall<{ ok: true }>('admin-status', { kropp: { id, status }, hoder: { 'X-CSRF-Token': csrf } }),
     tilgang: (id: number, nokkel: string, verdi: 'ja' | 'nei' | null, csrf: string) =>
       kall<{ ok: true }>('admin-tilgang', { kropp: { id, nokkel, verdi }, hoder: { 'X-CSRF-Token': csrf } }),
+    /** The packages with the numbers in use now. */
+    planer: () => kall<{ planer: Record<string, Plan> }>('admin-planer'),
+    /** Set a package's quota and, for a paid one, its price in whole kroner incl. VAT. */
+    plan: (
+      p: { id: string; prosjekter: number; prisManed: number | null; prisAr: number | null },
+      csrf: string,
+    ) => kall<{ planer: Record<string, Plan> }>('admin-plan', { kropp: p, hoder: { 'X-CSRF-Token': csrf } }),
     /** The captured e-mails; test builds only. */
     testpost: () =>
       kall<{ eposter: { til: string; emne: string; tekst: string; tid: string }[] }>('admin-testpost'),

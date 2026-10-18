@@ -28,8 +28,11 @@ import {
   betalingsmerke,
   betalingstekst,
   LEVERANDORER,
+  PLANER,
+  prisTekst,
   PROSJEKTAPPER,
   TJENESTER,
+  type Plan,
   type TjenesteId,
 } from '@/lib/konto/tjenester';
 import './konto.css';
@@ -372,12 +375,53 @@ function Innlogging({ ferdig }: { ferdig: (m: Medlem, beskjed?: string) => void 
   );
 }
 
+/** The packages with the price and quota set in Studio; the file's numbers until the server answers. */
+function brukPlaner(): Record<string, Plan> {
+  const [planer, settPlaner] = useState<Record<string, Plan>>(PLANER);
+  useEffect(() => {
+    if (!kontoMulig) return;
+    konto
+      .status()
+      .then((s) => s.planer && settPlaner(s.planer))
+      .catch(() => {});
+  }, []);
+  return planer;
+}
+
+/** Gratis konto and Skaper: what each gives and costs. Nothing can be bought yet. */
+function Pakkeliste({ planer }: { planer: Record<string, Plan> }) {
+  return (
+    <ul class="konto__tjenester" role="list" aria-label="Pakker">
+      {Object.entries(planer).map(([id, p]) => {
+        const pris = prisTekst(p);
+        const csv = p.tjenester.includes('csv') ? ' og CSV-batch' : '';
+        return (
+          <li key={id}>
+            <span>
+              <strong>{p.navn}</strong>
+              <small>
+                Plass til {p.prosjekter} prosjekter på kontoen{csv}.{pris ? ` ${pris}, inkl. mva.` : ''}
+              </small>
+              {pris && !p.kanKjopes && <small>Kan ikke kjøpes ennå.</small>}
+            </span>
+            <span class={`konto__merke ${pris ? '' : 'konto__merke--gratis'}`}>
+              {pris ? `${p.pris?.maned} kr/mnd` : 'Gratis'}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** What the services cost, for visitors who are not signed in. */
 function Prisliste() {
+  const planer = brukPlaner();
   return (
     <section class="konto__kort" aria-labelledby="konto-plan-tittel">
       <h2 id="konto-plan-tittel">Tjenester og pris</h2>
       <p class="konto__dempet">{BETALINGSMERKNAD}</p>
+      <Pakkeliste planer={planer} />
       <ul class="konto__tjenester" role="list">
         {Object.entries(TJENESTER).map(([id, t]) => (
           <li key={id}>
@@ -395,6 +439,7 @@ function Prisliste() {
 
 /** Mine tjenester: the access the server reports, with the reason when something is closed. */
 function MineTjenester({ medlem }: { medlem: Medlem }) {
+  const planer = brukPlaner();
   return (
     <Kort id="mine-tjenester" tittel="Mine tjenester">
       <p>
@@ -429,6 +474,8 @@ function MineTjenester({ medlem }: { medlem: Medlem }) {
           );
         })}
       </ul>
+      <h3 class="konto__undertittel">Pakker</h3>
+      <Pakkeliste planer={planer} />
       {medlem.tilganger['sign-forge']?.tilgang && (
         <a class="konto__knapp konto__knapp--lenke" href={nettsti(SIGN_FORGE)}>
           Åpne Sign Forge

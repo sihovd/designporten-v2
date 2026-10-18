@@ -80,6 +80,8 @@ describe('Services and packages (tjenester.json)', () => {
 
   it('the free account keeps five projects, and Sign Forge stores them', () => {
     expect(PLANER.gratis?.prosjekter).toBe(5);
+    expect(PLANER.skaper?.prosjekter).toBe(50);
+    expect(PLANER.skaper?.tjenester).toEqual(['csv']);
     expect(PROSJEKTAPPER.signgen).toBe('Sign Forge');
   });
 });

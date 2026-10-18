@@ -675,3 +675,45 @@ test('konto C: gjest lagrer ingenting på serveren; et medlem lagrer, åpner, f�
   await a.close();
   await b.close();
 });
+
+// 2026-10-18 (Sivert: «Legg inn skaper til 59/mnd, enkelt å endre i cms»)
+test('pakker: Studio endrer prisen på Skaper, og Min konto viser den med en gang', async ({ browser }) => {
+  await redaktor.goto(`${base}/cms/`);
+  await redaktor.getByRole('button', { name: 'Medlemmer og skilt', exact: true }).click();
+  const skaper = redaktor.getByRole('form', { name: 'Pakken Skaper' });
+  await expect(skaper.getByLabel('Pris per måned')).toHaveValue('59');
+  await expect(skaper.getByLabel('Pris per år')).toHaveValue('590');
+  await expect(skaper.getByLabel('Prosjekter på kontoen')).toHaveValue('50');
+  await expect(skaper).toContainText('Kan ikke kjøpes ennå');
+  await skaper.getByLabel('Pris per måned').fill('69');
+  await skaper.getByRole('button', { name: 'Lagre Skaper' }).click();
+  await expect(redaktor.getByText('Skaper er lagret og gjelder nå.')).toBeVisible();
+  for (const bredde of [320, 390, 768, 1024, 1440]) {
+    await redaktor.setViewportSize({ width: bredde, height: 900 });
+    const bred = await redaktor.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    expect(bred, `${bredde} px`).toBeLessThanOrEqual(0);
+    if (process.env.DP_SKJERMBILDER) {
+      await redaktor
+        .locator('[aria-labelledby="cms-pakker"]')
+        .screenshot({ path: `${process.env.DP_SKJERMBILDER}/studio-pakker-${bredde}.png` });
+    }
+  }
+
+  const gjest = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
+  await gjest.goto(`${base}/konto/`);
+  const pakker = gjest.getByRole('list', { name: 'Pakker' });
+  await expect(pakker).toContainText('69 kr/mnd eller 590 kr/år');
+  await expect(pakker).toContainText('Kan ikke kjøpes ennå');
+  await expect(pakker).toContainText('Plass til 5 prosjekter');
+  if (process.env.DP_SKJERMBILDER) {
+    await gjest.setViewportSize({ width: 390, height: 900 });
+    await pakker.screenshot({ path: `${process.env.DP_SKJERMBILDER}/konto-pakker-390.png` });
+  }
+  await gjest.close();
+
+  // back to the approved price
+  await redaktor.setViewportSize({ width: 1440, height: 1000 });
+  await skaper.getByLabel('Pris per måned').fill('59');
+  await skaper.getByRole('button', { name: 'Lagre Skaper' }).click();
+  await expect(redaktor.getByText('Skaper er lagret og gjelder nå.')).toBeVisible();
+});

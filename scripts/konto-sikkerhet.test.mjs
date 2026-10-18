@@ -497,6 +497,36 @@ describe('Suspendering, tilganger og sletting', hopp, () => {
     assert.equal((await kunde.konto('del', { kropp: { mal: mal('Igjen') } })).status, 201);
   });
 
+  test('pakker og priser endres i Studio og gjelder med en gang; en kunde kan ikke endre dem', async () => {
+    const plan = (kropp) => admin.konto('admin-plan', { kropp });
+    assert.equal((await kunde.konto('admin-plan', { kropp: { id: 'gratis', prosjekter: 999 } })).status, 401);
+    assert.equal((await kunde.konto('admin-planer')).status, 401);
+    assert.equal((await plan({ id: 'pro', prosjekter: 5 })).status, 404);
+    assert.equal((await plan({ id: 'gratis', prosjekter: -1 })).status, 422);
+    assert.equal((await plan({ id: 'gratis', prosjekter: '6' })).status, 422);
+    assert.equal((await plan({ id: 'skaper', prosjekter: 50, prisManed: 1.5, prisAr: 590 })).status, 422);
+    assert.equal((await plan({ id: 'skaper', prosjekter: 50, prisManed: null, prisAr: 590 })).status, 422);
+
+    const ny = await plan({ id: 'skaper', prosjekter: 60, prisManed: 69, prisAr: 690 });
+    assert.equal(ny.status, 200);
+    assert.deepEqual([ny.data.planer.skaper.prosjekter, ny.data.planer.skaper.pris.maned], [60, 69]);
+    assert.equal(ny.data.planer.skaper.endretAv, 'Eier');
+    const status = (await klient().konto('status')).data;
+    assert.deepEqual(
+      [status.planer.skaper.prosjekter, status.planer.skaper.pris.maned, status.planer.skaper.pris.ar],
+      [60, 69, 690],
+    );
+    assert.equal(status.planer.skaper.kanKjopes, false);
+
+    // the free quota counts at once; a free package never gets a price
+    assert.equal((await plan({ id: 'gratis', prosjekter: 7, prisManed: 10, prisAr: 100 })).status, 200);
+    assert.equal((await kunde.konto('prosjekter')).data.kvote.maks, 7);
+    assert.equal((await admin.konto('admin-planer')).data.planer.gratis.pris, undefined);
+    assert.equal((await plan({ id: 'gratis', prosjekter: 5 })).status, 200);
+    assert.equal((await plan({ id: 'skaper', prosjekter: 50, prisManed: 59, prisAr: 590 })).status, 200);
+    assert.equal((await kunde.konto('prosjekter')).data.kvote.maks, 5);
+  });
+
   test('suspendering stopper innlogging og lenker; reaktivering gjenoppliver ikke gamle innlogginger', async () => {
     const kake = kunde.kaker.get(KAKE);
     nullstillGrenser(s.rot);
@@ -712,7 +742,7 @@ describe(
     test('kunder, innlogginger og galleriskilt er bevart med samme id-er', async () => {
       const meg = (await ola.konto('meg')).data.medlem;
       assert.ok(meg, 'innloggingen fra A virker fortsatt');
-      assert.equal(Number(sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v), 4);
+      assert.equal(Number(sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v), 5);
       assert.deepEqual(
         sql(rot, 'SELECT id, epost, navn, opprettet FROM dp_medlemmer ORDER BY id'),
         fra.medlemmer,

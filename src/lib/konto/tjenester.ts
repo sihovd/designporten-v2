@@ -31,6 +31,17 @@ export interface Plan {
   navn: string;
   prosjekter: number;
   tjenester: string[];
+  /** Kroner per month and year, approved by Sivert; nothing sells it until `kanKjopes`. */
+  pris?: { maned: number; ar: number; valuta: string; mva: string };
+  kanKjopes?: boolean;
+  /** When an administrator last changed the numbers in Studio, and who. */
+  endret?: string;
+  endretAv?: string | null;
+}
+
+/** «59 kr/mnd eller 590 kr/år», or null for a package without a price. */
+export function prisTekst(p: Plan): string | null {
+  return p.pris ? `${p.pris.maned} kr/mnd eller ${p.pris.ar} kr/år` : null;
 }
 
 export const TJENESTER = data.tjenester as Record<TjenesteId, Tjeneste>;

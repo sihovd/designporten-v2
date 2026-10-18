@@ -22,7 +22,7 @@ The owner of a file is decided by its path alone (`DELER` in `scripts/pakk-deler
 
 The page refers only to its own version folder, never to `/_astro/`, so a website release cannot remove or change what Sign Forge uses. A new Sign Forge carries only its new folder; the previous one stays on the server. The address, `?mal=` and `?prosjekt=` links are unchanged. `npm run build:onecom` uses this build in place of the website's page for Sign Forge, so the whole-site package and the three part packages contain the same files. The Node build (Render) keeps the website's own page.
 
-What Sign Forge still takes from the others is listed in its manifest under `krever`: the account API (schema 4 or newer) and a few website files (favicons, `site.webmanifest`, `brand/`) and pages it links to.
+What Sign Forge still takes from the others is listed in its manifest under `krever`: the account API (its schema at build time or newer) and a few website files (favicons, `site.webmanifest`, `brand/`) and pages it links to.
 
 ## Commands
 

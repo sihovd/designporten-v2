@@ -100,6 +100,56 @@ function konto_har_betalt(?array $m): bool
 }
 
 /**
+ * The packages (`planer` in tjenester.json), with the price and quota an
+ * administrator set in Studio (dp_konto_planer) in place of the file's.
+ * Without accounts switched on, the file's numbers. `$pa_nytt` after a change.
+ * @return array<string, array>
+ */
+function konto_planer(bool $pa_nytt = false): array
+{
+    static $planer = null;
+    if ($planer !== null && !$pa_nytt) return $planer;
+    $planer = konto_tjenester()['planer'];
+    if (konto_konfig() === null) return $planer;
+    foreach (konto_alle('SELECT * FROM dp_konto_planer') as $r) {
+        if (!isset($planer[$r['plan']])) continue;
+        $p = &$planer[$r['plan']];
+        $p['prosjekter'] = (int) $r['prosjekter'];
+        if (isset($p['pris'])) {
+            if ($r['pris_maned'] !== null) $p['pris']['maned'] = (int) $r['pris_maned'];
+            if ($r['pris_ar'] !== null) $p['pris']['ar'] = (int) $r['pris_ar'];
+        }
+        $p['endret'] = $r['endret'];
+        $p['endretAv'] = $r['endret_av'];
+        unset($p);
+    }
+    return $planer;
+}
+
+/** Studio: set a package's quota and (for a paid one) its price. */
+function konto_sett_plan(string $id, mixed $prosjekter, mixed $maned, mixed $ar, string $av): void
+{
+    $fil = konto_tjenester()['planer'];
+    if (!isset($fil[$id])) throw new KontoFeil('Ukjent pakke.', 404);
+    $heltall = function (mixed $v, int $maks, string $hva): int {
+        if (!is_int($v) || $v < 0 || $v > $maks) throw new KontoFeil("$hva må være et helt tall fra 0 til $maks.", 422);
+        return $v;
+    };
+    $prosjekter = $heltall($prosjekter, 10000, 'Antall prosjekter');
+    $betalt = isset($fil[$id]['pris']);
+    $maned = $betalt ? $heltall($maned, 100000, 'Pris per måned') : null;
+    $ar = $betalt ? $heltall($ar, 1000000, 'Pris per år') : null;
+    konto_transaksjon(function () use ($id, $prosjekter, $maned, $ar, $av) {
+        konto_kjor('DELETE FROM dp_konto_planer WHERE plan = ?', [$id]);
+        konto_kjor(
+            'INSERT INTO dp_konto_planer (plan, prosjekter, pris_maned, pris_ar, endret, endret_av) VALUES (?, ?, ?, ?, ?, ?)',
+            [$id, $prosjekter, $maned, $ar, konto_na(), mb_substr($av, 0, 80)],
+        );
+    });
+    konto_planer(true);
+}
+
+/**
  * The package a member has now (`planer` in tjenester.json): their own while
  * it is paid for, otherwise the free one. A guest has none: nothing is stored
  * on the server without an account.
@@ -107,7 +157,7 @@ function konto_har_betalt(?array $m): bool
  */
 function konto_plan(?array $m): array
 {
-    $planer = konto_tjenester()['planer'];
+    $planer = konto_planer();
     if ($m === null || $m['status'] !== 'aktiv') return ['id' => null, 'navn' => 'Uten konto', 'prosjekter' => 0, 'tjenester' => []];
     $id = (string) $m['plan'];
     if ($id !== 'gratis' && (!isset($planer[$id]) || !konto_har_betalt($m))) $id = 'gratis';
@@ -215,6 +265,16 @@ function konto_migreringer(): array
                 revisjon INTEGER NOT NULL DEFAULT 1, opprettet VARCHAR(32) NOT NULL, endret VARCHAR(32) NOT NULL
             ){TABELL}',
             'CREATE INDEX dp_prosjekter_medlem ON dp_prosjekter (medlem_id, app)',
+        ],
+        // 2026-10-18: price and quota per package, set in Studio (Sivert: «enkelt å endre i cms»).
+        // A row overrides the numbers in tjenester.json for that package; no row = the file's.
+        // Prices in whole kroner incl. VAT. Only adds.
+        5 => [
+            'CREATE TABLE dp_konto_planer (
+                plan VARCHAR(24) NOT NULL PRIMARY KEY, prosjekter INTEGER NOT NULL,
+                pris_maned INTEGER NULL, pris_ar INTEGER NULL,
+                endret VARCHAR(32) NOT NULL, endret_av VARCHAR(80) NULL
+            ){TABELL}',
         ],
     ];
 }

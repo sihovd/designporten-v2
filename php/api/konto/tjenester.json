@@ -1,5 +1,5 @@
 {
-  "merknad": "Priser er ikke satt. CSV hører til en betalt pakke, men er gratis for alle i en gratisperiode til betalingsløsningen er klar (Sivert, 2026-10-18).",
+  "merknad": "Skaper er den eneste betalte pakken, og den kan ikke kjøpes ennå. CSV hører til Skaper, men er gratis for alle i en gratisperiode til betalingsløsningen er klar (Sivert, 2026-10-18).",
   "tjenester": {
     "sign-forge": {
       "navn": "Sign Forge",
@@ -15,7 +15,7 @@
     "csv": {
       "navn": "CSV-batch i Sign Forge",
       "betaling": "betalt",
-      "beskrivelse": "Mange skilt fra én liste. Hører til en betalt pakke.",
+      "beskrivelse": "Mange skilt fra én liste. Hører til pakken Skaper.",
       "gratisperiode": {
         "apenFor": "alle",
         "til": "betalingslosning-klar",
@@ -28,6 +28,19 @@
       "navn": "Gratis konto",
       "prosjekter": 5,
       "tjenester": []
+    },
+    "skaper": {
+      "navn": "Skaper",
+      "prosjekter": 50,
+      "tjenester": ["csv"],
+      "pris": {
+        "maned": 59,
+        "ar": 590,
+        "valuta": "NOK",
+        "mva": "inkludert"
+      },
+      "godkjent": "Sivert, 2026-10-18",
+      "kanKjopes": false
     }
   },
   "prosjektapper": {

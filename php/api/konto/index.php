@@ -114,7 +114,7 @@ try {
         konto_get();
         $aktiv = konto_konfig() !== null;
         if ($aktiv) konto_db();
-        konto_svar(['aktiv' => $aktiv, 'oppsett' => konto_kilde()] + konto_tjenester());
+        konto_svar(['aktiv' => $aktiv, 'oppsett' => konto_kilde(), 'planer' => konto_planer()] + konto_tjenester());
     }
 
     if (konto_konfig() === null) throw new KontoFeil('Brukerkontoer er ikke slått på på denne serveren ennå.', 503);
@@ -543,6 +543,17 @@ try {
             });
             konto_admin_logg($aktor, 'tilgang.' . ($verdi ?? 'standard'), "$id:$nokkel");
             konto_svar(['ok' => true]);
+        }
+        if ($r === 'admin-planer') {
+            konto_get();
+            konto_svar(['planer' => konto_planer()]);
+        }
+        if ($r === 'admin-plan') {
+            $k = konto_kropp();
+            $id = (string) ($k['id'] ?? '');
+            konto_sett_plan($id, $k['prosjekter'] ?? null, $k['prisManed'] ?? null, $k['prisAr'] ?? null, (string) ($aktor['navn'] ?? 'admin'));
+            konto_admin_logg($aktor, 'plan.endre', $id);
+            konto_svar(['planer' => konto_planer()]);
         }
         if ($r === 'admin-testpost') {
             konto_get();
