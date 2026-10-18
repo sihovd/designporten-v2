@@ -1,0 +1,211 @@
+/* «Min konto». Semantic tokens only. */
+.konto {
+  display: grid;
+  gap: var(--r-5);
+  max-width: 720px;
+}
+
+.konto__kort {
+  display: grid;
+  gap: var(--r-3);
+  padding: var(--r-5);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-kort);
+  background: var(--overflate);
+}
+
+.konto__kort h2 {
+  font-size: var(--fs-h3);
+}
+
+.konto__dempet {
+  color: var(--fg-dempet);
+}
+
+.konto__faner {
+  display: inline-flex;
+  justify-self: start;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-pille);
+}
+
+.konto__faner button {
+  min-height: var(--mal-beroring);
+  padding: 0 var(--r-4);
+  border: 0;
+  border-radius: var(--radius-pille);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.konto__faner button[aria-pressed='true'] {
+  background: var(--handling);
+  color: var(--pa-handling);
+}
+
+.konto__skjema {
+  display: grid;
+  gap: var(--r-4);
+}
+
+.konto__skjema--rad {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.konto__felt {
+  display: grid;
+  gap: var(--r-1);
+}
+
+.konto__felt span {
+  font-weight: 600;
+}
+
+.konto__felt input {
+  min-height: var(--mal-beroring);
+  padding: 0 var(--r-3);
+  border: 1px solid var(--linje-sterk);
+  border-radius: var(--radius-skjema);
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.konto__hjelp {
+  color: var(--fg-dempet);
+}
+
+.konto__avkrysning {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--r-2);
+  align-items: start;
+}
+
+.konto__avkrysning input {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+}
+
+.konto__feil {
+  color: var(--feil);
+}
+
+.konto__knapp {
+  justify-self: start;
+  min-height: var(--mal-beroring);
+  padding: 0 var(--r-5);
+  border: 1px solid var(--handling);
+  border-radius: var(--radius-pille);
+  background: var(--handling);
+  color: var(--pa-handling);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.konto__knapp:hover:not(:disabled) {
+  background: var(--handling-hover);
+}
+
+.konto__knapp:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.konto__knapp--rolig {
+  border-color: var(--linje-sterk);
+  background: transparent;
+  color: var(--fg);
+}
+
+.konto__knapp--rolig:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.konto__knapp--fare {
+  border-color: var(--feil);
+  background: transparent;
+  color: var(--feil);
+}
+
+.konto__knapp--fare:hover:not(:disabled) {
+  background: var(--feil);
+  color: var(--pa-handling);
+}
+
+.konto__skilt,
+.konto__tjenester {
+  display: grid;
+  gap: var(--r-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.konto__skilt li,
+.konto__tjenester li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--r-2) var(--r-3);
+  padding: var(--r-2) 0;
+  border-top: 1px solid var(--linje);
+}
+
+.konto__skilttekst,
+.konto__tjenester li > span:first-child {
+  display: grid;
+  flex: 1 1 200px;
+  gap: 2px;
+}
+
+.konto__skilttekst small,
+.konto__tjenester small {
+  color: var(--fg-dempet);
+}
+
+.konto__miniatyr {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 48px;
+  border-radius: var(--radius-felt);
+  background: var(--bg);
+}
+
+.konto__miniatyr img {
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  object-fit: contain;
+}
+
+.konto__merke {
+  padding: 2px var(--r-3);
+  border-radius: var(--radius-pille);
+  background: var(--bg);
+  font-size: var(--fs-liten);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.konto__merke--gratis-inntil-videre {
+  color: var(--advarsel);
+}
+
+@media (max-width: 520px) {
+  .konto__kort {
+    padding: var(--r-4);
+  }
+
+  .konto__skjema--rad {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

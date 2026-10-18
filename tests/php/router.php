@@ -34,6 +34,7 @@ foreach (['api/foresporsel/', 'api/bestilling/'] as $api) {
     if ($relativ === $api || $relativ === $api . 'index.php') { require $rot . '/' . $api . 'index.php'; return; }
 }
 if ($relativ === 'api/cms/' || $relativ === 'api/cms/index.php') { require $rot . '/api/cms/index.php'; return; }
+if ($relativ === 'api/konto/' || $relativ === 'api/konto/index.php') { require $rot . '/api/konto/index.php'; return; }
 if ($relativ === 'sitemap.xml') { $_GET['kart'] = '1'; require $rot . '/api/cms/blogg.php'; return; }
 if ($relativ === 'blogg' || str_starts_with($relativ, 'blogg/') || $relativ === 'api/cms/blogg.php') { require $rot . '/api/cms/blogg.php'; return; }
 if (str_ends_with($relativ, '.php') || preg_match('~^api/cms/(data/|nokler\.json)~', $relativ)) { http_response_code(403); return; }

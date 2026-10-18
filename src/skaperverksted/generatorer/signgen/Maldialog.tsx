@@ -4,7 +4,9 @@
  * with its ownership fields. Templates stay in this browser; sharing and
  * selling are not open yet, and the window says so.
  */
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
+import { konto, kontoMulig, type DeltSkilt } from '@/lib/konto/api';
+import { DELT_LISENS, hentDeltMal } from './deling';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import { Dialog } from '../../shell/Dialog';
 import { Ikon } from '../../shell/ikoner';
@@ -46,27 +48,98 @@ function Fargeprover({ mal }: { mal: Mal }) {
   );
 }
 
+/**
+ * Start a new project from a template, after asking when the open sign would be lost. Returns
+ * false when the user said no.
+ */
+export function startFraMal(benk: Arbeidsbenk, mal: Mal): boolean {
+  if (
+    startErValgt(benk.tilstand.dok) &&
+    !confirm(
+      'Starte et nytt prosjekt fra malen? Det du har nå, blir borte hvis du ikke har lagret det som fil.',
+    )
+  )
+    return false;
+  const dok = lesInnSigngen(brukMal(mal));
+  benk.lastInn(dok);
+  benk.settUtsnitt({ zoom: 1, senterX: 0, senterY: 0 });
+  benk.kommando('tilpass');
+  signtilstand(benk).sett({ malvindu: null, startsteg: 'valg' });
+  benk.melde(`Nytt prosjekt fra malen «${mal.navn}». Malen er ikke endret.`);
+  return true;
+}
+
+/** Signs others have made (the public gallery), newest first, to start from. */
+function Fellesmaler({ benk }: { benk: Arbeidsbenk }) {
+  const [skilt, settSkilt] = useState<DeltSkilt[] | null>(null);
+  const [feil, settFeil] = useState<string | null>(null);
+  const [henter, settHenter] = useState<string | null>(null);
+  useEffect(() => {
+    konto
+      .skilt(24)
+      .then((s) => settSkilt(s.skilt))
+      .catch((e: unknown) => settFeil(e instanceof Error ? e.message : 'Galleriet kunne ikke hentes.'));
+  }, []);
+  const bruk = async (s: DeltSkilt) => {
+    settHenter(s.id);
+    try {
+      startFraMal(benk, await hentDeltMal(s.id));
+    } catch (e) {
+      settFeil(e instanceof Error ? e.message : 'Skiltet kunne ikke åpnes.');
+    } finally {
+      settHenter(null);
+    }
+  };
+  return (
+    <>
+      <h3 class="underoverskrift" id="maler-felles">
+        Nylig laget av andre
+      </h3>
+      {feil && (
+        <p class="dempet" role="status">
+          {feil}
+        </p>
+      )}
+      {!feil && !skilt && (
+        <p class="dempet" role="status">
+          Henter skilt …
+        </p>
+      )}
+      {skilt && skilt.length === 0 && <p class="dempet">Ingen skilt er delt ennå.</p>}
+      {skilt && skilt.length > 0 && (
+        <ul class="malliste" role="list" aria-labelledby="maler-felles">
+          {skilt.map((s) => (
+            <li key={s.id}>
+              {s.bilde ? (
+                <img class="fellesmal-bilde" src={s.bilde} alt="" width="56" height="40" loading="lazy" />
+              ) : (
+                <span class="fellesmal-bilde" aria-hidden="true" />
+              )}
+              <span class="fp-tekst">
+                <strong>{s.tittel}</strong>
+                <span class="dempet fp-linje">
+                  {s.skaper} · {DELT_LISENS}
+                </span>
+              </span>
+              <span class="fp-knapper">
+                <button type="button" class="primar" disabled={henter !== null} onClick={() => void bruk(s)}>
+                  {henter === s.id ? 'Åpner …' : 'Bruk malen'}
+                  <span class="visuelt-skjult"> {s.tittel}</span>
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
 /** Choose a template and start a new project from it. */
 export function Malbibliotek({ benk }: { benk: Arbeidsbenk }) {
-  const t = brukBenk(benk);
   const [egne, settEgne] = useState(() => hentEgneMaler());
-  const mellom = !startErValgt(t.dok);
   const lukk = () => signtilstand(benk).sett({ malvindu: null });
-  const bruk = (mal: Mal) => {
-    if (
-      !mellom &&
-      !confirm(
-        'Starte et nytt prosjekt fra malen? Det du har nå, blir borte hvis du ikke har lagret det som fil.',
-      )
-    )
-      return;
-    const dok = lesInnSigngen(brukMal(mal));
-    benk.lastInn(dok);
-    benk.settUtsnitt({ zoom: 1, senterX: 0, senterY: 0 });
-    benk.kommando('tilpass');
-    signtilstand(benk).sett({ malvindu: null, startsteg: 'valg' });
-    benk.melde(`Nytt prosjekt fra malen «${mal.navn}». Malen er ikke endret.`);
-  };
+  const bruk = (mal: Mal) => void startFraMal(benk, mal);
   const liste = (maler: Mal[], overskrift: string, id: string, kanSlette: boolean) => (
     <>
       <h3 class="underoverskrift" id={id}>
@@ -116,8 +189,12 @@ export function Malbibliotek({ benk }: { benk: Arbeidsbenk }) {
         <p class="dempet">En mal er et skilt du starter fra. Du får en kopi, og malen blir som den var.</p>
         {liste(innebygdeMaler(), 'Fra Designporten', 'maler-innebygde', false)}
         {liste(egne, 'Mine maler', 'maler-egne', true)}
+        {kontoMulig && <Fellesmaler benk={benk} />}
         <p class="merknad">
-          Mine maler lagres i denne nettleseren. Deling og salg av maler er ikke åpnet ennå.
+          Mine maler lagres i denne nettleseren.
+          {kontoMulig
+            ? ' Skilt du laster ned, deles i «Nylig laget» og kan brukes av andre.'
+            : ' Deling og salg av maler er ikke åpnet ennå.'}
         </p>
       </div>
     </Dialog>

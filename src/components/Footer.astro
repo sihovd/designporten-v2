@@ -1,5 +1,5 @@
 ---
-import { nettsti } from '@/lib/nettsti';
+import { nettsti, phpmiljo } from '@/lib/nettsti';
 import { hovedmeny, juridisk } from '@/lib/navigasjon';
 import { kontakt, virksomhet } from '@/lib/kontakt';
 import { logo } from '@/lib/ressurser';
@@ -28,6 +28,11 @@ import { logo } from '@/lib/ressurser';
             <a href={p.href}>{p.navn}</a>
           </li>
         ))}
+        {phpmiljo && (
+          <li>
+            <a href={nettsti('/konto/')}>Min konto</a>
+          </li>
+        )}
       </ul>
     </nav>
 

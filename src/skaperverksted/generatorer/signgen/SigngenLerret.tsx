@@ -17,18 +17,15 @@ import { LINJAL, lagVisning, type Visning } from '../../render2d/visning';
 import { brukBenk } from '../../shell/bruk-benk';
 import { nyForm, nyTekst, oppdaterObjekter } from './dokument';
 import {
-  harOmriss,
   hjorner,
   innholdsboks,
-  fargedeler,
-  lagRegion,
-  omrissRegioner,
   lokalGeometri,
   nårFontLastes,
   beroererBoks,
   verdensBoks,
   verdensRegion,
 } from './modell';
+import { skiltdeler } from './forhandsbilde';
 import { signtilstand, brukSigntilstand, type Snaplinje, type VerktoyId } from './tilstand';
 import { dupliserValgte, leggTil, redigerbare, slettValgte, utvalgsboks, valgte } from './handlinger';
 import { laas45Punkt, snapPunkt, treff } from './plukk';
@@ -206,31 +203,15 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
   const valgt = new Set(benk.tilstand.utvalg.objekter);
 
   // layers bottom to top in their material colours: the sign seen from above
-  for (const lag of d.lag) {
-    if (!lag.synlig) continue;
-    const region = lagRegion(d, lag.id);
-    if (!region) continue;
-    // a text layer: its outlines, then the text (unless it is cut out of them)
-    const deler: [Region, string][] = [];
-    if (harOmriss(lag)) {
-      const omriss = omrissRegioner(d, lag.id);
-      for (const o of lag.omriss ?? []) {
-        const r = omriss?.get(o.id);
-        if (o.synlig && r?.length) deler.push([r, o.materialId]);
-      }
-    }
-    if (lag.tekstvisning !== 'kutt')
-      for (const f of fargedeler(d, lag, region)) deler.push([f.region, f.materialId]);
-    for (const [r, materialId] of deler) {
-      sti(ctx, v, r);
-      ctx.fillStyle = finnMateriale(materialId).hex;
-      ctx.fill('evenodd');
-      ctx.strokeStyle = f.bakgrunn;
-      ctx.globalAlpha = 0.55;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
+  for (const [r, materialId] of skiltdeler(d)) {
+    sti(ctx, v, r);
+    ctx.fillStyle = finnMateriale(materialId).hex;
+    ctx.fill('evenodd');
+    ctx.strokeStyle = f.bakgrunn;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   tegnHjelpelinjer(ctx, v, f, benk, st);

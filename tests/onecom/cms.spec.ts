@@ -24,8 +24,15 @@ async function nullstill() {
   await rm('dist/medier/2026', { recursive: true, force: true });
 }
 
-test.beforeAll(nullstill);
-test.afterAll(nullstill);
+// only the project that runs the tests may reset the shared database, or a parallel worker wipes it mid-run
+// eslint-disable-next-line no-empty-pattern -- Playwright needs the fixture object first
+test.beforeAll(async ({}, info) => {
+  if (info.project.name === 'desktop') await nullstill();
+});
+// eslint-disable-next-line no-empty-pattern -- as above
+test.afterAll(async ({}, info) => {
+  if (info.project.name === 'desktop') await nullstill();
+});
 
 let redaktor: Page;
 
@@ -287,4 +294,64 @@ test('Studio: responsiv oversikt og bloggredaktør ved alle avtalte bredder', as
     if (bredde < 761) await redaktor.getByRole('button', { name: 'Meny', exact: true }).click();
     await redaktor.getByRole('button', { name: 'Oversikt', exact: true }).click();
   }
+});
+
+// Member accounts and the sign gallery live in the same database (docs/konto.md).
+test('konto: et medlem deler et skilt fra Sign Forge, det vises i «Nylig laget» og åpnes som mal', async ({
+  browser,
+}) => {
+  const medlem = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
+  await medlem.goto(`${base}/konto/`);
+  await medlem.getByRole('button', { name: 'Lag konto' }).first().click();
+  await medlem.getByRole('textbox', { name: /^Navn/ }).fill('Kari Test');
+  await medlem.getByRole('textbox', { name: /^E-post/ }).fill('kari@example.invalid');
+  await medlem.getByLabel(/^Passord/).fill('et-langt-passord');
+  await medlem.getByRole('checkbox').check();
+  await medlem.locator('form').getByRole('button', { name: 'Lag konto' }).click();
+  await expect(medlem.getByRole('heading', { name: 'Hei, Kari Test' })).toBeVisible();
+  await expect(medlem.getByText('Gratis inntil videre', { exact: true })).toBeVisible();
+  const axe = await new AxeBuilder({ page: medlem }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+
+  await medlem.goto(`${base}/skaperverksted/signgen/`);
+  await medlem.getByRole('button', { name: /Tomt dokument/ }).click();
+  await medlem.getByRole('button', { name: 'Start skiltet' }).click();
+  await expect(medlem.locator('.statuslinje')).toContainText('mm');
+  await medlem.getByRole('button', { name: /Eksporter/ }).click();
+  const dialog = medlem.getByRole('dialog', { name: 'Se over før eksport' });
+  await expect(dialog.getByText(/deles det i «Nylig laget»/)).toBeVisible({ timeout: 20_000 });
+  await dialog.locator('summary', { hasText: 'Last ned' }).click();
+  await Promise.all([
+    medlem.waitForEvent('download'),
+    dialog.getByRole('menuitem', { name: 'Last ned 3MF' }).click(),
+  ]);
+  await expect(medlem.getByText('Skiltet er delt i «Nylig laget».')).toBeVisible();
+
+  const besokende = await browser.newPage({ baseURL: 'http://127.0.0.1:4322' });
+  await besokende.goto(`${base}/`);
+  // the slider loads when it scrolls into view; other tests may share signs too
+  await besokende.locator('.nylig').scrollIntoViewIfNeeded();
+  const kort = besokende.locator('.nylig .nylige__kort', { hasText: 'Kari Test' });
+  await expect(kort).toContainText('Mitt skilt');
+  await expect(kort).toContainText('Kari Test');
+  await expect(kort.getByRole('img', { name: /Mitt skilt/ })).toBeVisible();
+  besokende.on('dialog', (d) => void d.accept());
+  await kort.getByRole('link', { name: /Bruk som mal/ }).click();
+  await expect(besokende.getByText('Nytt prosjekt fra malen «Mitt skilt»', { exact: false })).toBeVisible({
+    timeout: 20_000,
+  });
+  await besokende.close();
+  await medlem.close();
+});
+
+test('konto: administratoren ser medlemsregisteret og kan skjule et skilt fra galleriet', async () => {
+  await redaktor.setViewportSize({ width: 1440, height: 1000 });
+  await redaktor.goto(`${base}/cms/`);
+  await redaktor.getByRole('button', { name: 'Medlemmer og skilt', exact: true }).click();
+  await expect(redaktor.getByText('kari@example.invalid', { exact: false })).toBeVisible();
+  const rad = redaktor.locator('.cms__rad', { hasText: 'Kari Test' }).filter({ hasText: 'Mitt skilt' });
+  await rad.getByRole('button', { name: /Skjul fra galleriet/ }).click();
+  await expect(rad.getByRole('button', { name: /Vis i galleriet/ })).toBeVisible();
+  const svar = await redaktor.request.get(`${base}/api/konto/?r=skilt`);
+  expect((await svar.json()).skilt.map((s: { skaper: string }) => s.skaper)).not.toContain('Kari Test');
 });

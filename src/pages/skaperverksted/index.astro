@@ -3,6 +3,7 @@ import { nettsti } from '@/lib/nettsti';
 import Side from '@/layouts/Side.astro';
 import VerktoyKort from '@/components/showroom/verksted/VerktoyKort.astro';
 import { verktoy } from '@/components/showroom/verksted/verktoy';
+import NyligeSkilt from '@/components/showroom/verksted/NyligeSkilt';
 
 const tilgjengelige = verktoy.filter((v) => v.status === 'tilgjengelig').length;
 
@@ -41,6 +42,14 @@ const steg = [
       <p class="hub-fotnote">
         Tegningene viser startmodellen i hvert verktøy, på et rutenett med ruter på 10 mm.
       </p>
+
+      <section class="hub-nylig" aria-labelledby="nylig-tittel">
+        <h2 id="nylig-tittel" class="hub-bunn__tittel">
+          Nylig laget i Sign Forge
+        </h2>
+        <p class="hub-nylig__ingress">Skilt andre har laget. Bruk et som mal og gjør det til ditt eget.</p>
+        <NyligeSkilt client:visible />
+      </section>
 
       <section class="hub-bunn" aria-labelledby="slik-tittel">
         <h2 id="slik-tittel" class="hub-bunn__tittel">
@@ -97,6 +106,16 @@ const steg = [
     display: grid;
     gap: var(--r-4);
     padding: var(--r-8) 0 var(--r-6);
+  }
+
+  .hub-nylig {
+    display: grid;
+    gap: var(--r-3);
+    margin-top: var(--r-7);
+  }
+
+  .hub-nylig__ingress {
+    color: var(--fg-dempet);
   }
 
   .hub-etikett {

@@ -216,4 +216,6 @@ export interface Eksportregler {
   vedlegg?: { navn: string; filnavn: string; innhold: string; type: string };
   /** Other ways to export, as buttons next to the downloads (for example «Eksporter via CSV»). */
   handlinger?: { navn: string; hjelp?: string; kjor: () => void }[];
+  /** Runs after a file download or «Legg i handlekurven» (Sign Forge shares the sign in the gallery). */
+  etterEksport?: () => void;
 }
