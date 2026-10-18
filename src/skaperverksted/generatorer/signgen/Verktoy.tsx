@@ -20,6 +20,7 @@ import { Fontvindu } from './Fontvindu';
 import { Startside } from './Startside';
 import { LagreSomMal, Malbibliotek, startFraMal } from './Maldialog';
 import { hentDeltMal } from './deling';
+import { Publiseringsdialog } from './Publiseringsdialog';
 import { kontoMulig } from '@/lib/konto/api';
 import { Dekorgalleri, Dekorlagringsvindu } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
@@ -203,6 +204,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {st.prosjektinnstillinger && <Prosjektinnstillinger benk={benk} />}
       {st.malvindu === 'bibliotek' && <Malbibliotek benk={benk} />}
       {st.malvindu === 'lagre' && <LagreSomMal benk={benk} />}
+      {st.malvindu === 'publiser' && <Publiseringsdialog benk={benk} />}
       {st.fontvindu && <Fontvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
       {st.lagreDekor && <Dekorlagringsvindu benk={benk} />}

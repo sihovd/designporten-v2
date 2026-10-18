@@ -149,7 +149,7 @@ export interface Signtilstand {
   /** «Fra CSV» was chosen at the start: open the CSV window once the sign has been started. */
   startCsv: boolean;
   /** The template library, or the «Lagre som mal» window, is open. */
-  malvindu: 'bibliotek' | 'lagre' | null;
+  malvindu: 'bibliotek' | 'lagre' | 'publiser' | null;
   /** The window for adding fonts (Google Fonts) is open. */
   fontvindu: boolean;
   /** The decoration gallery is open. */

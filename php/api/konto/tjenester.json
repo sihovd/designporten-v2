@@ -4,7 +4,13 @@
     "sign-forge": {
       "navn": "Sign Forge",
       "betaling": "gratis",
-      "beskrivelse": "Lag skilt og last dem ned som 3MF eller STL."
+      "beskrivelse": "Lag skilt og last dem ned som 3MF eller STL.",
+      "funksjoner": {
+        "publisering": {
+          "navn": "Publisere skilt i galleriet «Nylig laget»",
+          "krever": ["medlem", "bekreftet-epost"]
+        }
+      }
     },
     "csv": {
       "navn": "CSV-batch i Sign Forge",
@@ -13,7 +19,13 @@
     }
   },
   "leverandorer": {
-    "stripe": { "navn": "Kort (Stripe Checkout)", "aktiv": false },
-    "vipps": { "navn": "Vipps", "aktiv": false }
+    "stripe": {
+      "navn": "Kort (Stripe Checkout)",
+      "aktiv": false
+    },
+    "vipps": {
+      "navn": "Vipps",
+      "aktiv": false
+    }
   }
 }

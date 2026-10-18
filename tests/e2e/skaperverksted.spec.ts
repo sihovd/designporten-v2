@@ -109,6 +109,40 @@ test.describe('Signgen', () => {
     await expect(zoom).not.toHaveText(for_!);
   });
 
+  test('pinch på styreflaten (Ctrl + hjul) zoomer, og zoom ut stopper ved hele bordet', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Styreflate og musehjul finnes bare på desktop');
+    const lerret = page.locator('.lerret canvas');
+    const boks = (await lerret.boundingBox())!;
+    await page.mouse.move(boks.x + boks.width / 2, boks.y + boks.height / 2);
+    const zoom = page.locator('.statuslinje .mono', { hasText: '%' });
+    const for_ = await zoom.textContent();
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -20);
+    await page.keyboard.up('Control');
+    await expect(zoom).not.toHaveText(for_!);
+    // far out: the view stops where the whole table is visible, it does not keep shrinking
+    for (let i = 0; i < 30; i++) await page.mouse.wheel(0, 400);
+    const grense = await zoom.textContent();
+    for (let i = 0; i < 5; i++) await page.mouse.wheel(0, 400);
+    await expect(zoom).toHaveText(grense!);
+  });
+
+  test('uten kontoer på serveren tilbyr Sign Forge ikke å publisere, og eksport deler ingenting', async ({
+    page,
+  }) => {
+    await page.locator('summary', { hasText: 'Fil' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Lagre som mal …' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: /Publiser i galleriet/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: /Eksporter/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Se over før eksport' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(/Nylig laget/)).toHaveCount(0);
+  });
+
   test('startvinduet lar deg velge og lagre en fargeprofil', async ({ page, isMobile }) => {
     await page.evaluate(() => localStorage.clear());
     await page.reload();

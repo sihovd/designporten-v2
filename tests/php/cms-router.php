@@ -4,12 +4,22 @@ declare(strict_types=1);
 
 $rot = getenv('DP_CMS_ROT');
 // SQLite by default; DP_CMS_DSN runs the same tests against MySQL/MariaDB (see scripts/cms.test.mjs).
-define('DP_CMS_KONFIG', [
+$konfig = [
     'dsn' => getenv('DP_CMS_DSN') ?: 'sqlite:' . $rot . '/cms.sqlite',
     'bruker' => getenv('DP_CMS_BRUKER') ?: null,
     'passord' => getenv('DP_CMS_PASSORD') ?: null,
     'oppsettkode' => 'test-oppsettkode-1234',
-]);
+];
+// The accounts always get their own settings (the same database here); the
+// legacy fallback to the CMS's settings is never used in tests.
+// DP_UTEN_CMS: no CMS at all. DP_UTEN_KONTO: no account settings (scripts/konto.test.mjs).
+if (!getenv('DP_UTEN_CMS')) define('DP_CMS_KONFIG', $konfig);
+if (!getenv('DP_UTEN_KONTO')) {
+    // e-mail is captured in a folder outside the site (DP_KONTO_POST); without it, e-mail is not set up
+    define('DP_KONTO_KONFIG', ['dsn' => $konfig['dsn'], 'bruker' => $konfig['bruker'], 'passord' => $konfig['passord']]
+        + (getenv('DP_KONTO_POST') ? ['epost' => ['driver' => getenv('DP_KONTO_EPOSTDRIVER') ?: 'fil', 'mappe' => getenv('DP_KONTO_POST'), 'fra' => 'konto@example.invalid']] : [])
+        + ['offentlig_adresse' => 'http://127.0.0.1:' . $_SERVER['SERVER_PORT']]);
+}
 $sti = rawurldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/');
 if ($sti === '/api/cms/') { require $rot . '/api/cms/index.php'; return; }
 if ($sti === '/api/konto/') { require $rot . '/api/konto/index.php'; return; }

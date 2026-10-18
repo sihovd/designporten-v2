@@ -13,6 +13,8 @@ export interface Tjeneste {
   navn: string;
   betaling: Betaling;
   beskrivelse: string;
+  /** Features the server checks one by one (for example publishing in the gallery). */
+  funksjoner?: Record<string, { navn: string; krever: string[] }>;
 }
 
 export const TJENESTER = data.tjenester as Record<TjenesteId, Tjeneste>;

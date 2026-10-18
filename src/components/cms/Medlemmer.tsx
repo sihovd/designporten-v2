@@ -2,13 +2,17 @@
  * The member register and the public sign gallery, for administrators
  * (Sivert, 2026-10-16): who has an account, their plan and payment state,
  * and the shared signs, each of which can be hidden from the gallery.
+ * Stage B (2026-10-18): whether the address is confirmed, suspend and
+ * reactivate (which ends every sign-in), an exception per member for a
+ * service or feature, and on a test build the captured e-mails.
  */
 import { useEffect, useState } from 'preact/hooks';
 import { cmsCsrf } from '@/lib/cms/api';
 import { konto, type DeltSkilt, type Medlem } from '@/lib/konto/api';
 import { BETALINGSMERKNAD, BETALINGSTEKST, TJENESTER } from '@/lib/konto/tjenester';
 
-type Rad = Medlem & { antallSkilt: number; aktiv: boolean };
+type Rad = Medlem & { antallSkilt: number; aktiv: boolean; unntak: Record<string, 'ja' | 'nei'> };
+type Testpost = { til: string; emne: string; tekst: string; tid: string };
 
 const dato = (v: string | null) =>
   v ? new Date(v).toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' }) : '–';
@@ -20,9 +24,14 @@ const BETALINGSSTATUS: Record<Medlem['betaling']['status'], string> = {
 };
 
 export function Medlemmer() {
-  const [register, settRegister] = useState<{ medlemmer: Rad[]; antall: number; gjesteskilt: number } | null>(
-    null,
-  );
+  const [register, settRegister] = useState<{
+    medlemmer: Rad[];
+    antall: number;
+    gjesteskilt: number;
+    tilgangsnokler: string[];
+  } | null>(null);
+  const [testpost, settTestpost] = useState<Testpost[] | null>(null);
+  const [beskjed, settBeskjed] = useState<string | null>(null);
   const [skilt, settSkilt] = useState<DeltSkilt[] | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
   const [sok, settSok] = useState('');
@@ -34,7 +43,39 @@ export function Medlemmer() {
         settSkilt(s.skilt);
       })
       .catch((e: unknown) => settFeil(e instanceof Error ? e.message : 'Kunne ikke hente registeret.'));
-  useEffect(() => void hent(), []);
+  useEffect(() => {
+    void hent();
+    // only a test build answers; elsewhere the section stays away
+    konto.admin
+      .testpost()
+      .then((t) => settTestpost(t.eposter))
+      .catch(() => settTestpost(null));
+  }, []);
+
+  const settStatus = async (m: Rad) => {
+    const ny = m.status === 'aktiv' ? 'suspendert' : 'aktiv';
+    try {
+      await konto.admin.status(m.id, ny, cmsCsrf());
+      settBeskjed(
+        ny === 'suspendert'
+          ? `${m.navn} er suspendert og logget ut overalt.`
+          : `${m.navn} er aktiv igjen og må logge inn på nytt.`,
+      );
+      await hent();
+    } catch (e) {
+      settFeil(e instanceof Error ? e.message : 'Kunne ikke endre statusen.');
+    }
+  };
+
+  const settUnntak = async (m: Rad, nokkel: string, verdi: string) => {
+    try {
+      await konto.admin.tilgang(m.id, nokkel, verdi === 'ja' || verdi === 'nei' ? verdi : null, cmsCsrf());
+      settBeskjed(`Tilgangen for ${m.navn} er lagret.`);
+      await hent();
+    } catch (e) {
+      settFeil(e instanceof Error ? e.message : 'Kunne ikke endre tilgangen.');
+    }
+  };
 
   const skjul = async (s: DeltSkilt) => {
     try {
@@ -69,6 +110,11 @@ export function Medlemmer() {
             {feil}
           </p>
         )}
+        {beskjed && (
+          <p class="cms__melding" role="status">
+            {beskjed}
+          </p>
+        )}
         <label class="cms__felt cms__felt--sok">
           Søk etter navn eller e-post
           <input type="search" value={sok} onInput={(e) => settSok((e.target as HTMLInputElement).value)} />
@@ -82,27 +128,73 @@ export function Medlemmer() {
                 <span class="cms__feltnavn">
                   {m.navn} <span class="cms__dempet">· {m.epost}</span>
                 </span>
-                <span class="cms__merke">
+                <span class={`cms__merke ${m.status === 'aktiv' ? '' : 'cms__merke--utkast'}`}>
                   {m.plan === 'gratis' ? 'Gratis' : m.plan} · {BETALINGSSTATUS[m.betaling.status]}
-                  {!m.aktiv && ' · sperret'}
+                  {m.status === 'suspendert' && ' · suspendert'}
                 </span>
               </div>
               <p class="cms__dempet">
                 Medlem siden {dato(m.opprettet)} · sist innlogget {dato(m.sistInne)} · {m.antallSkilt} delte
-                skilt
+                skilt · e-post {m.epostBekreftet ? `bekreftet ${dato(m.epostBekreftet)}` : 'ikke bekreftet'}
                 {m.betaling.leverandor && ` · betaler med ${m.betaling.leverandor}`}
                 {m.betaling.betaltTil && ` · betalt til ${dato(m.betaling.betaltTil)}`}
               </p>
+              <details>
+                <summary>
+                  Tilganger og status<span class="visuelt-skjult"> for {m.navn}</span>
+                </summary>
+                {(register?.tilgangsnokler ?? []).map((nokkel) => (
+                  <label key={nokkel} class="cms__felt">
+                    {nokkel}
+                    <select
+                      value={m.unntak[nokkel] ?? ''}
+                      onChange={(e) => void settUnntak(m, nokkel, (e.target as HTMLSelectElement).value)}
+                    >
+                      <option value="">Standard</option>
+                      <option value="nei">Stengt for dette medlemmet</option>
+                      <option value="ja">Åpnet uten betaling</option>
+                    </select>
+                  </label>
+                ))}
+                <button type="button" class="cms__knapp" onClick={() => void settStatus(m)}>
+                  {m.status === 'aktiv' ? 'Suspender' : 'Aktiver igjen'}
+                  <span class="visuelt-skjult"> {m.navn}</span>
+                </button>
+              </details>
             </li>
           ))}
         </ul>
       </section>
 
+      {testpost && (
+        <section aria-labelledby="cms-testpost">
+          <h2 id="cms-testpost">Fanget e-post (testbygg)</h2>
+          <p class="cms__dempet">
+            Testbygget sender ingen e-post. Det kontoen ville sendt, står her, nyeste først. Lenkene virker på
+            dette testbygget.
+          </p>
+          {testpost.length === 0 && <p class="cms__dempet">Ingen e-post ennå.</p>}
+          <ul class="cms__liste">
+            {testpost.map((e) => (
+              <li key={e.tid + e.til + e.emne} class="cms__rad">
+                <div class="cms__radhode">
+                  <span class="cms__feltnavn">{e.emne}</span>
+                  <span class="cms__dempet">
+                    til {e.til} · {dato(e.tid)}
+                  </span>
+                </div>
+                <pre class="cms__epost">{e.tekst}</pre>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section aria-labelledby="cms-skiltgalleri">
         <h2 id="cms-skiltgalleri">Skiltgalleriet «Nylig laget»</h2>
         <p class="cms__dempet">
-          Alle skilt som lastes ned eller bestilles fra Sign Forge, deles her. Skjul et skilt som ikke skal
-          vises offentlig; det kan vises igjen senere.
+          Skilt som medlemmer selv har publisert fra Sign Forge (og skilt som ble delt automatisk før 17.
+          oktober 2026). Skjul et skilt som ikke skal vises offentlig; det kan vises igjen senere.
         </p>
         {skilt?.length === 0 && <p class="cms__dempet">Ingen skilt er delt ennå.</p>}
         <ul class="cms__liste">

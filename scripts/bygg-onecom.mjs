@@ -24,6 +24,7 @@ if (bygg.status !== 0) process.exit(bygg.status ?? 1);
 cpSync('php', 'dist', { recursive: true });
 rmSync('dist/api/oppsett.eksempel.php');
 rmSync('dist/api/cms/konfig.eksempel.php');
+rmSync('dist/api/konto/konfig.eksempel.php');
 writeFileSync('dist/api/cms/nokler.json', `${JSON.stringify(lagNokler('dist'), null, 2)}\n`);
 writeFileSync(
   'dist/api/bygg.php',
@@ -80,6 +81,10 @@ for (const fil of [
   'api/cms/blogg.php',
   'api/konto/index.php',
   'api/konto/_konto.php',
+  'api/konto/_db.php',
+  'api/konto/_admin.php',
+  'api/konto/_grensesnitt.php',
+  'api/konto/_epost.php',
   'api/konto/tjenester.json',
   'api/konto/.htaccess',
   'blogg/index.html',

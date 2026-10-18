@@ -1,4 +1,5 @@
-# Public entry point: index.php. Shared code is included by it and never served.
-<FilesMatch "^_.*\.php$">
+# Public entry point: index.php. The survey before a migration is a command-line tool (scripts/kartlegg-konto.php), never here.
+# Settings and shared code are included by them and never served.
+<FilesMatch "^_.*\.php$|^konfig(?:\.eksempel)?\.php$">
   Require all denied
 </FilesMatch>
