@@ -44,7 +44,7 @@ Same domain and same database server to start with. Same domain is **not** isola
   - **Existing projects survive the transition.** When package control or a quota takes effect, and also when someone drops from a package to free or ends up over the quota, every project already saved can still be **opened and downloaded**. Nothing is deleted or locked away. A save that needs a quota the member no longer has is refused, and the message says how to make room.
 
   Defaults chosen by Claude, open for Sivert: gallery signs do not count towards the five; over the quota, a member can open, download and delete projects, but not save new ones. Still open: which packages and quotas, and the terms for commercial sale.
-- **D:** a separate build and package per part with its own manifest; Sign Forge's assets under its own folder so a website update never removes them.
+- **D (built 2026-10-18 on Sivert's «Fortsett d», on the working branch; not merged):** three parts with their own package, version and manifest: `nettside`, `konto` (`api/konto/`) and `signforge` (`skaperverksted/signgen/`, its own Vite build with assets under `_app/<versjon>/`, never `/_astro/`). Old Sign Forge folders are not deleted, so rollback is uploading the previous package. See [docs/utgivelse.md](../utgivelse.md).
 - **E:** the contract for Form Forge and Dragon Forge, documented only.
 
 Each stage needs Sivert's approval; an approved stage does not approve the next.
