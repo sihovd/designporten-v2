@@ -290,8 +290,8 @@ try {
                     'UPDATE dp_medlemmer SET passord_hash = ?, epost_bekreftet = COALESCE(epost_bekreftet, ?) WHERE id = ?',
                     [password_hash($passord, PASSWORD_DEFAULT), konto_na(), $m['id']],
                 );
-                konto_logg_ut_overalt((int) $m['id']);
-                konto_kjor("DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND formal = 'reset' AND brukt IS NULL", [$m['id']]);
+                // every sign-in and every other link, an address change included
+                konto_sikre_konto((int) $m['id']);
             });
         } catch (KontoFeil $f) {
             konto_registrer_forsok('konto-lenke:' . konto_ip());
@@ -313,9 +313,9 @@ try {
         if ($r === 'endre-passord') {
             $nytt = konto_passord($k['nytt'] ?? null);
             konto_transaksjon(function () use ($m, $nytt) {
+                konto_las_medlem((int) $m['id']);
                 konto_kjor('UPDATE dp_medlemmer SET passord_hash = ? WHERE id = ?', [password_hash($nytt, PASSWORD_DEFAULT), $m['id']]);
-                konto_logg_ut_overalt((int) $m['id']);
-                konto_kjor("DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND formal = 'reset' AND brukt IS NULL", [$m['id']]);
+                konto_sikre_konto((int) $m['id']);
             });
             // every sign-in ended, this one included; this browser gets a fresh one
             konto_logg_inn($m);
@@ -327,7 +327,16 @@ try {
         konto_epost_klar();
         konto_begrens('konto-nyepost:' . $m['id'], 3, 3600);
         konto_registrer_forsok('konto-nyepost:' . $m['id']);
-        $lenke = konto_lenke('ny-epost', konto_lag_token($m, 'epost', $ny));
+        $token = konto_transaksjon(function () use ($m, $ny) {
+            // a new password since the check above ends this request: nothing started with the
+            // old password may outlive it
+            $na = konto_las_medlem((int) $m['id']);
+            if (!$na || $na['status'] !== 'aktiv' || $na['passord_hash'] !== $m['passord_hash'] || $na['epost'] !== $m['epost']) {
+                throw new KontoFeil('Kontoen er endret i mellomtiden. Logg inn og prøv igjen.', 409);
+            }
+            return konto_lag_token($m, 'epost', $ny);
+        });
+        $lenke = konto_lenke('ny-epost', $token);
         konto_send_epost(
             $ny,
             'Bekreft den nye e-postadressen din hos Designporten',

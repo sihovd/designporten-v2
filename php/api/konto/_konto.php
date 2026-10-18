@@ -305,6 +305,28 @@ function konto_logg_ut_overalt(int $id): void
     konto_kjor('DELETE FROM dp_konto_okter WHERE medlem_id = ?', [$id]);
 }
 
+/**
+ * Locks the member's row until the transaction ends, so the one-time actions
+ * on one account (links, password, address) run one after the other and see
+ * each other's changes. SQLite's BEGIN IMMEDIATE already locks the database.
+ */
+function konto_las_medlem(int $id): ?array
+{
+    $sqlite = konto_driver(konto_db()) === 'sqlite';
+    return konto_en('SELECT * FROM dp_medlemmer WHERE id = ?' . ($sqlite ? '' : ' FOR UPDATE'), [$id]);
+}
+
+/**
+ * Ends every sign-in and every unused link of a member: after a new password
+ * nothing made before it may still change the account, an address change
+ * started by someone else included.
+ */
+function konto_sikre_konto(int $id): void
+{
+    konto_logg_ut_overalt($id);
+    konto_kjor('DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND brukt IS NULL', [$id]);
+}
+
 /** Sets a member's status; suspending also ends their sign-ins and one-time links. */
 function konto_sett_status(int $id, string $status): void
 {
@@ -354,9 +376,10 @@ function konto_lag_token(array $m, string $formal, ?string $nyEpost = null): str
 const KONTO_UGYLDIG_LENKE = 'Lenken er ugyldig, utløpt eller allerede brukt. Be om en ny.';
 
 /**
- * Uses up a token, in the caller's transaction: one UPDATE marks it used
- * only if it is unused, unexpired and of this purpose, so of two requests at
- * the same time only one gets a row. Then the member must still be active
+ * Uses up a token, in the caller's transaction: the member's row is locked,
+ * then one UPDATE marks the token used only if it is unused, unexpired and of
+ * this purpose, so of two requests at the same time only one gets a row, and
+ * a link revoked by a new password in the meantime gets none. Then the member must still be active
  * and still have the address the token was made for.
  * @return array{0: array, 1: array} the token row and the member
  */
@@ -364,6 +387,10 @@ function konto_bruk_token(mixed $token, string $formal): array
 {
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/D', $token)) throw new KontoFeil(KONTO_UGYLDIG_LENKE, 400);
     $hash = hash('sha256', $token);
+    // the member first, so this waits for any other one-time action on the account
+    $eier = konto_en('SELECT medlem_id FROM dp_konto_tokens WHERE token_hash = ?', [$hash]);
+    if (!$eier) throw new KontoFeil(KONTO_UGYLDIG_LENKE, 400);
+    konto_las_medlem((int) $eier['medlem_id']);
     $n = konto_kjor(
         'UPDATE dp_konto_tokens SET brukt = ? WHERE token_hash = ? AND formal = ? AND brukt IS NULL AND utloper >= ?',
         [time(), $hash, $formal, time()],
