@@ -31,6 +31,9 @@ export function Publiseringsdialog({ benk }: { benk: Arbeidsbenk }) {
   const [tidligere, settTidligere] = useState(() => tidligerePublisert(t.dok));
   const bilde = useMemo(() => publiseringsbilde(t.dok), [t.dok]);
   const lukk = () => signtilstand(benk).sett({ malvindu: null });
+  // the server decides; this only explains a «no» before the button is pressed
+  const publisering = 'id' in hvem ? hvem.tilganger['sign-forge']?.funksjoner.publisering : undefined;
+  const kanPublisere = publisering?.tilgang ?? true;
 
   useEffect(() => {
     konto
@@ -50,7 +53,9 @@ export function Publiseringsdialog({ benk }: { benk: Arbeidsbenk }) {
       benk.melde(tekst);
     } catch (e) {
       if (e instanceof KontoFeil && e.status === 401) settHvem({ tilstand: 'ute' });
-      settFeil(`Skiltet ble ikke publisert: ${feiltekst(e)}`);
+      settFeil(
+        `Skiltet ble ikke publisert: ${feiltekst(e)} Skiltet ligger fortsatt lagret i denne nettleseren.`,
+      );
     } finally {
       settArbeider(false);
     }
@@ -108,7 +113,16 @@ export function Publiseringsdialog({ benk }: { benk: Arbeidsbenk }) {
             , og velg Publiser i galleriet igjen. Skiltet ligger lagret i denne nettleseren imens.
           </p>
         )}
-        {'id' in hvem && (
+        {'id' in hvem && !kanPublisere && (
+          <p class="merknad" role="alert">
+            {publisering?.grunn}{' '}
+            <a href={nettsti('/konto/#profil')} target="_blank" rel="noopener">
+              Åpne Min konto (ny fane)
+            </a>
+            . Skiltet ligger lagret i denne nettleseren imens.
+          </p>
+        )}
+        {'id' in hvem && kanPublisere && (
           <p class="dempet">
             Publiseres som <strong>{hvem.navn}</strong>.
             {tidligere && ' Skiltet er publisert fra før; publiserer du igjen, oppdateres det i galleriet.'}
@@ -127,7 +141,7 @@ export function Publiseringsdialog({ benk }: { benk: Arbeidsbenk }) {
         )}
 
         <div class="knapperad">
-          {'id' in hvem && (
+          {'id' in hvem && kanPublisere && (
             <button
               type="button"
               class="primar"

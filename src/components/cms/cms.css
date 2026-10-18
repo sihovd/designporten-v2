@@ -453,3 +453,14 @@
   border-radius: 4px;
   background: var(--bg);
 }
+
+/* captured e-mail on a test build (Medlemmer.tsx): the text as sent, wrapped */
+.cms__epost {
+  margin: 0;
+  padding: var(--r-3);
+  border-radius: var(--radius-felt);
+  background: var(--bg);
+  font-size: var(--fs-liten);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

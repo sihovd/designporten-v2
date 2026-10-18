@@ -19,14 +19,14 @@ Same domain and same database server to start with. Same domain is **not** isola
 
 ## Contracts
 
-- **Account → other parts on the server:** `php/api/konto/_grensesnitt.php` with `konto_innlogget()`, `konto_har_tilgang()`, `konto_versjon()`. Nothing else of the account module is used from outside it.
+- **Account → other parts on the server:** `php/api/konto/_grensesnitt.php` with `konto_innlogget()`, `konto_har_tilgang()`, `konto_har_funksjon()`, `konto_versjon()` (contract version 2). Nothing else of the account module is used from outside it.
 - **Account → CMS:** only for admin actions, through `_admin.php` (a signed-in CMS administrator). The accounts run with the CMS switched off or not installed.
 - **Browser → account:** `api/konto/?r=…` (see `docs/konto.md`).
 
 ## Stages
 
 - **A (done 2026-10-17, corrected the same evening):** on the working branch `claude/project-thread-fklm92`, PR #49 is integrated with main as of #50 (merge commit `161f9e5`, conflicts resolved by hand). #49 is **not** merged into main, and nothing of stage A is in main. One navigation model (`docs/design/skaperverksted.md#navigation`); accounts with their own settings and no CMS dependency (no automatic fallback); private by default with «Publiser i galleriet»; read-only survey as a command-line tool `scripts/kartlegg-konto.php`, off unless started with a settings file; source package with a bundle of the delivery branch only and a secret scan (`npm run pakk:kilde`). The commit message of `161f9e5` says «into main»; it means the main base on this branch.
-- **B:** e-mail part (driver `fil` for tests, `mail`, `smtp`), confirmation, password reset, e-mail/password change, suspension, a table of access per service and feature, «Min konto» with Mine prosjekter / Mine tjenester / Profil. SMTP on one.com blocks a public launch, not the work.
+- **B (done 2026-10-18, on the working branch, not in main):** e-mail part (driver `fil` for tests, `mail`; SMTP left for when production e-mail is chosen), confirmation, password reset, e-mail/password change, suspension, access per service and feature with per-member exceptions, «Min konto» with Mine tjenester / Profil / Mine prosjekter. See [docs/konto.md](../konto.md#e-mail-links-and-account-status-stage-b). Sivert merged #49 into main on 2026-10-18; neither A nor B is in main. Production e-mail blocks a public launch, not the work.
 - **C:** Sign Forge projects on the account (`api/signforge/`, owner from the session, revision number, 409 on conflict, local copy kept).
 - **D:** a separate build and package per part with its own manifest; Sign Forge's assets under its own folder so a website update never removes them.
 - **E:** the contract for Form Forge and Dragon Forge, documented only.

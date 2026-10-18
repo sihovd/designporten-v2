@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { rm } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
 
 /**
@@ -20,6 +20,7 @@ async function nullstill() {
   await rm('var/cms-test.sqlite-wal', { force: true });
   await rm('var/cms-test.sqlite-shm', { force: true });
   for (const del of ['', '-wal', '-shm']) await rm(`var/konto-test.sqlite${del}`, { force: true });
+  await rm('var/konto-post', { recursive: true, force: true });
   await rm('dist/api/cms/data/publisert.json', { force: true });
   await rm('dist/api/cms/data/medier', { recursive: true, force: true });
   await rm('dist/medier/2026', { recursive: true, force: true });
@@ -36,6 +37,25 @@ test.afterAll(async ({}, info) => {
 });
 
 let redaktor: Page;
+
+/** The newest captured e-mail to `til` (tests/php/router.php captures in var/konto-post, outside dist/). */
+async function sisteEpost(til: string) {
+  const filer = (await readdir('var/konto-post')).filter((f) => f.endsWith('.json')).sort();
+  for (const f of filer.reverse()) {
+    const e = JSON.parse(await readFile(`var/konto-post/${f}`, 'utf8')) as { til: string; tekst: string };
+    if (e.til === til) return e;
+  }
+  throw new Error(`Ingen e-post til ${til}`);
+}
+
+/** The link in an e-mail, made from the configured address and the test base. */
+async function lenkeTil(til: string, handling: string) {
+  const m = new RegExp(`http://127\\.0\\.0\\.1:4322${base}/konto/#${handling}=[a-f0-9]{64}`).exec(
+    (await sisteEpost(til)).tekst,
+  );
+  if (!m) throw new Error(`Ingen ${handling}-lenke til ${til}`);
+  return m[0];
+}
 
 test('første administrator opprettes med oppsettkoden, og /cms/ viser tekstene', async ({ browser }) => {
   redaktor = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
@@ -310,6 +330,16 @@ test('konto: nedlasting deler ingenting; et medlem publiserer selv, skiltet vise
   await medlem.getByRole('checkbox').check();
   await medlem.locator('form').getByRole('button', { name: 'Lag konto' }).click();
   await expect(medlem.getByRole('heading', { name: 'Hei, Kari Test' })).toBeVisible();
+  await expect(medlem.getByRole('status').first()).toContainText(
+    'Vi har sendt en lenke til kari@example.invalid',
+  );
+  // publishing waits for a confirmed address (stage B): the link from the e-mail, then an explicit click
+  await medlem.goto(await lenkeTil('kari@example.invalid', 'bekreft'));
+  await expect(medlem.getByRole('heading', { name: 'Bekreft e-postadressen' })).toBeFocused();
+  expect(new URL(medlem.url()).hash).toBe('');
+  await medlem.getByRole('button', { name: 'Bekreft', exact: true }).click();
+  await expect(medlem.getByText('E-postadressen kari@example.invalid er bekreftet.')).toBeVisible();
+  await expect(medlem.locator('#profil').getByText('Bekreftet', { exact: true })).toBeVisible();
   await expect(medlem.getByText('Gratis inntil videre', { exact: true })).toBeVisible();
   const axe = await new AxeBuilder({ page: medlem }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
@@ -369,10 +399,147 @@ test('konto: administratoren ser medlemsregisteret og kan skjule et skilt fra ga
   await redaktor.setViewportSize({ width: 1440, height: 1000 });
   await redaktor.goto(`${base}/cms/`);
   await redaktor.getByRole('button', { name: 'Medlemmer og skilt', exact: true }).click();
-  await expect(redaktor.getByText('kari@example.invalid', { exact: false })).toBeVisible();
+  await expect(redaktor.locator('[aria-labelledby="cms-medlemmer"]')).toContainText('kari@example.invalid');
   const rad = redaktor.locator('.cms__rad', { hasText: 'Kari Test' }).filter({ hasText: 'Mitt skilt' });
   await rad.getByRole('button', { name: /Skjul fra galleriet/ }).click();
   await expect(rad.getByRole('button', { name: /Vis i galleriet/ })).toBeVisible();
   const svar = await redaktor.request.get(`${base}/api/konto/?r=skilt`);
   expect((await svar.json()).skilt.map((s: { skaper: string }) => s.skaper)).not.toContain('Kari Test');
+});
+
+// Stage B (2026-10-18): the account flows in a real browser, by keyboard where it matters.
+test('konto B: glemt passord, bytt passord og bytt e-post med lenker fra e-post, og tastaturet når fram', async ({
+  browser,
+}) => {
+  const side = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
+  await side.goto(`${base}/konto/`);
+  await side.getByRole('button', { name: 'Lag konto' }).first().click();
+  await side.getByRole('textbox', { name: /^Navn/ }).fill('Ola Test');
+  await side.getByRole('textbox', { name: /^E-post/ }).fill('ola@example.invalid');
+  await side.getByLabel(/^Passord/).fill('et-langt-passord');
+  await side.getByRole('checkbox').check();
+  await side.getByLabel(/^Passord/).press('Enter');
+  await expect(side.getByRole('heading', { name: 'Hei, Ola Test' })).toBeVisible();
+
+  // unconfirmed: the account works, publishing says why it is closed
+  await expect(side.locator('#profil').getByText('Ikke bekreftet', { exact: true })).toBeVisible();
+  await expect(side.locator('#mine-tjenester')).toContainText(
+    'Publisere skilt i galleriet «Nylig laget»: nei.',
+  );
+  await expect(
+    side.locator('#mine-tjenester').getByRole('link', { name: 'Åpne Sign Forge' }),
+  ).toHaveAttribute('href', `${base}/skaperverksted/signgen/`);
+  await expect(side.locator('#mine-prosjekter')).toContainText('Lagring på kontoen kommer senere');
+  const axe = await new AxeBuilder({ page: side }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+
+  // change the password by keyboard only
+  const bytt = side.locator('summary', { hasText: 'Bytt passord' });
+  await bytt.focus();
+  await side.keyboard.press('Enter');
+  await side.getByLabel('Nåværende passord').fill('et-langt-passord');
+  await side.keyboard.press('Tab');
+  await side.keyboard.type('et-nytt-passord');
+  await side.keyboard.press('Enter');
+  await expect(side.getByText('Passordet er byttet. Du er logget ut på alle andre enheter.')).toBeVisible();
+
+  // sign out, forget it, reset it with the link
+  await side.locator('.konto__topp').getByRole('button', { name: 'Logg ut' }).click();
+  await side.getByRole('button', { name: 'Glemt passordet?' }).click();
+  await side.getByRole('textbox', { name: /^E-post/ }).fill('ola@example.invalid');
+  await side.getByRole('button', { name: 'Send lenke' }).click();
+  await expect(side.getByRole('status')).toContainText('Hvis det finnes en konto med denne adressen');
+  await side.goto(await lenkeTil('ola@example.invalid', 'nytt-passord'));
+  await expect(side.getByRole('heading', { name: 'Velg et nytt passord' })).toBeFocused();
+  expect(new URL(side.url()).hash).toBe('');
+  await side.locator('input[name="lenke-passord"]').fill('et-tredje-passord');
+  await side.getByLabel('Skriv det en gang til').fill('et-tredje-passord');
+  await side.getByRole('button', { name: 'Lagre passordet' }).click();
+  await expect(side.getByText('Passordet er endret, og du er logget ut overalt.')).toBeVisible();
+  await side.getByRole('textbox', { name: /^E-post/ }).fill('ola@example.invalid');
+  await side.getByLabel(/^Passord/).fill('et-nytt-passord');
+  await side.locator('form').getByRole('button', { name: 'Logg inn' }).click();
+  await expect(side.getByRole('alert')).toContainText('Feil e-postadresse eller passord');
+  await side.getByLabel(/^Passord/).fill('et-tredje-passord');
+  await side.locator('form').getByRole('button', { name: 'Logg inn' }).click();
+  await expect(side.getByRole('heading', { name: 'Hei, Ola Test' })).toBeVisible();
+  // the reset link reached the inbox, so the address counts as confirmed
+  await expect(side.locator('#profil').getByText('Bekreftet', { exact: true })).toBeVisible();
+
+  // switch address: the old one holds until the new one is confirmed
+  await side.locator('summary', { hasText: 'Bytt e-postadresse' }).click();
+  await side.getByLabel('Ny e-postadresse').fill('ola.ny@example.invalid');
+  await side.getByLabel('Passordet ditt').fill('et-tredje-passord');
+  await side.getByRole('button', { name: 'Send lenke til ny adresse' }).click();
+  await expect(side.getByText('Vi har sendt en lenke til ola.ny@example.invalid')).toBeVisible();
+  await expect(side.locator('.konto__topp')).toContainText('ola@example.invalid');
+  await side.goto(await lenkeTil('ola.ny@example.invalid', 'ny-epost'));
+  await side.getByRole('button', { name: 'Bytt adresse' }).click();
+  await expect(side.getByText('Kontoen bruker nå ola.ny@example.invalid.')).toBeVisible();
+  await expect(side.locator('.konto__topp')).toContainText('ola.ny@example.invalid');
+  // a used link is refused with a clear message
+  await side.goto(`${base}/`);
+  await side.goto(await lenkeTil('ola.ny@example.invalid', 'ny-epost'));
+  await side.getByRole('button', { name: 'Bytt adresse' }).click();
+  await expect(side.getByRole('alert')).toContainText('ugyldig, utløpt eller allerede brukt');
+  await side.close();
+});
+
+test('konto B: Min konto ved alle avtalte bredder, uten sideveis scroll', async ({ browser }) => {
+  const side = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
+  await side.goto(`${base}/konto/`);
+  await side.getByRole('textbox', { name: /^E-post/ }).fill('ola.ny@example.invalid');
+  await side.getByLabel(/^Passord/).fill('et-tredje-passord');
+  await side.locator('form').getByRole('button', { name: 'Logg inn' }).click();
+  await expect(side.getByRole('heading', { name: 'Hei, Ola Test' })).toBeVisible();
+  await side.locator('summary', { hasText: 'Bytt passord' }).click();
+  for (const bredde of [320, 390, 768, 1024, 1440]) {
+    await side.setViewportSize({ width: bredde, height: 900 });
+    const bred = await side.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    expect(bred, `${bredde} px`).toBeLessThanOrEqual(0);
+    if (process.env.DP_SKJERMBILDER) {
+      await side.screenshot({
+        path: `${process.env.DP_SKJERMBILDER}/min-konto-${bredde}.png`,
+        fullPage: true,
+      });
+    }
+  }
+  await side.close();
+});
+
+test('konto B: Studio suspenderer og aktiverer et medlem, og viser fanget e-post på testbygget', async ({
+  browser,
+}) => {
+  const ola = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
+  await ola.goto(`${base}/konto/`);
+  await ola.getByRole('textbox', { name: /^E-post/ }).fill('ola.ny@example.invalid');
+  await ola.getByLabel(/^Passord/).fill('et-tredje-passord');
+  await ola.locator('form').getByRole('button', { name: 'Logg inn' }).click();
+  await expect(ola.getByRole('heading', { name: 'Hei, Ola Test' })).toBeVisible();
+
+  await redaktor.setViewportSize({ width: 1440, height: 1000 });
+  await redaktor.goto(`${base}/cms/`);
+  await redaktor.getByRole('button', { name: 'Medlemmer og skilt', exact: true }).click();
+  await expect(redaktor.getByRole('heading', { name: 'Fanget e-post (testbygg)' })).toBeVisible();
+  await expect(redaktor.locator('.cms__epost').first()).toBeVisible();
+  const rad = redaktor.locator('[aria-labelledby="cms-medlemmer"] .cms__rad', {
+    hasText: 'ola.ny@example.invalid',
+  });
+  await rad.locator('summary').click();
+  await rad.getByRole('button', { name: /Suspender/ }).click();
+  await expect(redaktor.getByText('Ola Test er suspendert og logget ut overalt.')).toBeVisible();
+
+  await ola.reload();
+  await expect(ola.getByRole('heading', { name: 'Logg inn' })).toBeVisible();
+  await ola.getByRole('textbox', { name: /^E-post/ }).fill('ola.ny@example.invalid');
+  await ola.getByLabel(/^Passord/).fill('et-tredje-passord');
+  await ola.locator('form').getByRole('button', { name: 'Logg inn' }).click();
+  await expect(ola.getByRole('alert')).toContainText('Kontoen er stengt');
+
+  await rad.locator('summary').click({ trial: true });
+  await rad.getByRole('button', { name: /Aktiver igjen/ }).click();
+  await expect(redaktor.getByText('Ola Test er aktiv igjen og må logge inn på nytt.')).toBeVisible();
+  await ola.locator('form').getByRole('button', { name: 'Logg inn' }).click();
+  await expect(ola.getByRole('heading', { name: 'Hei, Ola Test' })).toBeVisible();
+  await ola.close();
 });

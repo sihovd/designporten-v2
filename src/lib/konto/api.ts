@@ -1,11 +1,19 @@
 /**
  * Browser client for member accounts and the public sign gallery
  * (php/api/konto/index.php). They run only on the PHP build (one.com) with
- * the CMS database switched on; elsewhere every call says so with
+ * api/konto/konfig.php in place; elsewhere every call says so with
  * `KontoFeil` status 503, and the pages show that instead of failing.
+ * What a member may use is decided by the server (`tilganger`); the page
+ * only shows it.
  */
 import { nettsti, phpmiljo } from '@/lib/nettsti';
 import type { Betaling } from './tjenester';
+
+/** A service or feature the member may or may not use, and why not. */
+export interface Tilgang {
+  tilgang: boolean;
+  grunn: string | null;
+}
 
 export interface Medlem {
   id: number;
@@ -18,6 +26,10 @@ export interface Medlem {
     betaltTil: string | null;
   };
   tilgang: Record<string, boolean>;
+  tilganger: Record<string, Tilgang & { funksjoner: Record<string, Tilgang> }>;
+  status: 'aktiv' | 'suspendert';
+  /** When the address was confirmed, or null. */
+  epostBekreftet: string | null;
   opprettet: string;
   sistInne: string | null;
 }
@@ -88,12 +100,24 @@ export const konto = {
   status: () => kall<Kontostatus>('status'),
   meg: () => kall<{ medlem: Medlem | null }>('meg'),
   registrer: (navn: string, epost: string, passord: string, vilkar: boolean) =>
-    kall<{ medlem: Medlem }>('registrer', { kropp: { navn, epost, passord, vilkar } }),
+    kall<{ medlem: Medlem; bekreftelse: { sendt: boolean; feil: string | null } }>('registrer', {
+      kropp: { navn, epost, passord, vilkar },
+    }),
   loggInn: (epost: string, passord: string) =>
     kall<{ medlem: Medlem }>('logginn', { kropp: { epost, passord } }),
   loggUt: () => kall<{ ok: true }>('loggut', { kropp: {} }),
   profil: (navn: string) => kall<{ medlem: Medlem }>('profil', { kropp: { navn } }),
   slettKonto: (passord: string) => kall<{ ok: true }>('slett-konto', { kropp: { passord } }),
+  sendBekreftelse: () => kall<{ ok: true }>('send-bekreftelse', { kropp: {} }),
+  bekreftEpost: (token: string) => kall<{ ok: true; epost: string }>('bekreft-epost', { kropp: { token } }),
+  glemtPassord: (epost: string) => kall<{ ok: true; melding: string }>('glemt-passord', { kropp: { epost } }),
+  nyttPassord: (token: string, passord: string) =>
+    kall<{ ok: true }>('nytt-passord', { kropp: { token, passord } }),
+  endrePassord: (passord: string, nytt: string) =>
+    kall<{ medlem: Medlem }>('endre-passord', { kropp: { passord, nytt } }),
+  endreEpost: (passord: string, epost: string) =>
+    kall<{ ok: true }>('endre-epost', { kropp: { passord, epost } }),
+  byttEpost: (token: string) => kall<{ ok: true; epost: string }>('bytt-epost', { kropp: { token } }),
   skilt: (antall = 12, neste?: string | null) =>
     kall<{ skilt: DeltSkilt[]; neste: string | null }>('skilt', {
       sok: `&antall=${antall}${neste ? `&for=${encodeURIComponent(neste)}` : ''}`,
@@ -109,13 +133,21 @@ export const konto = {
   admin: {
     medlemmer: () =>
       kall<{
-        medlemmer: (Medlem & { antallSkilt: number; aktiv: boolean })[];
+        medlemmer: (Medlem & { antallSkilt: number; aktiv: boolean; unntak: Record<string, 'ja' | 'nei'> })[];
         antall: number;
         gjesteskilt: number;
+        tilgangsnokler: string[];
       }>('admin-medlemmer'),
     skilt: () => kall<{ skilt: DeltSkilt[] }>('admin-skilt'),
     skjul: (id: string, skjult: boolean, csrf: string) =>
       kall<{ ok: true }>('admin-skjul', { kropp: { id, skjult }, hoder: { 'X-CSRF-Token': csrf } }),
+    status: (id: number, status: Medlem['status'], csrf: string) =>
+      kall<{ ok: true }>('admin-status', { kropp: { id, status }, hoder: { 'X-CSRF-Token': csrf } }),
+    tilgang: (id: number, nokkel: string, verdi: 'ja' | 'nei' | null, csrf: string) =>
+      kall<{ ok: true }>('admin-tilgang', { kropp: { id, nokkel, verdi }, hoder: { 'X-CSRF-Token': csrf } }),
+    /** The captured e-mails; test builds only. */
+    testpost: () =>
+      kall<{ eposter: { til: string; emne: string; tekst: string; tid: string }[] }>('admin-testpost'),
   },
 };
 
