@@ -185,6 +185,20 @@ export function hentReserve(generator: string): string | null {
   }
 }
 
+/**
+ * Put a project aside (as JSON) before another one is opened in its place,
+ * for example a project from the account: it can then be downloaded from
+ * the menu («Last ned forrige prosjekt»). Returns false when storage failed.
+ */
+export function leggTilSide(generator: string, json: string): boolean {
+  try {
+    lager()?.setItem(RESERVE(generator), json);
+    return !!lager();
+  } catch {
+    return false;
+  }
+}
+
 export function slettReserve(generator: string): void {
   try {
     lager()?.removeItem(RESERVE(generator));

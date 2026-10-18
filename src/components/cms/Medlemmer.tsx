@@ -9,9 +9,14 @@
 import { useEffect, useState } from 'preact/hooks';
 import { cmsCsrf } from '@/lib/cms/api';
 import { konto, type DeltSkilt, type Medlem } from '@/lib/konto/api';
-import { BETALINGSMERKNAD, BETALINGSTEKST, TJENESTER } from '@/lib/konto/tjenester';
+import { BETALINGSMERKNAD, betalingstekst, TJENESTER } from '@/lib/konto/tjenester';
 
-type Rad = Medlem & { antallSkilt: number; aktiv: boolean; unntak: Record<string, 'ja' | 'nei'> };
+type Rad = Medlem & {
+  antallSkilt: number;
+  antallProsjekter: number;
+  aktiv: boolean;
+  unntak: Record<string, 'ja' | 'nei'>;
+};
 type Testpost = { til: string; emne: string; tekst: string; tid: string };
 
 const dato = (v: string | null) =>
@@ -101,7 +106,7 @@ export function Medlemmer() {
             : ''}
           {BETALINGSMERKNAD}{' '}
           {Object.values(TJENESTER)
-            .map((t) => `${t.navn}: ${BETALINGSTEKST[t.betaling].toLowerCase()}`)
+            .map((t) => `${t.navn}: ${betalingstekst(t).toLowerCase()}`)
             .join(' · ')}
           .
         </p>
@@ -135,7 +140,8 @@ export function Medlemmer() {
               </div>
               <p class="cms__dempet">
                 Medlem siden {dato(m.opprettet)} · sist innlogget {dato(m.sistInne)} · {m.antallSkilt} delte
-                skilt · e-post {m.epostBekreftet ? `bekreftet ${dato(m.epostBekreftet)}` : 'ikke bekreftet'}
+                skilt · {m.antallProsjekter} av {m.pakke?.prosjekter ?? '?'} prosjekter på kontoen · e-post{' '}
+                {m.epostBekreftet ? `bekreftet ${dato(m.epostBekreftet)}` : 'ikke bekreftet'}
                 {m.betaling.leverandor && ` · betaler med ${m.betaling.leverandor}`}
                 {m.betaling.betaltTil && ` · betalt til ${dato(m.betaling.betaltTil)}`}
               </p>

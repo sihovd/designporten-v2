@@ -18,9 +18,11 @@ Asked for by Sivert on 2026-10-16; decision log entry 2026-10-17.
 | Service | `betaling` |
 |---|---|
 | Sign Forge | `gratis` |
-| CSV batch in Sign Forge | `gratis-inntil-videre` (to become paid later) |
+| CSV batch in Sign Forge | `betalt`, with a **free period** (`gratisperiode`) |
 
-`gratis-inntil-videre` is open to everyone, signed in or not. Changing a service to `betalt` closes it to anyone without an active payment (`konto_tilgang()` in PHP, `plangrenser.csvBatch` in the editor) — do that only when a payment flow exists. No prices are set anywhere.
+**The CSV free period is an explicit exception** (Sivert, 2026-10-18): CSV belongs to a paid package, but `gratisperiode: { apenFor: "alle", til: "betalingslosning-klar" }` opens it to everyone, signed in or not, until payment is ready. «Min konto» shows it as «Gratis inntil videre» with the reason. Ending the free period means removing that one key once a payment flow is live; then CSV is open only to a paid package that lists it (or a member exception). `gratis-inntil-videre` still exists as a value for a service that is meant to stay free for now. No prices are set anywhere.
+
+**Packages** are data in `planer` (id → `navn`, `prosjekter`, `tjenester`). Only `gratis` exists (five projects, no paid services); paid packages are not invented. The package in force (`konto_plan()`) is the member's own `plan` while a payment is active and not expired (`konto_har_betalt()`), otherwise `gratis`; a guest has none (0 projects). A paid service is open when the package lists it, when its free period applies, or by a member exception.
 
 Providers: Stripe Checkout and Vipps ePayment are listed, both `aktiv: false` (decision log 2026-10-15: hosted flows only, no card data on our server). The member row has `plan`, `betaling_status` (`ingen | aktiv | utlopt | avbrutt`), `betaling_leverandor`, `betaling_kunde` and `betalt_til`, and `dp_betalinger` has one row per payment; a provider's webhook will fill these when payment is switched on. Nothing writes them yet.
 
@@ -76,10 +78,24 @@ Work order «Etappe B» (Sivert, 2026-10-18); decision log entries the same day.
 
 Tests: `scripts/konto-sikkerhet.test.mjs` (in `npm run test:deploy`; SQLite, or MySQL/MariaDB with `DP_CMS_MYSQL`) and the B flows in `tests/onecom/cms.spec.ts`.
 
+## Projects on the account (stage C)
+
+Built 2026-10-18 on Sivert's «Start c». Visitors keep projects only in the browser; members may also save them on the account.
+
+- **One table for all tools,** `dp_prosjekter` (migration 4, only adds): public id, owner, `app`, name, document (JSON), size, revision, timestamps. The tools that may store projects are listed in `tjenester.json` `prosjektapper` (Sign Forge, `signgen`, for now).
+- **Quota:** the package's `prosjekter`, counted across every tool, five for a free account. Counted with the member's row locked, so two saves at once cannot pass it together. Gallery signs do not count.
+- **Over the quota** (after a package ends): every project can still be opened, downloaded, updated and deleted. Only a new one is refused (403), with a message that says how to make room and that the project is still in the browser.
+- **The server decides:** the owner is always the signed-in member, never a value from the browser; another member's project answers 404; a document must be one of that tool's documents (422) and at most 2 MB of JSON (413). Saving is limited to 120 per hour per member.
+- **Conflicts:** every save names the revision it was based on; an older one gets 409 with the current revision, and Sign Forge offers «Åpne nyeste» or «Lagre som kopi». Nothing is overwritten.
+- **Sign Forge:** Fil → «Lagre på kontoen» and «Mine prosjekter på kontoen …» (open or download). Nothing is uploaded on its own. The browser remembers which account project the open document is (by document id, `core/kontokobling.ts`). Opening one puts unsaved work in the browser aside first; it can be downloaded with Fil → «Last ned forrige prosjekt». Without an account, «Lagre på kontoen» explains that sign-in is needed and that the project stays in the browser.
+- **Min konto → Mine prosjekter:** «X av Y prosjekter», and per project Åpne (`/skaperverksted/signgen/?prosjekt=<id>`), Last ned (the project file) and Slett (with confirmation). Mine tjenester shows the package. Deleting the account deletes its projects. Studio shows the number of projects per member.
+
+API (`php/api/konto/index.php`, code in `_prosjekter.php`): `GET prosjekter[&app=]` → projects and quota; `GET prosjekt&id=` → one with its document; `POST prosjekt-lagre` (`app`, `navn`, `dokument`, and `id` + `revisjon` to update; 201 new, 200 updated); `POST prosjekt-slett` (`id`). Tests: `scripts/konto-prosjekter.test.mjs` (SQLite, or MariaDB with `DP_CMS_MYSQL`), `src/skaperverksted/core/kontokobling.test.ts`, and «konto C» in `tests/onecom/cms.spec.ts`.
+
 ## Open for Sivert
 
 - Licence terms for shared signs (stored as «Ikke avklart ennå»).
 - Whether guests may publish (today: no) and what happens to published signs when an account is deleted (today: they are deleted with it).
-- Prices and which plan unlocks CSV when it becomes paid; Stripe and Vipps accounts.
+- Which paid packages exist (quota, services), prices and sales terms; when the CSV free period ends; Stripe and Vipps accounts.
 - Production e-mail: `mail()` on one.com or SMTP (PHPMailer), and which sender address. Until then accounts cannot go public: no confirmation or reset mail can be sent.
 - The CMS backup in Studio does not include member accounts or shared signs yet.

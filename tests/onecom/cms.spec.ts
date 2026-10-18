@@ -429,7 +429,7 @@ test('konto B: glemt passord, bytt passord og bytt e-post med lenker fra e-post,
   await expect(
     side.locator('#mine-tjenester').getByRole('link', { name: 'Åpne Sign Forge' }),
   ).toHaveAttribute('href', `${base}/skaperverksted/signgen/`);
-  await expect(side.locator('#mine-prosjekter')).toContainText('Lagring på kontoen kommer senere');
+  await expect(side.locator('#mine-prosjekter')).toContainText('0 av 5 prosjekter');
   const axe = await new AxeBuilder({ page: side }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 
@@ -542,4 +542,136 @@ test('konto B: Studio suspenderer og aktiverer et medlem, og viser fanget e-post
   await ola.locator('form').getByRole('button', { name: 'Logg inn' }).click();
   await expect(ola.getByRole('heading', { name: 'Hei, Ola Test' })).toBeVisible();
   await ola.close();
+});
+
+/** Signs in on Min konto in a new browser context and returns the page. */
+async function loggInn(
+  browser: import('@playwright/test').Browser,
+  epost: string,
+  passord: string,
+  navn: string,
+) {
+  const side = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
+  await side.goto(`${base}/konto/`);
+  await side.getByRole('textbox', { name: /^E-post/ }).fill(epost);
+  await side.getByLabel(/^Passord/).fill(passord);
+  await side.locator('form').getByRole('button', { name: 'Logg inn' }).click();
+  await expect(side.getByRole('heading', { name: `Hei, ${navn}` })).toBeVisible();
+  return side;
+}
+
+async function filvalg(side: Page, navn: string) {
+  await side.locator('summary', { hasText: 'Fil' }).click();
+  await side.getByRole('menuitem', { name: navn }).click();
+}
+
+async function gjNavn(side: Page, navn: string) {
+  const felt = side.getByRole('textbox', { name: 'Prosjektnavn' });
+  await felt.fill(navn);
+  await felt.press('Tab');
+}
+
+// Stage C (docs/konto.md): projects on the account, saved only when the member chooses to.
+test('konto C: gjest lagrer ingenting på serveren; et medlem lagrer, åpner, får konflikt og laster ned', async ({
+  browser,
+}) => {
+  // a visitor without an account: the project stays in the browser
+  const gjest = await browser.newPage({ baseURL: 'http://127.0.0.1:4322' });
+  await gjest.goto(`${base}/skaperverksted/signgen/`);
+  await gjest.getByRole('button', { name: /Tomt dokument/ }).click();
+  await gjest.getByRole('button', { name: 'Start skiltet' }).click();
+  await filvalg(gjest, 'Lagre på kontoen');
+  const ute = gjest.getByRole('dialog', { name: 'Logg inn for å lagre' });
+  await expect(ute).toContainText('Prosjektet ligger fortsatt i denne nettleseren');
+  await expect(ute.getByRole('link', { name: /Logg inn eller lag konto/ })).toBeVisible();
+  await gjest.close();
+
+  const a = await loggInn(browser, 'kari@example.invalid', 'et-langt-passord', 'Kari Test');
+  await expect(a.locator('#mine-prosjekter')).toContainText('0 av 5 prosjekter');
+  await expect(a.locator('#mine-tjenester')).toContainText('Gratis for alle til betalingsløsningen er klar.');
+  await a.goto(`${base}/skaperverksted/signgen/`);
+  await a.getByRole('button', { name: /Tomt dokument/ }).click();
+  await a.getByRole('button', { name: 'Start skiltet' }).click();
+  await gjNavn(a, 'Dørskilt');
+  await filvalg(a, 'Lagre på kontoen');
+  await expect(a.getByText('«Dørskilt» er lagret på kontoen. Du har 1 av 5 prosjekter.')).toBeVisible();
+  // CSV stays open in the free period
+  await a.locator('summary', { hasText: 'Fil' }).click();
+  await expect(a.getByRole('menuitem', { name: 'Lag skilt fra CSV …' })).toBeVisible();
+  await a.keyboard.press('Escape');
+
+  // the same project in a second browser: open from Min konto, change and save
+  const b = await loggInn(browser, 'kari@example.invalid', 'et-langt-passord', 'Kari Test');
+  const rad = b.locator('#mine-prosjekter li', { hasText: 'Dørskilt' });
+  await expect(rad).toContainText('Sign Forge');
+  await expect(b.locator('#mine-prosjekter')).toContainText('1 av 5 prosjekter');
+  const axe = await new AxeBuilder({ page: b }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+  await rad.getByRole('link', { name: 'Åpne Dørskilt' }).click();
+  await expect(b.getByText('Åpnet «Dørskilt» fra kontoen.', { exact: false })).toBeVisible({
+    timeout: 20_000,
+  });
+  expect(new URL(b.url()).search).toBe('');
+  await gjNavn(b, 'Dørskilt, ny');
+  await filvalg(b, 'Lagre på kontoen');
+  await expect(b.getByText('«Dørskilt, ny» er lagret på kontoen.', { exact: false })).toBeVisible();
+
+  // the first browser is now behind: nothing is overwritten, and it chooses a copy
+  await gjNavn(a, 'Dørskilt, gammel');
+  await filvalg(a, 'Lagre på kontoen');
+  const konflikt = a.getByRole('dialog', { name: 'Endret et annet sted' });
+  await expect(konflikt).toContainText('Ingenting er overskrevet.');
+  const axeK = await new AxeBuilder({ page: a })
+    .include('.kontoprosjekt')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+    .analyze();
+  expect(axeK.violations.map((v) => v.id)).toEqual([]);
+  await konflikt.getByRole('button', { name: 'Lagre som kopi' }).click();
+  await expect(
+    a.getByText('«Dørskilt, gammel» er lagret på kontoen som en kopi. Du har 2 av 5 prosjekter.'),
+  ).toBeVisible();
+
+  // Mine prosjekter in the tool: open the other one; unsaved work is put aside, not lost
+  await gjNavn(a, 'Dørskilt, lokalt');
+  await filvalg(a, 'Mine prosjekter på kontoen …');
+  const liste = a.getByRole('dialog', { name: 'Mine prosjekter på kontoen' });
+  await expect(liste).toContainText('2 av 5 prosjekter brukt');
+  for (const bredde of [320, 390, 768, 1024, 1440]) {
+    await a.setViewportSize({ width: bredde, height: 900 });
+    // the editor's bar scrolls sideways on its own; the dialog must fit the screen
+    const boks = await liste.boundingBox();
+    expect(boks!.x, `${bredde} px`).toBeGreaterThanOrEqual(0);
+    expect(boks!.x + boks!.width, `${bredde} px`).toBeLessThanOrEqual(bredde);
+    const innhold = await liste.evaluate((d) => d.scrollWidth - d.clientWidth);
+    expect(innhold, `${bredde} px`).toBeLessThanOrEqual(0);
+    if (process.env.DP_SKJERMBILDER) {
+      await a.screenshot({ path: `${process.env.DP_SKJERMBILDER}/mine-prosjekter-${bredde}.png` });
+    }
+  }
+  await a.setViewportSize({ width: 1440, height: 900 });
+  await liste.getByRole('button', { name: 'Åpne Dørskilt, ny' }).click();
+  await expect(a.getByText('Det du hadde åpent, er lagt til side', { exact: false })).toBeVisible();
+  await expect(a.getByRole('textbox', { name: 'Prosjektnavn' })).toHaveValue('Dørskilt, ny');
+  await a.locator('summary', { hasText: 'Fil' }).click();
+  const [forrige] = await Promise.all([
+    a.waitForEvent('download'),
+    a.getByRole('menuitem', { name: 'Last ned forrige prosjekt' }).click(),
+  ]);
+  expect(JSON.parse(await readFile(await forrige.path(), 'utf8')).navn).toBe('Dørskilt, lokalt');
+
+  // Min konto: download and delete; deleting frees a place
+  await b.goto(`${base}/konto/`);
+  const ny = b.locator('#mine-prosjekter li', { hasText: 'Dørskilt, ny' });
+  const [fil] = await Promise.all([
+    b.waitForEvent('download'),
+    ny.getByRole('button', { name: 'Last ned Dørskilt, ny' }).click(),
+  ]);
+  expect(fil.suggestedFilename()).toBe('dorskilt-ny.skaperverksted.json');
+  expect(JSON.parse(await readFile(await fil.path(), 'utf8')).generator).toBe('signgen');
+  b.once('dialog', (d) => void d.accept());
+  await ny.getByRole('button', { name: 'Slett Dørskilt, ny' }).click();
+  await expect(b.getByText('«Dørskilt, ny» er slettet fra kontoen.')).toBeVisible();
+  await expect(b.locator('#mine-prosjekter')).toContainText('1 av 5 prosjekter');
+  await a.close();
+  await b.close();
 });

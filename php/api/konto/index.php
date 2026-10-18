@@ -15,6 +15,10 @@
  *   POST endre-epost    passord, epost: sends a link to the new address; the old one stays until then
  *   POST bytt-epost     token: switches to the new address
  *   POST slett-konto    delete the member, their signs, sign-ins, links and access exceptions (passord)
+ *   GET  prosjekter     the member's projects on the account (?app), and the quota
+ *   GET  prosjekt       one project with its document (?id)
+ *   POST prosjekt-lagre app, navn, dokument; with id + revisjon it updates (409 when older)
+ *   POST prosjekt-slett id
  *   GET  skilt          the gallery, newest first (?antall, ?for = cursor)
  *   GET  mine-skilt     the member's own signs
  *   POST del            publish a sign in the gallery (signed-in members only): mal, bilde; with id it updates that sign
@@ -38,6 +42,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_konto.php';
+require_once __DIR__ . '/_prosjekter.php';
 require_once __DIR__ . '/_admin.php';
 
 header('Cache-Control: no-store');
@@ -384,6 +389,42 @@ try {
         konto_svar(['ok' => true, 'epost' => $ny]);
     }
 
+    if ($r === 'prosjekter') {
+        konto_get();
+        $m = konto_krev_medlem();
+        $app = isset($_GET['app']) ? konto_prosjektapp($_GET['app']) : null;
+        $rader = konto_alle(
+            'SELECT ' . KONTO_PROSJEKTFELT . ' FROM dp_prosjekter WHERE medlem_id = ?' . ($app ? ' AND app = ?' : '') . ' ORDER BY endret DESC',
+            $app ? [$m['id'], $app] : [$m['id']],
+        );
+        konto_svar(['prosjekter' => array_map('konto_prosjekt_ut', $rader), 'kvote' => konto_prosjektkvote($m)]);
+    }
+
+    if ($r === 'prosjekt') {
+        konto_get();
+        $m = konto_krev_medlem();
+        $rad = konto_eget_prosjekt($m, $_GET['id'] ?? null);
+        konto_svar(['prosjekt' => konto_prosjekt_ut($rad) + ['dokument' => json_decode($rad['dokument'], true)]]);
+    }
+
+    if ($r === 'prosjekt-lagre') {
+        $k = konto_kropp();
+        $m = konto_krev_medlem();
+        konto_begrens('konto-prosjekt:' . $m['id'], 120, 3600);
+        konto_registrer_forsok('konto-prosjekt:' . $m['id']);
+        $ny = !isset($k['id']);
+        $p = konto_lagre_prosjekt($m, $k);
+        konto_svar(['prosjekt' => $p, 'kvote' => konto_prosjektkvote($m)], $ny ? 201 : 200);
+    }
+
+    if ($r === 'prosjekt-slett') {
+        $k = konto_kropp();
+        $m = konto_krev_medlem();
+        $rad = konto_eget_prosjekt($m, $k['id'] ?? null, 'offentlig_id');
+        konto_kjor('DELETE FROM dp_prosjekter WHERE offentlig_id = ? AND medlem_id = ?', [$rad['offentlig_id'], $m['id']]);
+        konto_svar(['ok' => true, 'kvote' => konto_prosjektkvote($m)]);
+    }
+
     if ($r === 'mine-skilt') {
         konto_get();
         $m = konto_krev_medlem();
@@ -445,12 +486,14 @@ try {
         if ($r === 'admin-medlemmer') {
             konto_get();
             $rader = konto_alle(
-                'SELECT m.*, (SELECT COUNT(*) FROM dp_skilt s WHERE s.medlem_id = m.id) AS antall_skilt
+                'SELECT m.*, (SELECT COUNT(*) FROM dp_skilt s WHERE s.medlem_id = m.id) AS antall_skilt,
+                        (SELECT COUNT(*) FROM dp_prosjekter p WHERE p.medlem_id = m.id) AS antall_prosjekter
                  FROM dp_medlemmer m ORDER BY m.opprettet DESC LIMIT 1000',
             );
             konto_svar([
                 'medlemmer' => array_map(fn($m) => konto_ut($m) + [
-                    'antallSkilt' => (int) $m['antall_skilt'], 'aktiv' => $m['status'] === 'aktiv',
+                    'antallSkilt' => (int) $m['antall_skilt'], 'antallProsjekter' => (int) $m['antall_prosjekter'],
+                    'aktiv' => $m['status'] === 'aktiv',
                     'unntak' => array_column(konto_alle('SELECT nokkel, verdi FROM dp_konto_tilganger WHERE medlem_id = ?', [$m['id']]), 'verdi', 'nokkel'),
                 ], $rader),
                 'tilgangsnokler' => konto_tilgangsnokler(),
@@ -509,7 +552,7 @@ try {
 
     throw new KontoFeil('Ukjent handling.', 404);
 } catch (KontoFeil $f) {
-    konto_svar(['feil' => $f->getMessage()], $f->status);
+    konto_svar(['feil' => $f->getMessage()] + $f->ekstra, $f->status);
 } catch (Throwable $e) {
     error_log('Designporten konto: ' . $e->getMessage());
     konto_svar(['feil' => 'Noe gikk galt på serveren.'], 500);

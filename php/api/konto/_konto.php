@@ -46,8 +46,11 @@ function konto_tjenester(): array
  * and each of its features, with the reason when the answer is no. The
  * server decides here and nowhere else; the browser only shows the answer.
  *
- * - A free service, or one free for now, is open; a paid one needs a
- *   payment that covers today.
+ * - A free service is open. A paid one needs a payment that covers today
+ *   and a package (`planer` in tjenester.json) that includes the service,
+ *   unless it has a `gratisperiode`: an explicit, named exception that opens
+ *   it to everyone, guests included, until it is removed (CSV until the
+ *   payment flow is ready, Sivert 2026-10-18).
  * - A feature lists what it needs: 'medlem' (signed in) and
  *   'bekreftet-epost' (a confirmed address).
  * - An administrator may set an exception per member (dp_konto_tilganger):
@@ -65,12 +68,15 @@ function konto_tilganger(?array $medlem): array
         }
     }
     $aktiv = $medlem !== null && $medlem['status'] === 'aktiv';
-    $betalt = $aktiv && $medlem['betaling_status'] === 'aktiv' && $medlem['betalt_til'] !== null && $medlem['betalt_til'] >= konto_na();
+    $pakke = konto_plan($medlem);
     $svar = [];
     foreach (konto_tjenester()['tjenester'] as $id => $t) {
         $grunn = null;
+        $iPakke = $aktiv && konto_har_betalt($medlem) && in_array($id, $pakke['tjenester'], true);
         if (($unntak[$id] ?? null) === 'nei') $grunn = 'Stengt for kontoen din. Ta kontakt hvis du mener det er feil.';
-        elseif ($t['betaling'] === 'betalt' && !$betalt && !($aktiv && ($unntak[$id] ?? null) === 'ja')) $grunn = 'Krever betaling, som ikke er slått på ennå.';
+        elseif ($t['betaling'] === 'betalt' && !isset($t['gratisperiode']) && !$iPakke && !($aktiv && ($unntak[$id] ?? null) === 'ja')) {
+            $grunn = 'Krever en betalt pakke, som ikke er slått på ennå.';
+        }
         $funksjoner = [];
         foreach ($t['funksjoner'] ?? [] as $fid => $f) {
             $fgrunn = $grunn;
@@ -85,6 +91,28 @@ function konto_tilganger(?array $medlem): array
         $svar[$id] = ['tilgang' => $grunn === null, 'grunn' => $grunn, 'funksjoner' => $funksjoner];
     }
     return $svar;
+}
+
+/** A payment that covers today. */
+function konto_har_betalt(?array $m): bool
+{
+    return $m !== null && $m['betaling_status'] === 'aktiv' && $m['betalt_til'] !== null && $m['betalt_til'] >= konto_na();
+}
+
+/**
+ * The package a member has now (`planer` in tjenester.json): their own while
+ * it is paid for, otherwise the free one. A guest has none: nothing is stored
+ * on the server without an account.
+ * @return array{id: ?string, navn: string, prosjekter: int, tjenester: string[]}
+ */
+function konto_plan(?array $m): array
+{
+    $planer = konto_tjenester()['planer'];
+    if ($m === null || $m['status'] !== 'aktiv') return ['id' => null, 'navn' => 'Uten konto', 'prosjekter' => 0, 'tjenester' => []];
+    $id = (string) $m['plan'];
+    if ($id !== 'gratis' && (!isset($planer[$id]) || !konto_har_betalt($m))) $id = 'gratis';
+    $p = $planer[$id];
+    return ['id' => $id, 'navn' => (string) $p['navn'], 'prosjekter' => (int) $p['prosjekter'], 'tjenester' => array_values($p['tjenester'] ?? [])];
 }
 
 /** Whether a member (or a guest, null) may use a service. */
@@ -177,6 +205,17 @@ function konto_migreringer(): array
             ){TABELL}',
             'CREATE UNIQUE INDEX dp_konto_tilganger_nokkel ON dp_konto_tilganger (medlem_id, nokkel)',
         ],
+        // 2026-10-18, stage C: projects on the account, one table for every app so the quota
+        // counts across apps. revisjon goes up by one on every save (409 when a save is based on
+        // an older one). Only adds.
+        4 => [
+            'CREATE TABLE dp_prosjekter (
+                id {ID}, offentlig_id CHAR(16) NOT NULL UNIQUE, medlem_id INTEGER NOT NULL, app VARCHAR(32) NOT NULL,
+                navn VARCHAR(80) NOT NULL, dokument {DOKUMENT} NOT NULL, storrelse INTEGER NOT NULL,
+                revisjon INTEGER NOT NULL DEFAULT 1, opprettet VARCHAR(32) NOT NULL, endret VARCHAR(32) NOT NULL
+            ){TABELL}',
+            'CREATE INDEX dp_prosjekter_medlem ON dp_prosjekter (medlem_id, app)',
+        ],
     ];
 }
 
@@ -245,6 +284,7 @@ function konto_ut(array $m): array
         'id' => (int) $m['id'], 'navn' => $m['navn'], 'epost' => $m['epost'], 'plan' => $m['plan'],
         'betaling' => ['status' => $m['betaling_status'], 'leverandor' => $m['betaling_leverandor'], 'betaltTil' => $m['betalt_til']],
         'status' => $m['status'], 'epostBekreftet' => $m['epost_bekreftet'],
+        'pakke' => konto_plan($m),
         'tilgang' => array_map(fn($t) => $t['tilgang'], $tilganger = konto_tilganger($m)),
         'tilganger' => $tilganger,
         'opprettet' => $m['opprettet'], 'sistInne' => $m['sist_inne'],
@@ -343,11 +383,11 @@ function konto_sett_status(int $id, string $status): void
     });
 }
 
-/** Deletes a member and everything tied to them: signs, sign-ins, links, access exceptions. */
+/** Deletes a member and everything tied to them: signs, projects, sign-ins, links, access exceptions. */
 function konto_slett_medlem(int $id): void
 {
     konto_transaksjon(function () use ($id) {
-        foreach (['dp_skilt', 'dp_konto_okter', 'dp_konto_tokens', 'dp_konto_tilganger'] as $t) {
+        foreach (['dp_skilt', 'dp_prosjekter', 'dp_konto_okter', 'dp_konto_tokens', 'dp_konto_tilganger'] as $t) {
             konto_kjor("DELETE FROM $t WHERE medlem_id = ?", [$id]);
         }
         konto_kjor('DELETE FROM dp_medlemmer WHERE id = ?', [$id]);

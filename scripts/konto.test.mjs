@@ -70,12 +70,14 @@ describe(
       ryddMysql();
     });
 
-    test('status: alt er gratis nå, CSV blir betalt senere, ingen betaling er slått på', async () => {
+    test('status: CSV hører til en betalt pakke, men har en gratisperiode; ingen betaling er slått på', async () => {
       const { status, data } = await gjest.konto('status');
       assert.equal(status, 200);
       assert.equal(data.aktiv, true);
       assert.equal(data.oppsett, 'konto');
-      assert.equal(data.tjenester.csv.betaling, 'gratis-inntil-videre');
+      assert.equal(data.tjenester.csv.betaling, 'betalt');
+      assert.equal(data.tjenester.csv.gratisperiode.apenFor, 'alle');
+      assert.equal(data.planer.gratis.prosjekter, 5);
       assert.equal(data.leverandorer.stripe.aktiv, false);
       assert.equal(data.leverandorer.vipps.aktiv, false);
     });
@@ -267,7 +269,7 @@ describe(
       assert.equal(tall.medlemmer.aktive, 1);
       assert.equal(tall.galleri.utenEier, 1);
       assert.equal(tall.galleri.skjulte, 1);
-      assert.equal(tall.migrering.konto, 3);
+      assert.equal(tall.migrering.konto, 4);
       // counts only: no addresses or names
       assert.ok(!r.stdout.includes('@') && !r.stdout.includes('Ola'));
     });

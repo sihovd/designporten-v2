@@ -1,5 +1,5 @@
 {
-  "merknad": "Alt er gratis inntil videre. Priser er ikke satt.",
+  "merknad": "Priser er ikke satt. CSV hører til en betalt pakke, men er gratis for alle i en gratisperiode til betalingsløsningen er klar (Sivert, 2026-10-18).",
   "tjenester": {
     "sign-forge": {
       "navn": "Sign Forge",
@@ -14,9 +14,24 @@
     },
     "csv": {
       "navn": "CSV-batch i Sign Forge",
-      "betaling": "gratis-inntil-videre",
-      "beskrivelse": "Mange skilt fra én liste. Gratis nå, blir en betalt tjeneste senere."
+      "betaling": "betalt",
+      "beskrivelse": "Mange skilt fra én liste. Hører til en betalt pakke.",
+      "gratisperiode": {
+        "apenFor": "alle",
+        "til": "betalingslosning-klar",
+        "grunn": "Gratis for alle til betalingsløsningen er klar."
+      }
     }
+  },
+  "planer": {
+    "gratis": {
+      "navn": "Gratis konto",
+      "prosjekter": 5,
+      "tjenester": []
+    }
+  },
+  "prosjektapper": {
+    "signgen": "Sign Forge"
   },
   "leverandorer": {
     "stripe": {

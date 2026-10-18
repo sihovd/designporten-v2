@@ -712,7 +712,7 @@ describe(
     test('kunder, innlogginger og galleriskilt er bevart med samme id-er', async () => {
       const meg = (await ola.konto('meg')).data.medlem;
       assert.ok(meg, 'innloggingen fra A virker fortsatt');
-      assert.equal(Number(sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v), 3);
+      assert.equal(Number(sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v), 4);
       assert.deepEqual(
         sql(rot, 'SELECT id, epost, navn, opprettet FROM dp_medlemmer ORDER BY id'),
         fra.medlemmer,
