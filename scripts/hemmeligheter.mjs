@@ -37,6 +37,7 @@ const TESTVERDIER = new Set([
   'et-annet-langt-passord',
   'feil-passord-123',
   'redaktor-passord',
+  'enda-et-passord',
   'hemmelig-kode-1234',
   'current-password',
   'new-password',
