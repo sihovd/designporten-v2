@@ -8,7 +8,7 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -365,6 +365,77 @@ describe('Endre passord og e-postadresse', hopp, () => {
       1,
     );
   });
+
+  /** A member with an e-mail change started, and the token of its link. */
+  async function medBytteStartet(k, epost, ny) {
+    await nyttMedlem(k, s.rot, epost);
+    nullstillGrenser(s.rot);
+    assert.equal((await k.konto('endre-epost', { kropp: { passord: PASSORD, epost: ny } })).status, 200);
+    return tokenFra(sisteEpost(s.rot, ny), 'ny-epost');
+  }
+  const ubrukte = (epost) =>
+    Number(
+      sql(
+        s.rot,
+        'SELECT COUNT(*) AS n FROM dp_konto_tokens t JOIN dp_medlemmer m ON m.id = t.medlem_id WHERE m.epost = ? AND t.brukt IS NULL',
+        [epost],
+      )[0].n,
+    );
+
+  test('glemt passord: en adressebytte-lenke fra før virker ikke etterpå', async () => {
+    const k = klient();
+    const bytte = await medBytteStartet(k, 'kapret@example.no', 'angriper@example.no');
+    await k.konto('send-bekreftelse', { kropp: {} });
+    await klient().konto('glemt-passord', { kropp: { epost: 'kapret@example.no' } });
+    const reset = tokenFra(sisteEpost(s.rot, 'kapret@example.no'), 'nytt-passord');
+    assert.equal(
+      (await klient().konto('nytt-passord', { kropp: { token: reset, passord: NYTT } })).status,
+      200,
+    );
+    // every unused link of the account is gone in the same transaction
+    assert.equal(ubrukte('kapret@example.no'), 0);
+    assert.equal((await klient().konto('bytt-epost', { kropp: { token: bytte } })).status, 400);
+    assert.equal(medlemRad(s.rot, 'kapret@example.no').epost, 'kapret@example.no');
+    assert.equal(medlemRad(s.rot, 'angriper@example.no'), undefined);
+  });
+
+  test('endret passord: en adressebytte-lenke fra før virker ikke etterpå', async () => {
+    const k = klient();
+    const bytte = await medBytteStartet(k, 'varsom@example.no', 'inntrenger@example.no');
+    assert.equal((await k.konto('endre-passord', { kropp: { passord: PASSORD, nytt: NYTT } })).status, 200);
+    assert.equal(ubrukte('varsom@example.no'), 0);
+    assert.equal((await klient().konto('bytt-epost', { kropp: { token: bytte } })).status, 400);
+    assert.equal(medlemRad(s.rot, 'varsom@example.no').epost, 'varsom@example.no');
+    // this browser is still signed in and can start a new change
+    nullstillGrenser(s.rot);
+    assert.equal(
+      (await k.konto('endre-epost', { kropp: { passord: NYTT, epost: 'varsom2@example.no' } })).status,
+      200,
+    );
+  });
+
+  test('nytt passord og adressebytte samtidig: aldri begge', async () => {
+    for (let runde = 0; runde < 6; runde++) {
+      const epost = `samtidig${runde}@example.no`;
+      const ny = `samtidig${runde}-ny@example.no`;
+      const k = klient();
+      const bytte = await medBytteStartet(k, epost, ny);
+      await klient().konto('glemt-passord', { kropp: { epost } });
+      const reset = tokenFra(sisteEpost(s.rot, epost), 'nytt-passord');
+      const [b, r] = await Promise.all([
+        klient().konto('bytt-epost', { kropp: { token: bytte } }),
+        klient().konto('nytt-passord', { kropp: { token: reset, passord: NYTT } }),
+      ]);
+      // one of them first; the other finds its link revoked
+      assert.equal([b.status, r.status].filter((x) => x === 200).length, 1, `${b.status},${r.status}`);
+      assert.ok(
+        [b.status, r.status].every((x) => x === 200 || x === 400),
+        `${b.status},${r.status}`,
+      );
+      assert.equal(medlemRad(s.rot, b.status === 200 ? ny : epost)?.epost, b.status === 200 ? ny : epost);
+      assert.equal(ubrukte(b.status === 200 ? ny : epost), 0);
+    }
+  });
 });
 
 describe('Suspendering, tilganger og sletting', hopp, () => {
@@ -424,6 +495,36 @@ describe('Suspendering, tilganger og sletting', hopp, () => {
       200,
     );
     assert.equal((await kunde.konto('del', { kropp: { mal: mal('Igjen') } })).status, 201);
+  });
+
+  test('pakker og priser endres i Studio og gjelder med en gang; en kunde kan ikke endre dem', async () => {
+    const plan = (kropp) => admin.konto('admin-plan', { kropp });
+    assert.equal((await kunde.konto('admin-plan', { kropp: { id: 'gratis', prosjekter: 999 } })).status, 401);
+    assert.equal((await kunde.konto('admin-planer')).status, 401);
+    assert.equal((await plan({ id: 'pro', prosjekter: 5 })).status, 404);
+    assert.equal((await plan({ id: 'gratis', prosjekter: -1 })).status, 422);
+    assert.equal((await plan({ id: 'gratis', prosjekter: '6' })).status, 422);
+    assert.equal((await plan({ id: 'skaper', prosjekter: 50, prisManed: 1.5, prisAr: 590 })).status, 422);
+    assert.equal((await plan({ id: 'skaper', prosjekter: 50, prisManed: null, prisAr: 590 })).status, 422);
+
+    const ny = await plan({ id: 'skaper', prosjekter: 60, prisManed: 69, prisAr: 690 });
+    assert.equal(ny.status, 200);
+    assert.deepEqual([ny.data.planer.skaper.prosjekter, ny.data.planer.skaper.pris.maned], [60, 69]);
+    assert.equal(ny.data.planer.skaper.endretAv, 'Eier');
+    const status = (await klient().konto('status')).data;
+    assert.deepEqual(
+      [status.planer.skaper.prosjekter, status.planer.skaper.pris.maned, status.planer.skaper.pris.ar],
+      [60, 69, 690],
+    );
+    assert.equal(status.planer.skaper.kanKjopes, false);
+
+    // the free quota counts at once; a free package never gets a price
+    assert.equal((await plan({ id: 'gratis', prosjekter: 7, prisManed: 10, prisAr: 100 })).status, 200);
+    assert.equal((await kunde.konto('prosjekter')).data.kvote.maks, 7);
+    assert.equal((await admin.konto('admin-planer')).data.planer.gratis.pris, undefined);
+    assert.equal((await plan({ id: 'gratis', prosjekter: 5 })).status, 200);
+    assert.equal((await plan({ id: 'skaper', prosjekter: 50, prisManed: 59, prisAr: 590 })).status, 200);
+    assert.equal((await kunde.konto('prosjekter')).data.kvote.maks, 5);
   });
 
   test('suspendering stopper innlogging og lenker; reaktivering gjenoppliver ikke gamle innlogginger', async () => {
@@ -550,6 +651,45 @@ describe('E-postfangsten sender ingenting ut', hopp, () => {
       ryddMysql();
     }
   });
+
+  /** Registers on a fresh server and says whether the confirmation was captured. */
+  async function sendtMed(port, valg, ekstra = []) {
+    settUrl(`http://127.0.0.1:${port}`);
+    const { rot, server: p } = await startServer({ port, ...valg });
+    try {
+      const svar = await klient().konto('registrer', {
+        kropp: { navn: 'Fangst', epost: 'fangst@example.no', passord: PASSORD, vilkar: true },
+      });
+      assert.equal(svar.status, 201);
+      return { sendt: svar.data.bekreftelse.sendt, finnes: existsSync(rot.post) };
+    } finally {
+      p.kill();
+      for (const d of [rot.topp, rot.post, ...ekstra]) rmSync(d, { recursive: true, force: true });
+      ryddMysql();
+    }
+  }
+
+  test('appen under /designporten-test/: en søstermappe i nettstedets rot avvises', async () => {
+    const r = await sendtMed(PORT + 9, {
+      undermappe: 'designporten-test',
+      post: (topp) => join(topp, 'postfangst'),
+    });
+    assert.deepEqual(r, { sendt: false, finnes: false });
+  });
+
+  test('en mappe under et annet nettsted (index.html, index.php eller .htaccess) avvises', async () => {
+    for (const fil of ['index.html', 'index.php', '.htaccess']) {
+      const annet = mkdtempSync(join(tmpdir(), 'dp-konto-nettsted-'));
+      writeFileSync(join(annet, fil), '');
+      const r = await sendtMed(PORT + 10, { post: () => join(annet, 'privat', 'post') }, [annet]);
+      assert.deepEqual(r, { sendt: false, finnes: false }, fil);
+    }
+  });
+
+  test('appen under /designporten-test/: en mappe utenfor nettstedet virker', async () => {
+    const r = await sendtMed(PORT + 11, { undermappe: 'designporten-test' });
+    assert.deepEqual(r, { sendt: true, finnes: true });
+  });
 });
 
 // The stage A code comes from git; a shallow clone or an unpacked source zip does not have it.
@@ -602,7 +742,7 @@ describe(
     test('kunder, innlogginger og galleriskilt er bevart med samme id-er', async () => {
       const meg = (await ola.konto('meg')).data.medlem;
       assert.ok(meg, 'innloggingen fra A virker fortsatt');
-      assert.equal(Number(sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v), 3);
+      assert.equal(Number(sql(rot, 'SELECT MAX(versjon) AS v FROM dp_konto_migrering')[0].v), 5);
       assert.deepEqual(
         sql(rot, 'SELECT id, epost, navn, opprettet FROM dp_medlemmer ORDER BY id'),
         fra.medlemmer,

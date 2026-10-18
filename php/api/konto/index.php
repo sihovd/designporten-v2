@@ -15,6 +15,10 @@
  *   POST endre-epost    passord, epost: sends a link to the new address; the old one stays until then
  *   POST bytt-epost     token: switches to the new address
  *   POST slett-konto    delete the member, their signs, sign-ins, links and access exceptions (passord)
+ *   GET  prosjekter     the member's projects on the account (?app), and the quota
+ *   GET  prosjekt       one project with its document (?id)
+ *   POST prosjekt-lagre app, navn, dokument; with id + revisjon it updates (409 when older)
+ *   POST prosjekt-slett id
  *   GET  skilt          the gallery, newest first (?antall, ?for = cursor)
  *   GET  mine-skilt     the member's own signs
  *   POST del            publish a sign in the gallery (signed-in members only): mal, bilde; with id it updates that sign
@@ -38,6 +42,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_konto.php';
+require_once __DIR__ . '/_prosjekter.php';
 require_once __DIR__ . '/_admin.php';
 
 header('Cache-Control: no-store');
@@ -109,7 +114,7 @@ try {
         konto_get();
         $aktiv = konto_konfig() !== null;
         if ($aktiv) konto_db();
-        konto_svar(['aktiv' => $aktiv, 'oppsett' => konto_kilde()] + konto_tjenester());
+        konto_svar(['aktiv' => $aktiv, 'oppsett' => konto_kilde(), 'planer' => konto_planer()] + konto_tjenester());
     }
 
     if (konto_konfig() === null) throw new KontoFeil('Brukerkontoer er ikke slått på på denne serveren ennå.', 503);
@@ -290,8 +295,8 @@ try {
                     'UPDATE dp_medlemmer SET passord_hash = ?, epost_bekreftet = COALESCE(epost_bekreftet, ?) WHERE id = ?',
                     [password_hash($passord, PASSWORD_DEFAULT), konto_na(), $m['id']],
                 );
-                konto_logg_ut_overalt((int) $m['id']);
-                konto_kjor("DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND formal = 'reset' AND brukt IS NULL", [$m['id']]);
+                // every sign-in and every other link, an address change included
+                konto_sikre_konto((int) $m['id']);
             });
         } catch (KontoFeil $f) {
             konto_registrer_forsok('konto-lenke:' . konto_ip());
@@ -313,9 +318,9 @@ try {
         if ($r === 'endre-passord') {
             $nytt = konto_passord($k['nytt'] ?? null);
             konto_transaksjon(function () use ($m, $nytt) {
+                konto_las_medlem((int) $m['id']);
                 konto_kjor('UPDATE dp_medlemmer SET passord_hash = ? WHERE id = ?', [password_hash($nytt, PASSWORD_DEFAULT), $m['id']]);
-                konto_logg_ut_overalt((int) $m['id']);
-                konto_kjor("DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND formal = 'reset' AND brukt IS NULL", [$m['id']]);
+                konto_sikre_konto((int) $m['id']);
             });
             // every sign-in ended, this one included; this browser gets a fresh one
             konto_logg_inn($m);
@@ -327,7 +332,16 @@ try {
         konto_epost_klar();
         konto_begrens('konto-nyepost:' . $m['id'], 3, 3600);
         konto_registrer_forsok('konto-nyepost:' . $m['id']);
-        $lenke = konto_lenke('ny-epost', konto_lag_token($m, 'epost', $ny));
+        $token = konto_transaksjon(function () use ($m, $ny) {
+            // a new password since the check above ends this request: nothing started with the
+            // old password may outlive it
+            $na = konto_las_medlem((int) $m['id']);
+            if (!$na || $na['status'] !== 'aktiv' || $na['passord_hash'] !== $m['passord_hash'] || $na['epost'] !== $m['epost']) {
+                throw new KontoFeil('Kontoen er endret i mellomtiden. Logg inn og prøv igjen.', 409);
+            }
+            return konto_lag_token($m, 'epost', $ny);
+        });
+        $lenke = konto_lenke('ny-epost', $token);
         konto_send_epost(
             $ny,
             'Bekreft den nye e-postadressen din hos Designporten',
@@ -373,6 +387,42 @@ try {
             throw $f;
         }
         konto_svar(['ok' => true, 'epost' => $ny]);
+    }
+
+    if ($r === 'prosjekter') {
+        konto_get();
+        $m = konto_krev_medlem();
+        $app = isset($_GET['app']) ? konto_prosjektapp($_GET['app']) : null;
+        $rader = konto_alle(
+            'SELECT ' . KONTO_PROSJEKTFELT . ' FROM dp_prosjekter WHERE medlem_id = ?' . ($app ? ' AND app = ?' : '') . ' ORDER BY endret DESC',
+            $app ? [$m['id'], $app] : [$m['id']],
+        );
+        konto_svar(['prosjekter' => array_map('konto_prosjekt_ut', $rader), 'kvote' => konto_prosjektkvote($m)]);
+    }
+
+    if ($r === 'prosjekt') {
+        konto_get();
+        $m = konto_krev_medlem();
+        $rad = konto_eget_prosjekt($m, $_GET['id'] ?? null);
+        konto_svar(['prosjekt' => konto_prosjekt_ut($rad) + ['dokument' => json_decode($rad['dokument'], true)]]);
+    }
+
+    if ($r === 'prosjekt-lagre') {
+        $k = konto_kropp();
+        $m = konto_krev_medlem();
+        konto_begrens('konto-prosjekt:' . $m['id'], 120, 3600);
+        konto_registrer_forsok('konto-prosjekt:' . $m['id']);
+        $ny = !isset($k['id']);
+        $p = konto_lagre_prosjekt($m, $k);
+        konto_svar(['prosjekt' => $p, 'kvote' => konto_prosjektkvote($m)], $ny ? 201 : 200);
+    }
+
+    if ($r === 'prosjekt-slett') {
+        $k = konto_kropp();
+        $m = konto_krev_medlem();
+        $rad = konto_eget_prosjekt($m, $k['id'] ?? null, 'offentlig_id');
+        konto_kjor('DELETE FROM dp_prosjekter WHERE offentlig_id = ? AND medlem_id = ?', [$rad['offentlig_id'], $m['id']]);
+        konto_svar(['ok' => true, 'kvote' => konto_prosjektkvote($m)]);
     }
 
     if ($r === 'mine-skilt') {
@@ -436,12 +486,14 @@ try {
         if ($r === 'admin-medlemmer') {
             konto_get();
             $rader = konto_alle(
-                'SELECT m.*, (SELECT COUNT(*) FROM dp_skilt s WHERE s.medlem_id = m.id) AS antall_skilt
+                'SELECT m.*, (SELECT COUNT(*) FROM dp_skilt s WHERE s.medlem_id = m.id) AS antall_skilt,
+                        (SELECT COUNT(*) FROM dp_prosjekter p WHERE p.medlem_id = m.id) AS antall_prosjekter
                  FROM dp_medlemmer m ORDER BY m.opprettet DESC LIMIT 1000',
             );
             konto_svar([
                 'medlemmer' => array_map(fn($m) => konto_ut($m) + [
-                    'antallSkilt' => (int) $m['antall_skilt'], 'aktiv' => $m['status'] === 'aktiv',
+                    'antallSkilt' => (int) $m['antall_skilt'], 'antallProsjekter' => (int) $m['antall_prosjekter'],
+                    'aktiv' => $m['status'] === 'aktiv',
                     'unntak' => array_column(konto_alle('SELECT nokkel, verdi FROM dp_konto_tilganger WHERE medlem_id = ?', [$m['id']]), 'verdi', 'nokkel'),
                 ], $rader),
                 'tilgangsnokler' => konto_tilgangsnokler(),
@@ -492,6 +544,17 @@ try {
             konto_admin_logg($aktor, 'tilgang.' . ($verdi ?? 'standard'), "$id:$nokkel");
             konto_svar(['ok' => true]);
         }
+        if ($r === 'admin-planer') {
+            konto_get();
+            konto_svar(['planer' => konto_planer()]);
+        }
+        if ($r === 'admin-plan') {
+            $k = konto_kropp();
+            $id = (string) ($k['id'] ?? '');
+            konto_sett_plan($id, $k['prosjekter'] ?? null, $k['prisManed'] ?? null, $k['prisAr'] ?? null, (string) ($aktor['navn'] ?? 'admin'));
+            konto_admin_logg($aktor, 'plan.endre', $id);
+            konto_svar(['planer' => konto_planer()]);
+        }
         if ($r === 'admin-testpost') {
             konto_get();
             konto_svar(['eposter' => konto_fangede_eposter()]);
@@ -500,7 +563,7 @@ try {
 
     throw new KontoFeil('Ukjent handling.', 404);
 } catch (KontoFeil $f) {
-    konto_svar(['feil' => $f->getMessage()], $f->status);
+    konto_svar(['feil' => $f->getMessage()] + $f->ekstra, $f->status);
 } catch (Throwable $e) {
     error_log('Designporten konto: ' . $e->getMessage());
     konto_svar(['feil' => 'Noe gikk galt på serveren.'], 500);

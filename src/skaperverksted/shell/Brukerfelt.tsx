@@ -44,15 +44,15 @@ export function Brukerfelt() {
           <>
             <p class="meny-merknad">
               Logget inn som {medlem.navn}. Skiltene dine er private til du velger «Publiser i galleriet» i
-              Fil-menyen.
+              Fil-menyen. «Lagre på kontoen» i samme meny lagrer prosjektet på kontoen.
             </p>
             {kontoside}
           </>
         ) : (
           <>
             <p class="meny-merknad">
-              Du kan bruke editoren uten konto. Med en konto kan du publisere skilt i galleriet «Nylig laget»
-              med navnet ditt, og fjerne dem igjen.
+              Du kan bruke editoren uten konto. Med en konto kan du lagre prosjekter på kontoen og publisere
+              skilt i galleriet «Nylig laget» med navnet ditt.
             </p>
             {kontoside}
           </>

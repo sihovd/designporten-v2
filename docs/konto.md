@@ -5,7 +5,7 @@ Asked for by Sivert on 2026-10-16; decision log entry 2026-10-17.
 ## What it does
 
 - **Members** are visitors with an account (name, e-mail, password). They are not CMS users: CMS users run the site, members use it. Sign up and sign in at `/konto/` («Min konto»), linked from the footer on the PHP build.
-- **Signs are private; the maker publishes.** Since 2026-10-17 (Sivert): nothing is shared on download or in the cart. A signed-in member chooses **Fil → «Publiser i galleriet …»** in Sign Forge; the dialog shows the picture the gallery will show, says the text becomes public, and publishes, updates or removes the sign («Fjern fra galleriet»). Guests cannot publish. The CSV rows are never published, only the open sign. Signs that the earlier automatic sharing (PR #49, never in main) put in a gallery database stay as they are (nothing is taken down automatically); the browser that shared them as a guest keeps the key to remove them.
+- **Signs are private; the maker publishes.** Since 2026-10-17 (Sivert): nothing is shared on download or in the cart. A signed-in member chooses **Fil → «Publiser i galleriet …»** in Sign Forge; the dialog shows the picture the gallery will show, says the text becomes public, and publishes, updates or removes the sign («Fjern fra galleriet»). Guests cannot publish. The CSV rows are never published, only the open sign. Signs that the earlier automatic sharing (PR #49) put in a gallery database stay as they are (nothing is taken down automatically); the browser that shared them as a guest keeps the key to remove them.
 - **Templates from the gallery:** «Bruk som mal» on the site opens `/skaperverksted/signgen/?mal=<id>`; inside Sign Forge, «Fra mal» lists «Nylig laget av andre». Using one copies it into a new project (the shared sign is not changed) and counts the use.
 - **The slider «Nylig laget»** is on the homepage (before the Skaperverksted portal) and on the Skaperverksted page. It only ever shows real shared signs. With none, or where accounts are not switched on, it says so and links to Sign Forge.
 - **Removing:** members see and remove their signs under «Min konto» or in the publish dialog, and can delete the account (with its signs). Signs shared earlier without an account can be removed from the same browser (the browser keeps a key per sign).
@@ -18,9 +18,18 @@ Asked for by Sivert on 2026-10-16; decision log entry 2026-10-17.
 | Service | `betaling` |
 |---|---|
 | Sign Forge | `gratis` |
-| CSV batch in Sign Forge | `gratis-inntil-videre` (to become paid later) |
+| CSV batch in Sign Forge | `betalt`, with a **free period** (`gratisperiode`) |
 
-`gratis-inntil-videre` is open to everyone, signed in or not. Changing a service to `betalt` closes it to anyone without an active payment (`konto_tilgang()` in PHP, `plangrenser.csvBatch` in the editor) — do that only when a payment flow exists. No prices are set anywhere.
+**The CSV free period is an explicit exception** (Sivert, 2026-10-18): CSV belongs to a paid package, but `gratisperiode: { apenFor: "alle", til: "betalingslosning-klar" }` opens it to everyone, signed in or not, until payment is ready. «Min konto» shows it as «Gratis inntil videre» with the reason. Ending the free period means removing that one key once a payment flow is live; then CSV is open only to a paid package that lists it (or a member exception). `gratis-inntil-videre` still exists as a value for a service that is meant to stay free for now.
+
+**Packages** are data in `planer` (id → `navn`, `prosjekter`, `tjenester`, and for a paid one `pris` and `kanKjopes`). There are two (Sivert, 2026-10-18 18:20 UTC: one paid package, approved on the decision card):
+
+| Package | Projects | Services | Price incl. VAT |
+|---|---|---|---|
+| `gratis` Gratis konto | 5 | – | 0 |
+| `skaper` Skaper | 50 | CSV | 59 kr/mnd or 590 kr/år, `kanKjopes: false` |
+
+**Price and quota are set in Studio** (Medlemmer og skilt → Pakker og priser; Sivert: «enkelt å endre i cms»). A saved change goes in `dp_konto_planer` (migration 5, only adds) and replaces the file's numbers for that package at once (`konto_planer()`): the quota on the next save, the price on Min konto. The file keeps the defaults; packages themselves (which exist, what they include) are still added in the file. Admin API: `GET admin-planer`, `POST admin-plan` (`id`, `prosjekter`, `prisManed`, `prisAr`, whole numbers; a free package never gets a price). Min konto shows both packages with their price and «Kan ikke kjøpes ennå». Nothing sells Skaper until a payment flow is switched on. The package in force (`konto_plan()`) is the member's own `plan` while a payment is active and not expired (`konto_har_betalt()`), otherwise `gratis`; a guest has none (0 projects). A paid service is open when the package lists it, when its free period applies, or by a member exception.
 
 Providers: Stripe Checkout and Vipps ePayment are listed, both `aktiv: false` (decision log 2026-10-15: hosted flows only, no card data on our server). The member row has `plan`, `betaling_status` (`ingen | aktiv | utlopt | avbrutt`), `betaling_leverandor`, `betaling_kunde` and `betalt_til`, and `dp_betalinger` has one row per payment; a provider's webhook will fill these when payment is switched on. Nothing writes them yet.
 
@@ -42,11 +51,11 @@ Tests: `scripts/konto.test.mjs` (in `npm run test:deploy`) runs the API against 
 
 ## E-mail, links and account status (stage B)
 
-Work order «Etappe B» (Sivert, 2026-10-18); decision log entry the same day. On the working branch `claude/project-thread-fklm92`, not in main.
+Work order «Etappe B» (Sivert, 2026-10-18); decision log entries the same day. Merged into main by Sivert with PR #51; the follow-up after his review came after that.
 
 **E-mail part** (`php/api/konto/_epost.php`, one function `konto_send_epost()`, the driver chosen in `api/konto/konfig.php`):
 
-- `'epost' => ['driver' => 'fil', 'mappe' => '/absolute/path/outside/the/web/root']` writes each message as a JSON file (mode 0600). Used in development, tests and on test builds, where a CMS administrator reads them in Studio → «Medlemmer og skilt» → «Fanget e-post». A folder inside the site (checked before anything is created) is refused. Nothing leaves the machine.
+- `'epost' => ['driver' => 'fil', 'mappe' => '/absolute/path/outside/the/web/root']` writes each message as a JSON file (mode 0600). Used in development, tests and on test builds, where a CMS administrator reads them in Studio → «Medlemmer og skilt» → «Fanget e-post». Nothing leaves the machine. Before anything is created, the folder is refused if the web may serve it (`konto_i_offentlig_mappe()`): inside the app; inside the site's root above the app's base (the app at `/public_html/designporten-test/` makes all of `/public_html/` public, so `/public_html/postfangst/` is refused); inside the web server's `DOCUMENT_ROOT`; inside a folder listed in `'epost' => ['offentlige_mapper' => [...]]`; or below any folder holding `index.html`, `index.php` or `.htaccess`. These are what the server can see; on one.com, use a folder next to the web folder that the host documents as private (for example `httpd.private`), never under `httpd.www`.
 - `'driver' => 'mail', 'fra' => 'konto@…'` uses PHP `mail()` like the site's forms. It is refused on a test build and on PHP's development server, so a test can never fall back to real delivery.
 - No e-mail settings, or settings that are not allowed here: every action that needs a message answers 503 «E-post er ikke satt opp …» before anything changes. Sign-up still creates the account and says the confirmation could not be sent; nothing claims a message went.
 - SMTP is not built. When production e-mail is switched on, the choice is `mail()` on one.com, or SMTP through a maintained library (PHPMailer, a new dependency to decide on then). We do not write our own SMTP client.
@@ -60,9 +69,9 @@ Work order «Etappe B» (Sivert, 2026-10-18); decision log entry the same day. O
 
 **Members from before B:** migration 3 adds `status` (`aktiv`) and `epost_bekreftet` (empty) and nothing else; nobody loses their sign-in, sessions and passwords are untouched, and no old address is marked confirmed. An old member is therefore unconfirmed: everything works as before except publishing, which asks them to confirm first (one click on «Send ny lenke»). Signs they already published stay published.
 
-**Forgot password:** always the same neutral answer, whether the address exists or not. A new password ends every sign-in and every reset link of that member, and the member signs in again.
+**Forgot password:** always the same neutral answer, whether the address exists or not. A new password ends every sign-in and **every unused link** of that member (reset, confirmation and e-mail change), in the same transaction, and the member signs in again. So an address change someone else started cannot be finished after the owner has reset the password (found in Sivert's review, 2026-10-18).
 
-**Change password:** needs the current password; ends every other sign-in and gives the current browser a new session (it stays signed in). **Change e-mail:** needs the current password; sends a link to the new address and a notice to the old one; the old address stays until the link is used; when it is used, the new address must still be free (else 409, nothing changes), the old address must be unchanged (an older link then fails), and the database's unique key settles two members racing for the same address. Accounts are never merged.
+**Change password:** needs the current password; ends every other sign-in and every unused link, and gives the current browser a new session (it stays signed in). Every one-time action locks the member's row first (`konto_las_medlem()`, `SELECT … FOR UPDATE` on MySQL; SQLite locks the database), so a password change, a reset and an address change on one account run one after the other: of a reset and an address change at the same time, exactly one wins and the other's link is gone. A request for an address change is refused if the password changed after it was checked. **Change e-mail:** needs the current password; sends a link to the new address and a notice to the old one; the old address stays until the link is used; when it is used, the new address must still be free (else 409, nothing changes), the old address must be unchanged (an older link then fails), and the database's unique key settles two members racing for the same address. Accounts are never merged.
 
 **Status:** `aktiv` or `suspendert` (the old column `aktiv` is kept in step, so older code also blocks a suspended member). Deleted means gone: the member row, sessions, links, access exceptions and published signs are removed in one transaction. Only a CMS administrator can suspend or reactivate (Studio, or `admin-status`); suspending ends every sign-in and unused link, and a suspended member who signs in with the right password is told the account is closed. Reactivating does not bring old sign-ins back. Without the CMS there are no admin actions (503). A member never becomes a CMS user.
 
@@ -76,10 +85,24 @@ Work order «Etappe B» (Sivert, 2026-10-18); decision log entry the same day. O
 
 Tests: `scripts/konto-sikkerhet.test.mjs` (in `npm run test:deploy`; SQLite, or MySQL/MariaDB with `DP_CMS_MYSQL`) and the B flows in `tests/onecom/cms.spec.ts`.
 
+## Projects on the account (stage C)
+
+Built 2026-10-18 on Sivert's «Start c». Visitors keep projects only in the browser; members may also save them on the account.
+
+- **One table for all tools,** `dp_prosjekter` (migration 4, only adds): public id, owner, `app`, name, document (JSON), size, revision, timestamps. The tools that may store projects are listed in `tjenester.json` `prosjektapper` (Sign Forge, `signgen`, for now).
+- **Quota:** the package's `prosjekter`, counted across every tool, five for a free account. Counted with the member's row locked, so two saves at once cannot pass it together. Gallery signs do not count.
+- **Over the quota** (after a package ends): every project can still be opened, downloaded, updated and deleted. Only a new one is refused (403), with a message that says how to make room and that the project is still in the browser.
+- **The server decides:** the owner is always the signed-in member, never a value from the browser; another member's project answers 404; a document must be one of that tool's documents (422) and at most 2 MB of JSON (413). Saving is limited to 120 per hour per member.
+- **Conflicts:** every save names the revision it was based on; an older one gets 409 with the current revision, and Sign Forge offers «Åpne nyeste» or «Lagre som kopi». Nothing is overwritten.
+- **Sign Forge:** Fil → «Lagre på kontoen» and «Mine prosjekter på kontoen …» (open or download). Nothing is uploaded on its own. The browser remembers which account project the open document is (by document id, `core/kontokobling.ts`). Opening one puts unsaved work in the browser aside first; it can be downloaded with Fil → «Last ned forrige prosjekt». Without an account, «Lagre på kontoen» explains that sign-in is needed and that the project stays in the browser.
+- **Min konto → Mine prosjekter:** «X av Y prosjekter», and per project Åpne (`/skaperverksted/signgen/?prosjekt=<id>`), Last ned (the project file) and Slett (with confirmation). Mine tjenester shows the package. Deleting the account deletes its projects. Studio shows the number of projects per member. The quota per package is set in Studio (see Payment above).
+
+API (`php/api/konto/index.php`, code in `_prosjekter.php`): `GET prosjekter[&app=]` → projects and quota; `GET prosjekt&id=` → one with its document; `POST prosjekt-lagre` (`app`, `navn`, `dokument`, and `id` + `revisjon` to update; 201 new, 200 updated); `POST prosjekt-slett` (`id`). Tests: `scripts/konto-prosjekter.test.mjs` (SQLite, or MariaDB with `DP_CMS_MYSQL`), `src/skaperverksted/core/kontokobling.test.ts`, and «konto C» in `tests/onecom/cms.spec.ts`.
+
 ## Open for Sivert
 
 - Licence terms for shared signs (stored as «Ikke avklart ennå»).
 - Whether guests may publish (today: no) and what happens to published signs when an account is deleted (today: they are deleted with it).
-- Prices and which plan unlocks CSV when it becomes paid; Stripe and Vipps accounts.
+- Sales terms for Skaper; when the CSV free period ends; Stripe and Vipps accounts.
 - Production e-mail: `mail()` on one.com or SMTP (PHPMailer), and which sender address. Until then accounts cannot go public: no confirmation or reset mail can be sent.
 - The CMS backup in Studio does not include member accounts or shared signs yet.

@@ -28,6 +28,9 @@ import { filnavn } from '../eksport/tremf';
 import { brukBenk } from './bruk-benk';
 import { Eksportdialog } from './Eksportdialog';
 import { Brukerfelt } from './Brukerfelt';
+import { brukKontoprosjekter } from './Kontoprosjekter';
+import { kontoMulig } from '@/lib/konto/api';
+import { PLANER, PROSJEKTAPPER } from '@/lib/konto/tjenester';
 import { Hjelp } from './Hjelp';
 import { Hjelpesok } from './HjelpesokPanel';
 import { Innstillingsmeny } from './Innstillingsmeny';
@@ -117,6 +120,8 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
   }, [plugin]);
   useEffect(() => () => benk.avslutt(), [benk]);
   const [reserve, settReserve] = useState(() => hentReserve(plugin.id));
+  const kontolagring = kontoMulig && !!PROSJEKTAPPER[plugin.id];
+  const kontoprosjekter = brukKontoprosjekter(benk, plugin.id, kontolagring, settReserve);
 
   // the opening counts as finished once the page has run a few seconds without freezing
   useEffect(() => {
@@ -432,11 +437,14 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
                 Lagre som fil <kbd>Ctrl+S</kbd>
               </span>
             </button>
+            {kontoprosjekter.menyvalg}
             {ui.Filvalg && <ui.Filvalg benk={benk} />}
             <p class="meny-merknad">
               {plugin.gjestelagring
                 ? `Uten konto lagres ett prosjekt i denne nettleseren. Det slettes hvis du ikke åpner det på ${plugin.gjestelagring.maksDager} dager. «Lagre som fil» tar vare på det.`
                 : 'Prosjektet lagres også automatisk i denne nettleseren.'}
+              {kontolagring &&
+                ` Med en gratis konto kan du lagre opptil ${PLANER.gratis?.prosjekter ?? 0} prosjekter på kontoen, men bare når du selv velger «Lagre på kontoen».`}
             </p>
           </div>
         </details>
@@ -641,6 +649,7 @@ function Arbeidsflate({ plugin }: { plugin: GeneratorPlugin }) {
 
       {eksport && <Eksportdialog benk={benk} lukk={() => settEksport(false)} />}
       {hjelp && <Hjelp plugin={plugin} lukk={() => settHjelp(false)} />}
+      {kontoprosjekter.dialog}
     </div>
   );
 }

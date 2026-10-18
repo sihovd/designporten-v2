@@ -145,6 +145,24 @@
   margin-bottom: var(--r-4);
 }
 
+.cms__pakkefelt {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--r-3);
+  margin-block: var(--r-3);
+}
+
+.cms__tallfelt {
+  display: flex;
+  align-items: center;
+  gap: var(--r-2);
+  font-weight: 400;
+}
+
+.cms__tallfelt input {
+  max-width: 8rem;
+}
+
 .cms__felt--sok {
   flex: 1 1 14rem;
   max-width: 24rem;

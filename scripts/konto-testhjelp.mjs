@@ -131,7 +131,9 @@ export function sql(rot, setning, verdier = []) {
  * `utenCms` removes the CMS, `utenKonto` leaves the account settings out,
  * `utenEpost` leaves e-mail out. E-mail is captured in `rot.post`, outside
  * the site. `arbeidere` lets PHP answer several requests at once. `rot` reuses
- * an earlier server's folder and database (an upgrade).
+ * an earlier server's folder and database (an upgrade). `undermappe` puts the
+ * app under that base inside a larger site folder (`rot.topp`); `post(topp)`
+ * chooses the capture folder.
  */
 export async function startServer({
   port,
@@ -143,8 +145,13 @@ export async function startServer({
   kilde = resolve('php'),
   arbeidere = 1,
   rot: forrige = null,
+  undermappe = '',
+  post: egenPost = null,
 }) {
-  const sti = forrige?.sti ?? mkdtempSync(join(tmpdir(), 'dp-konto-'));
+  // undermappe: the app lives under a base inside a larger site (sti = the site, app = sti/undermappe)
+  const topp = forrige?.topp ?? mkdtempSync(join(tmpdir(), 'dp-konto-'));
+  const sti = forrige?.sti ?? (undermappe ? join(topp, undermappe) : topp);
+  mkdirSync(sti, { recursive: true });
   let dsn = forrige?.dsn ?? null;
   if (mysql && !forrige) {
     const navn = `kontotest_${process.pid}_${port}`;
@@ -154,11 +161,16 @@ export async function startServer({
   }
   // postIRot: a capture folder inside the site, which the server must refuse
   const post =
-    forrige?.post ?? (postIRot ? join(sti, 'post') : mkdtempSync(join(tmpdir(), 'dp-konto-post-')));
+    forrige?.post ??
+    egenPost?.(topp) ??
+    (postIRot ? join(sti, 'post') : mkdtempSync(join(tmpdir(), 'dp-konto-post-')));
   // an upgrade replaces the code and keeps the database (cms.sqlite lies beside api/)
   rmSync(join(sti, 'api'), { recursive: true, force: true });
   cpSync(kilde, sti, { recursive: true });
-  writeFileSync(join(sti, 'api/bygg.php'), "<?php\nreturn ['base' => '/', 'test' => true];\n");
+  writeFileSync(
+    join(sti, 'api/bygg.php'),
+    `<?php\nreturn ['base' => '/${undermappe ? `${undermappe}/` : ''}', 'test' => true];\n`,
+  );
   if (utenCms) rmSync(join(sti, 'api/cms'), { recursive: true, force: true });
   else writeFileSync(join(sti, 'api/cms/nokler.json'), '{}');
   const server = spawn(php, ['-S', `127.0.0.1:${port}`, resolve('tests/php/cms-router.php')], {
@@ -176,7 +188,7 @@ export async function startServer({
   for (let i = 0; i < 50; i++) {
     try {
       await fetch(`http://127.0.0.1:${port}/api/konto/?r=status`);
-      return { rot: { sti, dsn, post }, server };
+      return { rot: { sti, topp, dsn, post }, server };
     } catch {
       await new Promise((r) => setTimeout(r, 100));
     }

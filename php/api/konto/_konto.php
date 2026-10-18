@@ -46,8 +46,11 @@ function konto_tjenester(): array
  * and each of its features, with the reason when the answer is no. The
  * server decides here and nowhere else; the browser only shows the answer.
  *
- * - A free service, or one free for now, is open; a paid one needs a
- *   payment that covers today.
+ * - A free service is open. A paid one needs a payment that covers today
+ *   and a package (`planer` in tjenester.json) that includes the service,
+ *   unless it has a `gratisperiode`: an explicit, named exception that opens
+ *   it to everyone, guests included, until it is removed (CSV until the
+ *   payment flow is ready, Sivert 2026-10-18).
  * - A feature lists what it needs: 'medlem' (signed in) and
  *   'bekreftet-epost' (a confirmed address).
  * - An administrator may set an exception per member (dp_konto_tilganger):
@@ -65,12 +68,15 @@ function konto_tilganger(?array $medlem): array
         }
     }
     $aktiv = $medlem !== null && $medlem['status'] === 'aktiv';
-    $betalt = $aktiv && $medlem['betaling_status'] === 'aktiv' && $medlem['betalt_til'] !== null && $medlem['betalt_til'] >= konto_na();
+    $pakke = konto_plan($medlem);
     $svar = [];
     foreach (konto_tjenester()['tjenester'] as $id => $t) {
         $grunn = null;
+        $iPakke = $aktiv && konto_har_betalt($medlem) && in_array($id, $pakke['tjenester'], true);
         if (($unntak[$id] ?? null) === 'nei') $grunn = 'Stengt for kontoen din. Ta kontakt hvis du mener det er feil.';
-        elseif ($t['betaling'] === 'betalt' && !$betalt && !($aktiv && ($unntak[$id] ?? null) === 'ja')) $grunn = 'Krever betaling, som ikke er slått på ennå.';
+        elseif ($t['betaling'] === 'betalt' && !isset($t['gratisperiode']) && !$iPakke && !($aktiv && ($unntak[$id] ?? null) === 'ja')) {
+            $grunn = 'Krever en betalt pakke, som ikke er slått på ennå.';
+        }
         $funksjoner = [];
         foreach ($t['funksjoner'] ?? [] as $fid => $f) {
             $fgrunn = $grunn;
@@ -85,6 +91,78 @@ function konto_tilganger(?array $medlem): array
         $svar[$id] = ['tilgang' => $grunn === null, 'grunn' => $grunn, 'funksjoner' => $funksjoner];
     }
     return $svar;
+}
+
+/** A payment that covers today. */
+function konto_har_betalt(?array $m): bool
+{
+    return $m !== null && $m['betaling_status'] === 'aktiv' && $m['betalt_til'] !== null && $m['betalt_til'] >= konto_na();
+}
+
+/**
+ * The packages (`planer` in tjenester.json), with the price and quota an
+ * administrator set in Studio (dp_konto_planer) in place of the file's.
+ * Without accounts switched on, the file's numbers. `$pa_nytt` after a change.
+ * @return array<string, array>
+ */
+function konto_planer(bool $pa_nytt = false): array
+{
+    static $planer = null;
+    if ($planer !== null && !$pa_nytt) return $planer;
+    $planer = konto_tjenester()['planer'];
+    if (konto_konfig() === null) return $planer;
+    foreach (konto_alle('SELECT * FROM dp_konto_planer') as $r) {
+        if (!isset($planer[$r['plan']])) continue;
+        $p = &$planer[$r['plan']];
+        $p['prosjekter'] = (int) $r['prosjekter'];
+        if (isset($p['pris'])) {
+            if ($r['pris_maned'] !== null) $p['pris']['maned'] = (int) $r['pris_maned'];
+            if ($r['pris_ar'] !== null) $p['pris']['ar'] = (int) $r['pris_ar'];
+        }
+        $p['endret'] = $r['endret'];
+        $p['endretAv'] = $r['endret_av'];
+        unset($p);
+    }
+    return $planer;
+}
+
+/** Studio: set a package's quota and (for a paid one) its price. */
+function konto_sett_plan(string $id, mixed $prosjekter, mixed $maned, mixed $ar, string $av): void
+{
+    $fil = konto_tjenester()['planer'];
+    if (!isset($fil[$id])) throw new KontoFeil('Ukjent pakke.', 404);
+    $heltall = function (mixed $v, int $maks, string $hva): int {
+        if (!is_int($v) || $v < 0 || $v > $maks) throw new KontoFeil("$hva må være et helt tall fra 0 til $maks.", 422);
+        return $v;
+    };
+    $prosjekter = $heltall($prosjekter, 10000, 'Antall prosjekter');
+    $betalt = isset($fil[$id]['pris']);
+    $maned = $betalt ? $heltall($maned, 100000, 'Pris per måned') : null;
+    $ar = $betalt ? $heltall($ar, 1000000, 'Pris per år') : null;
+    konto_transaksjon(function () use ($id, $prosjekter, $maned, $ar, $av) {
+        konto_kjor('DELETE FROM dp_konto_planer WHERE plan = ?', [$id]);
+        konto_kjor(
+            'INSERT INTO dp_konto_planer (plan, prosjekter, pris_maned, pris_ar, endret, endret_av) VALUES (?, ?, ?, ?, ?, ?)',
+            [$id, $prosjekter, $maned, $ar, konto_na(), mb_substr($av, 0, 80)],
+        );
+    });
+    konto_planer(true);
+}
+
+/**
+ * The package a member has now (`planer` in tjenester.json): their own while
+ * it is paid for, otherwise the free one. A guest has none: nothing is stored
+ * on the server without an account.
+ * @return array{id: ?string, navn: string, prosjekter: int, tjenester: string[]}
+ */
+function konto_plan(?array $m): array
+{
+    $planer = konto_planer();
+    if ($m === null || $m['status'] !== 'aktiv') return ['id' => null, 'navn' => 'Uten konto', 'prosjekter' => 0, 'tjenester' => []];
+    $id = (string) $m['plan'];
+    if ($id !== 'gratis' && (!isset($planer[$id]) || !konto_har_betalt($m))) $id = 'gratis';
+    $p = $planer[$id];
+    return ['id' => $id, 'navn' => (string) $p['navn'], 'prosjekter' => (int) $p['prosjekter'], 'tjenester' => array_values($p['tjenester'] ?? [])];
 }
 
 /** Whether a member (or a guest, null) may use a service. */
@@ -177,6 +255,27 @@ function konto_migreringer(): array
             ){TABELL}',
             'CREATE UNIQUE INDEX dp_konto_tilganger_nokkel ON dp_konto_tilganger (medlem_id, nokkel)',
         ],
+        // 2026-10-18, stage C: projects on the account, one table for every app so the quota
+        // counts across apps. revisjon goes up by one on every save (409 when a save is based on
+        // an older one). Only adds.
+        4 => [
+            'CREATE TABLE dp_prosjekter (
+                id {ID}, offentlig_id CHAR(16) NOT NULL UNIQUE, medlem_id INTEGER NOT NULL, app VARCHAR(32) NOT NULL,
+                navn VARCHAR(80) NOT NULL, dokument {DOKUMENT} NOT NULL, storrelse INTEGER NOT NULL,
+                revisjon INTEGER NOT NULL DEFAULT 1, opprettet VARCHAR(32) NOT NULL, endret VARCHAR(32) NOT NULL
+            ){TABELL}',
+            'CREATE INDEX dp_prosjekter_medlem ON dp_prosjekter (medlem_id, app)',
+        ],
+        // 2026-10-18: price and quota per package, set in Studio (Sivert: «enkelt å endre i cms»).
+        // A row overrides the numbers in tjenester.json for that package; no row = the file's.
+        // Prices in whole kroner incl. VAT. Only adds.
+        5 => [
+            'CREATE TABLE dp_konto_planer (
+                plan VARCHAR(24) NOT NULL PRIMARY KEY, prosjekter INTEGER NOT NULL,
+                pris_maned INTEGER NULL, pris_ar INTEGER NULL,
+                endret VARCHAR(32) NOT NULL, endret_av VARCHAR(80) NULL
+            ){TABELL}',
+        ],
     ];
 }
 
@@ -245,6 +344,7 @@ function konto_ut(array $m): array
         'id' => (int) $m['id'], 'navn' => $m['navn'], 'epost' => $m['epost'], 'plan' => $m['plan'],
         'betaling' => ['status' => $m['betaling_status'], 'leverandor' => $m['betaling_leverandor'], 'betaltTil' => $m['betalt_til']],
         'status' => $m['status'], 'epostBekreftet' => $m['epost_bekreftet'],
+        'pakke' => konto_plan($m),
         'tilgang' => array_map(fn($t) => $t['tilgang'], $tilganger = konto_tilganger($m)),
         'tilganger' => $tilganger,
         'opprettet' => $m['opprettet'], 'sistInne' => $m['sist_inne'],
@@ -305,6 +405,28 @@ function konto_logg_ut_overalt(int $id): void
     konto_kjor('DELETE FROM dp_konto_okter WHERE medlem_id = ?', [$id]);
 }
 
+/**
+ * Locks the member's row until the transaction ends, so the one-time actions
+ * on one account (links, password, address) run one after the other and see
+ * each other's changes. SQLite's BEGIN IMMEDIATE already locks the database.
+ */
+function konto_las_medlem(int $id): ?array
+{
+    $sqlite = konto_driver(konto_db()) === 'sqlite';
+    return konto_en('SELECT * FROM dp_medlemmer WHERE id = ?' . ($sqlite ? '' : ' FOR UPDATE'), [$id]);
+}
+
+/**
+ * Ends every sign-in and every unused link of a member: after a new password
+ * nothing made before it may still change the account, an address change
+ * started by someone else included.
+ */
+function konto_sikre_konto(int $id): void
+{
+    konto_logg_ut_overalt($id);
+    konto_kjor('DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND brukt IS NULL', [$id]);
+}
+
 /** Sets a member's status; suspending also ends their sign-ins and one-time links. */
 function konto_sett_status(int $id, string $status): void
 {
@@ -321,11 +443,11 @@ function konto_sett_status(int $id, string $status): void
     });
 }
 
-/** Deletes a member and everything tied to them: signs, sign-ins, links, access exceptions. */
+/** Deletes a member and everything tied to them: signs, projects, sign-ins, links, access exceptions. */
 function konto_slett_medlem(int $id): void
 {
     konto_transaksjon(function () use ($id) {
-        foreach (['dp_skilt', 'dp_konto_okter', 'dp_konto_tokens', 'dp_konto_tilganger'] as $t) {
+        foreach (['dp_skilt', 'dp_prosjekter', 'dp_konto_okter', 'dp_konto_tokens', 'dp_konto_tilganger'] as $t) {
             konto_kjor("DELETE FROM $t WHERE medlem_id = ?", [$id]);
         }
         konto_kjor('DELETE FROM dp_medlemmer WHERE id = ?', [$id]);
@@ -354,9 +476,10 @@ function konto_lag_token(array $m, string $formal, ?string $nyEpost = null): str
 const KONTO_UGYLDIG_LENKE = 'Lenken er ugyldig, utløpt eller allerede brukt. Be om en ny.';
 
 /**
- * Uses up a token, in the caller's transaction: one UPDATE marks it used
- * only if it is unused, unexpired and of this purpose, so of two requests at
- * the same time only one gets a row. Then the member must still be active
+ * Uses up a token, in the caller's transaction: the member's row is locked,
+ * then one UPDATE marks the token used only if it is unused, unexpired and of
+ * this purpose, so of two requests at the same time only one gets a row, and
+ * a link revoked by a new password in the meantime gets none. Then the member must still be active
  * and still have the address the token was made for.
  * @return array{0: array, 1: array} the token row and the member
  */
@@ -364,6 +487,10 @@ function konto_bruk_token(mixed $token, string $formal): array
 {
     if (!is_string($token) || !preg_match('/^[a-f0-9]{64}$/D', $token)) throw new KontoFeil(KONTO_UGYLDIG_LENKE, 400);
     $hash = hash('sha256', $token);
+    // the member first, so this waits for any other one-time action on the account
+    $eier = konto_en('SELECT medlem_id FROM dp_konto_tokens WHERE token_hash = ?', [$hash]);
+    if (!$eier) throw new KontoFeil(KONTO_UGYLDIG_LENKE, 400);
+    konto_las_medlem((int) $eier['medlem_id']);
     $n = konto_kjor(
         'UPDATE dp_konto_tokens SET brukt = ? WHERE token_hash = ? AND formal = ? AND brukt IS NULL AND utloper >= ?',
         [time(), $hash, $formal, time()],

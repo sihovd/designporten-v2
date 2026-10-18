@@ -22,11 +22,13 @@
     "test:e2e": "playwright test",
     "verify": "npm run format:check && npm run lint && npm run check && npm run test && npm run test:deploy && npm run build",
     "build:onecom:test": "node scripts/bygg-onecom.mjs --test",
+    "build:signforge": "node scripts/bygg-signforge.mjs",
     "lint:php": "node scripts/php.mjs --lint",
     "preview:onecom": "node scripts/php.mjs",
     "test:e2e:onecom": "playwright test --config playwright.onecom.config.ts",
     "test:deploy": "node --test scripts/*.test.mjs",
-    "pakk:kilde": "node scripts/kildepakke.mjs"
+    "pakk:kilde": "node scripts/kildepakke.mjs",
+    "pakk:deler": "node scripts/pakk-deler.mjs"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.6",

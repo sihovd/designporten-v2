@@ -7,7 +7,7 @@
  * only shows it.
  */
 import { nettsti, phpmiljo } from '@/lib/nettsti';
-import type { Betaling } from './tjenester';
+import type { Betaling, Gratisperiode, Plan } from './tjenester';
 
 /** A service or feature the member may or may not use, and why not. */
 export interface Tilgang {
@@ -28,10 +28,40 @@ export interface Medlem {
   tilgang: Record<string, boolean>;
   tilganger: Record<string, Tilgang & { funksjoner: Record<string, Tilgang> }>;
   status: 'aktiv' | 'suspendert';
+  /** The package in force: the own plan while paid, otherwise the free account. */
+  pakke: Pakke;
   /** When the address was confirmed, or null. */
   epostBekreftet: string | null;
   opprettet: string;
   sistInne: string | null;
+}
+
+export interface Pakke {
+  id: string | null;
+  navn: string;
+  prosjekter: number;
+  tjenester: string[];
+}
+
+/** A project saved on the account (stage C). The owner is always the signed-in member. */
+export interface Prosjekt {
+  id: string;
+  app: string;
+  navn: string;
+  /** Bytes of JSON. */
+  storrelse: number;
+  /** Goes up by one on every save; a save names the revision it was based on. */
+  revisjon: number;
+  opprettet: string;
+  endret: string;
+}
+
+/** How many projects the account keeps, across every tool. */
+export interface Kvote {
+  brukt: number;
+  maks: number;
+  pakke: string | null;
+  pakkenavn: string;
 }
 
 export interface DeltSkilt {
@@ -49,14 +79,21 @@ export interface DeltSkilt {
 export interface Kontostatus {
   aktiv: boolean;
   merknad: string;
-  tjenester: Record<string, { navn: string; betaling: Betaling; beskrivelse: string }>;
+  tjenester: Record<
+    string,
+    { navn: string; betaling: Betaling; beskrivelse: string; gratisperiode?: Gratisperiode }
+  >;
   leverandorer: Record<string, { navn: string; aktiv: boolean }>;
+  /** With the price and quota set in Studio. */
+  planer: Record<string, Plan>;
 }
 
 export class KontoFeil extends Error {
   constructor(
     melding: string,
     readonly status: number,
+    /** Extra fields from the server, such as the current `revisjon` on 409. */
+    readonly data: Record<string, unknown> = {},
   ) {
     super(melding);
   }
@@ -92,7 +129,7 @@ async function kall<T>(
   } catch {
     throw new KontoFeil(IKKE_PA, 503);
   }
-  if (!svar.ok) throw new KontoFeil(data.feil ?? 'Noe gikk galt.', svar.status);
+  if (!svar.ok) throw new KontoFeil(data.feil ?? 'Noe gikk galt.', svar.status, data);
   return data;
 }
 
@@ -129,11 +166,32 @@ export const konto = {
     }),
   bruk: (id: string) => kall<{ mal: unknown; skaper: string }>('bruk', { kropp: { id } }),
   slettSkilt: (id: string, nokkel?: string) => kall<{ ok: true }>('slett-skilt', { kropp: { id, nokkel } }),
+  /** The member's projects (all tools, or one), newest first, and the quota. */
+  prosjekter: (app?: string) =>
+    kall<{ prosjekter: Prosjekt[]; kvote: Kvote }>('prosjekter', {
+      sok: app ? `&app=${encodeURIComponent(app)}` : '',
+    }),
+  prosjekt: (id: string) =>
+    kall<{ prosjekt: Prosjekt & { dokument: unknown } }>('prosjekt', {
+      sok: `&id=${encodeURIComponent(id)}`,
+    }),
+  /**
+   * Saves a project: new without `id`, otherwise an update based on `revisjon`.
+   * 409 means it changed elsewhere (`data.revisjon`), 403 that the quota is full.
+   */
+  lagreProsjekt: (p: { app: string; navn: string; dokument: unknown; id?: string; revisjon?: number }) =>
+    kall<{ prosjekt: Prosjekt; kvote: Kvote }>('prosjekt-lagre', { kropp: p }),
+  slettProsjekt: (id: string) => kall<{ ok: true; kvote: Kvote }>('prosjekt-slett', { kropp: { id } }),
   /** For CMS administrators; `csrf` is the CMS session's token. */
   admin: {
     medlemmer: () =>
       kall<{
-        medlemmer: (Medlem & { antallSkilt: number; aktiv: boolean; unntak: Record<string, 'ja' | 'nei'> })[];
+        medlemmer: (Medlem & {
+          antallSkilt: number;
+          antallProsjekter: number;
+          aktiv: boolean;
+          unntak: Record<string, 'ja' | 'nei'>;
+        })[];
         antall: number;
         gjesteskilt: number;
         tilgangsnokler: string[];
@@ -145,6 +203,13 @@ export const konto = {
       kall<{ ok: true }>('admin-status', { kropp: { id, status }, hoder: { 'X-CSRF-Token': csrf } }),
     tilgang: (id: number, nokkel: string, verdi: 'ja' | 'nei' | null, csrf: string) =>
       kall<{ ok: true }>('admin-tilgang', { kropp: { id, nokkel, verdi }, hoder: { 'X-CSRF-Token': csrf } }),
+    /** The packages with the numbers in use now. */
+    planer: () => kall<{ planer: Record<string, Plan> }>('admin-planer'),
+    /** Set a package's quota and, for a paid one, its price in whole kroner incl. VAT. */
+    plan: (
+      p: { id: string; prosjekter: number; prisManed: number | null; prisAr: number | null },
+      csrf: string,
+    ) => kall<{ planer: Record<string, Plan> }>('admin-plan', { kropp: p, hoder: { 'X-CSRF-Token': csrf } }),
     /** The captured e-mails; test builds only. */
     testpost: () =>
       kall<{ eposter: { til: string; emne: string; tekst: string; tid: string }[] }>('admin-testpost'),

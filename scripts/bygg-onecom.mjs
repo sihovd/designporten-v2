@@ -1,13 +1,16 @@
 /**
  * Builds the site for web hosting with PHP and no Node (one.com):
  * a fully static build (DP_MAAL=php) plus the PHP form routes and Apache
- * settings from php/. The result in dist/ is uploaded as it is.
- * See docs/development.md#deploy.
+ * settings from php/, and Sign Forge from its own build
+ * (scripts/bygg-signforge.mjs) in place of the website's page for it.
+ * The result in dist/ can be uploaded as it is, or split into the parts'
+ * own packages with scripts/pakk-deler.mjs. See docs/utgivelse.md.
  */
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { byggoppsett } from './onecom-oppsett.mjs';
 import { lagNokler } from './cms-nokler.mjs';
+import { APPSTI, byggSignforge } from './bygg-signforge.mjs';
 
 if (process.argv.includes('--test')) process.env.DP_TEST = 'true';
 const { base, test } = byggoppsett();
@@ -20,6 +23,11 @@ const bygg = spawnSync('npx', ['astro', 'build'], {
   env: { ...process.env, DP_MAAL: 'php' },
 });
 if (bygg.status !== 0) process.exit(bygg.status ?? 1);
+
+// Sign Forge comes from its own build, never from the website's /_astro/ (stage D)
+const signforge = await byggSignforge({ test, ut: 'var/bygg/signforge' });
+rmSync(`dist/${APPSTI}`, { recursive: true, force: true });
+cpSync(`var/bygg/signforge/${APPSTI}`, `dist/${APPSTI}`, { recursive: true });
 
 cpSync('php', 'dist', { recursive: true });
 rmSync('dist/api/oppsett.eksempel.php');
@@ -57,6 +65,7 @@ writeFileSync(
     test,
     commit: commit.status === 0 ? commit.stdout.trim() : null,
     endret: status.status !== 0 || Boolean(status.stdout.trim()),
+    signforge: signforge.versjon,
   }),
 );
 
@@ -85,11 +94,14 @@ for (const fil of [
   'api/konto/_admin.php',
   'api/konto/_grensesnitt.php',
   'api/konto/_epost.php',
+  'api/konto/_prosjekter.php',
   'api/konto/tjenester.json',
   'api/konto/.htaccess',
   'blogg/index.html',
   'medier/.htaccess',
   'skjema/ikke-sendt/index.html',
+  `${APPSTI}index.html`,
+  `${APPSTI}_app/${signforge.versjon}/fonter/archivo-800.woff`,
 ]) {
   if (!existsSync(`dist/${fil}`)) {
     console.error(`bygg-onecom: dist/${fil} mangler.`);

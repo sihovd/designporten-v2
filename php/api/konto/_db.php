@@ -20,7 +20,8 @@ const KONTO_INNLOGGING_VINDU = 15 * 60;
 
 final class KontoFeil extends RuntimeException
 {
-    public function __construct(string $melding, public readonly int $status = 400)
+    /** @param array $ekstra more fields for the answer (for example the current revision on a 409) */
+    public function __construct(string $melding, public readonly int $status = 400, public readonly array $ekstra = [])
     {
         parent::__construct($melding);
     }

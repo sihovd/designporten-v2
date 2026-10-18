@@ -1,4 +1,4 @@
-import { nettsti } from '@/lib/nettsti';
+import { verkstedressurs } from '@/lib/nettsti';
 /**
  * Decoration gallery (Sivert, 2026-10-05): ready-made vector elements to
  * put on a sign. They are icons from Material Design Icons (Pictogrammers),
@@ -64,7 +64,7 @@ export const DEKOR_KREDIT =
   'Ikonene er fra Material Design Icons (Pictogrammers), Apache-lisens 2.0, skalert og speilet til millimeter.';
 
 /** Where the licence text and notice are published (Apache 2.0 asks for both, and for the changes made). */
-export const DEKOR_LISENS_URL = nettsti('/skaperverksted/dekor/NOTICE.txt');
+export const DEKOR_LISENS_URL = verkstedressurs('dekor/NOTICE.txt');
 
 const RA: Omit<Dekor, 'kategori'>[] = [
   {
