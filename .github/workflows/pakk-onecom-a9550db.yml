@@ -12,9 +12,6 @@ jobs:
   pakk:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      DP_TEST: 'false'
-      DP_BASE: '/'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,6 +26,9 @@ jobs:
       - run: npm run verify
       - run: npm run lint:php
       - run: npm run build:onecom
+        env:
+          DP_TEST: 'false'
+          DP_BASE: '/'
       - run: node scripts/pakk-onecom.mjs
       - name: Check provenance and excluded private files
         run: |
