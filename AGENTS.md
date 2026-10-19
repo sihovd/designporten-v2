@@ -8,6 +8,9 @@ and live in one place, so they cannot drift apart:
   specification. Read it before any task.
 - [`docs/development.md`](docs/development.md) explains how to run, test,
   build and deploy.
+- [`docs/overlevering-codex.md`](docs/overlevering-codex.md) is the handover
+  for the accounts/projects/packages work: what is done, what is left, and
+  Sivert's standing rules for it.
 
 This repository is the Astro site in `sihovd/designporten-v2`. Instructions
 about the older WordPress site or the Designporten AI Bridge do not apply here.
