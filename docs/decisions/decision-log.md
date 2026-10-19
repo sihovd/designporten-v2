@@ -170,3 +170,7 @@ Not blocking implementation; content stays out until confirmed.
 ## 2026-10-16 — Designporten Studio og blogg
 
 Sivert ber Codex implementere Studio-konseptet, med egen administrasjonsflate, reell innholds-/driftsoversikt og databasebasert blogg. Eksisterende direkte redigering og mediebibliotek bevares. Ingen oppdiktede salgs-/besøkstall, automatisk merge eller produksjonsbytte. Se docs/cms/studio.md.
+
+## 2026-10-19 — Min konto: lys kontooversikt
+
+Kilde: Siverts skjermbilde og ønske om en penere Min konto-side. Velkomstfelt med initialer og snarveier, tydelige tjenestelister, profilfelt og kontohandlinger i separate kolonner, og veiledende tomtilstand for prosjekter. Mobil får én kolonne. Eksisterende API, tilgangskontroll, priser, bekreftelsesstatus og kontohandlinger beholdes. Referansens eksempelprodukter, kjøpsknapper, kontaktdata og dekor kopieres ikke. Endringen omfatter bare Min konto; publisering krever separat avklaring.

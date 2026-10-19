@@ -701,11 +701,17 @@ function Profil({
   return (
     <Kort id="profil" tittel="Profil">
       <p class="konto__dempet">Medlem siden {dato(medlem.opprettet)}</p>
-      <Navneskjema medlem={medlem} endret={endret} />
-      <Epoststatus medlem={medlem} />
-      <EndreEpost medlem={medlem} />
-      <EndrePassord endret={endret} />
-      <SlettKonto utlogget={utlogget} />
+      <div class="konto__profilrutenett">
+        <div class="konto__profilfelt">
+          <Navneskjema medlem={medlem} endret={endret} />
+          <Epoststatus medlem={medlem} />
+        </div>
+        <div class="konto__profilvalg">
+          <EndreEpost medlem={medlem} />
+          <EndrePassord endret={endret} />
+          <SlettKonto utlogget={utlogget} />
+        </div>
+      </div>
     </Kort>
   );
 }
@@ -900,7 +906,15 @@ function MineProsjekter({ medlem }: { medlem: Medlem }) {
       )}
       {!prosjekter && !beskjed && <p class="konto__dempet">Henter …</p>}
       {prosjekter?.prosjekter.length === 0 && (
-        <p class="konto__dempet">Ingen prosjekter lagret på kontoen ennå.</p>
+        <div class="konto__tom">
+          <strong>Ingen prosjekter lagret på kontoen ennå.</strong>
+          <p>
+            Start et skilt i Sign Forge og velg «Lagre på kontoen» i Fil-menyen. Da finner du det igjen her.
+          </p>
+          <a class="konto__knapp konto__knapp--lenke" href={nettsti(SIGN_FORGE)}>
+            Åpne Sign Forge
+          </a>
+        </div>
       )}
       {prosjekter && prosjekter.prosjekter.length > 0 && (
         <Kontoprosjektliste
@@ -989,25 +1003,45 @@ function Medlemsside({
   return (
     <>
       <section class="konto__kort konto__topp" aria-labelledby="konto-hei">
-        <h2 id="konto-hei">Hei, {medlem.navn}</h2>
-        <p class="konto__dempet">{medlem.epost}</p>
-        <Beskjed tekst={beskjed} />
-        <nav aria-label="Deler av Min konto">
-          <ul class="konto__meny" role="list">
-            <li>
-              <a href="#mine-tjenester">Mine tjenester</a>
-            </li>
-            <li>
-              <a href="#profil">Profil</a>
-            </li>
-            <li>
-              <a href="#mine-prosjekter">Mine prosjekter</a>
-            </li>
-          </ul>
-        </nav>
+        <div class="konto__velkomst">
+          <span class="konto__avatar" aria-hidden="true">
+            {medlem.navn
+              .trim()
+              .split(/\s+/)
+              .map((del) => del[0])
+              .slice(0, 2)
+              .join('')
+              .toLocaleUpperCase('nb-NO')}
+          </span>
+          <div class="konto__identitet">
+            <h2 id="konto-hei">Hei, {medlem.navn}</h2>
+            <p class="konto__dempet">{medlem.epost}</p>
+            <Beskjed tekst={beskjed} />
+            <nav aria-label="Deler av Min konto">
+              <ul class="konto__meny" role="list">
+                <li>
+                  <a href="#mine-tjenester">Mine tjenester</a>
+                </li>
+                <li>
+                  <a href="#profil">Profil</a>
+                </li>
+                <li>
+                  <a href="#mine-prosjekter">Mine prosjekter</a>
+                </li>
+              </ul>
+            </nav>
+          </div>
+        </div>
+        <aside class="konto__start" aria-label="Start et prosjekt">
+          <strong>Hva vil du skape i dag?</strong>
+          <p class="konto__dempet">Fra den første ideen til et prosjekt du kan bygge videre på.</p>
+          <a class="konto__knapp konto__knapp--lenke" href={nettsti('/skaperverksted/')}>
+            Åpne Skaperverksted
+          </a>
+        </aside>
         <button
           type="button"
-          class="konto__knapp konto__knapp--rolig"
+          class="konto__knapp konto__knapp--rolig konto__utlogging"
           disabled={loggerUt}
           onClick={() => {
             settLoggerUt(true);
