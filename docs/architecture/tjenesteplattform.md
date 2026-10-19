@@ -27,7 +27,7 @@ Same domain and same database server to start with. Same domain is **not** isola
 
 - **A (done 2026-10-17, corrected the same evening):** on the working branch `claude/project-thread-fklm92`, PR #49 is integrated with main as of #50 (merge commit `161f9e5`, conflicts resolved by hand). (Sivert merged #49 and then #51, stages A and B, into main on 2026-10-18.) One navigation model (`docs/design/skaperverksted.md#navigation`); accounts with their own settings and no CMS dependency (no automatic fallback); private by default with «Publiser i galleriet»; read-only survey as a command-line tool `scripts/kartlegg-konto.php`, off unless started with a settings file; source package with a bundle of the delivery branch only and a secret scan (`npm run pakk:kilde`). The commit message of `161f9e5` says «into main»; it means the main base on this branch.
 - **B (done 2026-10-18; merged into main by Sivert with PR #51 the same morning; follow-up the same day):** e-mail part (driver `fil` for tests, `mail`; SMTP left for when production e-mail is chosen), confirmation, password reset, e-mail/password change, suspension, access per service and feature with per-member exceptions, «Min konto» with Mine tjenester / Profil / Mine prosjekter. Follow-up after Sivert's review: a new or changed password revokes every unused link (an address change included), and the capture folder is refused anywhere the web may serve it, the site's root above `/designporten-test/` included. See [docs/konto.md](../konto.md#e-mail-links-and-account-status-stage-b). Production e-mail blocks a public launch, not the work.
-- **C (built 2026-10-18 on Sivert's «Start c», on the working branch; not merged):** projects on the account, with the access model Sivert set on 2026-10-18. What was built is described in [docs/konto.md](../konto.md#projects-on-the-account-stage-c).
+- **C (built 2026-10-18 on Sivert's «Start c»; in main with PR #52, merged by Sivert 2026-10-18 23:30 UTC):** projects on the account, with the access model Sivert set on 2026-10-18. What was built is described in [docs/konto.md](../konto.md#projects-on-the-account-stage-c).
 
   | Who | Access |
   |---|---|
@@ -44,7 +44,9 @@ Same domain and same database server to start with. Same domain is **not** isola
   - **Existing projects survive the transition.** When package control or a quota takes effect, and also when someone drops from a package to free or ends up over the quota, every project already saved can still be **opened and downloaded**. Nothing is deleted or locked away. A save that needs a quota the member no longer has is refused, and the message says how to make room.
 
   Defaults chosen by Claude, open for Sivert: gallery signs do not count towards the five; over the quota, a member can open, download and delete projects, but not save new ones. Still open: which packages and quotas, and the terms for commercial sale.
-- **D (built 2026-10-18 on Sivert's «Fortsett d», on the working branch; not merged):** three parts with their own package, version and manifest: `nettside`, `konto` (`api/konto/`) and `signforge` (`skaperverksted/signgen/`, its own Vite build with assets under `_app/<versjon>/`, never `/_astro/`). Old Sign Forge folders are not deleted, so rollback is uploading the previous package. See [docs/utgivelse.md](../utgivelse.md).
-- **E:** the contract for Form Forge and Dragon Forge, documented only.
+- **D (built 2026-10-18 on Sivert's «Fortsett d»; in main with PR #52):** three parts with their own package, version and manifest: `nettside`, `konto` (`api/konto/`) and `signforge` (`skaperverksted/signgen/`, its own Vite build with assets under `_app/<versjon>/`, never `/_astro/`). Old Sign Forge folders are not deleted, so rollback is uploading the previous package. See [docs/utgivelse.md](../utgivelse.md).
+- **E:** the contract for Form Forge and Dragon Forge, documented only. Not started (needs Sivert's go).
+
+What is left and how to continue: [docs/overlevering-codex.md](../overlevering-codex.md).
 
 Each stage needs Sivert's approval; an approved stage does not approve the next.
