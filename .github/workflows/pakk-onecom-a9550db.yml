@@ -1,0 +1,58 @@
+name: Package approved one.com release a9550db
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pakk-onecom-a9550db.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  pakk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DP_TEST: 'false'
+      DP_BASE: '/'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Build Sivert's approved source, not this packaging-only PR.
+          ref: a9550dbb119eb791d81134c05fa0306a9c3ca80e
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run lint:php
+      - run: npm run build:onecom
+      - run: node scripts/pakk-onecom.mjs
+      - name: Check provenance and excluded private files
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { unzipSync } from 'fflate';
+          const filer = unzipSync(readFileSync('var/release/designporten-production.zip'));
+          const bygg = JSON.parse(Buffer.from(filer['deployment.json']).toString());
+          assert.equal(bygg.commit, 'a9550dbb119eb791d81134c05fa0306a9c3ca80e');
+          assert.equal(bygg.test, false);
+          assert.equal(bygg.base, '/');
+          assert.equal(bygg.endret, false);
+          assert.equal(bygg.signforge, 'a9550db');
+          assert.ok(!Object.keys(filer).some(p => /(^|\/)konfig\.php$/.test(p)));
+          assert.ok(!filer['api/oppsett.php']);
+          assert.ok(!filer['api/cms/data/publisert.json']);
+          for (const p of ['.htaccess', 'api/cms/.htaccess', 'api/konto/.htaccess', 'konto/index.html', 'cms/index.html', 'skaperverksted/signgen/index.html']) assert.ok(filer[p], p);
+          assert.ok(!Object.keys(filer).some(p => /^skaperverksted\/signgen\/_app\/a9550db\/(lampe|drage|buildforge)-/.test(p)));
+          console.log(JSON.stringify({ ...bygg, filer: Object.keys(filer).length }, null, 2));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: designporten-production-a9550db
+          path: var/release/designporten-production.zip
+          if-no-files-found: error
+          retention-days: 14
