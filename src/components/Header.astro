@@ -42,6 +42,13 @@ const sti = Astro.url.pathname;
     </nav>
 
     <div class="hd__verktoy">
+      <a
+        class="hd__konto"
+        href={nettsti('/konto/')}
+        aria-current={erAktiv(nettsti('/konto/'), sti) ? 'page' : undefined}
+      >
+        Min konto
+      </a>
       <a class="hd__ikon hd__sok" href={nettsti('/sok/')} aria-label="Søk">
         <Ikon navn="sok" />
       </a>
@@ -88,6 +95,11 @@ const sti = Astro.url.pathname;
       ))}
       <li>
         <a href={nettsti('/sok/')}>Søk</a>
+      </li>
+      <li>
+        <a href={nettsti('/konto/')} aria-current={erAktiv(nettsti('/konto/'), sti) ? 'page' : undefined}>
+          Min konto / Logg inn
+        </a>
       </li>
     </ul>
   </nav>
@@ -360,6 +372,25 @@ const sti = Astro.url.pathname;
     align-items: center;
     gap: var(--r-1);
     justify-self: end;
+  }
+
+  .hd__konto {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--mal-beroring);
+    padding-inline: var(--r-3);
+    border-radius: var(--radius-pille);
+    color: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+
+  .hd__konto:hover,
+  .hd__konto[aria-current='page'] {
+    background: var(--kalk);
+    color: var(--lenke);
   }
 
   .hd__ikon {
