@@ -1,6 +1,5 @@
 ---
 import Side from '@/layouts/Side.astro';
-import SideHode from '@/components/showroom/SideHode.astro';
 import KontoSide from '@/components/konto/KontoSide';
 ---
 
@@ -8,11 +7,11 @@ import KontoSide from '@/components/konto/KontoSide';
   tittel="Min konto"
   beskrivelse="Logg inn eller lag en konto hos Designporten. Se planen din og skiltene du har delt fra Sign Forge."
 >
-  <SideHode
-    eyebrow="Konto"
-    tittel="Min konto"
-    ingress="Med en konto kan du publisere skilt i galleriet med navnet ditt, og se og fjerne dem herfra. Skiltene dine er private til du publiserer dem. Alt er gratis inntil videre."
-  />
+  <header class="ramme konto-intro">
+    <p class="etikett">Ditt kreative rom</p>
+    <h1>Min konto</h1>
+    <p>Her finner du tjenestene dine, prosjektene dine og profilen din. Alt samlet på ett sted.</p>
+  </header>
   <section class="ramme seksjon konto-side">
     <KontoSide client:load />
   </section>
@@ -21,5 +20,21 @@ import KontoSide from '@/components/konto/KontoSide';
 <style>
   .konto-side {
     padding-top: var(--r-5);
+  }
+  .konto-intro {
+    display: grid;
+    gap: var(--r-3);
+    padding-top: clamp(32px, 5vw, 72px);
+    padding-bottom: var(--r-4);
+  }
+  .konto-intro h1 {
+    font-size: clamp(2.25rem, 4.5vw, 3.75rem);
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+  }
+  .konto-intro > p:last-child {
+    max-width: 58ch;
+    color: var(--fg-dempet);
+    font-size: 1.125rem;
   }
 </style>

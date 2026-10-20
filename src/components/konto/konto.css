@@ -321,3 +321,192 @@
 .konto__kort .konto__dempet {
   overflow-wrap: anywhere;
 }
+
+/* Account overview: grouped tasks, based on Sivert's reference, 2026-10-19. */
+.konto {
+  max-width: 1160px;
+  margin-inline: auto;
+  gap: 24px;
+  min-width: 0;
+}
+
+.konto__kort {
+  gap: 16px;
+  padding: clamp(20px, 3vw, 32px);
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgb(20 19 23 / 3%);
+  min-width: 0;
+}
+
+.konto__kort h2 {
+  font-size: clamp(1.2rem, 2vw, 1.5rem);
+  letter-spacing: -0.025em;
+}
+
+.konto__topp {
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.konto__velkomst {
+  display: flex;
+  align-items: start;
+  gap: 20px;
+  min-width: 0;
+}
+
+.konto__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--handling) 12%, var(--overflate));
+  color: var(--lenke);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.konto__identitet {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.konto__identitet .konto__meny {
+  margin-top: 12px;
+}
+
+.konto__start {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding-left: 24px;
+  border-left: 1px solid var(--linje);
+  font-size: 0.9375rem;
+}
+
+.konto__utlogging {
+  grid-column: 1 / -1;
+  padding-inline: 16px;
+  min-height: 44px;
+}
+
+.konto__meny a {
+  min-height: 44px;
+  background: var(--overflate);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.konto__meny a:hover {
+  border-color: var(--handling);
+  color: var(--lenke);
+}
+
+.konto__tjenester {
+  gap: 10px;
+}
+
+.konto__tjenester li {
+  padding: 18px 20px;
+  border: 1px solid var(--linje);
+  border-radius: 12px;
+  gap: 12px 20px;
+}
+
+.konto__tjenester li > span:first-child {
+  gap: 6px;
+}
+
+.konto__merke--ja {
+  background: color-mix(in srgb, var(--ok) 9%, var(--overflate));
+}
+
+.konto__profilrutenett {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.konto__profilfelt,
+.konto__profilvalg {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.konto__profilvalg {
+  gap: 0;
+  border: 1px solid var(--linje);
+  border-radius: 12px;
+  padding-inline: 20px;
+}
+
+.konto__profilvalg .konto__utvid {
+  padding-block: 8px;
+}
+
+.konto__profilvalg .konto__utvid:first-child {
+  border-top: 0;
+}
+
+.konto__felt input {
+  width: 100%;
+  min-width: 0;
+  background: var(--overflate);
+}
+
+.konto__tom {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  padding: 32px 24px;
+  border: 1px dashed var(--linje-sterk);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.konto__tom p {
+  max-width: 56ch;
+  color: var(--fg-dempet);
+}
+
+.konto :is(a, button, input, summary):focus-visible {
+  outline: 2px solid var(--fokus);
+  outline-offset: 4px;
+}
+
+@media (max-width: 767px) {
+  .konto__topp,
+  .konto__profilrutenett {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .konto__start {
+    padding: 20px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--linje);
+  }
+
+  .konto__velkomst {
+    gap: 12px;
+  }
+
+  .konto__avatar {
+    flex-basis: 44px;
+    height: 44px;
+    font-size: 1rem;
+  }
+
+  .konto__tjenester li {
+    padding: 16px;
+  }
+
+  .konto__meny a {
+    padding-inline: 12px;
+  }
+}
