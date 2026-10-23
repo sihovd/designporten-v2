@@ -11,7 +11,7 @@ import type { V3 } from './vektor';
 
 export const SKJEMA = 'creatureforge/0.1';
 
-export type Mekanisme = 'kjede' | 'knott';
+export type Mekanisme = 'kjede' | 'knott' | 'stifter';
 
 export interface Del {
   id: string;
@@ -132,7 +132,7 @@ const skjema = z.object({
         id,
         forelder: ende,
         barn: ende,
-        mekanisme: z.enum(['kjede', 'knott']),
+        mekanisme: z.enum(['kjede', 'knott', 'stifter']),
         avstand: tall(GRENSER.avstand),
         forskyvning: v3(GRENSER.forskyvning),
         rotasjon: v3(GRENSER.rotasjon),

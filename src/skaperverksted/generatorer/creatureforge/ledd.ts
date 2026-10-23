@@ -61,6 +61,8 @@ export interface Leddprofil {
    * the same width at any angle, so only shapes outside the dome limit the swing.
    */
   dreiepunkt?: 'ledd' | 'kuppel';
+  /** The mechanisms this profile offers; the first is what a new joint gets. */
+  mekanismer: Mekanisme[];
   maal: {
     klaring: Maal;
     spillerom: Maal;
@@ -74,6 +76,7 @@ export interface Leddprofil {
     stang: Maal;
     knott: Maal;
     knotthals: Maal;
+    stift: Maal;
   };
 }
 
@@ -90,6 +93,7 @@ export const KJEDELEDD_PROVE: Leddprofil = {
   versjon: '0.1.0',
   navn: 'Kjedeledd, prøveprofil',
   fysiskStatus: 'ikke-testet',
+  mekanismer: ['kjede', 'knott'],
   merknad:
     'Prøveprofil for fase 1. Ingen del er testprintet, så det er ikke kjent om leddene løsner etter print, sitter fast eller tåler bruk.',
   maal: {
@@ -121,6 +125,12 @@ export const KJEDELEDD_PROVE: Leddprofil = {
     stang: mm('Innfesting', 6, 'designvalg', 'Hvor langt øyet og armen går inn i sin egen del.'),
     knott: mm('Knottens radius', 4.2, 'designvalg', 'Knottleddet: knotten som holdes i hulrommet.'),
     knotthals: mm('Knottens hals', 1.6, 'designvalg', 'Knottleddet: halv diagonal i halsen.'),
+    stift: mm(
+      'Stiftens tykkelse',
+      1.2,
+      'designvalg',
+      'Stiftleddet: halv diagonal i stiftenes rutertverrsnitt.',
+    ),
   },
 };
 
@@ -141,10 +151,31 @@ export const KJEDELEDD_PROVE_2: Leddprofil = {
   },
 };
 
-/** The profile new projects get. */
-export const STANDARDPROFIL = KJEDELEDD_PROVE_2;
+/**
+ * The staple joint (Sivert, 2026-10-23: «koblingen skal være som to stifter festet i hver sin del»):
+ * two U-shaped staples, one anchored in each part, hooked through each other like two links of a
+ * chain, in a cavity the dome cuts in both parts. The joint turns about the point where they cross.
+ */
+export const STIFTLEDD_PROVE: Leddprofil = {
+  ...KJEDELEDD_PROVE,
+  id: 'stiftledd-prove',
+  versjon: '0.1.0',
+  navn: 'Stiftledd, prøveprofil',
+  merknad:
+    'Prøveprofil. To stifter, én i hver del, er hektet i hverandre i et hulrom kuppelen skjærer ut. Ingen del er testprintet, så det er ikke kjent om stiftene løsner etter print, sitter fast eller tåler bruk.',
+  dreiepunkt: 'ledd',
+  mekanismer: ['stifter'],
+  maal: {
+    ...KJEDELEDD_PROVE.maal,
+    sving: { ...KJEDELEDD_PROVE.maal.sving, verdi: 60 },
+    stang: mm('Innfesting', 5, 'designvalg', 'Hvor langt stiftenes bein går inn i sin egen del.'),
+  },
+};
 
-const profiler = [KJEDELEDD_PROVE, KJEDELEDD_PROVE_2];
+/** The profile new projects get. */
+export const STANDARDPROFIL = STIFTLEDD_PROVE;
+
+const profiler = [KJEDELEDD_PROVE, KJEDELEDD_PROVE_2, STIFTLEDD_PROVE];
 
 export function finnProfil(id: string, versjon: string): Leddprofil | undefined {
   return profiler.find((p) => p.id === id && p.versjon === versjon);
@@ -177,6 +208,8 @@ export interface Mekanismeform {
   boks: Boks;
   /** The axis the joint swings about (joint frame). */
   svingakse: { punkt: V3; akse: V3 };
+  /** The axis the joint nods about (fram og tilbake); without it, the joint's side axis through the swing axis's point. */
+  nikkakse?: { punkt: V3; akse: V3 };
   /** How much wider the held part is than the opening it would have to pass (mm). */
   fangst: number;
   /** What holds the parts together, for the findings. */
@@ -184,6 +217,12 @@ export interface Mekanismeform {
 }
 
 export const MEKANISMER: { id: Mekanisme; navn: string; beskrivelse: string }[] = [
+  {
+    id: 'stifter',
+    navn: 'Stifter',
+    beskrivelse:
+      'To U-formede stifter, én festet i hver del, hektet i hverandre som to ledd i en kjetting. Leddet dingler løst i alle retninger.',
+  },
   {
     id: 'kjede',
     navn: 'Kjedeledd',
@@ -224,6 +263,8 @@ export function mekanisme(
   const luft = tol.klaring + tol.spillerom;
   const sving = m.sving.verdi;
   const stang = m.stang.verdi;
+
+  if (type === 'stifter') return stifter(profil, tol, rekkevidde);
 
   if (type === 'knott') {
     const rk = m.knott.verdi,
@@ -292,3 +333,66 @@ export function mekanisme(
     fangstTekst: 'Hetten på bolten er bredere enn hullet i øyet',
   };
 }
+
+/** A bar along s at t = t0, v = v0 (diamond cross-section in t and v), from s0 to s1. */
+const tverrS =
+  (t0: number, v0: number, s0: number, s1: number, e: number): Felt =>
+  (t, s, v) =>
+    Math.max((Math.abs(t - t0) + Math.abs(v - v0) - e) * R2_INV, Math.abs(s - (s0 + s1) / 2) - (s1 - s0) / 2);
+/** A bar along v at t = t0, s = 0 (diamond cross-section in t and s), from v0 to v1. */
+const tverrV =
+  (t0: number, v0: number, v1: number, e: number): Felt =>
+  (t, s, v) =>
+    Math.max((Math.abs(t - t0) + Math.abs(s) - e) * R2_INV, Math.abs(v - (v0 + v1) / 2) - (v1 - v0) / 2);
+const R2_INV = Math.SQRT1_2;
+
+/**
+ * Two staples hooked through each other. The parent's lies flat in the joint's t–s plane (flat on
+ * the plate in the print pose), its two legs anchored in the parent and its crossbar a little past the
+ * joint point towards the child. The child's stands in the t–v plane, its legs anchored in the child
+ * and its crossbar a little past the joint point towards the parent, upright in the print pose. Each
+ * crossbar passes through the other staple's loop. Every bar has a diamond cross-section, so every
+ * face that prints over air is at 45°. `rekkevidde` is half the dome's thickness: the legs reach from
+ * the cavity that far into their own part, plus the anchoring.
+ */
+function stifter(profil: Leddprofil, tol: Toleranser, rekkevidde: number): Mekanismeform {
+  const m = profil.maal;
+  const luft = tol.klaring + tol.spillerom;
+  const e = m.stift.verdi;
+  // the crossbars sit k either side of the joint point, a clearance and some play apart
+  const k = e + luft / 2 + 0.3;
+  // inside each loop there is room for the other crossbar with the clearance and the play
+  const bredde = 2 * e + luft + 0.6;
+  const ende = Math.max(rekkevidde, k + e + luft) + m.stang.verdi;
+  const forelder = union(
+    flyttS(diamantstang(-ende, k, e), bredde),
+    flyttS(diamantstang(-ende, k, e), -bredde),
+    tverrS(k, 0, -bredde, bredde, e),
+  );
+  const barn = union(
+    diamantstang(-k, ende, e, bredde),
+    diamantstang(-k, ende, e, -bredde),
+    tverrV(-k, -bredde, bredde, e),
+  );
+  const ytre = bredde + e + luft + 1;
+  return {
+    forelderPluss: forelder,
+    barnPluss: barn,
+    // each part keeps the other's staple at the clearance and the play, wherever the dome leaves it
+    romForelder: vokse(barn, luft),
+    romBarn: vokse(forelder, luft),
+    boks: { min: [-ende - 1, -ytre, -ytre], maks: [ende + 1, ytre, ytre] },
+    // hooked staples turn about each other's crossbars: sideways about the child's, nodding about the parent's
+    svingakse: { punkt: [-k, 0, 0], akse: [0, 0, 1] },
+    nikkakse: { punkt: [k, 0, 0], akse: [0, 1, 0] },
+    // hooked through each other: to come apart, a crossbar would have to pass through the other bar
+    fangst: 2 * e,
+    fangstTekst: 'Stiftene er hektet i hverandre',
+  };
+}
+
+/** Moves a field along s. */
+const flyttS =
+  (f: Felt, ds: number): Felt =>
+  (t, s, v) =>
+    f(t, s - ds, v);

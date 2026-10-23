@@ -56,6 +56,8 @@ export interface Leddinfo {
   svingakse: { punkt: V3; akse: V3 };
   /** Degrees the joint swings each way about that axis before the parts touch (checked in 5° steps). */
   sving: { pluss: number; minus: number; maal: number };
+  /** The same about the mechanism's second axis, nodding forwards and backwards; null for a hinge. */
+  nikk: { pluss: number; minus: number; maal: number } | null;
   /** How much wider the held part is than its opening (mm). */
   fangst: number;
 }
@@ -172,9 +174,10 @@ export function byggCreature(raw: unknown, fremdrift?: (andel: number) => void):
     if (!ramme) continue;
     // the pivot: the joint point, or the centre of the dome's sphere (profile 0.2.0)
     const senter = profil.dreiepunkt === 'kuppel' ? kuppelSenter(l.kuppel) : null;
-    const rekkevidde = senter
-      ? lengde(senter) + Math.max(l.kuppel.tykkelseSenter, l.kuppel.tykkelseKant) / 2 + 0.5
-      : 0;
+    const halvKuppel = Math.max(l.kuppel.tykkelseSenter, l.kuppel.tykkelseKant) / 2;
+    // staples reach through the dome's cavity; an arm from the dome's centre through the dome
+    const rekkevidde =
+      l.mekanisme === 'stifter' ? halvKuppel : senter ? lengde(senter) + halvKuppel + 0.5 : 0;
     const dreiepunkt = senter ? pluss(ramme.punkt, anvend(ramme.R, senter)) : ramme.punkt;
     const form = mekanisme(l.mekanisme, profil, tol, rekkevidde);
     const mekBoks = boksIRamme(form.boks, ramme.R, dreiepunkt);
@@ -298,6 +301,9 @@ export function byggCreature(raw: unknown, fremdrift?: (andel: number) => void):
         leddId: l.id,
       });
     const sving = { pluss: 0, minus: 0, maal: profil.maal.sving.verdi };
+    // only a mechanism that also nods (the staples) has a second axis; a hinge swings about one
+    const na = ld.form.nikkakse;
+    const nikk = na ? { pluss: 0, minus: 0, maal: profil.maal.sving.verdi } : null;
     const akse = anvend(ld.ramme.R, ld.form.svingakse.akse);
     const punkt = pluss(ld.dreiepunkt, anvend(ld.ramme.R, ld.form.svingakse.punkt));
     if (f && b) {
@@ -328,18 +334,34 @@ export function byggCreature(raw: unknown, fremdrift?: (andel: number) => void):
           tekst: `Minste målte avstand er ${n.minste >= tol.klaring + 0.99 ? `over ${mmTekst(tol.klaring + 1)}` : mmTekst(n.minste)} (krav ${mmTekst(tol.klaring)}).`,
           leddId: l.id,
         });
-      // swing about the mechanism's axis
+      // swing about the mechanism's axis (sideways), and nodding about its second axis if it has one
       sving.pluss = fri(b, f, punkt, akse, 1, sving.maal);
       sving.minus = fri(b, f, punkt, akse, -1, sving.maal);
-      const minst = Math.min(sving.pluss, sving.minus);
+      if (na && nikk) {
+        const nikkakse = anvend(ld.ramme.R, na.akse);
+        const nikkpunkt = pluss(ld.dreiepunkt, anvend(ld.ramme.R, na.punkt));
+        nikk.pluss = fri(b, f, nikkpunkt, nikkakse, 1, nikk.maal);
+        nikk.minus = fri(b, f, nikkpunkt, nikkakse, -1, nikk.maal);
+      }
+      const minst = Math.min(sving.pluss, sving.minus, nikk?.pluss ?? Infinity, nikk?.minus ?? Infinity);
+      const vinkler = (x: { pluss: number; minus: number }) =>
+        x.pluss === x.minus ? `±${x.pluss}°` : `${x.minus}° og ${x.pluss}°`;
+      const fritt = minst >= sving.maal;
       funn.push({
         regel: 'CF-SVING-01',
-        niva: minst < sving.maal ? 'advarsel' : 'info',
-        tittel: `Leddet mellom ${navn} kan svinge ${minst >= sving.maal ? `±${sving.maal}°` : `${sving.minus}° og ${sving.pluss}°`}`,
-        tekst:
-          minst >= sving.maal
-            ? `Delene møtes ikke innenfor ±${sving.maal}° om leddets akse (kontrollert i steg på ${SVINGSTEG}°).`
-            : `Delene møtes før ±${sving.maal}° om leddets akse. Kuppelens dybde, diameter og tykkelse avgjør hvor fritt leddet kan svinge.`,
+        niva: fritt ? 'info' : 'advarsel',
+        tittel: `Leddet mellom ${navn} kan svinge ${
+          nikk
+            ? fritt
+              ? `±${sving.maal}° til siden og fram og tilbake`
+              : `${vinkler(sving)} til siden og ${vinkler(nikk)} fram og tilbake`
+            : fritt
+              ? `±${sving.maal}° begge veier`
+              : vinkler(sving)
+        }`,
+        tekst: fritt
+          ? `Delene møtes ikke innenfor ±${sving.maal}°${nikk ? ' til siden eller fram og tilbake' : ''} (kontrollert i steg på ${SVINGSTEG}°).`
+          : `Delene møtes før ±${sving.maal}°. Kuppelens dybde, diameter og tykkelse avgjør hvor fritt leddet kan svinge.`,
         leddId: l.id,
       });
       // walls round the joint
@@ -357,7 +379,14 @@ export function byggCreature(raw: unknown, fremdrift?: (andel: number) => void):
           });
       }
     }
-    leddinfo.push({ id: l.id, ramme: ld.ramme, svingakse: { punkt, akse }, sving, fangst: ld.form.fangst });
+    leddinfo.push({
+      id: l.id,
+      ramme: ld.ramme,
+      svingakse: { punkt, akse },
+      sving,
+      nikk,
+      fangst: ld.form.fangst,
+    });
     fremdrift?.(0.7 + ((i + 1) / Math.max(1, p.ledd.length)) * 0.3);
   });
 

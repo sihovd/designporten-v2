@@ -2,7 +2,14 @@ import { volum } from '../../geometri/mesh';
 import { byggCreature, type CfResultat } from './bygg';
 import { antallBiter, tetthet } from './kontroll';
 import { kuppelFelt, kuppelSenter } from './kuppel';
-import { KJEDELEDD_PROVE, KJEDELEDD_PROVE_2, mekanisme, STANDARDPROFIL, toleranser } from './ledd';
+import {
+  KJEDELEDD_PROVE,
+  KJEDELEDD_PROVE_2,
+  mekanisme,
+  STANDARDPROFIL,
+  STIFTLEDD_PROVE,
+  toleranser,
+} from './ledd';
 import { lagRutenett, marsjer } from './marsj';
 import { tomtProsjekt, valider, type CfParametre, type Ledd } from './parametre';
 import { finnPunkt, koble, krumning, leddTil, ledigeFor, leggTilRot, plasser, slett } from './plassering';
@@ -208,9 +215,7 @@ describe('Creature Forge: dreiepunkt i kuppelen (profil 0.2.0)', () => {
     return b.p;
   };
 
-  test('nye prosjekter får profil 0.2.0, og krumningen måles på formen', () => {
-    expect(STANDARDPROFIL.versjon).toBe('0.2.0');
-    expect(STANDARDPROFIL.dreiepunkt).toBe('kuppel');
+  test('krumningen måles på formen', () => {
     const p = figur2();
     const hode = p.deler[0]!;
     // an ellipsoid 36 wide and 34 tall curves with radius 18² / 17 at its bottom
@@ -245,4 +250,69 @@ describe('Creature Forge: dreiepunkt i kuppelen (profil 0.2.0)', () => {
     expect(r.profil?.versjon).toBe('0.1.0');
     expect(r.ledd[0]!.sving.maal).toBe(35);
   }, 60_000);
+});
+
+describe('Creature Forge: stiftledd (stiftledd-prove 0.1.0)', () => {
+  const figur3 = (): CfParametre => {
+    const a = leggTilRot(tomtProsjekt({ id: STANDARDPROFIL.id, versjon: STANDARDPROFIL.versjon }), 'hode');
+    if (!a.ok) throw new Error(a.grunn);
+    const b = koble(a.p, 'overkropp', { del: a.id, punkt: 'hals' });
+    if (!b.ok) throw new Error(b.grunn);
+    return b.p;
+  };
+
+  test('nye prosjekter får stiftleddet, og kuppelen er et hulrom i begge delene', () => {
+    expect(STANDARDPROFIL).toBe(STIFTLEDD_PROVE);
+    const l = figur3().ledd[0]!;
+    expect(l.mekanisme).toBe('stifter');
+    expect(l.avstand).toBeCloseTo(1, 6);
+    // thick in the middle for the staples, thin at the rim, and reaching the sides of the upper body
+    expect(l.kuppel.tykkelseSenter).toBeGreaterThan(10);
+    expect(l.kuppel.tykkelseKant).toBeLessThan(l.kuppel.tykkelseSenter / 4);
+    expect(l.kuppel.diameter).toBe(34);
+  });
+
+  test('stiftene er hektet i hverandre, én i hver del, med klaring', () => {
+    const tol = toleranser(figur3(), STIFTLEDD_PROVE);
+    const m = mekanisme('stifter', STIFTLEDD_PROVE, tol, 6);
+    const luft = tol.klaring + tol.spillerom;
+    // each crossbar lies in the other staple's loop
+    expect(m.forelderPluss(0.5, 0, 0)).toBeGreaterThan(0);
+    expect(m.barnPluss(-2, 0, 0)).toBeLessThan(0);
+    expect(m.forelderPluss(2, 0, 0)).toBeLessThan(0);
+    // the two staples never come closer than the clearance and the play
+    for (let t = -12; t <= 12; t += 0.25)
+      for (let s = -6; s <= 6; s += 0.25)
+        for (let v = -6; v <= 6; v += 0.5)
+          if (m.barnPluss(t, s, v) <= 0) expect(m.forelderPluss(t, s, v)).toBeGreaterThan(luft - 0.36);
+    expect(m.fangst).toBeGreaterThanOrEqual(STIFTLEDD_PROVE.maal.minFang.verdi);
+  });
+
+  test('grunnoppsettet svinger fritt uten tynne kanter, og delene er tette', () => {
+    const r = byggCreature(figur3());
+    expect(regler(r, 'feil')).toEqual([]);
+    expect(regler(r, 'advarsel').filter((x) => x !== 'CF-SVING-01')).toEqual([]);
+    expect(r.ledd[0]!.sving.pluss).toBeGreaterThanOrEqual(55);
+    expect(r.ledd[0]!.sving.minus).toBeGreaterThanOrEqual(55);
+    expect(r.ledd[0]!.nikk).toEqual({ pluss: 60, minus: 60, maal: 60 });
+    for (const d of r.deler) {
+      expect(tetthet(d.mesh).lukket).toBe(true);
+      expect(antallBiter(d.mesh)).toBe(1);
+    }
+  }, 60_000);
+
+  test('et smalt og et lite hode får heller ingen tynne kanter', () => {
+    for (const [tykkelse, lengde] of [
+      [24, 40],
+      [18, 18],
+    ] as const) {
+      const a = leggTilRot(tomtProsjekt({ id: STANDARDPROFIL.id, versjon: STANDARDPROFIL.versjon }), 'hode');
+      if (!a.ok) throw new Error(a.grunn);
+      const p0 = { ...a.p, deler: a.p.deler.map((d) => ({ ...d, tykkelse, lengde })) };
+      const b = koble(p0, 'overkropp', { del: a.id, punkt: 'hals' });
+      if (!b.ok) throw new Error(b.grunn);
+      const r = byggCreature(b.p);
+      expect(r.funn.filter((f) => f.niva !== 'info').map((f) => f.tittel)).toEqual([]);
+    }
+  }, 120_000);
 });

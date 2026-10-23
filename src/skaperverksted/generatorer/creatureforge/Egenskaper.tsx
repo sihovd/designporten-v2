@@ -319,15 +319,25 @@ function LeddPanel({ benk, ledd, modell }: { benk: Arbeidsbenk; ledd: Ledd; mode
     b = finnDel(p, ledd.barn.del);
   const info = modell?.ledd.find((l) => l.id === ledd.id);
   const mek = MEKANISMER.find((m) => m.id === ledd.mekanisme)!;
+  // the mechanisms the project's profile offers (and the joint's own, should it not be among them)
+  const tilbudt = finnProfil(p.profil.id, p.profil.versjon)?.mekanismer ?? [ledd.mekanisme];
+  const valg = MEKANISMER.filter((m) => tilbudt.includes(m.id) || m.id === ledd.mekanisme);
+  const vinkler = (x: { pluss: number; minus: number }) => `${x.minus}° / ${x.pluss}°`;
   return (
     <>
       <Panel tittel={`Ledd: ${f?.navn ?? ''} – ${b?.navn ?? ''}`}>
-        <Segment<Mekanisme>
-          etikett="Mekanisme"
-          valg={MEKANISMER.map((m) => ({ id: m.id, navn: m.navn }))}
-          verdi={ledd.mekanisme}
-          endre={(v) => settLedd(benk, ledd.id, 'Byttet mekanisme', { mekanisme: v })}
-        />
+        {valg.length > 1 ? (
+          <Segment<Mekanisme>
+            etikett="Mekanisme"
+            valg={valg.map((m) => ({ id: m.id, navn: m.navn }))}
+            verdi={ledd.mekanisme}
+            endre={(v) => settLedd(benk, ledd.id, 'Byttet mekanisme', { mekanisme: v })}
+          />
+        ) : (
+          <p class="cf-hjelp">
+            Mekanisme: <strong>{mek.navn}</strong>
+          </p>
+        )}
         <p class="cf-hjelp">{mek.beskrivelse} Mekanismen er under test og ikke bestemt.</p>
         <TallFelt
           etikett="Avstand"
@@ -354,15 +364,23 @@ function LeddPanel({ benk, ledd, modell }: { benk: Arbeidsbenk; ledd: Ledd; mode
         />
         {info && (
           <p class="cf-hjelp">
-            Sving om leddets akse:{' '}
-            <span class="mono">
-              {info.sving.minus}° / {info.sving.pluss}°
-            </span>{' '}
+            {info.nikk ? (
+              <>
+                Sving til siden: <span class="mono">{vinkler(info.sving)}</span>, fram og tilbake:{' '}
+                <span class="mono">{vinkler(info.nikk)}</span>
+              </>
+            ) : (
+              <>
+                Sving om leddets akse: <span class="mono">{vinkler(info.sving)}</span>
+              </>
+            )}{' '}
             (kontrollert til ±{info.sving.maal}°). Fangst:{' '}
             <span class="mono">{info.fangst.toFixed(2).replace('.', ',')} mm</span>.{' '}
             {modell?.profil?.dreiepunkt === 'kuppel' && kuppelSenter(ledd.kuppel)
               ? `Leddet dreier om kuppelens sentrum, ${tall(Math.hypot(...kuppelSenter(ledd.kuppel)!), 1)} mm inn i ${f?.navn.toLowerCase() ?? 'foreldredelen'} (den lille kulen i visningen).`
-              : 'Leddet dreier om leddpunktet.'}
+              : ledd.mekanisme === 'stifter'
+                ? `Stiftene dreier om hverandres tverrstang: til siden om stiften i ${b?.navn.toLowerCase() ?? 'barnedelen'} (den lille kulen i visningen), fram og tilbake om stiften i ${f?.navn.toLowerCase() ?? 'foreldredelen'}.`
+                : 'Leddet dreier om leddpunktet.'}
           </p>
         )}
       </Panel>

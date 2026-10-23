@@ -187,7 +187,7 @@ export function koble(p: CfParametre, type: Deltype, forelder: Ende): Resultat {
     id: nyId('ledd'),
     forelder,
     barn: { del: b.id, punkt: sb.id },
-    mekanisme: 'kjede',
+    mekanisme: finnProfil(p.profil.id, p.profil.versjon)?.mekanismer[0] ?? 'kjede',
     forskyvning: [0, 0, 0],
     rotasjon: [0, 0, 0],
     ...startverdier(p, f, sf, b),
@@ -226,24 +226,49 @@ export function krumning(d: Del, s: Snappunkt): number {
  * What a new joint starts with. With the pivot in the dome (profile 0.2.0) the parts stand a gap
  * apart (the clearance plus the play), and the dome is a spherical shell round the parent's centre of
  * curvature, a little thinner than the gap: it cuts nothing to begin with, so no thin edges, and the
- * parent's surface turns in place as the joint swings. With the pivot in the joint (0.1.0), the
+ * parent's surface turns in place as the joint swings. With the staples (stiftledd 0.1.0), the same
+ * gap and a bowl that is the staples' cavity (below). With the pivot in the joint (0.1.0), the
  * earlier start: the child sunk 4 mm into the parent and a curved dome parting them.
  */
 function startverdier(p: CfParametre, f: Del, sf: Snappunkt, b: Del): Pick<Ledd, 'avstand' | 'kuppel'> {
   const profil = finnProfil(p.profil.id, p.profil.versjon);
-  if (profil?.dreiepunkt !== 'kuppel') return { avstand: STANDARD_AVSTAND, kuppel: standardKuppel(f, b) };
+  if (!profil || (profil.dreiepunkt !== 'kuppel' && profil.mekanismer[0] !== 'stifter'))
+    return { avstand: STANDARD_AVSTAND, kuppel: standardKuppel(f, b) };
   const tol = toleranser(p, profil);
   const gap = tol.klaring + tol.spillerom;
   const s = Math.min(f.tykkelse, b.tykkelse);
   const R = Math.min(s * 1.5, Math.max(s * 0.3, krumning(f, sf))) + gap / 2;
   const r = Math.min(Math.round(s * 0.8) / 2, R * 0.95);
   const tidel = (v: number) => Math.round(v * 10) / 10;
+  const dybde = Math.round((R - Math.sqrt(R * R - r * r)) * 100) / 100;
+  if (profil.mekanismer[0] === 'stifter') {
+    // A wide bowl round the parent's curvature that reaches past the sides of the parts, so its rim
+    // leaves no edge, and thick enough in the middle to make a cavity for the hooked staples. It thins
+    // towards the rim, so the cavity meets the parts' surfaces at a shallow, blunt angle.
+    const e = profil.maal.stift.verdi;
+    const rekk = 2 * e + gap * 1.5 + 0.3;
+    // the rim reaches the thinner part's sides; where the parent curves more sharply than that allows,
+    // the bowl is flatter than the parent, so the rim does not end inside it as a thin ring
+    const rs = s / 2;
+    const Rs = Math.max(R, rs / 0.95);
+    return {
+      avstand: tidel(gap),
+      kuppel: {
+        diameter: tidel(rs * 2),
+        dybde: Math.round((Rs - Math.sqrt(Rs * Rs - rs * rs)) * 100) / 100,
+        helning: 0,
+        retning: 0,
+        tykkelseSenter: tidel(Math.min(s * 0.7, 2 * (rekk + gap) + 1.4)),
+        tykkelseKant: tidel(gap + 1),
+      },
+    };
+  }
   const baand = tidel(Math.max(0.2, gap - 0.2));
   return {
     avstand: tidel(gap),
     kuppel: {
       diameter: tidel(r * 2),
-      dybde: Math.round((R - Math.sqrt(R * R - r * r)) * 100) / 100,
+      dybde,
       helning: 0,
       retning: 0,
       tykkelseSenter: baand,

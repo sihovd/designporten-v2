@@ -114,13 +114,10 @@ test.describe('Creature Forge', () => {
     await avstand.fill('-2');
     await avstand.press('Enter');
     await ferdig(page);
-    await expect(page.getByText(/Sving om leddets akse/)).toBeVisible();
-    await expect(page.getByText(/Leddet dreier om kuppelens sentrum/)).toBeVisible();
-    await page.getByRole('radio', { name: 'Knottledd (utforskes)' }).click();
-    await expect(page.getByRole('radio', { name: 'Knottledd (utforskes)' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
+    // the staple joint swings sideways and nods, each about the other staple's crossbar
+    await expect(page.getByText(/Sving til siden: .* fram og tilbake/)).toBeVisible();
+    await expect(page.getByText(/Stiftene dreier om hverandres tverrstang/)).toBeVisible();
+    await expect(page.getByText('Mekanisme: Stifter')).toBeVisible();
   });
 
   test('bare én undermeny er åpen, og Tilbehør er planlagt', async ({ page }) => {

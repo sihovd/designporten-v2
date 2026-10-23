@@ -22,7 +22,7 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Creature Forge
 
 | Id | Direction | Status |
 |---|---|---|
-| F1 | Joint mechanism | **Under test.** Phase 1 builds two candidate mechanisms behind one contract so they can be printed and compared: the **chain joint** (`kjede`, default: an eye on one part and a capped bolt through it on the other, like two links of a chain) and the **knob joint** (`knott`, exploratory: a knob on a neck captured in a cavity). Neither is decided. Profile 0.2.0 (below) moves the pivot into the dome's centre. |
+| F1 | Joint mechanism | **Under test.** Sivert (2026-10-23): «koblingen skal være som to stifter festet i hver sin del». New projects get the **staple joint** (`stifter`, profile `stiftledd-prove`, below). The two earlier candidates stay for projects made with their profiles: the **chain joint** (`kjede`: an eye on one part and a capped bolt through it on the other) and the **knob joint** (`knott`, exploratory). None is decided before a test print. |
 | F2 | Print pose | Provisional. The figure prints in one pose, all joints at zero, lying on its back (the figure's front faces up). The editor shows the figure standing; «Printvisning» shows the pose that is exported. The export is always the print pose. |
 | F3 | Tolerances | Provisional. Print clearance and play are a versioned profile; every number carries its certainty (trial value, design choice, measured). The user can override clearance and play per project, shown as their own values. Nothing is called tested until Sivert has confirmed a test print. |
 | F4 | Calibration piece | Provisional (phase 5). In phase 1 the two-part test figure itself is the test piece; it can be exported with any clearance. |
@@ -63,12 +63,22 @@ Sivert asked for more movement than 25° without collisions (loose, dangling joi
 - **Knife edges.** A cut that meets a surface at a shallow angle leaves a knife edge; the old default (the upper body sunk 4 mm into the head, a curved dome cutting the overlap) did that by design. The wall check was also too eager: it reported ordinary corners and edges as thin because it stepped inwards along the field's gradient, which follows one face at an edge. It now steps along the mesh's vertex normal and reports a wall only when the face it leaves through is turned more than 135° against the one it started from (a plate, or an edge sharper than 45°), on at least six vertices. Tested on a 20° wedge and a 0.6 mm plate (found) and on a cube and a 60° wedge (not found). With the new check, the old default's edges are no sharper than 45°.
 - **Preview.** A separate preview build of only Creature Forge, published privately on claude.ai. It is made outside the repository (as `scripts/bygg-signforge.mjs` does for Sign Forge) and is not part of the site.
 
+### The staple joint (Sivert, 2026-10-23)
+
+Sivert's second review: «Den negative domen er ikke ferdig og koblingen skal være som to stifter festet i hver sin del». Read as: the joint is two staples, one anchored in each part, hooked through each other like two links of a chain; and the dome must actually cut the cavity they sit in, in both parts. If that reading is wrong, Sivert corrects it.
+
+- **Profile `stiftledd-prove` 0.1.0** (new projects; projects made with `kjedeledd-prove` 0.1.0 or 0.2.0 build as before and keep their mechanism choice). It offers one mechanism, so the panel shows it as text instead of a choice.
+- **The staples.** Each is a U of bars with a diamond cross-section (every face over air at 45°, support-free lying on the back). The parent's lies flat in the joint's plane (flat on the plate in print), its crossbar a little past the joint point towards the child; the child's stands upright, its crossbar a little past the joint point towards the parent. Each crossbar passes through the other's loop with the print clearance plus the play all round (bar 1.2 mm half-diagonal, a design choice), and the legs reach from the cavity 5 mm into their own part. Each part keeps the other staple's room.
+- **How it moves.** Hooked staples turn about each other's crossbars: sideways about the child's, forwards and backwards about the parent's. The swing check (CF-SVING-01) now checks both axes for this mechanism; a hinge (chain, knob) still has one.
+- **The dome as cavity.** New defaults: a bowl round the parent's curvature (flatter where the parent curves too sharply to reach its sides), as wide as the thinner part so its rim leaves no edge, about 11.8 mm thick in the middle for the staples (at most 0.7 × the thinner part) and 2 mm at the rim. It cuts the cavity into both parts and thins towards the rim, so it meets their surfaces at a blunt angle. All six values stay editable.
+- **Measured** (head 36 × 34, upper body standard): ±55° sideways and ±60° forwards and backwards, then the upper body's shoulder meets the head; no thin walls, no other findings. A narrow head (24 × 40) and a small one (18 × 18) swing ±60° both ways with no findings.
+
 ## Phases
 
 | Phase | Deliverable | Status |
 |---|---|---|
 | 0 | This document, decision log, master spec | Done 2026-10-23 |
-| 1 | Vertical prototype: head and upper body with length and thickness, predefined snap points, automatic joint, parent moves children, dome cut, the two candidate mechanisms, clearance, capture, swing and wall checks, export of the test figure | Built; revised after Sivert's first review (profile 0.2.0, new defaults, wall check); awaiting approval |
+| 1 | Vertical prototype: head and upper body with length and thickness, predefined snap points, automatic joint, parent moves children, dome cut, candidate mechanisms, clearance, capture, swing and wall checks, export of the test figure | Built; revised after Sivert's first review (profile 0.2.0, new defaults, wall check) and second review (staple joint, dome as cavity); awaiting approval |
 | 2 | Joint editing in full (approved after phase 1) | Not started |
 | 3 | Body library (hip, arm, leg, hand, foot, tail, variants), bottom menu with variant rows, 3D thumbnails, symmetry and centre line | Built too early (commit `ac77824`) and set aside by a revert until phase 1 is approved |
 | 4 | Features side panel (eyes as a symmetric pair, nose, mouth, ears, horns, spikes), additive and subtractive features following the host surface, part editor, fur as surface texture | Not started |
@@ -77,7 +87,8 @@ Sivert asked for more movement than 25° without collisions (loose, dangling joi
 
 ## Open
 
-- F1: which mechanism, after test prints of the phase 1 figure. Whether the pivot in the dome's centre prints and moves as the geometry says.
+- F1: which mechanism, after test prints of the phase 1 figure. Whether the staples print free of each other and move as the geometry says.
+- Whether the staples should be hidden (the cavity closed round them, like a socket) or may show between the parts as now.
 - Clearance, play, minimum wall and the printer and material for the first test.
 - What «Tilbehør» contains.
 - What happens to Dragon Forge and BuildForge's figure family once Creature Forge exists (not part of this work).
