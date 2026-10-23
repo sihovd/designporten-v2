@@ -361,6 +361,10 @@ A shared build engine where **the user forms the expression and the engine prote
 - **Builds** run in a web worker; while one runs, newer requests replace older ones and stale results are dropped.
 - **Not built yet** (handoff 2026-10-04 §65–67, later phases): Body Chains, Sub-part Groups and hierarchy inside a part, moving a connector by dragging it (it is placed by clicking on the surface), separate print orientation per part, «Save Part» / «Mine» and other accounts, cloud storage, sharing and licensing, snap fits, print-in-place joints, magnets and screws. Whether parts other than the two a joint connects hit each other while it turns or bends is not checked. Clothes, import, permanent or snap-in joints, poses, modular letters, stacked clickers and production hand-off from the first brief are also not built and not shown.
 
+## Creature Forge
+
+Articulated, 3D-printable figures built from base shapes joined by loose dangling joints, with a parametric Boolean dome per joint (Sivert, 2026-10-23). A separate generator with its own model, joints and UI; Dragon Forge and BuildForge are not changed. Specified in [creature-forge.md](creature-forge.md).
+
 ## Ecosystem
 
 Skaperverksted is an ecosystem, not a page. Future generators could include vases, pots, egg cups, cans/containers, trays, articulated snakes and other configurable products.
