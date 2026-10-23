@@ -183,17 +183,25 @@ const snu =
   (t, s, v) =>
     f(-t, -s, v);
 
-export function mekanisme(type: Mekanisme, profil: Leddprofil, tol: Toleranser): Mekanismeform {
+/**
+ * The mechanism, scaled by `skala` (a joint's `storrelse`) so it fits small parts. The clearance and
+ * the play never scale. With the profile's clearance and play, the held part (cap or knob) never
+ * gets less capture than the profile's minimum plus 0.3 mm, so a small joint holds as well as a large
+ * one; a user's larger clearance can still make it too loose, and the check says so.
+ */
+export function mekanisme(type: Mekanisme, profil: Leddprofil, tol: Toleranser, skala = 1): Mekanismeform {
   const m = profil.maal;
   const luft = tol.klaring + tol.spillerom;
   const sving = m.sving.verdi;
-  const stang = m.stang.verdi;
+  const stang = m.stang.verdi * skala;
+  const fangstMin = m.minFang.verdi + 0.3;
+  const luftProfil = m.klaring.verdi + m.spillerom.verdi;
 
   if (type === 'knott') {
-    const rk = m.knott.verdi,
-      eh = m.knotthals.verdi;
+    const eh = m.knotthals.verdi * skala;
+    const rk = Math.max(m.knott.verdi * skala, eh + luftProfil * R2 + fangstMin);
     // the knob sits inside the parent, clear of a dome of ordinary thickness
-    const tk = -(rk + luft + 4);
+    const tk = -(rk + luft + 4 * skala);
     const knott = flytt(bikjegle(rk), tk, 0, 0);
     const hals = diamantstang(tk, stang, eh);
     const rom = union(
@@ -216,11 +224,11 @@ export function mekanisme(type: Mekanisme, profil: Leddprofil, tol: Toleranser):
     };
   }
 
-  const e = m.oye.verdi,
-    rb = m.bolt.verdi,
-    rc = m.hette.verdi,
-    ea = m.arm.verdi;
+  const e = m.oye.verdi * skala,
+    rb = m.bolt.verdi * skala,
+    ea = m.arm.verdi * skala;
   const ri = rb + luft;
+  const rc = Math.max(m.hette.verdi * skala, rb + luftProfil + fangstMin);
   const Re = ri + e;
   const ytre = Re + e + stang;
   // the eye lies in v = 0; the cap above it and the arm below, each a clearance and the play away

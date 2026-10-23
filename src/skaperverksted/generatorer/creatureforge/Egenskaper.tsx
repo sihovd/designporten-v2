@@ -10,7 +10,7 @@ import { brukUtdrag } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import type { CfResultat, Funn } from './bygg';
 import { grunnformer } from './grunnformer';
-import { les, settDel, settKuppel, settLedd, settToleranse, slettDel } from './handlinger';
+import { les, settDel, settKuppel, settLedd, settToleranse, slettDel, speilpartner } from './handlinger';
 import { finnProfil, MEKANISMER, SIKKERHET_NAVN, toleranser } from './ledd';
 import { GRENSER, valider, type Del, type Kuppel, type Ledd, type Mekanisme } from './parametre';
 import { etterkommere, finnDel, leddFra, leddTil } from './plassering';
@@ -213,6 +213,7 @@ function DelPanel({ benk, del }: { benk: Arbeidsbenk; del: Del }) {
   const erRot = !leddTil(p, del.id);
   const under = etterkommere(p, del.id).length;
   const ledd = [...(leddTil(p, del.id) ? [leddTil(p, del.id)!] : []), ...leddFra(p, del.id)];
+  const makker = speilpartner(p, del.id);
   return (
     <Panel tittel={del.navn}>
       <p class="cf-hjelp">
@@ -220,7 +221,16 @@ function DelPanel({ benk, del }: { benk: Arbeidsbenk; del: Del }) {
         {erRot
           ? ', figurens utgangspunkt. Barna følger når den flyttes.'
           : '. Plassert av leddet den henger i.'}
+        {makker && ` Symmetri: endringer gjøres også på ${finnDel(p, makker)?.navn.toLowerCase()}.`}
       </p>
+      {g.varianter.length > 1 && (
+        <Segment<string>
+          etikett="Form"
+          valg={g.varianter.map((v) => ({ id: v.id, navn: v.navn }))}
+          verdi={del.variant ?? g.varianter[0]!.id}
+          endre={(v) => settDel(benk, del.id, 'Byttet form', { variant: v })}
+        />
+      )}
       <label class="cf-tekstfelt">
         <span>Navn</span>
         <input
@@ -296,6 +306,7 @@ function DelPanel({ benk, del }: { benk: Arbeidsbenk; del: Del }) {
       <button type="button" class="cf-slett" onClick={() => slettDel(benk, del.id)}>
         Slett {del.navn.toLowerCase()}
         {under ? ` og ${under} ${under === 1 ? 'del' : 'deler'} under` : ''}
+        {makker ? ', også på den andre siden' : ''}
       </button>
     </Panel>
   );
@@ -317,6 +328,7 @@ function LeddPanel({ benk, ledd, modell }: { benk: Arbeidsbenk; ledd: Ledd; mode
     b = finnDel(p, ledd.barn.del);
   const info = modell?.ledd.find((l) => l.id === ledd.id);
   const mek = MEKANISMER.find((m) => m.id === ledd.mekanisme)!;
+  const makker = speilpartner(p, ledd.barn.del);
   return (
     <>
       <Panel tittel={`Ledd: ${f?.navn ?? ''} – ${b?.navn ?? ''}`}>
@@ -326,7 +338,22 @@ function LeddPanel({ benk, ledd, modell }: { benk: Arbeidsbenk; ledd: Ledd; mode
           verdi={ledd.mekanisme}
           endre={(v) => settLedd(benk, ledd.id, 'Byttet mekanisme', { mekanisme: v })}
         />
-        <p class="cf-hjelp">{mek.beskrivelse} Mekanismen er under test og ikke bestemt.</p>
+        <p class="cf-hjelp">
+          {mek.beskrivelse} Mekanismen er under test og ikke bestemt.
+          {makker && ` Symmetri: endringer speiles til leddet på ${finnDel(p, makker)?.navn.toLowerCase()}.`}
+        </p>
+        <TallFelt
+          etikett="Mekanismens størrelse"
+          verdi={ledd.storrelse ?? 1}
+          enhet="×"
+          min={GRENSER.storrelse.min}
+          maks={GRENSER.storrelse.maks}
+          steg={0.05}
+          desimaler={2}
+          endre={(v) =>
+            settLedd(benk, ledd.id, 'Endret mekanismens størrelse', { storrelse: v }, 'storrelse')
+          }
+        />
         <TallFelt
           etikett="Avstand"
           verdi={ledd.avstand}

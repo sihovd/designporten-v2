@@ -1,17 +1,21 @@
 /**
  * The bottom tab bar (handoff, UI_OG_IKONER.md): «Kropp» with round buttons
  * for the base shapes, and «Tekstur/Farge» and «Tilbehør» as planned tabs
- * that say so. Only one submenu is open at a time.
+ * that say so. Choosing a body part opens a row with its shape variants.
+ * Only one submenu is open at a time. Every picture is a thumbnail of the
+ * real shape (`miniatyr.ts`).
  *
- * A body part is dragged into the 3D view and attaches to the free snap
- * point the overlay highlights. Without dragging (keyboard, touch, a plain
- * click) the button opens a list of the free snap points that fit.
+ * A part is dragged into the 3D view and attaches to the free snap point
+ * the overlay highlights. Without dragging (keyboard, touch, a plain click)
+ * a variant opens a list of the free snap points that fit.
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
+import { finnMateriale } from '../../core/materialer';
 import { brukUtdrag } from '../../shell/bruk-benk';
-import { delrekkefolge, grunnformer, type Deltype } from './grunnformer';
+import { delrekkefolge, grunnformer, type Deltype, type Variant } from './grunnformer';
 import { fest, leggTilForste, les } from './handlinger';
+import { ferdigMiniatyr, miniatyr } from './miniatyr';
 import { ledigeFor } from './plassering';
 import { tilstand } from './tilstand';
 import './creatureforge.css';
@@ -31,11 +35,28 @@ const FANER: { id: Fane; navn: string; planlagt?: string }[] = [
 /** How far the pointer must move before a press becomes a drag (px). */
 const DRA_TERSKEL = 6;
 
+/** The thumbnail of a shape at its default size, in its default colour. */
+function Miniatyr({ type, variant }: { type: Deltype; variant: Variant }) {
+  const g = grunnformer[type];
+  const d = { type, variant: variant.id, lengde: g.lengde.standard, tykkelse: g.tykkelse.standard };
+  const farge = finnMateriale(g.farge).hex;
+  const [url, settUrl] = useState<string | null>(() => ferdigMiniatyr(d, farge));
+  useEffect(() => {
+    let aktiv = true;
+    void miniatyr(d, farge).then((u) => aktiv && settUrl(u));
+    return () => {
+      aktiv = false;
+    };
+  }, [type, variant.id]);
+  return url ? <img src={url} alt="" width={56} height={56} draggable={false} /> : null;
+}
+
 export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
   const t = tilstand(benk);
   const p = brukUtdrag(benk, (s) => les(s.dok));
   const [fane, settFane] = useState<Fane>('kropp');
-  const [festeFor, settFesteFor] = useState<Deltype | null>(null);
+  const [aapen, settAapen] = useState<Deltype | null>(null);
+  const [feste, settFeste] = useState<{ type: Deltype; variant: string } | null>(null);
   const ignorerKlikk = useRef(false);
   const fanerRef = useRef<HTMLDivElement>(null);
   const tom = !p.deler?.length;
@@ -47,7 +68,13 @@ export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
     return ledige(type).length ? { ok: true } : { ok: false, hvorfor: 'Ingen ledige punkter passer.' };
   };
 
-  const velg = (type: Deltype) => {
+  /** Only one submenu: the variant row, or the attach list. */
+  const lukkAlt = () => {
+    settAapen(null);
+    settFeste(null);
+  };
+
+  const velgDel = (type: Deltype) => {
     if (ignorerKlikk.current) {
       ignorerKlikk.current = false;
       return;
@@ -57,14 +84,25 @@ export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
       benk.melde(k.hvorfor ?? null);
       return;
     }
-    if (type === 'hode' && tom) {
-      leggTilForste(benk, type);
-      return;
-    }
-    settFesteFor(festeFor === type ? null : type);
+    settFeste(null);
+    settAapen(aapen === type ? null : type);
   };
 
-  const startDra = (e: PointerEvent, type: Deltype) => {
+  const velgVariant = (type: Deltype, variant: string) => {
+    if (ignorerKlikk.current) {
+      ignorerKlikk.current = false;
+      return;
+    }
+    if (type === 'hode' && tom) {
+      leggTilForste(benk, type, variant);
+      lukkAlt();
+      return;
+    }
+    settAapen(null);
+    settFeste({ type, variant });
+  };
+
+  const startDra = (e: PointerEvent, type: Deltype, variant?: string) => {
     if (e.button !== 0 || !kanBrukes(type).ok) return;
     const x0 = e.clientX,
       y0 = e.clientY;
@@ -72,9 +110,9 @@ export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
     const flytt = (ev: PointerEvent) => {
       if (!drar && Math.hypot(ev.clientX - x0, ev.clientY - y0) > DRA_TERSKEL) {
         drar = true;
-        settFesteFor(null);
+        settFeste(null);
       }
-      if (drar) t.dra.value = { type, x: ev.clientX, y: ev.clientY, mal: t.dra.value?.mal ?? null };
+      if (drar) t.dra.value = { type, variant, x: ev.clientX, y: ev.clientY, mal: t.dra.value?.mal ?? null };
     };
     const slutt = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', flytt);
@@ -89,9 +127,13 @@ export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
       const overVisning = !!(
         document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null
       )?.closest('.visning3d');
-      if (mal) fest(benk, type, mal);
-      else if (tom && type === 'hode' && overVisning) leggTilForste(benk, type);
-      else benk.melde(`Slipp ${grunnformer[type].navn.toLowerCase()} på et av de markerte punktene.`);
+      if (mal) {
+        fest(benk, type, mal, variant);
+        lukkAlt();
+      } else if (tom && type === 'hode' && overVisning) {
+        leggTilForste(benk, type, variant);
+        lukkAlt();
+      } else benk.melde(`Slipp ${grunnformer[type].navn.toLowerCase()} på et av de markerte punktene.`);
     };
     window.addEventListener('pointermove', flytt);
     window.addEventListener('pointerup', slutt);
@@ -110,25 +152,56 @@ export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
     if (neste < 0) return;
     e.preventDefault();
     settFane(FANER[neste]!.id);
-    settFesteFor(null);
+    lukkAlt();
     fanerRef.current?.querySelectorAll<HTMLButtonElement>('[role=tab]')[neste]?.focus();
   };
 
   const aktiv = FANER.find((f) => f.id === fane)!;
   const dras = t.dra.value;
+  const apen = aapen && grunnformer[aapen];
 
   return (
     <div class="cf-meny">
-      {festeFor && (
+      {feste && (
         <Festeliste
-          type={festeFor}
-          valg={ledige(festeFor)}
+          type={feste.type}
+          variant={grunnformer[feste.type].varianter.find((v) => v.id === feste.variant)?.navn}
+          valg={ledige(feste.type)}
           velg={(forelder) => {
-            fest(benk, festeFor, forelder);
-            settFesteFor(null);
+            fest(benk, feste.type, forelder, feste.variant);
+            settFeste(null);
           }}
-          lukk={() => settFesteFor(null)}
+          lukk={() => settFeste(null)}
         />
+      )}
+      {apen && fane === 'kropp' && (
+        <div
+          class="cf-variantrad"
+          role="group"
+          aria-label={`Former for ${apen.navn.toLowerCase()}`}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              settAapen(null);
+            }
+          }}
+        >
+          {apen.varianter.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              class="cf-variant"
+              title={`${apen.navn}, ${v.navn.toLowerCase()}: dra inn i visningen, eller klikk`}
+              onPointerDown={(e) => startDra(e, apen.type, v.id)}
+              onClick={() => velgVariant(apen.type, v.id)}
+            >
+              <span class="cf-variant-bilde">
+                <Miniatyr type={apen.type} variant={v} />
+              </span>
+              {v.navn}
+            </button>
+          ))}
+        </div>
       )}
       <div class="cf-panel" role="tabpanel" id={`cf-fane-${fane}`} aria-labelledby={`cf-fanevalg-${fane}`}>
         {aktiv.planlagt ? (
@@ -144,20 +217,18 @@ export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
                   type="button"
                   class={`cf-runde${dras?.type === type ? ' drar' : ''}`}
                   aria-disabled={!k.ok}
-                  aria-expanded={type !== 'hode' ? festeFor === type : undefined}
-                  title={
-                    k.ok
-                      ? `${g.navn}: ${type === 'hode' ? 'klikk for å legge til' : 'dra inn i visningen, eller klikk'}`
-                      : k.hvorfor
-                  }
+                  aria-expanded={aapen === type}
+                  title={k.ok ? `${g.navn}: velg form, eller dra inn i visningen` : k.hvorfor}
                   onPointerDown={(e) => startDra(e, type)}
-                  onClick={() => velg(type)}
+                  onClick={() => velgDel(type)}
                 >
-                  <span class="cf-runde-sirkel">{g.navn}</span>
+                  <span class="cf-runde-sirkel">
+                    <Miniatyr type={type} variant={g.varianter[0]!} />
+                  </span>
+                  <span class="cf-runde-navn">{g.navn}</span>
                 </button>
               );
             })}
-            <p class="cf-planlagt kort">Hofte, armer, bein, hender, føtter og hale kommer i neste fase.</p>
           </div>
         )}
       </div>
@@ -174,7 +245,7 @@ export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
             class={f.planlagt ? 'planlagt' : undefined}
             onClick={() => {
               settFane(f.id);
-              settFesteFor(null);
+              lukkAlt();
             }}
           >
             {f.navn}
@@ -194,11 +265,13 @@ export function Kroppsmeny({ benk }: { benk: Arbeidsbenk }) {
 
 function Festeliste({
   type,
+  variant,
   valg,
   velg,
   lukk,
 }: {
   type: Deltype;
+  variant?: string;
   valg: ReturnType<typeof ledigeFor>;
   velg: (forelder: (typeof valg)[number]['forelder']) => void;
   lukk: () => void;
@@ -221,12 +294,16 @@ function Festeliste({
         }
       }}
     >
-      <p>Fest {navn} på:</p>
+      <p>
+        Fest {navn}
+        {variant ? ` (${variant.toLowerCase()})` : ''} på:
+      </p>
       {valg.map((v) => (
         <button key={`${v.forelder.del}/${v.forelder.punkt}`} type="button" onClick={() => velg(v.forelder)}>
           {v.navn}
         </button>
       ))}
+      {!valg.length && <span>Ingen ledige punkter passer.</span>}
       <button type="button" class="cf-avbryt" onClick={lukk}>
         Avbryt
       </button>
