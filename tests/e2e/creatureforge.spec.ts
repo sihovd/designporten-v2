@@ -18,29 +18,16 @@ async function lukkEgenskaper(page: Page) {
   if ((await ark.isVisible()) && (await ark.getAttribute('aria-pressed')) === 'true') await ark.click();
 }
 
-/** Body part → a shape in the variant row → (for a part that hangs on something) a free point. */
-async function velg(page: Page, del: string, form: string, punkt?: string) {
-  await page.getByRole('button', { name: del, exact: true }).click();
-  await page
-    .getByRole('group', { name: `Former for ${del.toLowerCase()}` })
-    .getByRole('button', { name: form })
-    .click();
-  if (punkt)
-    await page
-      .getByRole('group', { name: `Fest ${del.toLowerCase()} på` })
-      .getByRole('button', { name: punkt })
-      .click();
+async function hodeOgKropp(page: Page) {
+  await page.getByRole('button', { name: 'Hode', exact: true }).click();
   await ferdig(page);
   await lukkEgenskaper(page);
-}
-
-/** A part's own row in the figure list (the joints mention the parts too). */
-const delIListen = (page: Page, navn: string) =>
-  page.locator('.cf-liste button').filter({ hasText: new RegExp(`^${navn}$`) });
-
-async function hodeOgKropp(page: Page) {
-  await velg(page, 'Hode', 'Rund');
-  await velg(page, 'Overkropp', 'Pære', 'Hals på Hode');
+  await page.getByRole('button', { name: 'Overkropp', exact: true }).click();
+  await page
+    .getByRole('group', { name: 'Fest overkropp på' })
+    .getByRole('button', { name: 'Hals på Hode' })
+    .click();
+  await ferdig(page);
 }
 
 test.describe('Creature Forge', () => {
@@ -72,7 +59,8 @@ test.describe('Creature Forge', () => {
 
   test('dra overkroppen til halsen', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Dra med mus; på berøring brukes listen');
-    await velg(page, 'Hode', 'Rund');
+    await page.getByRole('button', { name: 'Hode', exact: true }).click();
+    await ferdig(page);
     const knapp = (await page.getByRole('button', { name: 'Overkropp', exact: true }).boundingBox())!;
     await page.mouse.move(knapp.x + knapp.width / 2, knapp.y + knapp.height / 2);
     await page.mouse.down();
@@ -138,47 +126,12 @@ test.describe('Creature Forge', () => {
     await page.getByRole('tab', { name: 'Kropp' }).click();
     await expect(page.getByText('Tilbehør kommer i en senere fase.')).toHaveCount(0);
     await page.getByRole('button', { name: 'Hode', exact: true }).click();
-    await expect(page.getByRole('group', { name: 'Former for hode' })).toBeVisible();
-    await page.getByRole('group', { name: 'Former for hode' }).getByRole('button', { name: 'Rund' }).click();
     await ferdig(page);
     await lukkEgenskaper(page);
     await page.getByRole('button', { name: 'Overkropp', exact: true }).click();
-    await page
-      .getByRole('group', { name: 'Former for overkropp' })
-      .getByRole('button', { name: 'Tønne' })
-      .click();
-    // the shape row closes when the attach list opens: one submenu at a time
     await expect(page.getByRole('group', { name: 'Fest overkropp på' })).toBeVisible();
-    await expect(page.getByRole('group', { name: 'Former for overkropp' })).toHaveCount(0);
     await page.getByRole('tab', { name: /Tekstur/ }).click();
     await expect(page.getByRole('group', { name: 'Fest overkropp på' })).toHaveCount(0);
-  });
-
-  test('miniatyrene er bilder av de ekte formene', async ({ page }) => {
-    const bilder = page.locator('.cf-runde-sirkel img');
-    await expect(bilder).toHaveCount(8, { timeout: 20_000 });
-    await expect(bilder.first()).toHaveAttribute('src', /^data:image\/png/);
-  });
-
-  test('med symmetri festes armer og hender i par og speiles', async ({ page }) => {
-    await hodeOgKropp(page);
-    await page.getByRole('button', { name: 'Symmetri' }).click();
-    await velg(page, 'Arm', 'Rett', 'Venstre skulder på Overkropp');
-    await velg(page, 'Hånd', 'Vott', 'Håndledd på Venstre arm');
-    await page.locator('.cf-status').click();
-    await apneEgenskaper(page);
-    for (const navn of ['Venstre arm', 'Høyre arm', 'Venstre hånd', 'Høyre hånd'])
-      await expect(delIListen(page, navn)).toHaveCount(1);
-    await delIListen(page, 'Venstre arm').click();
-    await expect(page.getByText(/endringer gjøres også på høyre arm/)).toBeVisible();
-    const lengdeFelt = page.getByRole('textbox', { name: 'Lengde', exact: true });
-    await lengdeFelt.fill('34');
-    await lengdeFelt.press('Enter');
-    await ferdig(page);
-    await page.locator('.cf-status').click();
-    await apneEgenskaper(page);
-    await delIListen(page, 'Høyre arm').click();
-    await expect(page.getByRole('textbox', { name: 'Lengde', exact: true })).toHaveValue('34');
   });
 
   test('eksporten er én STL per del med kontrollrapport', async ({ page }) => {

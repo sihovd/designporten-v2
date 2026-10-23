@@ -10,9 +10,15 @@
  * same up direction, `avstand` further along.
  */
 import { nyId } from '../../core/dokument';
-import { boksFor, feltFor, grunnformer, snappunkterFor, type Deltype, type Snappunkt } from './grunnformer';
-import { kuppelFelt } from './kuppel';
-import { standardLedd, type CfParametre, type Del, type Ende, type Ledd } from './parametre';
+import { grunnformer, type Deltype, type Snappunkt } from './grunnformer';
+import {
+  STANDARD_AVSTAND,
+  standardKuppel,
+  type CfParametre,
+  type Del,
+  type Ende,
+  type Ledd,
+} from './parametre';
 import {
   anvend,
   fraEuler,
@@ -20,7 +26,6 @@ import {
   kolonne,
   kolonner,
   kryss,
-  minus,
   pluss,
   skaler,
   transponer,
@@ -41,7 +46,7 @@ export interface Leddramme {
   R: M3;
 }
 
-export const snappunkter = (d: Del): Snappunkt[] => snappunkterFor(d);
+export const snappunkter = (d: Del): Snappunkt[] => grunnformer[d.type].snappunkter(d.lengde, d.tykkelse);
 export const finnPunkt = (d: Del, id: string): Snappunkt | undefined =>
   snappunkter(d).find((s) => s.id === id);
 
@@ -119,11 +124,9 @@ export function ledigeFor(
 ): { forelder: Ende; barnPunkt: string; navn: string }[] {
   const brukt = new Set(p.ledd.map((l) => `${l.forelder.del}/${l.forelder.punkt}`));
   const ny = grunnformer[type];
-  const barnPunkter = snappunkterFor({
-    type,
-    lengde: ny.lengde.standard,
-    tykkelse: ny.tykkelse.standard,
-  }).filter((s) => s.side === 'barn');
+  const barnPunkter = ny
+    .snappunkter(ny.lengde.standard, ny.tykkelse.standard)
+    .filter((s) => s.side === 'barn');
   const ut: { forelder: Ende; barnPunkt: string; navn: string }[] = [];
   for (const d of p.deler)
     for (const s of snappunkter(d)) {
@@ -141,46 +144,28 @@ export function ledigeFor(
 
 export type Resultat = { ok: true; p: CfParametre; id: string } | { ok: false; grunn: string };
 
-/** Which side a part is on: from the sided snap point (`-v`, `-h`) it or one of its ancestors hangs on. */
-export function side(p: CfParametre, delId: string): 'v' | 'h' | null {
-  let l = leddTil(p, delId);
-  while (l) {
-    if (l.forelder.punkt.endsWith('-v')) return 'v';
-    if (l.forelder.punkt.endsWith('-h')) return 'h';
-    l = leddTil(p, l.forelder.del);
-  }
-  return null;
-}
+const nyttNavn = (p: CfParametre, type: Deltype): string => {
+  const navn = grunnformer[type].navn;
+  const antall = p.deler.filter((d) => d.type === type).length;
+  return antall ? `${navn} ${antall + 1}` : navn;
+};
 
-const SIDENAVN = { v: 'Venstre', h: 'Høyre' } as const;
-
-/** «Arm», «Venstre arm», «Høyre arm 2», «Hale 3». */
-function nyttNavn(p: CfParametre, type: Deltype, sideAv: 'v' | 'h' | null): string {
-  const grunn = grunnformer[type].navn;
-  const navn = sideAv ? `${SIDENAVN[sideAv]} ${grunn.toLowerCase()}` : grunn;
-  if (!p.deler.some((d) => d.navn === navn)) return navn;
-  for (let i = 2; ; i++) if (!p.deler.some((d) => d.navn === `${navn} ${i}`)) return `${navn} ${i}`;
-}
-
-function nyDel(p: CfParametre, type: Deltype, variant?: string, sideAv: 'v' | 'h' | null = null): Del {
+function nyDel(p: CfParametre, type: Deltype): Del {
   const g = grunnformer[type];
-  const d: Del = {
+  return {
     id: nyId('del'),
     type,
-    navn: nyttNavn(p, type, sideAv),
+    navn: nyttNavn(p, type),
     farge: g.farge,
     lengde: g.lengde.standard,
     tykkelse: g.tykkelse.standard,
   };
-  if (variant && variant !== g.varianter[0]!.id && g.varianter.some((v) => v.id === variant))
-    d.variant = variant;
-  return d;
 }
 
 /** The head (or another part) as the figure's root, standing on the plate. Only when the figure is empty. */
-export function leggTilRot(p: CfParametre, type: Deltype, variant?: string): Resultat {
+export function leggTilRot(p: CfParametre, type: Deltype): Resultat {
   if (p.deler.length) return { ok: false, grunn: 'Figuren har allerede en del å bygge videre fra.' };
-  const d = nyDel(p, type, variant);
+  const d = nyDel(p, type);
   // high enough that an upper body under it stands on the plate
   d.posisjon = [0, 0, Math.round(d.lengde / 2 + grunnformer.overkropp.lengde.standard - 4)];
   d.rotasjon = [0, 0, 0];
@@ -188,14 +173,13 @@ export function leggTilRot(p: CfParametre, type: Deltype, variant?: string): Res
 }
 
 /** Hangs a new part on a free parent snap point, with an automatic joint. */
-export function koble(p: CfParametre, type: Deltype, forelder: Ende, variant?: string): Resultat {
+export function koble(p: CfParametre, type: Deltype, forelder: Ende): Resultat {
   const f = finnDel(p, forelder.del);
   const sf = f && finnPunkt(f, forelder.punkt);
   if (!f || !sf || sf.side !== 'forelder') return { ok: false, grunn: 'Punktet finnes ikke.' };
   if (p.ledd.some((l) => l.forelder.del === forelder.del && l.forelder.punkt === forelder.punkt))
     return { ok: false, grunn: `${sf.navn} på ${f.navn} er allerede i bruk.` };
-  const sideAv = forelder.punkt.endsWith('-v') ? 'v' : forelder.punkt.endsWith('-h') ? 'h' : side(p, f.id);
-  const b = nyDel(p, type, variant, sideAv);
+  const b = nyDel(p, type);
   const sb = snappunkter(b).find((s) => s.side === 'barn' && s.type === sf.type);
   if (!sb) return { ok: false, grunn: `${grunnformer[type].navn} passer ikke på ${sf.navn.toLowerCase()}.` };
   const ledd: Ledd = {
@@ -203,56 +187,12 @@ export function koble(p: CfParametre, type: Deltype, forelder: Ende, variant?: s
     forelder,
     barn: { del: b.id, punkt: sb.id },
     mekanisme: 'kjede',
+    avstand: STANDARD_AVSTAND,
     forskyvning: [0, 0, 0],
     rotasjon: [0, 0, 0],
-    ...standardLedd(f, b),
+    kuppel: standardKuppel(f, b),
   };
-  const ny = { ...p, deler: [...p.deler, b], ledd: [...p.ledd, ledd] };
-  const avstand = fristilt(ny, ledd);
-  if (avstand !== ledd.avstand) ledd.avstand = avstand;
-  return { ok: true, p: ny, id: b.id };
-}
-
-/** How close the two shapes may come outside the dome (mm): the trial clearance with a margin. */
-const FRI_AVSTAND = 0.5;
-
-/**
- * The smallest distance (from the joint's own, in 0.5 mm steps, at most 12 mm further out) at which
- * the new part's base shape stays clear of its parent's everywhere the dome does not cut. A part on
- * a curved flank (an arm on a pear-shaped body, a leg under a round hip) otherwise grows into the
- * parent beside the joint. Measured on the base shapes at 1 mm, before any cut.
- */
-function fristilt(p: CfParametre, ledd: Ledd): number {
-  const f = finnDel(p, ledd.forelder.del),
-    b = finnDel(p, ledd.barn.del);
-  if (!f || !b) return ledd.avstand;
-  const ff = feltFor(f),
-    fb = feltFor(b);
-  const kuppel = kuppelFelt(ledd.kuppel);
-  const bx = boksFor(b);
-  // points inside the child, in its own frame
-  const inne: V3[] = [];
-  for (let x = bx.min[0]; x <= bx.maks[0]; x += 1)
-    for (let y = bx.min[1]; y <= bx.maks[1]; y += 1)
-      for (let z = bx.min[2]; z <= bx.maks[2]; z += 1) if (fb(x, y, z) < 0) inne.push([x, y, z]);
-  for (let avstand = ledd.avstand; avstand <= ledd.avstand + 12; avstand += 0.5) {
-    const q = { ...p, ledd: p.ledd.map((l) => (l.id === ledd.id ? { ...l, avstand } : l)) };
-    const o = plasser(q);
-    const pf = o.deler.get(f.id),
-      pb = o.deler.get(b.id),
-      r = o.ledd.get(ledd.id);
-    if (!pf || !pb || !r) return ledd.avstand;
-    const tilF = transponer(pf.R),
-      tilLedd = transponer(r.R);
-    const kolliderer = inne.some((pkt) => {
-      const w = pluss(anvend(pb.R, pkt), pb.t);
-      const iF = anvend(tilF, minus(w, pf.t));
-      if (ff(...iF) >= FRI_AVSTAND) return false;
-      return kuppel(...anvend(tilLedd, minus(w, r.punkt))) > 0;
-    });
-    if (!kolliderer) return avstand;
-  }
-  return ledd.avstand;
+  return { ok: true, p: { ...p, deler: [...p.deler, b], ledd: [...p.ledd, ledd] }, id: b.id };
 }
 
 /** All parts that hang below a part, at any depth. */

@@ -7,7 +7,7 @@
  * is turned back into figure coordinates; the overlay's own group holds
  * figure coordinates and is turned into the print pose in the print view.
  */
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import type * as THREE_T from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
@@ -15,13 +15,12 @@ import type { Scene3d } from '../../core/generator';
 import { brukUtdrag } from '../../shell/bruk-benk';
 import { cssFarge } from '../../shell/tema';
 import type { CfResultat } from './bygg';
-import { boksFor, grunnformer } from './grunnformer';
-import { les, settDel, settLedd, settSymmetri } from './handlinger';
+import { grunnformer } from './grunnformer';
+import { les, settDel, settLedd } from './handlinger';
 import { CfIkon } from './ikoner';
 import { Kroppsmeny } from './Kroppsmeny';
 import { kuppelBoks, kuppelFelt } from './kuppel';
 import { lagRutenett, marsjer } from './marsj';
-import { boksIRamme } from './sdf';
 import { GRENSER, valider, type Kuppel } from './parametre';
 import {
   etterkommere,
@@ -99,20 +98,6 @@ export function CfOverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene3d 
     () => (modell?.utskrift ? matrise4(T, modell.utskrift.R, modell.utskrift.t) : new T.Matrix4()),
     [modell, T],
   );
-  /**
-   * Figure coordinates → the view. In the print view: the print pose. In the figure view: the figure
-   * lifted so its lowest point stands on the plate (from the built meshes: figure z = print y − t_y).
-   */
-  const visning = useMemo(() => {
-    if (printvisning) return utskrift;
-    let minY = Infinity;
-    for (const d of modell?.deler ?? []) {
-      const q = d.mesh.posisjoner;
-      for (let i = 1; i < q.length; i += 3) minY = Math.min(minY, q[i]!);
-    }
-    const loft = Number.isFinite(minY) && modell?.utskrift ? -(minY - modell.utskrift.t[1]) : 0;
-    return new T.Matrix4().makeTranslation(0, 0, loft);
-  }, [printvisning, utskrift, modell, T]);
 
   // mount and unmount
   useEffect(() => {
@@ -142,74 +127,12 @@ export function CfOverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene3d 
   // figure pose or print pose
   useEffect(() => {
     scene.modell.matrixAutoUpdate = false;
-    // the meshes are in the print pose: back to figure coordinates, then into the view
-    scene.modell.matrix.copy(visning.clone().multiply(utskrift.clone().invert()));
+    scene.modell.matrix.copy(printvisning ? new T.Matrix4() : utskrift.clone().invert());
     scene.modell.matrixWorldNeedsUpdate = true;
-    objekter.gruppe.matrix.copy(visning);
+    objekter.gruppe.matrix.copy(printvisning ? utskrift : new T.Matrix4());
     objekter.gruppe.matrixWorldNeedsUpdate = true;
     scene.tegn();
-  }, [scene, objekter, utskrift, visning, modell, T]);
-
-  // the centre line of the figure, when symmetry is on (programmatic measurement geometry, D-3)
-  const symmetri = !!p.symmetri;
-  useEffect(() => {
-    if (!symmetri || !oppsett) return;
-    const rot = p.deler.find((d) => !leddTil(p, d.id));
-    const prot = rot && oppsett.deler.get(rot.id);
-    if (!prot) return;
-    // the figure's extent in the root's frame
-    let min: V3 = [Infinity, Infinity, Infinity],
-      maks: V3 = [-Infinity, -Infinity, -Infinity];
-    const inv = transponer(prot.R);
-    for (const d of p.deler) {
-      const pl = oppsett.deler.get(d.id);
-      if (!pl) continue;
-      const b = boksIRamme(boksFor(d), gange(inv, pl.R), anvend(inv, minus(pl.t, prot.t)));
-      min = min.map((v, k) => Math.min(v, b.min[k]!)) as V3;
-      maks = maks.map((v, k) => Math.max(v, b.maks[k]!)) as V3;
-    }
-    const y0 = min[1] - 4,
-      y1 = maks[1] + 4,
-      z0 = min[2] - 4,
-      z1 = maks[2] + 4;
-    const hjorner = [
-      [0, y0, z0],
-      [0, y0, z1],
-      [0, y1, z1],
-      [0, y1, z0],
-    ].map((q) => {
-      const w = pluss(anvend(prot.R, q as V3), prot.t);
-      return new T.Vector3(...w);
-    });
-    const el = scene.lerret.parentElement ?? scene.lerret;
-    const geo = new T.BufferGeometry().setFromPoints(hjorner);
-    const linje = new T.LineLoop(
-      geo,
-      new T.LineDashedMaterial({
-        color: new T.Color(cssFarge(el, '--dp-cyan', '#00c4d6')),
-        dashSize: 3,
-        gapSize: 2,
-      }),
-    );
-    linje.computeLineDistances();
-    linje.name = 'Midtlinje';
-    objekter.gruppe.add(linje);
-    scene.tegn();
-    return () => {
-      objekter.gruppe.remove(linje);
-      geo.dispose();
-      (linje.material as THREE_T.Material).dispose();
-      scene.tegn();
-    };
-  }, [symmetri, oppsett, p, objekter, scene, T]);
-
-  // a new part may reach outside the view: frame the figure again when it grows
-  const antallDeler = modell?.deler.length ?? 0;
-  const tilpasset = useRef(0);
-  useEffect(() => {
-    if (antallDeler > tilpasset.current) requestAnimationFrame(() => benk.kommando('tilpass'));
-    tilpasset.current = antallDeler;
-  }, [antallDeler, benk]);
+  }, [scene, objekter, utskrift, printvisning, modell, T]);
 
   // highlight the selected part (after the shared view has reset its own highlight)
   useEffect(() => {
@@ -248,7 +171,7 @@ export function CfOverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene3d 
   /** A figure point → CSS px in the view. */
   const prosjiser = (q: V3) => {
     const v = new T.Vector3(...q);
-    v.applyMatrix4(visning);
+    if (printvisning) v.applyMatrix4(utskrift);
     return scene.prosjiser(v.x, v.y, v.z);
   };
 
@@ -468,15 +391,6 @@ export function CfOverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene3d 
           title="Vis figuren slik den printes: liggende på ryggen, alle ledd i null"
         >
           Printvisning
-        </button>
-        <button
-          type="button"
-          aria-pressed={symmetri}
-          onClick={() => settSymmetri(benk, !symmetri)}
-          title="Symmetri: det du gjør på én side, gjøres på den andre. Midtlinjen vises."
-        >
-          <CfIkon id="symmetry" />
-          Symmetri
         </button>
         {(valgtLedd || valgtRot) && !printvisning && (
           <div class="cf-segment" role="radiogroup" aria-label="Håndtak">

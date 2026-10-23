@@ -34,19 +34,6 @@ export function ellipsoide(rx: number, ry: number, rz: number): Felt {
   };
 }
 
-/** Box with half sizes hx, hy, hz and rounded edges (radius r). */
-export function avrundetBoks(hx: number, hy: number, hz: number, r: number): Felt {
-  const rr = Math.min(r, hx, hy, hz);
-  return (x, y, z) => {
-    const qx = Math.abs(x) - hx + rr,
-      qy = Math.abs(y) - hy + rr,
-      qz = Math.abs(z) - hz + rr;
-    return (
-      Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - rr
-    );
-  };
-}
-
 /**
  * Round cone along Z: a sphere of radius r1 at z = 0 and one of radius r2 at
  * z = h, joined by their common tangent cone.

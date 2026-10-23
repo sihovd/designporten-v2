@@ -12,8 +12,6 @@ export type Valg = { type: 'del' | 'ledd'; id: string } | null;
 
 export interface Dra {
   type: Deltype;
-  /** Shape variant (unset: the first). */
-  variant?: string;
   /** Pointer position (client px). */
   x: number;
   y: number;

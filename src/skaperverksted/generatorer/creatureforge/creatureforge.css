@@ -219,7 +219,7 @@
   left: 50%;
   bottom: 12px;
   transform: translateX(-50%);
-  width: min(640px, calc(100% - 24px));
+  width: min(560px, calc(100% - 24px));
   pointer-events: none;
 }
 
@@ -238,18 +238,14 @@
 
 .cf-runde-rad {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
+  gap: 12px;
 }
 
 .cf-runde {
   display: grid;
-  flex: none;
-  justify-items: center;
-  gap: 2px;
+  place-items: center;
   padding: 0;
   border: 0;
   background: none;
@@ -260,9 +256,8 @@
 .cf-runde-sirkel {
   display: grid;
   place-items: center;
-  overflow: hidden;
-  width: 60px;
-  height: 60px;
+  width: 68px;
+  height: 68px;
   border: 1px solid var(--linje-sterk);
   border-radius: 50%;
   background: var(--panel, #f6f8fb);
@@ -286,64 +281,15 @@
   color: var(--fg-dempet);
 }
 
-.cf-runde[aria-disabled='true'] img {
-  opacity: 0.45;
-}
-
-.cf-runde-navn {
-  font-size: 12px;
-}
-
-.cf-runde-sirkel img,
-.cf-variant-bilde img {
-  pointer-events: none;
-}
-
-/* the shape variants of the chosen body part, above the bar */
-.cf-variantrad {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 0;
-  display: flex;
-  gap: 8px;
-  max-width: 100%;
-  padding: 8px;
-  overflow-x: auto;
-  border: 1px solid var(--linje);
-  border-radius: 12px;
-  background: var(--panel, #f6f8fb);
-}
-
-.cf-variant {
-  display: grid;
-  flex: none;
-  justify-items: center;
-  gap: 2px;
-  min-width: 72px;
-  padding: 4px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: none;
-  color: var(--fg);
-  font-size: 12px;
-  touch-action: none;
-}
-
-.cf-variant:hover,
-.cf-variant:focus-visible {
-  border-color: var(--dp-lilla, #883dff);
-}
-
-.cf-variant-bilde {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-}
-
 .cf-planlagt {
   margin: 4px 0;
   color: var(--fg-dempet);
+}
+
+.cf-planlagt.kort {
+  flex: 1 1 140px;
+  align-self: center;
+  font-size: 12px;
 }
 
 .cf-faner {
@@ -626,8 +572,12 @@
   }
 
   .cf-runde-sirkel {
-    width: 50px;
-    height: 50px;
+    width: 56px;
+    height: 56px;
     font-size: 11px;
+  }
+
+  .cf-planlagt.kort {
+    display: none;
   }
 }

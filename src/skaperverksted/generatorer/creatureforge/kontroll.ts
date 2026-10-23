@@ -223,27 +223,6 @@ class Trekantgitter {
   }
 }
 
-/** A mesh's bounding box. */
-export function meshboks(m: Mesh): { min: V3; maks: V3 } {
-  const p = m.posisjoner;
-  const min: V3 = [Infinity, Infinity, Infinity],
-    maks: V3 = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < p.length; i += 3)
-    for (let k = 0; k < 3; k++) {
-      min[k] = Math.min(min[k]!, p[i + k]!);
-      maks[k] = Math.max(maks[k]!, p[i + k]!);
-    }
-  return { min, maks };
-}
-
-/** Distance from a point to a box (0 inside). */
-export function tilBoks(x: number, y: number, z: number, b: { min: V3; maks: V3 }): number {
-  const dx = Math.max(b.min[0] - x, 0, x - b.maks[0]),
-    dy = Math.max(b.min[1] - y, 0, y - b.maks[1]),
-    dz = Math.max(b.min[2] - z, 0, z - b.maks[2]);
-  return Math.hypot(dx, dy, dz);
-}
-
 export interface Naerhet {
   /** Smallest distance between the two surfaces found within the search range (mm). */
   minste: number;
@@ -262,12 +241,10 @@ export function naerhet(a: Mesh, fa: Felt, b: Mesh, fb: Felt, grense: number): N
     hvor: V3 | null = null,
     inni = 0;
   const en = (m: Mesh, annen: Mesh, felt: Felt) => {
-    // the vertices that come near the other part (by its field), nearest first; far from its box, none can
+    // the vertices that come near the other part (by its field), nearest first
     const p = m.posisjoner;
-    const boks = meshboks(annen);
     const naere: { i: number; f: number }[] = [];
     for (let i = 0; i < p.length; i += 3) {
-      if (tilBoks(p[i]!, p[i + 1]!, p[i + 2]!, boks) > grense + 1) continue;
       const f = felt(p[i]!, p[i + 1]!, p[i + 2]!);
       if (f > grense + 1) continue;
       if (f < -0.02) {
@@ -308,7 +285,7 @@ export function naerhet(a: Mesh, fa: Felt, b: Mesh, fb: Felt, grense: number): N
 /**
  * Thin walls: from each vertex near `senter` (within `radius`), step inwards
  * along the field's normal; if the part is left again within `minVegg`,
- * the wall there is thinner. Every second vertex is tested. Returns the thinnest wall found (or null).
+ * the wall there is thinner. Returns the thinnest wall found (or null).
  */
 export function tynnesteVegg(
   m: Mesh,
@@ -320,8 +297,7 @@ export function tynnesteVegg(
   const p = m.posisjoner;
   let funnet: { tykkelse: number; hvor: V3; antall: number } | null = null;
   const steg = Math.max(0.1, minVegg / 8);
-  // every second vertex: a thin edge is a band of many vertices, so none is missed
-  for (let i = 0; i < p.length; i += 6) {
+  for (let i = 0; i < p.length; i += 3) {
     const q: V3 = [p[i]!, p[i + 1]!, p[i + 2]!];
     if (Math.hypot(q[0] - senter[0], q[1] - senter[1], q[2] - senter[2]) > radius) continue;
     const n = normaliser(gradient(felt, q));

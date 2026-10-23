@@ -7,14 +7,12 @@ Articulated, 3D-printable figures built from base shapes with loose joints (spec
 | `vektor.ts` | Vectors and rotations (XYZ Euler as three.js uses it) |
 | `sdf.ts` | Signed distance fields: ellipsoid, round cone, bicone, diamond bars and rings, swept bars; union, cut, grow, frames, boxes |
 | `marsj.ts` | Narrow-band sampling and marching tetrahedra: one closed mesh per field |
-| `grunnformer.ts` | Base shapes (head, upper body, hip, arm, hand, leg, foot, tail) and their variants, with predefined snap points found on the surface |
+| `grunnformer.ts` | Base shapes (head, upper body) with their predefined snap points |
 | `parametre.ts` | The stored project, its limits and runtime validation (one root, a tree, fitting snap points) |
-| `plassering.ts` | Placement through the joints (parents move children), free snap points, attach (with a searched clear distance) and delete, side names |
-| `symmetri.ts` | Partners on the other side and mirrored joint changes |
-| `miniatyr.ts` | Thumbnails drawn from the real shapes |
+| `plassering.ts` | Placement through the joints (parents move children), free snap points, attach and delete |
 | `kuppel.ts` | The Boolean dome: a curved shell cut from both parts of a joint, independent of the clearance |
 | `ledd.ts` | The trial joint profile and the two candidate mechanisms under test: chain joint (eye and capped bolt) and knob joint |
-| `bygg.ts` | The build: fields → meshes (per part in its own frame, cached) → checks (closed, one piece, clearance, capture, swing, walls, print pose; cached per joint) → print pose |
+| `bygg.ts` | The build: fields → meshes → checks (closed, one piece, clearance, capture, swing, walls, print pose) → print pose |
 | `kontroll.ts` | Mesh measurements: closedness, pieces, specks, vertex-to-triangle distance, thin walls |
 | `beregning.ts`, `arbeider.ts` | Builds in a web worker, newest request first |
 | `kjerne.ts`, `index.ts`, `meta.ts` | Plug-in core, export rules and control report; UI wiring |

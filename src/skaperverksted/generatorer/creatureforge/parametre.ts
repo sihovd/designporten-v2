@@ -6,7 +6,7 @@
  * clearance and the play.
  */
 import { z } from 'zod';
-import { delrekkefolge, grunnformer, snappunkterFor, type Deltype } from './grunnformer';
+import { grunnformer, type Deltype } from './grunnformer';
 import type { V3 } from './vektor';
 
 export const SKJEMA = 'creatureforge/0.1';
@@ -19,8 +19,6 @@ export interface Del {
   navn: string;
   /** Material id (colour). */
   farge: string;
-  /** Shape variant (unset: the first). */
-  variant?: string;
   lengde: number;
   tykkelse: number;
   /** Root only: where the part sits (mm, figure coordinates). Other parts are placed by their joint. */
@@ -64,8 +62,6 @@ export interface Ledd {
   forskyvning: V3;
   /** Turns the joint, and with it the child, the mechanism and the dome (degrees, XYZ in the joint's frame). */
   rotasjon: V3;
-  /** Size of the mechanism relative to the profile (unset: 1). Clearance and play never scale. */
-  storrelse?: number;
   kuppel: Kuppel;
 }
 
@@ -74,8 +70,6 @@ export interface CfParametre {
   profil: { id: string; versjon: string };
   /** The user's own print clearance and play (mm); unset = the profile's trial values. */
   toleranser?: { klaring?: number; spillerom?: number };
-  /** Symmetry: what is done on one side is done on the other, and the centre line shows. */
-  symmetri?: boolean;
   deler: Del[];
   ledd: Ledd[];
 }
@@ -96,7 +90,6 @@ export const GRENSER = {
   },
   klaring: { min: 0.1, maks: 1.5 },
   spillerom: { min: 0, maks: 3 },
-  storrelse: { min: 0.4, maks: 1.5 },
   maksDeler: 24,
 } as const;
 
@@ -116,7 +109,6 @@ const kuppelSkjema = z.object({
 const skjema = z.object({
   skjema: z.literal(SKJEMA),
   profil: z.object({ id: z.string().max(60), versjon: z.string().max(20) }),
-  symmetri: z.boolean().optional(),
   toleranser: z
     .object({ klaring: tall(GRENSER.klaring).optional(), spillerom: tall(GRENSER.spillerom).optional() })
     .optional(),
@@ -124,8 +116,7 @@ const skjema = z.object({
     .array(
       z.object({
         id,
-        type: z.enum(delrekkefolge as [Deltype, ...Deltype[]]),
-        variant: z.string().max(30).optional(),
+        type: z.enum(['hode', 'overkropp']),
         navn: z.string().max(60),
         farge: z.string().min(1).max(80),
         lengde: z.number(),
@@ -145,7 +136,6 @@ const skjema = z.object({
         avstand: tall(GRENSER.avstand),
         forskyvning: v3(GRENSER.forskyvning),
         rotasjon: v3(GRENSER.rotasjon),
-        storrelse: tall(GRENSER.storrelse).optional(),
         kuppel: kuppelSkjema,
       }),
     )
@@ -172,8 +162,6 @@ export function valider(raw: unknown): Validering {
       grunner.push(`${d.navn}: lengden må være mellom ${g.lengde.min} og ${g.lengde.maks} mm.`);
     if (d.tykkelse < g.tykkelse.min || d.tykkelse > g.tykkelse.maks)
       grunner.push(`${d.navn}: tykkelsen må være mellom ${g.tykkelse.min} og ${g.tykkelse.maks} mm.`);
-    if (d.variant !== undefined && !g.varianter.some((v) => v.id === d.variant))
-      grunner.push(`${d.navn}: formen «${d.variant}» finnes ikke.`);
   }
   if (new Set(p.ledd.map((l) => l.id)).size !== p.ledd.length) grunner.push('To ledd har samme id.');
   const brukt = new Set<string>();
@@ -185,8 +173,8 @@ export function valider(raw: unknown): Validering {
       grunner.push(`Leddet ${l.id} viser til en del som ikke finnes.`);
       continue;
     }
-    const fp = snappunkterFor(f).find((s) => s.id === l.forelder.punkt);
-    const bp = snappunkterFor(b).find((s) => s.id === l.barn.punkt);
+    const fp = grunnformer[f.type].snappunkter(f.lengde, f.tykkelse).find((s) => s.id === l.forelder.punkt);
+    const bp = grunnformer[b.type].snappunkter(b.lengde, b.tykkelse).find((s) => s.id === l.barn.punkt);
     if (!fp || !bp) grunner.push(`Leddet ${l.id} viser til et snappunkt som ikke finnes.`);
     else if (fp.side !== 'forelder' || bp.side !== 'barn' || fp.type !== bp.type)
       grunner.push(`Leddet ${l.id} kobler snappunkter som ikke passer sammen.`);
@@ -223,45 +211,18 @@ export function tomtProsjekt(profil: { id: string; versjon: string }): CfParamet
   return { skjema: SKJEMA, profil, deler: [], ledd: [] };
 }
 
-/**
- * What a new joint between these parts starts with, from the thinner part: the child sinks a little
- * into the parent, the dome parts them, and the mechanism is scaled to fit (never below the profile's
- * capture). Design choices, tuned so the default figure builds without red findings.
- */
-export function standardLedd(forelder: Del, barn: Del): Pick<Ledd, 'avstand' | 'storrelse' | 'kuppel'> {
-  const s = Math.min(forelder.tykkelse, barn.tykkelse);
-  const halv = (v: number) => Math.round(v * 2) / 2;
-  const tidel = (v: number) => Math.round(v * 10) / 10;
-  const avstand = -halv(Math.max(1, s * 0.12));
-  const storrelse = tidel(Math.min(1, Math.max(0.5, s / 34)));
-  // two parts of about the same size meet round against round: a curved dome, thick in the middle
-  if (s / Math.max(forelder.tykkelse, barn.tykkelse) >= 0.7) {
-    const senter = tidel(Math.min(6, Math.max(1.6, s * 0.18)));
-    return {
-      avstand,
-      storrelse,
-      kuppel: {
-        diameter: Math.round(s * 0.8),
-        dybde: tidel(Math.min(3, s * 0.09)),
-        helning: 0,
-        retning: 0,
-        tykkelseSenter: senter,
-        tykkelseKant: tidel(Math.max(0.8, senter / 3)),
-      },
-    };
-  }
-  // a small part sunk into a large one: a flat cut, as thick as the overlap plus room on both sides
-  const tykkelse = tidel(-avstand + 1.2);
+/** The dome a new joint between these parts starts with. */
+export function standardKuppel(forelder: Del, barn: Del): Kuppel {
+  const smalest = Math.min(forelder.tykkelse, barn.tykkelse);
   return {
-    avstand,
-    storrelse,
-    kuppel: {
-      diameter: Math.round(s * 0.9),
-      dybde: 0,
-      helning: 0,
-      retning: 0,
-      tykkelseSenter: tykkelse,
-      tykkelseKant: tykkelse,
-    },
+    diameter: Math.round(smalest * 0.8),
+    dybde: 3,
+    helning: 0,
+    retning: 0,
+    tykkelseSenter: 6,
+    tykkelseKant: 2,
   };
 }
+
+/** The distance a new joint starts with: the child sinks a little into the parent, the dome parts them. */
+export const STANDARD_AVSTAND = -4;

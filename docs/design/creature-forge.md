@@ -53,25 +53,14 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Creature Forge
 - Click a part or a joint marker to select it. Manipulators show only for the active object: the root part can be moved; a joint can be moved and rotated (three.js `TransformControls`); fields and sliders are the non-dragging alternative.
 - **Egenskaper** (right panel) shows the active part (length, thickness, colour, position for the root), the active joint (mechanism, distance, offset, rotation and the dome's six values, with a translucent preview of the cutting volume) or, with nothing selected, the figure, the tolerances and the checks.
 
-## Phase 3: body library, variants, thumbnails, symmetry
-
-- **Base shapes** (`grunnformer.ts`): head (Rund, Kantet), upper body (Pære, Tønne, Kloss), hip (Rund, Kloss), arm and leg (Rett, Kraftig), hand (Vott, Rund), foot (Støvel, Rund; pointing forward), tail (Ledd, Spiss). Each has a length, a thickness and limits. A part's variant is stored on the part (`variant`; unset = the first), and the form can be changed in Egenskaper. A form that lacks a point holding a joint (a tail segment with a tail behind it turned into a tip) is refused.
-- **Snap points** are predefined per shape and found on the shape's surface by going out from inside along the point's normal, so they follow length, thickness and variant: neck (head → upper body), shoulders left and right (upper body → arms, pointing out), waist (upper body → hip), hips left and right (hip → legs, pointing down), tail (behind the legs, pointing down, so the tail lies on the plate in the print pose), wrists, ankles, and the end of a tail segment (→ the next tail segment: a loose chain). Arms stand out to the sides and legs and the tail hang down, so the whole figure lies flat when it prints on its back.
-- **New joints** start from the thinner part: the mechanism is scaled to fit (`storrelse`, 0.5 to 1; clearance and play never scale; the cap or knob keeps at least the profile's capture plus 0.3 mm with the profile's tolerances), parts of about the same size meet with a curved dome thick in the middle, and a small part on a large one gets a flat cut as thick as the overlap plus room on both sides. Then the distance is searched (0.5 mm steps): the smallest at which the two base shapes stay at least 0.5 mm apart everywhere the dome does not cut, so an arm on a pear-shaped body or a leg under a round hip does not grow into its parent beside the joint. Everything stays editable.
-- **Bottom menu:** eight round buttons with thumbnails; choosing one opens a row with its variants (thumbnails and names); a variant is dragged into the view or clicked for the list of free points. Only one submenu is open at a time (the variant row, or the list of points). Parts on a side are named «Venstre …» and «Høyre …».
-- **Thumbnails** (`miniatyr.ts`) are drawn from the same fields the editor meshes, with one shared offscreen renderer, the same fixed camera angle, soft light and a transparent background, once per shape and colour, one per frame. Without WebGL the button keeps its text.
-- **Symmetry** (`symmetri.ts`, «Symmetri» in the view's toolbar, stored in the project): attaching a part on one side attaches the same part on the matching free point on the other; changing a part (length, thickness, colour, form) changes its partner; changing a joint mirrors the change onto the partner's joint (offset X, the turns about the joint's axis and up direction, and the dome's orientation change sign); deleting deletes both. The centre line is a dashed outline of the root's centre plane round the figure.
-- **Figure view:** the figure stands on the plate (lifted so its lowest point is at zero) and the view is framed again when parts are added.
-- **Build:** each part is meshed in its own frame and kept in a cache (in the worker) keyed by its shape and how its joints sit on it; each joint's checks are cached by its two parts and how they sit together. Moving the whole figure or editing one joint rebuilds only what changed (moving the root: well under a second; the first build of a 13-part figure: about 8 to 10 seconds).
-
 ## Phases
 
 | Phase | Deliverable | Status |
 |---|---|---|
 | 0 | This document, decision log, master spec | Done 2026-10-23 |
-| 1 | Vertical prototype: head and upper body with length and thickness, predefined snap points, automatic joint, parent moves children, dome cut, the two candidate mechanisms, clearance, capture, swing and wall checks, export of the test figure | Approved by Sivert 2026-10-23 |
-| 2 | Joint editing in full | Delivered with phase 1 (select, move and rotate a joint, distance, offset, orientation, the dome's six values with limits and checks); counted as done when phase 3 started |
-| 3 | Body library (hip, arm, leg, hand, foot, tail, variants), bottom menu with variant rows, 3D thumbnails, symmetry and centre line | Built, awaiting Sivert's review |
+| 1 | Vertical prototype: head and upper body with length and thickness, predefined snap points, automatic joint, parent moves children, dome cut, the two candidate mechanisms, clearance, capture, swing and wall checks, export of the test figure | Built, awaiting Sivert's review |
+| 2 | Joint editing in full (approved after phase 1) | Not started |
+| 3 | Body library (hip, arm, leg, hand, foot, tail, variants), bottom menu with variant rows, 3D thumbnails, symmetry and centre line | Not started |
 | 4 | Features side panel (eyes as a symmetric pair, nose, mouth, ears, horns, spikes), additive and subtractive features following the host surface, part editor, fur as surface texture | Not started |
 | 5 | Print checks and export in full: overhangs and supports, bed contact, calibration piece, a 10 cm example figure | Not started |
 | 6 | Physical test by Sivert; measured values become a new profile version | Not started |
@@ -81,5 +70,4 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Creature Forge
 - F1: which mechanism, after test prints of the phase 1 figure.
 - Clearance, play, minimum wall and the printer and material for the first test.
 - What «Tilbehør» contains.
-- The default figure is yellow: swing limits and thin knife edges where a dome leaves the surface are reported at most joints. Whether those edges matter is a question for the test print.
 - What happens to Dragon Forge and BuildForge's figure family once Creature Forge exists (not part of this work).
