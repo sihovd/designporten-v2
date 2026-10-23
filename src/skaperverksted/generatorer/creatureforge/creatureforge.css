@@ -1,0 +1,583 @@
+/* Creature Forge: light, calm workspace (handoff UI_OG_IKONER.md). */
+
+/* A light canvas by default; a background the user picks in «Innstillinger» still wins. */
+.verksted.lys:not(.egen-bakgrunn):has(.cf-overlegg) .visning3d {
+  --horisont-topp: #f4f6fa;
+  --horisont-hoy: #eef1f7;
+  --horisont-linje: #dfe5f0;
+  --horisont-bunn: #e9edf4;
+  --horisont-pos: 0.62;
+  --bg: #e9edf4;
+  --fg: #1a2233;
+  --fg-dempet: #4a5570;
+  --linje: #9aa6bf;
+  --linje-sterk: #66728f;
+  --grafitt: #dde3ee;
+  --grafitt-2: #c9d2e2;
+  --grafitt-3: #b9c4d8;
+  --panel: #f6f8fb;
+  --panel-2: #e8ecf4;
+  --overflate: #ffffff;
+  --handling-hover: #6a2fe0;
+  --lenke: #5b24c9;
+  --advarsel-mork: #8a5200;
+  --fokus: #6a2fe0;
+  color-scheme: light;
+}
+
+/* the prototype label sits above the bottom menu */
+.arbeidsomrade:has(.cf-overlegg) .utviklingsmerke {
+  bottom: auto;
+  top: 96px;
+}
+
+.cf-overlegg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.cf-overlegg button,
+.cf-overlegg .cf-meny,
+.cf-overlegg .cf-tom {
+  pointer-events: auto;
+}
+
+.cf-overlegg button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.cf-overlegg :focus-visible {
+  outline: 2px solid var(--fokus);
+  outline-offset: 2px;
+}
+
+/* empty state */
+.cf-tom {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(360px, calc(100% - 32px));
+  padding: 16px 20px;
+  border: 1px solid var(--linje);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel, #f6f8fb) 88%, transparent);
+  color: var(--fg);
+  text-align: center;
+}
+
+.cf-tom h2 {
+  margin: 0 0 4px;
+  font-family: var(--font-overskrift, inherit);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.cf-tom p {
+  margin: 0;
+  color: var(--fg-dempet);
+}
+
+/* view toolbar and status */
+.cf-verktoy {
+  position: absolute;
+  top: 48px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+}
+
+.cf-verktoy > button,
+.cf-segment button,
+.cf-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--linje);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel, #f6f8fb) 90%, transparent);
+  color: var(--fg);
+}
+
+.cf-verktoy > button[aria-pressed='true'],
+.cf-segment button[aria-checked='true'] {
+  border-color: var(--dp-lilla, #883dff);
+  background: var(--dp-lilla, #883dff);
+  color: #fff;
+}
+
+.cf-segment {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.cf-status {
+  position: absolute;
+  top: 132px;
+  right: 12px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  padding: 4px 10px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.cf-status.gronn {
+  color: #1d6b3f;
+}
+
+.cf-status.gul {
+  color: var(--advarsel-mork, #8a5200);
+}
+
+.cf-status.rod {
+  color: #b3261e;
+}
+
+.cf-status.gra {
+  color: var(--fg-dempet);
+}
+
+.cf-status-merk {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fg-dempet);
+}
+
+/* joint markers and snap points */
+.cf-leddmerke {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  padding: 0;
+  border: 2px solid var(--dp-lilla, #883dff);
+  border-radius: 50%;
+  background: color-mix(in srgb, #fff 70%, transparent);
+}
+
+.cf-leddmerke.valgt {
+  background: var(--dp-lilla, #883dff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dp-lilla, #883dff) 30%, transparent);
+}
+
+.cf-snap {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 2px dashed var(--dp-lilla, #883dff);
+  border-radius: 50%;
+  background: color-mix(in srgb, #fff 55%, transparent);
+}
+
+.cf-snap.aktiv {
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 3px solid #1d8a4e;
+  background: color-mix(in srgb, #1d8a4e 25%, transparent);
+}
+
+.cf-snap span {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translate(-50%, 4px);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--panel, #f6f8fb);
+  color: var(--fg);
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.cf-drahjelp {
+  position: absolute;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel, #f6f8fb) 92%, transparent);
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+/* bottom tab bar, partly transparent over the canvas */
+.cf-bunn {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 24px));
+  pointer-events: none;
+}
+
+.cf-meny {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--linje) 80%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel, #f6f8fb) 78%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--fg);
+}
+
+.cf-panel {
+  padding: 10px 12px 6px;
+}
+
+.cf-runde-rad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cf-runde {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  touch-action: none;
+}
+
+.cf-runde-sirkel {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border: 1px solid var(--linje-sterk);
+  border-radius: 50%;
+  background: var(--panel, #f6f8fb);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cf-runde:hover:not([aria-disabled='true']) .cf-runde-sirkel,
+.cf-runde[aria-expanded='true'] .cf-runde-sirkel,
+.cf-runde.drar .cf-runde-sirkel {
+  border-color: var(--dp-lilla, #883dff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dp-lilla, #883dff) 22%, transparent);
+}
+
+.cf-runde[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.cf-runde[aria-disabled='true'] .cf-runde-sirkel {
+  border-style: dashed;
+  color: var(--fg-dempet);
+}
+
+.cf-planlagt {
+  margin: 4px 0;
+  color: var(--fg-dempet);
+}
+
+.cf-planlagt.kort {
+  flex: 1 1 140px;
+  align-self: center;
+  font-size: 12px;
+}
+
+.cf-faner {
+  display: flex;
+  border-top: 1px solid color-mix(in srgb, var(--linje) 70%, transparent);
+}
+
+.cf-faner [role='tab'] {
+  flex: 1;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--fg);
+}
+
+.cf-faner [role='tab'][aria-selected='true'] {
+  border-bottom-color: var(--dp-lilla, #883dff);
+  font-weight: 600;
+}
+
+.cf-faner [role='tab'].planlagt {
+  color: var(--fg-dempet);
+}
+
+.cf-kommer {
+  font-size: 11px;
+}
+
+.cf-feste {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--linje);
+  border-radius: 10px;
+  background: var(--panel, #f6f8fb);
+}
+
+.cf-feste p {
+  margin: 0 4px 0 0;
+}
+
+.cf-feste button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--dp-lilla, #883dff);
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+}
+
+.cf-feste .cf-avbryt {
+  border-color: var(--linje);
+}
+
+.cf-drahint {
+  position: fixed;
+  z-index: 50;
+  transform: translate(12px, 12px);
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--dp-lilla, #883dff);
+  color: #fff;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* properties */
+.cf-egenskaper .cf-hjelp {
+  margin: 4px 12px 8px;
+  color: var(--fg-dempet);
+  line-height: 1.45;
+}
+
+.cf-liste {
+  margin: 0;
+  padding: 0 8px 8px;
+  list-style: none;
+}
+
+.cf-liste button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  text-align: left;
+}
+
+.cf-liste button:hover {
+  background: var(--panel-2);
+}
+
+.cf-farge {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--linje-sterk);
+  border-radius: 3px;
+}
+
+.cf-leddprikk {
+  width: 12px;
+  height: 12px;
+  margin: 0 1px;
+  border: 2px solid var(--dp-lilla, #883dff);
+  border-radius: 50%;
+}
+
+.cf-funn {
+  margin: 0;
+  padding: 0 12px 10px;
+  list-style: none;
+}
+
+.cf-funn li {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--linje);
+  line-height: 1.4;
+}
+
+.cf-funn li.feil {
+  border-left-color: #b3261e;
+}
+
+.cf-funn li.advarsel {
+  border-left-color: #c78a00;
+}
+
+.cf-funn .cf-regel {
+  color: var(--fg-dempet);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.cf-toleranse {
+  margin-bottom: 4px;
+}
+
+.cf-sikkerhet {
+  display: flex;
+  gap: 8px;
+  margin: -2px 12px 6px;
+  color: var(--fg-dempet);
+  font-size: 12px;
+}
+
+.cf-lenkeknapp {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lenke);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cf-profil {
+  margin: 4px 12px 10px;
+}
+
+.cf-profil summary {
+  cursor: pointer;
+}
+
+.cf-profil dl {
+  margin: 6px 0 0;
+}
+
+.cf-profil dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--linje);
+}
+
+.cf-profil dd {
+  margin: 0;
+  text-align: right;
+}
+
+.cf-v3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cf-v3 legend {
+  padding: 6px 12px 0;
+  color: var(--fg-dempet);
+}
+
+.cf-tekstfelt {
+  display: grid;
+  gap: 4px;
+  margin: 4px 12px 8px;
+}
+
+.cf-tekstfelt input,
+.cf-tekstfelt select {
+  min-height: var(--kontroll-h);
+  padding: 0 8px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--overflate);
+  color: var(--fg);
+  font: inherit;
+}
+
+.cf-avkrysning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 8px;
+}
+
+.cf-knapperad {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 12px;
+}
+
+.cf-knapperad button,
+.cf-slett {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--linje);
+  border-radius: 8px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cf-slett {
+  margin: 4px 12px 12px;
+  border-color: #b3261e;
+  color: #b3261e;
+}
+
+@media (max-width: 760px) {
+  .cf-tom {
+    top: 56%;
+  }
+
+  /* below the shared camera buttons and the prototype label */
+  .cf-verktoy {
+    top: 136px;
+    left: 8px;
+  }
+
+  .cf-status {
+    top: 176px;
+    right: 8px;
+  }
+
+  .cf-drahjelp {
+    top: 216px;
+    white-space: normal;
+    max-width: calc(100% - 24px);
+  }
+
+  .cf-bunn {
+    bottom: 8px;
+    width: calc(100% - 16px);
+  }
+
+  .cf-runde-sirkel {
+    width: 56px;
+    height: 56px;
+    font-size: 11px;
+  }
+
+  .cf-planlagt.kort {
+    display: none;
+  }
+}
