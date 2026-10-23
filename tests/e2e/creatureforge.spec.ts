@@ -102,16 +102,20 @@ test.describe('Creature Forge', () => {
       'Tykkelse i kanten',
     ])
       await expect(page.getByRole('textbox', { name: navn, exact: true })).toBeVisible();
+    const kant = page.getByRole('textbox', { name: 'Tykkelse i kanten', exact: true });
+    const kantFor = await kant.inputValue();
     const senter = page.getByRole('textbox', { name: 'Tykkelse i sentrum', exact: true });
-    await senter.fill('8');
+    await senter.fill('3');
     await senter.press('Enter');
-    await expect(senter).toHaveValue('8');
-    await expect(page.getByRole('textbox', { name: 'Tykkelse i kanten', exact: true })).toHaveValue('2');
+    await expect(senter).toHaveValue('3');
+    // the centre and the rim are separate values
+    await expect(kant).toHaveValue(kantFor);
     const avstand = page.getByRole('textbox', { name: 'Avstand', exact: true });
     await avstand.fill('-2');
     await avstand.press('Enter');
     await ferdig(page);
     await expect(page.getByText(/Sving om leddets akse/)).toBeVisible();
+    await expect(page.getByText(/Leddet dreier om kuppelens sentrum/)).toBeVisible();
     await page.getByRole('radio', { name: 'Knottledd (utforskes)' }).click();
     await expect(page.getByRole('radio', { name: 'Knottledd (utforskes)' })).toHaveAttribute(
       'aria-checked',

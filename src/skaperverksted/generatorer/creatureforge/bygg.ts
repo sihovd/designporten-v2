@@ -12,7 +12,7 @@ import type { Advarsel, Modellresultat } from '../../core/generator';
 import type { Mesh, ModellDel } from '../../geometri/mesh';
 import { grunnformer } from './grunnformer';
 import { antallBiter, fjernSmuler, naerhet, tetthet, tynnesteVegg } from './kontroll';
-import { kuppelBoks, kuppelFelt } from './kuppel';
+import { kuppelBoks, kuppelFelt, kuppelSenter } from './kuppel';
 import {
   finnProfil,
   mekanisme,
@@ -35,7 +35,7 @@ import {
   type Boks,
   type Felt,
 } from './sdf';
-import { anvend, kolonne, minus, omAkse, pluss, prikk, vinkel, type M3, type V3 } from './vektor';
+import { anvend, kolonne, lengde, minus, omAkse, pluss, prikk, vinkel, type M3, type V3 } from './vektor';
 
 export type Niva = 'feil' | 'advarsel' | 'info';
 
@@ -157,6 +157,8 @@ export function byggCreature(raw: unknown, fremdrift?: (andel: number) => void):
     {
       ramme: Leddramme;
       form: Mekanismeform;
+      /** Where the mechanism sits and turns (figure coordinates). */
+      dreiepunkt: V3;
       kuppel: Felt;
       forelderPluss: Felt;
       barnPluss: Felt;
@@ -168,18 +170,25 @@ export function byggCreature(raw: unknown, fremdrift?: (andel: number) => void):
   for (const l of p.ledd) {
     const ramme = oppsett.ledd.get(l.id);
     if (!ramme) continue;
-    const form = mekanisme(l.mekanisme, profil, tol);
-    const mekBoks = boksIRamme(form.boks, ramme.R, ramme.punkt);
+    // the pivot: the joint point, or the centre of the dome's sphere (profile 0.2.0)
+    const senter = profil.dreiepunkt === 'kuppel' ? kuppelSenter(l.kuppel) : null;
+    const rekkevidde = senter
+      ? lengde(senter) + Math.max(l.kuppel.tykkelseSenter, l.kuppel.tykkelseKant) / 2 + 0.5
+      : 0;
+    const dreiepunkt = senter ? pluss(ramme.punkt, anvend(ramme.R, senter)) : ramme.punkt;
+    const form = mekanisme(l.mekanisme, profil, tol, rekkevidde);
+    const mekBoks = boksIRamme(form.boks, ramme.R, dreiepunkt);
     const kBoks = boksIRamme(kuppelBoks(l.kuppel), ramme.R, ramme.punkt);
-    const plassert = (f: Felt, b: Boks) => avgrenset(iRamme(f, ramme.R, ramme.punkt), b);
+    const iMek = (f: Felt) => avgrenset(iRamme(f, ramme.R, dreiepunkt), mekBoks);
     leddData.set(l.id, {
       ramme,
       form,
-      kuppel: plassert(kuppelFelt(l.kuppel), kBoks),
-      forelderPluss: plassert(form.forelderPluss, mekBoks),
-      barnPluss: plassert(form.barnPluss, mekBoks),
-      romF: plassert(form.romForelder, mekBoks),
-      romB: plassert(form.romBarn, mekBoks),
+      dreiepunkt,
+      kuppel: avgrenset(iRamme(kuppelFelt(l.kuppel), ramme.R, ramme.punkt), kBoks),
+      forelderPluss: iMek(form.forelderPluss),
+      barnPluss: iMek(form.barnPluss),
+      romF: iMek(form.romForelder),
+      romB: iMek(form.romBarn),
       boks: mekBoks,
     });
   }
@@ -290,7 +299,7 @@ export function byggCreature(raw: unknown, fremdrift?: (andel: number) => void):
       });
     const sving = { pluss: 0, minus: 0, maal: profil.maal.sving.verdi };
     const akse = anvend(ld.ramme.R, ld.form.svingakse.akse);
-    const punkt = pluss(ld.ramme.punkt, anvend(ld.ramme.R, ld.form.svingakse.punkt));
+    const punkt = pluss(ld.dreiepunkt, anvend(ld.ramme.R, ld.form.svingakse.punkt));
     if (f && b) {
       // clearance in the print pose
       const n = naerhet(f.mesh, f.felt, b.mesh, b.felt, tol.klaring + 1);

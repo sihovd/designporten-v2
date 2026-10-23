@@ -55,6 +55,12 @@ export interface Leddprofil {
   navn: string;
   fysiskStatus: 'ikke-testet' | 'testet';
   merknad: string;
+  /**
+   * Where the mechanism turns: at the joint point (0.1.0), or in the centre of the dome's sphere (0.2.0).
+   * With the pivot in the dome's centre the two parts slide along the dome's spherical gap, which stays
+   * the same width at any angle, so only shapes outside the dome limit the swing.
+   */
+  dreiepunkt?: 'ledd' | 'kuppel';
   maal: {
     klaring: Maal;
     spillerom: Maal;
@@ -118,7 +124,27 @@ export const KJEDELEDD_PROVE: Leddprofil = {
   },
 };
 
-const profiler = [KJEDELEDD_PROVE];
+/**
+ * 0.2.0 (2026-10-23, Sivert asked for more movement than 25°): the pivot moves to the centre of the
+ * dome's sphere, and the mechanism is cut free for ±60°. The child's arm or knob neck reaches from the
+ * pivot through the dome into the child. All other values as 0.1.0.
+ */
+export const KJEDELEDD_PROVE_2: Leddprofil = {
+  ...KJEDELEDD_PROVE,
+  versjon: '0.2.0',
+  merknad:
+    'Prøveprofil. Mekanismen dreier om kuppelens sentrum, så delene glir langs kuppelens kulegap. Ingen del er testprintet, så det er ikke kjent om leddene løsner etter print, sitter fast eller tåler bruk.',
+  dreiepunkt: 'kuppel',
+  maal: {
+    ...KJEDELEDD_PROVE.maal,
+    sving: { ...KJEDELEDD_PROVE.maal.sving, verdi: 60 },
+  },
+};
+
+/** The profile new projects get. */
+export const STANDARDPROFIL = KJEDELEDD_PROVE_2;
+
+const profiler = [KJEDELEDD_PROVE, KJEDELEDD_PROVE_2];
 
 export function finnProfil(id: string, versjon: string): Leddprofil | undefined {
   return profiler.find((p) => p.id === id && p.versjon === versjon);
@@ -183,7 +209,17 @@ const snu =
   (t, s, v) =>
     f(-t, -s, v);
 
-export function mekanisme(type: Mekanisme, profil: Leddprofil, tol: Toleranser): Mekanismeform {
+/**
+ * `rekkevidde`: how far (mm, along +t from the pivot) the child's part must reach to get through the
+ * dome into the child; 0 when the pivot is the joint point. Only the child's arm or knob neck gets
+ * longer; the parent's eye and the held parts keep their size.
+ */
+export function mekanisme(
+  type: Mekanisme,
+  profil: Leddprofil,
+  tol: Toleranser,
+  rekkevidde = 0,
+): Mekanismeform {
   const m = profil.maal;
   const luft = tol.klaring + tol.spillerom;
   const sving = m.sving.verdi;
@@ -192,15 +228,16 @@ export function mekanisme(type: Mekanisme, profil: Leddprofil, tol: Toleranser):
   if (type === 'knott') {
     const rk = m.knott.verdi,
       eh = m.knotthals.verdi;
-    // the knob sits inside the parent, clear of a dome of ordinary thickness
-    const tk = -(rk + luft + 4);
+    // the knob sits on the pivot, or inside the parent clear of a dome of ordinary thickness
+    const tk = rekkevidde > 0 ? 0 : -(rk + luft + 4);
+    const halsende = Math.max(stang, rekkevidde + stang);
     const knott = flytt(bikjegle(rk), tk, 0, 0);
-    const hals = diamantstang(tk, stang, eh);
+    const hals = diamantstang(tk, halsende, eh);
     const rom = union(
       vokse(knott, luft),
-      vokse(flytt(sveiptStang(0, -tk + stang, eh, sving), tk, 0, 0), luft),
+      vokse(flytt(sveiptStang(0, -tk + halsende, eh, sving), tk, 0, 0), luft),
     );
-    const halvbredde = rk + luft + stang;
+    const halvbredde = rk + luft + halsende;
     return {
       forelderPluss: TOM,
       barnPluss: union(knott, hals),
@@ -208,7 +245,7 @@ export function mekanisme(type: Mekanisme, profil: Leddprofil, tol: Toleranser):
       romBarn: TOM,
       boks: {
         min: [tk - rk - luft - 1, -halvbredde, -rk - luft - 1],
-        maks: [stang + 1, halvbredde, rk + luft + 1],
+        maks: [halsende + 1, halvbredde, rk + luft + 1],
       },
       svingakse: { punkt: [tk, 0, 0], akse: [0, 0, 1] },
       fangst: rk - (eh + luft * R2),
@@ -223,23 +260,32 @@ export function mekanisme(type: Mekanisme, profil: Leddprofil, tol: Toleranser):
   const ri = rb + luft;
   const Re = ri + e;
   const ytre = Re + e + stang;
+  // the child's arm reaches through the dome when the pivot sits in the dome's centre
+  const armende = Math.max(ytre, rekkevidde + stang);
   // the eye lies in v = 0; the cap above it and the arm below, each a clearance and the play away
   const vHette = e + luft + (rc - rb);
   const vArm = -(e + luft + ea);
-  const oye = union(diamantring(Re, e), snu(diamantstang(Re, ytre, e)));
-  const hette = flytt(bikjegle(rc), 0, 0, vHette);
-  const bolt = sylinder(rb, vArm, vHette);
-  const arm = diamantstang(0, ytre, ea, vArm);
+  // with the pivot in the dome, the arm lies in the pivot's plane and the eye and cap above it, inside
+  // the thick middle of the parent; otherwise the eye lies in the joint's plane
+  const dv = rekkevidde > 0 ? -vArm : 0;
+  const v = (f: Felt): Felt => (dv ? flytt(f, 0, 0, dv) : f);
+  const oye = v(union(diamantring(Re, e), snu(diamantstang(Re, ytre, e))));
+  const hette = v(flytt(bikjegle(rc), 0, 0, vHette));
+  const bolt = v(sylinder(rb, vArm, vHette));
+  const arm = v(diamantstang(0, armende, ea, vArm));
   return {
     forelderPluss: oye,
     barnPluss: union(hette, bolt, arm),
     // the parent keeps out of the bolt and cap (they turn in place) and the arm's swing
-    romForelder: union(vokse(union(hette, bolt), luft), vokse(sveiptStang(0, ytre, ea, sving, vArm), luft)),
+    romForelder: union(
+      vokse(union(hette, bolt), luft),
+      vokse(v(sveiptStang(0, armende, ea, sving, vArm)), luft),
+    ),
     // the child keeps out of the ring and the swing of the eye's stem
-    romBarn: vokse(union(diamantring(Re, e), snu(sveiptStang(Re, ytre, e, sving))), luft),
+    romBarn: vokse(v(union(diamantring(Re, e), snu(sveiptStang(Re, ytre, e, sving)))), luft),
     boks: {
-      min: [-ytre - luft - 1, -ytre - luft - 1, vArm - ea - luft - 1],
-      maks: [ytre + luft + 1, ytre + luft + 1, vHette + rc + luft + 1],
+      min: [-ytre - luft - 1, -armende - luft - 1, vArm - ea - luft - 1 + dv],
+      maks: [armende + luft + 1, armende + luft + 1, vHette + rc + luft + 1 + dv],
     },
     svingakse: { punkt: [0, 0, 0], akse: [0, 0, 1] },
     fangst: rc - ri,

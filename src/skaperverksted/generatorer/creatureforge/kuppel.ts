@@ -59,3 +59,14 @@ export function kuppelBoks(k: Kuppel): Boks {
   const r = k.diameter / 2 + Math.max(k.tykkelseSenter, k.tykkelseKant) + Math.min(k.dybde, k.diameter / 2);
   return { min: [-r, -r, -r], maks: [r, r, r] };
 }
+
+/** The centre of the dome's sphere in the joint frame, or null for a flat dome. */
+export function kuppelSenter(k: Kuppel): V3 | null {
+  const r = k.diameter / 2;
+  const h = Math.min(k.dybde, r);
+  if (h < 0.5) return null;
+  const R = (r * r + h * h) / (2 * h);
+  const m = kuppelRamme(k);
+  // the dome's axis is the first column of its frame; the centre lies R behind the top
+  return [-R * m[0]!, -R * m[3]!, -R * m[6]!];
+}

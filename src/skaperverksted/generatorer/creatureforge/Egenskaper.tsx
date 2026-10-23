@@ -5,12 +5,14 @@
  * values. Every value can be typed, so nothing depends on dragging.
  */
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
+import { tall } from '../../core/enheter';
 import { alleMaterialer, finnMateriale, visningsnavn } from '../../core/materialer';
 import { brukUtdrag } from '../../shell/bruk-benk';
 import { Panel, Segment, TallFelt } from '../../shell/kontroller';
 import type { CfResultat, Funn } from './bygg';
 import { grunnformer } from './grunnformer';
 import { les, settDel, settKuppel, settLedd, settToleranse, slettDel } from './handlinger';
+import { kuppelSenter } from './kuppel';
 import { finnProfil, MEKANISMER, SIKKERHET_NAVN, toleranser } from './ledd';
 import { GRENSER, valider, type Del, type Kuppel, type Ledd, type Mekanisme } from './parametre';
 import { etterkommere, finnDel, leddFra, leddTil } from './plassering';
@@ -357,7 +359,10 @@ function LeddPanel({ benk, ledd, modell }: { benk: Arbeidsbenk; ledd: Ledd; mode
               {info.sving.minus}° / {info.sving.pluss}°
             </span>{' '}
             (kontrollert til ±{info.sving.maal}°). Fangst:{' '}
-            <span class="mono">{info.fangst.toFixed(2).replace('.', ',')} mm</span>.
+            <span class="mono">{info.fangst.toFixed(2).replace('.', ',')} mm</span>.{' '}
+            {modell?.profil?.dreiepunkt === 'kuppel' && kuppelSenter(ledd.kuppel)
+              ? `Leddet dreier om kuppelens sentrum, ${tall(Math.hypot(...kuppelSenter(ledd.kuppel)!), 1)} mm inn i ${f?.navn.toLowerCase() ?? 'foreldredelen'} (den lille kulen i visningen).`
+              : 'Leddet dreier om leddpunktet.'}
           </p>
         )}
       </Panel>

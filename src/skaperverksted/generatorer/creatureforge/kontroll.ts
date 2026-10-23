@@ -5,7 +5,7 @@
  */
 import type { Mesh } from '../../geometri/mesh';
 import { gradient, type Felt } from './sdf';
-import { normaliser, type V3 } from './vektor';
+import { normaliser, prikk, type V3 } from './vektor';
 
 /** The pieces of a mesh: triangles sharing a vertex belong together. Returns the piece of every triangle. */
 function biter(m: Mesh): { bit: Int32Array; antall: number } {
@@ -284,9 +284,44 @@ export function naerhet(a: Mesh, fa: Felt, b: Mesh, fb: Felt, grense: number): N
 
 /**
  * Thin walls: from each vertex near `senter` (within `radius`), step inwards
- * along the field's normal; if the part is left again within `minVegg`,
- * the wall there is thinner. Returns the thinnest wall found (or null).
+ * along the mesh's normal; if the part is left again within `minVegg`,
+ * the wall there is thinner. Returns the thinnest wall found, or null when fewer than six vertices are thin.
  */
+/**
+ * Area-weighted vertex normals. On an edge they point between the two faces, into the material's
+ * corner, where a field gradient would follow one face and wrongly find the edge thin.
+ */
+function vertexnormaler(m: Mesh): Float64Array {
+  const p = m.posisjoner,
+    ix = m.indekser;
+  const n = new Float64Array(p.length);
+  for (let t = 0; t < ix.length; t += 3) {
+    const a = ix[t]! * 3,
+      b = ix[t + 1]! * 3,
+      c = ix[t + 2]! * 3;
+    const ux = p[b]! - p[a]!,
+      uy = p[b + 1]! - p[a + 1]!,
+      uz = p[b + 2]! - p[a + 2]!;
+    const vx = p[c]! - p[a]!,
+      vy = p[c + 1]! - p[a + 1]!,
+      vz = p[c + 2]! - p[a + 2]!;
+    const nx = uy * vz - uz * vy,
+      ny = uz * vx - ux * vz,
+      nz = ux * vy - uy * vx;
+    for (const k of [a, b, c]) {
+      n[k] = n[k]! + nx;
+      n[k + 1] = n[k + 1]! + ny;
+      n[k + 2] = n[k + 2]! + nz;
+    }
+  }
+  return n;
+}
+
+/** cos 135°: two faces turned more than this against each other enclose a thin wall or a knife edge. */
+const MOTSATT = -Math.SQRT1_2;
+/** A real thin wall or knife edge is a band of many vertices; a few on their own are meshing noise. */
+const MIN_PUNKTER = 6;
+
 export function tynnesteVegg(
   m: Mesh,
   felt: Felt,
@@ -297,21 +332,26 @@ export function tynnesteVegg(
   const p = m.posisjoner;
   let funnet: { tykkelse: number; hvor: V3; antall: number } | null = null;
   const steg = Math.max(0.1, minVegg / 8);
+  const normaler = vertexnormaler(m);
   for (let i = 0; i < p.length; i += 3) {
     const q: V3 = [p[i]!, p[i + 1]!, p[i + 2]!];
     if (Math.hypot(q[0] - senter[0], q[1] - senter[1], q[2] - senter[2]) > radius) continue;
-    const n = normaliser(gradient(felt, q));
+    const n = normaliser([normaler[i]!, normaler[i + 1]!, normaler[i + 2]!]);
     for (let s = steg * 2; s < minVegg; s += steg) {
-      if (felt(q[0] - n[0] * s, q[1] - n[1] * s, q[2] - n[2] * s) > 0) {
+      const ut: V3 = [q[0] - n[0] * s, q[1] - n[1] * s, q[2] - n[2] * s];
+      if (felt(...ut) <= 0) continue;
+      // thin only where the wall we leave through faces back against the one we started from (a plate,
+      // or an edge sharper than 45°); leaving through a neighbouring face of an ordinary corner is not
+      if (prikk(normaliser(gradient(felt, ut)), n) < MOTSATT) {
         if (!funnet) funnet = { tykkelse: s, hvor: q, antall: 0 };
         funnet.antall++;
         if (s < funnet.tykkelse) {
           funnet.tykkelse = s;
           funnet.hvor = q;
         }
-        break;
       }
+      break;
     }
   }
-  return funnet;
+  return funnet && funnet.antall >= MIN_PUNKTER ? funnet : null;
 }

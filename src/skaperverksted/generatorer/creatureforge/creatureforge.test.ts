@@ -1,11 +1,11 @@
 import { volum } from '../../geometri/mesh';
 import { byggCreature, type CfResultat } from './bygg';
 import { antallBiter, tetthet } from './kontroll';
-import { kuppelFelt } from './kuppel';
-import { KJEDELEDD_PROVE, mekanisme, toleranser } from './ledd';
+import { kuppelFelt, kuppelSenter } from './kuppel';
+import { KJEDELEDD_PROVE, KJEDELEDD_PROVE_2, mekanisme, STANDARDPROFIL, toleranser } from './ledd';
 import { lagRutenett, marsjer } from './marsj';
 import { tomtProsjekt, valider, type CfParametre, type Ledd } from './parametre';
-import { koble, leddTil, ledigeFor, leggTilRot, plasser, slett } from './plassering';
+import { finnPunkt, koble, krumning, leddTil, ledigeFor, leggTilRot, plasser, slett } from './plassering';
 import { kule } from './sdf';
 import { pluss, skaler, type V3 } from './vektor';
 
@@ -196,4 +196,53 @@ describe('Creature Forge: bygget figur', () => {
     expect(u.deler).toEqual([]);
     expect(regler(u, 'feil')).toEqual(['CF-PROSJEKT-01']);
   });
+});
+
+describe('Creature Forge: dreiepunkt i kuppelen (profil 0.2.0)', () => {
+  const profil2 = { id: KJEDELEDD_PROVE_2.id, versjon: KJEDELEDD_PROVE_2.versjon };
+  const figur2 = (): CfParametre => {
+    const a = leggTilRot(tomtProsjekt(profil2), 'hode');
+    if (!a.ok) throw new Error(a.grunn);
+    const b = koble(a.p, 'overkropp', { del: a.id, punkt: 'hals' });
+    if (!b.ok) throw new Error(b.grunn);
+    return b.p;
+  };
+
+  test('nye prosjekter får profil 0.2.0, og krumningen måles på formen', () => {
+    expect(STANDARDPROFIL.versjon).toBe('0.2.0');
+    expect(STANDARDPROFIL.dreiepunkt).toBe('kuppel');
+    const p = figur2();
+    const hode = p.deler[0]!;
+    // an ellipsoid 36 wide and 34 tall curves with radius 18² / 17 at its bottom
+    expect(krumning(hode, finnPunkt(hode, 'hals')!)).toBeCloseTo(18 ** 2 / 17, 0);
+  });
+
+  test('delene står et gap fra hverandre og kuppelen er et kuleskall rundt hodets krumningssenter', () => {
+    const p = figur2();
+    const l = p.ledd[0]!;
+    expect(l.avstand).toBeCloseTo(1, 6);
+    const senter = kuppelSenter(l.kuppel)!;
+    // the centre lies 19 mm plus half the gap behind the joint point, inside the head
+    expect(-senter[0]).toBeCloseTo(18 ** 2 / 17 + 0.5, 0);
+    expect(l.kuppel.tykkelseSenter).toBeLessThan(l.avstand);
+  });
+
+  test('grunnoppsettet svinger ±60° uten funn, med begge mekanismene', () => {
+    const p = figur2();
+    for (const mekanisme of ['kjede', 'knott'] as const) {
+      const r = byggCreature(medLedd(p, { mekanisme }));
+      expect(r.funn.filter((f) => f.niva !== 'info').map((f) => f.tittel)).toEqual([]);
+      expect(r.ledd[0]!.sving).toEqual({ pluss: 60, minus: 60, maal: 60 });
+      for (const d of r.deler) {
+        expect(tetthet(d.mesh).lukket).toBe(true);
+        expect(antallBiter(d.mesh)).toBe(1);
+      }
+    }
+  }, 120_000);
+
+  test('prosjekter med profil 0.1.0 bygges som før', () => {
+    const r = byggCreature(figur());
+    expect(r.profil?.versjon).toBe('0.1.0');
+    expect(r.ledd[0]!.sving.maal).toBe(35);
+  }, 60_000);
 });

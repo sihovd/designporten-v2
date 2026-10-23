@@ -11,6 +11,7 @@
  */
 import { nyId } from '../../core/dokument';
 import { grunnformer, type Deltype, type Snappunkt } from './grunnformer';
+import { finnProfil, toleranser } from './ledd';
 import {
   STANDARD_AVSTAND,
   standardKuppel,
@@ -187,12 +188,68 @@ export function koble(p: CfParametre, type: Deltype, forelder: Ende): Resultat {
     forelder,
     barn: { del: b.id, punkt: sb.id },
     mekanisme: 'kjede',
-    avstand: STANDARD_AVSTAND,
     forskyvning: [0, 0, 0],
     rotasjon: [0, 0, 0],
-    kuppel: standardKuppel(f, b),
+    ...startverdier(p, f, sf, b),
   };
   return { ok: true, p: { ...p, deler: [...p.deler, b], ledd: [...p.ledd, ledd] }, id: b.id };
+}
+
+/**
+ * How sharply the parent curves at a snap point, in the plane the joint swings in (the normal and
+ * the side direction): the radius of the circle through the surface at the point and a few
+ * millimetres to each side (mm). Measured on the base shape.
+ */
+export function krumning(d: Del, s: Snappunkt): number {
+  const f = grunnformer[d.type].felt(d.lengde, d.tykkelse);
+  const side = kryss(s.opp, s.normal);
+  const x = Math.max(2, Math.min(6, d.tykkelse / 6));
+  const dypt = 4;
+  // where a line along the normal, x to the side, leaves the shape: its drop behind the point
+  const fall = (fortegn: number): number => {
+    const start: V3 = pluss(pluss(s.posisjon, skaler(s.normal, -dypt)), skaler(side, fortegn * x));
+    let inne = 0,
+      ute = dypt + x;
+    if (f(...start) >= 0) return dypt;
+    for (let i = 0; i < 50; i++) {
+      const m = (inne + ute) / 2;
+      if (f(...pluss(start, skaler(s.normal, m))) < 0) inne = m;
+      else ute = m;
+    }
+    return dypt - (inne + ute) / 2;
+  };
+  const delta = Math.max(1e-3, (fall(1) + fall(-1)) / 2);
+  return (x * x + delta * delta) / (2 * delta);
+}
+
+/**
+ * What a new joint starts with. With the pivot in the dome (profile 0.2.0) the parts stand a gap
+ * apart (the clearance plus the play), and the dome is a spherical shell round the parent's centre of
+ * curvature, a little thinner than the gap: it cuts nothing to begin with, so no thin edges, and the
+ * parent's surface turns in place as the joint swings. With the pivot in the joint (0.1.0), the
+ * earlier start: the child sunk 4 mm into the parent and a curved dome parting them.
+ */
+function startverdier(p: CfParametre, f: Del, sf: Snappunkt, b: Del): Pick<Ledd, 'avstand' | 'kuppel'> {
+  const profil = finnProfil(p.profil.id, p.profil.versjon);
+  if (profil?.dreiepunkt !== 'kuppel') return { avstand: STANDARD_AVSTAND, kuppel: standardKuppel(f, b) };
+  const tol = toleranser(p, profil);
+  const gap = tol.klaring + tol.spillerom;
+  const s = Math.min(f.tykkelse, b.tykkelse);
+  const R = Math.min(s * 1.5, Math.max(s * 0.3, krumning(f, sf))) + gap / 2;
+  const r = Math.min(Math.round(s * 0.8) / 2, R * 0.95);
+  const tidel = (v: number) => Math.round(v * 10) / 10;
+  const baand = tidel(Math.max(0.2, gap - 0.2));
+  return {
+    avstand: tidel(gap),
+    kuppel: {
+      diameter: tidel(r * 2),
+      dybde: Math.round((R - Math.sqrt(R * R - r * r)) * 100) / 100,
+      helning: 0,
+      retning: 0,
+      tykkelseSenter: baand,
+      tykkelseKant: baand,
+    },
+  };
 }
 
 /** All parts that hang below a part, at any depth. */

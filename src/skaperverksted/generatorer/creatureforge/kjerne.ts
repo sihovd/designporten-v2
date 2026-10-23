@@ -7,7 +7,7 @@ import type { GeneratorPlugin } from '../../core/generator';
 import { standardPrinter } from '../../core/materialer';
 import { beregn } from './beregning';
 import type { CfResultat } from './bygg';
-import { KJEDELEDD_PROVE, SIKKERHET_NAVN } from './ledd';
+import { SIKKERHET_NAVN, STANDARDPROFIL } from './ledd';
 import { meta } from './meta';
 import { tomtProsjekt } from './parametre';
 
@@ -66,7 +66,7 @@ export const creatureKjerne: Omit<GeneratorPlugin, 'ui'> = {
       hoyde: standardPrinter.byggHoyde,
       printerProfilId: standardPrinter.id,
     });
-    const p = tomtProsjekt({ id: KJEDELEDD_PROVE.id, versjon: KJEDELEDD_PROVE.versjon });
+    const p = tomtProsjekt({ id: STANDARDPROFIL.id, versjon: STANDARDPROFIL.versjon });
     return { ...dok, parametre: p as unknown as Record<string, unknown> };
   },
   byggModell: (dok) => beregn(dok.parametre),

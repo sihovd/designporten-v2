@@ -331,6 +331,32 @@ export function CfOverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene3d 
     // the dome is rebuilt only when its own values change (kuppelNokkel), not on every new object
   }, [objekter, visKuppel, kuppelNokkel, scene, T]);
 
+  // the selected joint's pivot, where the mechanism turns
+  const dreiepunkt = valgtLedd ? modell?.ledd.find((l) => l.id === valgtLedd.id)?.svingakse.punkt : undefined;
+  const dreieNokkel = dreiepunkt?.join(',') ?? '';
+  useEffect(() => {
+    if (!dreiepunkt) return;
+    const el = scene.lerret.parentElement ?? scene.lerret;
+    const geo = new T.SphereGeometry(1.4, 16, 12);
+    const mat = new T.MeshBasicMaterial({
+      color: new T.Color(cssFarge(el, '--dp-lilla', '#883dff')),
+      depthTest: false,
+    });
+    const kule = new T.Mesh(geo, mat);
+    kule.position.set(...dreiepunkt);
+    kule.renderOrder = 20;
+    kule.name = 'Dreiepunkt';
+    objekter.gruppe.add(kule);
+    scene.tegn();
+    return () => {
+      objekter.gruppe.remove(kule);
+      geo.dispose();
+      mat.dispose();
+      scene.tegn();
+    };
+    // the point is rebuilt only when it moves (dreieNokkel)
+  }, [dreieNokkel, objekter, scene, T]);
+
   // snap points while a part is dragged in from the menu
   const r = scene.lerret.getBoundingClientRect();
   const kandidater = useMemo(() => {
