@@ -348,7 +348,7 @@ function Omrissrad({ benk, lag, o, dnd }: { benk: Arbeidsbenk; lag: Lag; o: Omri
         }}
       >
         <span class="lag-tittel">{o.navn}</span>
-        <span class="mono lag-z">
+        <span class="mono lag-z" title={gjelderTekst || undefined}>
           {o.type === 'fyll' ? 'Fyll' : 'Omriss'} {tall(o.bredde)} mm · {tall(o.hoyde)} mm høy ·{' '}
           {fargekode(mat)}
           {gjelderTekst && ` · ${gjelderTekst}`}

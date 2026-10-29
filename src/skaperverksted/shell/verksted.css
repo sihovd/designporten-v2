@@ -5427,6 +5427,8 @@ button.profilfarger.fargeknapp {
 }
 
 .omrissgjelder {
+  display: grid;
+  gap: 6px;
   min-width: 0;
   margin: 0;
   padding: 0;

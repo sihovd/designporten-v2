@@ -1119,7 +1119,7 @@ function OmrissGjelder({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omris
   const sett = (ider: string[], navn: string) =>
     benk.endre({ navn, anvend: (d) => settOmrissGjelder(d, lag.id, o.id, ider) });
   return (
-    <fieldset class="felt omrissgjelder">
+    <fieldset class="omrissgjelder">
       <legend>Går rundt</legend>
       <label class="avkryssing">
         <input
