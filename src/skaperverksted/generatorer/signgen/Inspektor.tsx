@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import {
   finnLag,
+  objekterILag,
   type Dokument,
   type Lag,
   type LagPavirkning,
@@ -32,6 +33,7 @@ import {
   standardNavn,
   HULLFORMER,
   kanHaOmriss,
+  settOmrissGjelder,
 } from './dokument';
 import {
   erOye,
@@ -905,17 +907,53 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
               />{' '}
               Samme nivå som laget under
             </label>
+            {!lag.sammeNivaa && (
+              <div class="felt">
+                <span>Hviler på</span>
+                <Segment
+                  etikett="Hva laget starter på"
+                  valg={[
+                    { id: 'oppa', navn: 'Laget under' },
+                    { id: 'lavest', navn: 'Laveste punkt' },
+                    { id: 'bed', navn: 'Printplata' },
+                  ]}
+                  verdi={lag.hvile ?? 'oppa'}
+                  endre={(v) =>
+                    endre(
+                      v === 'bed'
+                        ? 'Legg laget på printplata'
+                        : v === 'lavest'
+                          ? 'Legg laget på laveste punkt under formen'
+                          : 'Legg laget oppå laget under',
+                      { hvile: v as 'oppa' | 'bed' | 'lavest' },
+                    )
+                  }
+                />
+              </div>
+            )}
+            {!lag.sammeNivaa && lag.hvile === 'lavest' && (
+              <p class="merknad">
+                Laget starter på det laveste punktet under formen: på printplata hvis noe av det ligger over
+                bar plate, ellers på det laveste laget under. Da henger ingenting ut i lufta.
+              </p>
+            )}
+            {!lag.sammeNivaa && lag.hvile === 'bed' && (
+              <p class="merknad">Laget ligger på printplata, uansett hva som er under.</p>
+            )}
             <p class="merknad">
               {lag.sammeNivaa
                 ? 'Laget starter på samme Z som laget under, så delene kan ligge side om side i hver sin farge.'
-                : 'Laget hviler på det høyeste laget under seg som det overlapper, og ligger på printplata hvis det ikke overlapper noe. Kryss av for å legge delene på samme nivå i hver sin farge.'}
+                : lag.hvile && lag.hvile !== 'oppa'
+                  ? 'Kryss av for å legge delene på samme nivå i hver sin farge.'
+                  : 'Laget hviler på det høyeste laget under seg som det overlapper, og ligger på printplata hvis det ikke overlapper noe. Kryss av for å legge delene på samme nivå i hver sin farge.'}
             </p>
           </>
         )}
         {auto && (
           <p class="merknad">
-            Laget henger aldri i lufta: Z følger det som ligger under. Slå av «Stable lagene automatisk» i
-            Prosjektinnstillinger for å sette Z selv.
+            Z følger det som ligger under, så laget flyter ikke fritt. Velg «Laveste punkt» for at ingenting
+            av det skal henge utenfor. Slå av «Stable lagene automatisk» i Prosjektinnstillinger for å sette Z
+            selv.
           </p>
         )}
       </Panel>
@@ -1066,6 +1104,53 @@ function LagInspektor({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
 
 // ---------- outlines of a text layer ----------
 
+/**
+ * What an outline wraps: the whole layer, or the objects ticked here. Several outlines in one group can then
+ * wrap different objects (Sivert, 2026-10-29). Dragging the outline onto an object in the layers panel does
+ * the same.
+ */
+function OmrissGjelder({ benk, lag, o }: { benk: Arbeidsbenk; lag: Lag; o: Omriss }) {
+  const t = brukBenk(benk);
+  const kandidater = objekterILag(t.dok, lag.id).filter(
+    (x) => x.operasjon === 'legg-til' && !(x.kilde.type === 'form' && x.kilde.form === 'hull'),
+  );
+  const valgt = new Set((o.gjelder ?? []).filter((id) => kandidater.some((x) => x.id === id)));
+  if (kandidater.length < 2 && !o.gjelder?.length) return null;
+  const sett = (ider: string[], navn: string) =>
+    benk.endre({ navn, anvend: (d) => settOmrissGjelder(d, lag.id, o.id, ider) });
+  return (
+    <fieldset class="omrissgjelder">
+      <legend>Går rundt</legend>
+      <label class="avkryssing">
+        <input
+          type="checkbox"
+          checked={!o.gjelder?.length}
+          onChange={() => sett([], 'La omrisset gjelde hele laget')}
+        />{' '}
+        Hele laget
+      </label>
+      {kandidater.map((x) => (
+        <label class="avkryssing" key={x.id}>
+          <input
+            type="checkbox"
+            checked={valgt.has(x.id)}
+            onChange={() =>
+              sett(
+                valgt.has(x.id) ? [...valgt].filter((id) => id !== x.id) : [...valgt, x.id],
+                'Velg hva omrisset går rundt',
+              )
+            }
+          />{' '}
+          {x.navn}
+        </label>
+      ))}
+      {valgt.size === 0 && o.gjelder?.length ? (
+        <p class="merknad">Objektene omrisset gjaldt, ligger ikke i laget lenger, så det tegnes ikke.</p>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function OmrissBlokk({ benk, lag, o, i }: { benk: Arbeidsbenk; lag: Lag; o: Omriss; i: number }) {
   const st = brukSigntilstand(benk);
   const antall = lag.omriss?.length ?? 0;
@@ -1100,6 +1185,7 @@ function OmrissBlokk({ benk, lag, o, i }: { benk: Arbeidsbenk; lag: Lag; o: Omri
           endre={(v) => endre(v === 'fyll' ? 'Fyll omrisset' : 'Gjør til omriss', { type: v })}
         />
       </div>
+      <OmrissGjelder benk={benk} lag={lag} o={o} />
       <TallFelt
         etikett={o.type === 'fyll' ? 'Bredde' : 'Strekbredde'}
         verdi={o.bredde}
