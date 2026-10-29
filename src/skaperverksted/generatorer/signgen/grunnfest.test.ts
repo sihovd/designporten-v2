@@ -3,14 +3,18 @@ import {
   kanHaOmriss,
   leggTilLag,
   leggTilObjekt,
+  flyttOmrissTilLag,
   medObjektOmriss,
   nyForm,
   nyttLag,
   nyttObjekt,
   nyttOmriss,
   nyttSigngenDokument,
+  oppdaterLag,
   oppdaterObjekter,
+  settOmrissGjelder,
 } from './dokument';
+import { regionBoks } from '../../geometri/polygon';
 import { byggSigngen, grunnfest, omrissRegioner } from './modell';
 
 /** An empty sign with automatic stacking, ready for plain shape layers. */
@@ -152,3 +156,119 @@ describe('every shape can have an outline of its own', () => {
     expect(modell.deler.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('what a layer rests on can be chosen (Sivert, 2026-10-29)', () => {
+  /** A 60 x 30 plate and a hook that starts over the plate and reaches out into the air. */
+  function medKrok(hvile?: 'oppa' | 'bed' | 'lavest', x = 25) {
+    let d = medRekt(tomt(), 'Plate', 3, 0, 0, 60, 30).dok;
+    const k = medRekt(d, 'Krok', 1, x, 0, 20, 4);
+    d = k.dok;
+    if (hvile) d = oppdaterLag(d, k.lag.id, { hvile });
+    return d;
+  }
+
+  it('on top by default, on the plate with «bed», and on the plate with «lavest» when part hangs out', () => {
+    expect(z(grunnfest(medKrok()), 'Krok')).toBe(3);
+    expect(z(grunnfest(medKrok('bed')), 'Krok')).toBe(0);
+    expect(z(grunnfest(medKrok('lavest')), 'Krok')).toBe(0);
+  });
+
+  it('«lavest» keeps a layer that lies wholly over the plate on top of it', () => {
+    expect(z(grunnfest(medKrok('lavest', 0)), 'Krok')).toBe(3);
+  });
+
+  it('«lavest» starts at the lowest top when the shape is wholly over layers of different heights', () => {
+    let d = medRekt(tomt(), 'Lav', 2, -10, 0, 20, 10).dok;
+    d = medRekt(d, 'Hoy', 5, 10, 0, 20, 10).dok;
+    const k = medRekt(d, 'Bro', 1, 0, 0, 10, 4); // spans x -5..5 over Lav and 5 is the edge of Hoy
+    d = oppdaterLag(k.dok, k.lag.id, { hvile: 'lavest' });
+    expect(z(grunnfest(d), 'Bro')).toBe(2);
+  });
+});
+
+describe('an outline can wrap only some of the objects in a layer (Sivert, 2026-10-29)', () => {
+  function gruppe() {
+    let d = tomt();
+    const lag = nyttLag('Gruppe', 'pla-grafitt', 2);
+    d = leggTilLag(d, lag);
+    const a = nyttObjekt(lag.id, nyForm('rektangel', 10, 10, 0), { x: 0 }, 'A');
+    const b = nyttObjekt(lag.id, nyForm('rektangel', 10, 10, 0), { x: 60 }, 'B');
+    d = leggTilObjekt(leggTilObjekt(d, a), b);
+    return { d, lag, a, b };
+  }
+  const omrissAv = (d: Dokument, lagId: string) => d.lag.find((l) => l.id === lagId)!.omriss!;
+  const boks = (d: Dokument, lagId: string, id: string) => regionBoks(omrissRegioner(d, lagId)!.get(id)!);
+
+  it('wraps everything without a scope, and only the chosen objects with one', () => {
+    const { d, lag, a, b } = gruppe();
+    const dd = leggOmrissDirekte(d, lag.id);
+    const o = omrissAv(dd, lag.id)[0]!;
+    const alle = boks(dd, lag.id, o.id);
+    expect(alle.maksX - alle.minX).toBeGreaterThan(60);
+    const kunB = boks(settOmrissGjelder(dd, lag.id, o.id, [b.id]), lag.id, o.id);
+    expect(kunB.maksX - kunB.minX).toBeLessThan(20);
+    expect(kunB.minX).toBeGreaterThan(40);
+    const kunA = boks(settOmrissGjelder(dd, lag.id, o.id, [a.id]), lag.id, o.id);
+    expect(kunA.maksX).toBeLessThan(20);
+    // clearing the scope wraps everything again
+    const igjen = boks(
+      settOmrissGjelder(settOmrissGjelder(dd, lag.id, o.id, [a.id]), lag.id, o.id, null),
+      lag.id,
+      o.id,
+    );
+    expect(igjen.maksX - igjen.minX).toBeGreaterThan(60);
+  });
+
+  it('two outlines can wrap different objects of one layer', () => {
+    const { d, lag, a, b } = gruppe();
+    let dd = leggOmrissDirekte(leggOmrissDirekte(d, lag.id), lag.id);
+    const [o1, o2] = omrissAv(dd, lag.id);
+    dd = settOmrissGjelder(dd, lag.id, o1!.id, [a.id]);
+    dd = settOmrissGjelder(dd, lag.id, o2!.id, [b.id]);
+    expect(boks(dd, lag.id, o1!.id).maksX).toBeLessThan(20);
+    expect(boks(dd, lag.id, o2!.id).minX).toBeGreaterThan(40);
+  });
+
+  it('an outline for an object that has left the layer prints nothing', () => {
+    const { d, lag, a } = gruppe();
+    let dd = leggOmrissDirekte(d, lag.id);
+    const o = omrissAv(dd, lag.id)[0]!;
+    dd = settOmrissGjelder(dd, lag.id, o.id, [a.id]);
+    const uten = {
+      ...dd,
+      rekkefolge: { ...dd.rekkefolge, [lag.id]: dd.rekkefolge[lag.id]!.filter((x) => x !== a.id) },
+    };
+    expect(omrissRegioner(uten, lag.id)!.has(o.id)).toBe(false);
+  });
+
+  it('an outline moves to another layer and then wraps everything there', () => {
+    const { d, lag, a } = gruppe();
+    const dd = leggOmrissDirekte(d, lag.id);
+    const o = omrissAv(dd, lag.id)[0]!;
+    const ann = medRekt(dd, 'Annet', 2, 0, 40, 10, 10);
+    const scoped = settOmrissGjelder(ann.dok, lag.id, o.id, [a.id]);
+    const flyttet = flyttOmrissTilLag(scoped, lag.id, o.id, ann.lag.id);
+    expect(flyttet.lag.find((l) => l.id === lag.id)!.omriss ?? []).toHaveLength(0);
+    const ny = omrissAv(flyttet, ann.lag.id);
+    expect(ny.map((x) => x.id)).toEqual([o.id]);
+    expect(ny[0]!.gjelder).toBeUndefined();
+  });
+});
+
+/** An outline on a whole layer, whatever it holds. */
+function leggOmrissDirekte(d: Dokument, lagId: string): Dokument {
+  return {
+    ...d,
+    lag: d.lag.map((l) =>
+      l.id === lagId
+        ? {
+            ...l,
+            omriss: [
+              ...(l.omriss ?? []),
+              nyttOmriss(`Omriss ${(l.omriss?.length ?? 0) + 1}`, 'pla-kritthvit', { bredde: 2, avstand: 1 }),
+            ],
+          }
+        : l,
+    ),
+  };
+}

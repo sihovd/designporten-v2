@@ -675,40 +675,89 @@ function utenHull(region: Region): Region {
 function omrissNokkel(lag: Lag): string {
   return (lag.omriss ?? [])
     .filter((o) => o.synlig)
-    .map((o) => `${o.id}|${o.type}|${o.avstand}|${o.bredde}|${o.hjorne}`)
+    .map((o) => `${o.id}|${o.type}|${o.avstand}|${o.bredde}|${o.hjorne}|${(o.gjelder ?? []).join(',')}`)
     .join(';');
 }
 
 type Omrissliste = { id: string; region: Region }[];
+
+/** Each object's own region around the same origin as the layer's region (for outlines that wrap only some). */
+function objektLokale(dok: Dokument, lag: Lag): Map<string, Region> | null {
+  const objekter = objekterILag(dok, lag.id).filter((o) => o.synlig && !erGjennomgaende(o));
+  const forste = objekter[0]?.transform;
+  const dx = forste ? Math.round(forste.x * SKALA) : 0;
+  const dy = forste ? Math.round(forste.y * SKALA) : 0;
+  const relativ = objekter.map((o) => ({
+    ...o.transform,
+    x: (Math.round(o.transform.x * SKALA) - dx) / SKALA,
+    y: (Math.round(o.transform.y * SKALA) - dy) / SKALA,
+  }));
+  const inn: unknown[] = [];
+  objekter.forEach((o, i) => inn.push(o.id, o.kilde, o.operasjon, JSON.stringify(relativ[i])));
+  return husk(`objektlokale:${lag.id}`, inn, () => {
+    const ut = new Map<string, Region>();
+    for (const [i, o] of objekter.entries()) {
+      if (o.operasjon === 'trekk-fra') continue;
+      const r = verdensRegion({ ...o, transform: relativ[i]! });
+      if (!r) return null;
+      ut.set(o.id, r);
+    }
+    return ut;
+  });
+}
+
+/** The per-object regions, only when an outline of the layer wraps some of its objects. */
+function omrissDeler(dok: Dokument, lag: Lag): Map<string, Region> | null {
+  return (lag.omriss ?? []).some((o) => o.synlig && o.gjelder?.length) ? objektLokale(dok, lag) : null;
+}
 
 /**
  * Outlines of a text layer, from a base outline (the text). Each outline
  * starts a gap away from what is inside it and never covers it: «omriss»
  * is a ring of its width; «fyll» fills out to its width and closes holes
  * such as the inside of «o» and the space between letters.
+ *
+ * An outline with `gjelder` wraps only those objects (and the earlier outlines around them), so objects in
+ * one group can have different outlines (Sivert, 2026-10-29). `deler` holds the objects' own regions.
  */
-function omrissFra(lag: Lag, tekst: Region, slot: string): Omrissliste {
-  return husk(`omriss-${slot}:${lag.id}`, [tekst, omrissNokkel(lag)], () => {
-    const ut: Omrissliste = [];
-    let inne = tekst;
-    for (const o of lag.omriss ?? []) {
-      if (!o.synlig) continue;
-      const avstand = Math.max(SKJULT_GLIPE, o.avstand);
-      const start = forskyv(inne, avstand, o.hjorne);
-      const ytre = forskyv(inne, avstand + Math.max(MIN_OMRISSBREDDE, o.bredde), o.hjorne);
-      const kant = o.type === 'fyll' ? utenHull(ytre) : ytre;
-      ut.push({ id: o.id, region: differanse(kant, start) });
-      inne = union(inne, kant);
-    }
-    return ut;
-  })!;
+function omrissFra(lag: Lag, tekst: Region, slot: string, deler?: Map<string, Region> | null): Omrissliste {
+  return husk(
+    `omriss-${slot}:${lag.id}`,
+    [tekst, omrissNokkel(lag), ...(deler ? [...deler.values()] : [])],
+    () => {
+      const ut: Omrissliste = [];
+      const kanter: { ids: Set<string> | null; kant: Region }[] = [];
+      let inne = tekst;
+      for (const o of lag.omriss ?? []) {
+        if (!o.synlig) continue;
+        const ids = o.gjelder?.length && deler ? new Set(o.gjelder.filter((id) => deler.has(id))) : null;
+        // an outline for objects that are gone prints nothing
+        if (ids && !ids.size) continue;
+        let base = inne;
+        if (ids) {
+          base = unionAlle([
+            ...[...ids].map((id) => deler!.get(id)!),
+            ...kanter.filter((k) => !k.ids || [...k.ids].some((id) => ids.has(id))).map((k) => k.kant),
+          ]);
+        }
+        const avstand = Math.max(SKJULT_GLIPE, o.avstand);
+        const start = forskyv(base, avstand, o.hjorne);
+        const ytre = forskyv(base, avstand + Math.max(MIN_OMRISSBREDDE, o.bredde), o.hjorne);
+        const kant = o.type === 'fyll' ? utenHull(ytre) : ytre;
+        ut.push({ id: o.id, region: differanse(kant, start) });
+        kanter.push({ ids, kant });
+        inne = union(inne, kant);
+      }
+      return ut;
+    },
+  )!;
 }
 
 /** Everything a text layer prints (text and outlines), before influences. Null while fonts load. */
 function fotavtrykk(dok: Dokument, lag: Lag): Plassert | null {
   const tekst = egenLokal(dok, lag);
   if (!tekst) return null;
-  const omriss = omrissFra(lag, tekst.lokal, 'egen');
+  const omriss = omrissFra(lag, tekst.lokal, 'egen', omrissDeler(dok, lag));
   if (!omriss.length) return tekst;
   const lokal = husk(`fotavtrykk:${lag.id}`, [tekst.lokal, omriss], () =>
     unionAlle([tekst.lokal, ...omriss.map((o) => o.region)]),
@@ -726,7 +775,7 @@ function omrissForHull(dok: Dokument, lag: Lag): Omrissliste | null {
   // the footprint's outlines, moved into place
   const tekst = egenLokal(dok, lag);
   if (!tekst) return null;
-  const lokal = omrissFra(lag, tekst.lokal, 'egen');
+  const lokal = omrissFra(lag, tekst.lokal, 'egen', omrissDeler(dok, lag));
   return husk(`omriss-egen:${lag.id}@`, [lokal, tekst.dx, tekst.dy], () =>
     lokal.map((o) => ({ id: o.id, region: flyttRegion(o.region, tekst.dx, tekst.dy) })),
   );
@@ -1288,6 +1337,22 @@ export function grunnfest(dok: Dokument): Dokument {
   return na;
 }
 
+/**
+ * The lowest point under a layer's shape: the build plate when any of it lies over bare plate, otherwise
+ * the lowest top among what it rests on. Nothing of it can then hang over empty space.
+ */
+function lavestePunkt(
+  deler: Trykkdel[],
+  under: { del: Trykkdel; topp: number }[],
+  rorer: { del: Trykkdel; topp: number }[],
+): number {
+  if (!rorer.length) return 0;
+  const egen = unionAlle(deler.map((d) => d.region));
+  const dekket = unionAlle(under.map((u) => u.del.region));
+  if (areal(differanse(egen, dekket)) > MIN_OVERLAPP) return 0;
+  return Math.min(...rorer.map((u) => u.topp));
+}
+
 function grunnfestEnGang(dok: Dokument): Dokument {
   const rekke = stable(dok);
   const under: { del: Trykkdel; topp: number }[] = [];
@@ -1304,8 +1369,9 @@ function grunnfestEnGang(dok: Dokument): Dokument {
     let bunn = 0;
     if (lag.sammeNivaa && i > 0) bunn = nivaaBunn;
     else {
-      for (const u of under)
-        if (u.topp > bunn && deler.some((d) => delerOverlapper(d.region, u.del.region))) bunn = u.topp;
+      const rorer = under.filter((u) => deler.some((d) => delerOverlapper(d.region, u.del.region)));
+      if (lag.hvile === 'lavest') bunn = lavestePunkt(deler, under, rorer);
+      else if (lag.hvile !== 'bed') for (const u of rorer) bunn = Math.max(bunn, u.topp);
       nivaaBunn = bunn;
     }
     bunn = Math.round(bunn * 1000) / 1000;

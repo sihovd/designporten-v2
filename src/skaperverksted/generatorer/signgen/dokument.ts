@@ -724,6 +724,44 @@ export function flyttOmrissTil(
   });
 }
 
+/**
+ * Let an outline wrap only some of the layer's objects (or all again with no ids), so that objects in one
+ * group can have different outlines (Sivert, 2026-10-29).
+ */
+export function settOmrissGjelder(dok: Dokument, lagId: LagId, id: string, ider: string[] | null): Dokument {
+  return medOmriss(dok, lagId, (r) =>
+    r.map((o) => {
+      if (o.id !== id) return o;
+      const { gjelder: _bort, ...rest } = o;
+      void _bort;
+      return ider?.length ? { ...rest, gjelder: [...new Set(ider)] } : rest;
+    }),
+  );
+}
+
+/**
+ * Move an outline to another layer, outermost there, wrapping everything in it. The outline is not tied to
+ * the group it was made in (Sivert, 2026-10-29). Returns the document unchanged when the layer cannot have it.
+ */
+export function flyttOmrissTilLag(dok: Dokument, fraId: LagId, id: string, tilId: LagId): Dokument {
+  const fra = finnLag(dok, fraId);
+  const til = finnLag(dok, tilId);
+  const o = fra?.omriss?.find((x) => x.id === id);
+  if (!fra || !til || !o || fraId === tilId || til.last || fra.last || !kanHaOmriss(dok, til)) return dok;
+  const { gjelder: _bort, ...rest } = o;
+  void _bort;
+  return stable({
+    ...dok,
+    lag: dok.lag.map((l) =>
+      l.id === fraId
+        ? { ...l, omriss: (l.omriss ?? []).filter((x) => x.id !== id) }
+        : l.id === tilId
+          ? { ...l, omriss: [...(l.omriss ?? []), rest] }
+          : l,
+    ),
+  });
+}
+
 /** Move an outline outwards (+1) or inwards (−1). */
 export function flyttOmriss(dok: Dokument, lagId: LagId, id: string, retning: 1 | -1): Dokument {
   return medOmriss(dok, lagId, (r) => {

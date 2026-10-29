@@ -142,6 +142,11 @@ export interface Omriss {
   hjorne: 'rund' | 'skarp' | 'faset';
   synlig: boolean;
   last: boolean;
+  /**
+   * Sign Forge: the objects in the layer this outline wraps (Sivert, 2026-10-29). Without it the outline
+   * wraps everything in the layer; with it, objects in one group can have different outlines.
+   */
+  gjelder?: string[];
 }
 
 export interface Lag {
@@ -171,6 +176,13 @@ export interface Lag {
    * parts of different colours can lie side by side (a horse with a mane in another colour).
    */
   sammeNivaa?: boolean;
+  /**
+   * Sign Forge, with automatic stacking: what the layer starts on (Sivert, 2026-10-29). «oppa» (default):
+   * on top of the highest layer under it that it overlaps. «bed»: on the build plate, whatever is under.
+   * «lavest»: at the lowest point under its shape, on the plate when any of it is over bare plate, so
+   * nothing of it overhangs.
+   */
+  hvile?: 'oppa' | 'bed' | 'lavest';
 }
 
 export interface Plate {

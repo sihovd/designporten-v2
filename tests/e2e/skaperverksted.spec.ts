@@ -1902,6 +1902,51 @@ test.describe('Signgen', () => {
     await expect(page.locator('.omrissrad')).toHaveCount(for_);
   });
 
+  test('et lag kan hvile på laveste punkt eller printplata, og et omriss kan gjelde bare ett objekt', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Tegning med mus testes på desktop');
+    const lerret = page.locator('canvas').first();
+    const b = (await lerret.boundingBox())!;
+    const tegn = async (x1: number, y1: number, x2: number, y2: number) => {
+      await page.keyboard.press('r');
+      await page.mouse.move(b.x + b.width * x1, b.y + b.height * y1);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width * x2, b.y + b.height * y2, { steps: 5 });
+      await page.mouse.up();
+    };
+    await tegn(0.45, 0.4, 0.55, 0.5);
+    await tegn(0.7, 0.2, 0.8, 0.3);
+    await expect(page.locator('.objektliste li')).not.toHaveCount(0);
+
+    // an outline on the layer the rectangles went into selects the layer
+    const lag2 = page.locator('.lagrad', { hasText: 'Lag 2' }).first();
+    await lag2.getByRole('button', { name: '+ Omriss' }).click();
+    const hviler = page.getByRole('radiogroup', { name: 'Hva laget starter på' });
+    await expect(hviler).toBeVisible();
+    await hviler.getByRole('radio', { name: 'Printplata' }).click();
+    await expect(page.getByLabel('Starter på Z')).toHaveValue('0');
+    await hviler.getByRole('radio', { name: 'Laveste punkt' }).click();
+    await expect(page.getByText('Da henger ingenting ut i lufta.')).toBeVisible();
+
+    // the outline wraps only the second rectangle
+    const gjelder = page.getByRole('group', { name: 'Går rundt' });
+    await expect(gjelder).toBeVisible();
+    await gjelder.getByRole('checkbox').nth(2).check();
+    await expect(gjelder.getByRole('checkbox').first()).not.toBeChecked();
+    await expect(page.locator('.omrissrad').filter({ hasText: /gjelder/ })).toHaveCount(1);
+    await gjelder.getByRole('checkbox').first().check();
+    await expect(page.locator('.omrissrad').filter({ hasText: /gjelder/ })).toHaveCount(0);
+
+    // dragging the outline onto an object in the layers panel makes it wrap only that object
+    await lag2.locator('.omrissrad .drahandtak').dragTo(lag2.locator('.objektliste li').first());
+    await expect(page.locator('.omrissrad').filter({ hasText: /gjelder Rektangel/ })).toHaveCount(1);
+    // and dropping it on its own layer's row wraps the whole layer again
+    await lag2.locator('.omrissrad .drahandtak').dragTo(lag2.locator('.lagrad-hode'));
+    await expect(page.locator('.omrissrad').filter({ hasText: /gjelder/ })).toHaveCount(0);
+  });
+
   test('senterlinjen til et Paint-strøk kan redigeres som punkter, og bredden bevares', async ({
     page,
     isMobile,

@@ -22,6 +22,8 @@ import {
   flyttLagTil,
   flyttObjekterInnI,
   flyttOmrissTil,
+  flyttOmrissTilLag,
+  settOmrissGjelder,
   kanHaOmriss,
   kanLiggeI,
   losUtObjekt,
@@ -267,6 +269,15 @@ function Lagmeny({ x, y, valg, lukk }: { x: number; y: number; valg: MenyValg[];
   );
 }
 
+/** «Gjelder Strek» or «gjelder 2 objekter»: what an outline that does not wrap the whole layer wraps. */
+function gjelderNavn(dok: Dokument, lag: Lag, o: Omriss): string {
+  const navn = (o.gjelder ?? [])
+    .filter((id) => dok.objekter[id]?.lagId === lag.id)
+    .map((id) => dok.objekter[id]!.navn);
+  if (!navn.length) return 'gjelder ingenting';
+  return navn.length === 1 ? `gjelder ${navn[0]}` : `gjelder ${navn.length} objekter`;
+}
+
 /** One outline of a text layer: a row of its own in the layers panel. */
 function Omrissrad({ benk, lag, o, dnd }: { benk: Arbeidsbenk; lag: Lag; o: Omriss; dnd: Dnd }) {
   const t = brukBenk(benk);
@@ -278,6 +289,7 @@ function Omrissrad({ benk, lag, o, dnd }: { benk: Arbeidsbenk; lag: Lag; o: Omri
   const kanSlippes =
     dnd.dra?.type === 'omriss' && dnd.dra.lagId === lag.id && dnd.dra.id !== o.id && !lag.last;
   const plass = dnd.over === o.id ? dnd.overPlass : null;
+  const gjelderTekst = o.gjelder?.length ? gjelderNavn(t.dok, lag, o) : '';
   return (
     <li
       class={`omrissrad${aktiv ? ' aktiv' : ''}${o.synlig ? '' : ' skjult'}${
@@ -286,6 +298,7 @@ function Omrissrad({ benk, lag, o, dnd }: { benk: Arbeidsbenk; lag: Lag; o: Omri
       onDragOver={(e) => {
         if (!kanSlippes) return;
         e.preventDefault();
+        e.stopPropagation();
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const ny = e.clientY < r.top + r.height / 2 ? 'over' : 'under';
         if (dnd.over !== o.id || dnd.overPlass !== ny) dnd.settOver(o.id, ny);
@@ -297,6 +310,7 @@ function Omrissrad({ benk, lag, o, dnd }: { benk: Arbeidsbenk; lag: Lag; o: Omri
       onDrop={(e) => {
         if (!kanSlippes) return;
         e.preventDefault();
+        e.stopPropagation();
         dnd.slippOmriss(lag.id, o.id, plass === 'under' ? 'etter' : 'for');
       }}
     >
@@ -337,6 +351,7 @@ function Omrissrad({ benk, lag, o, dnd }: { benk: Arbeidsbenk; lag: Lag; o: Omri
         <span class="mono lag-z">
           {o.type === 'fyll' ? 'Fyll' : 'Omriss'} {tall(o.bredde)} mm · {tall(o.hoyde)} mm høy ·{' '}
           {fargekode(mat)}
+          {gjelderTekst && ` · ${gjelderTekst}`}
         </span>
       </button>
     </li>
@@ -404,6 +419,8 @@ interface Dnd {
   kan: (lag: Lag) => boolean;
   slipp: (lagId: string, plass: Plass) => void;
   slippOmriss: (lagId: string, mal: string, plass: 'for' | 'etter') => void;
+  /** An outline dropped on one object: it then wraps only that object (moving to its layer first). */
+  slippOmrissPaaObjekt: (lagId: string, objektId: string) => void;
   /** Rename in place: the layer being renamed, and the menu opening on a layer. */
   omdop: string | null;
   ferdigOmdop: () => void;
@@ -433,8 +450,9 @@ function Lagrad({
   // a layer can be dropped next to another layer, or into one that takes it (a text group)
   const drarLag = dnd.dra?.type === 'lag' && dnd.dra.id !== lag.id;
   const drarObjekt = dnd.dra?.type === 'objekt' && dnd.kan(lag);
+  const drarOmriss = dnd.dra?.type === 'omriss' && dnd.kan(lag);
   const kanInn = !!dnd.dra && dnd.kan(lag);
-  const kanSlippes = drarLag || drarObjekt;
+  const kanSlippes = drarLag || drarObjekt || drarOmriss;
   const plass = dnd.over === lag.id ? dnd.overPlass : null;
   return (
     <li
@@ -448,7 +466,7 @@ function Lagrad({
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
         let ny: Plass = 'inn';
-        if (!drarObjekt) {
+        if (!drarObjekt && !drarOmriss) {
           const hode = (e.currentTarget as HTMLElement)
             .querySelector('.lagrad-hode')!
             .getBoundingClientRect();
@@ -568,8 +586,39 @@ function Lagrad({
           {[...objekter].reverse().map((o) => {
             const valgt = t.utvalg.objekter.includes(o.id);
             const erTekst = o.kilde.type === 'tekst';
+            // an outline dropped here wraps this object only
+            const kanFaOmriss =
+              dnd.dra?.type === 'omriss' &&
+              !lag.last &&
+              o.operasjon === 'legg-til' &&
+              !(o.kilde.type === 'form' && o.kilde.form === 'hull') &&
+              kanHaOmriss(t.dok, lag);
             return (
-              <li key={o.id} class={valgt ? 'valgt' : ''}>
+              <li
+                key={o.id}
+                class={`${valgt ? 'valgt' : ''}${kanFaOmriss ? ' kan-slippes' : ''}${
+                  kanFaOmriss && dnd.over === o.id ? ' slipp-her' : ''
+                }`}
+                onDragOver={(e) => {
+                  if (!kanFaOmriss) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (dnd.over !== o.id || dnd.overPlass !== 'inn') dnd.settOver(o.id, 'inn');
+                }}
+                onDragLeave={(e) => {
+                  if (
+                    dnd.over === o.id &&
+                    !(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)
+                  )
+                    dnd.settOver(null);
+                }}
+                onDrop={(e) => {
+                  if (!kanFaOmriss) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  dnd.slippOmrissPaaObjekt(lag.id, o.id);
+                }}
+              >
                 <Drahandtak dnd={dnd} dra={{ type: 'objekt', id: o.id }} av={o.last || lag.last} />
                 <Bryter
                   type="synlighet"
@@ -697,7 +746,13 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
     settOverTilstand((a) => (id === null ? null : a?.id === id && a.plass === plass ? a : { id, plass }));
   const kan = (lag: Lag): boolean => {
     if (!dra || lag.last) return false;
-    if (dra.type === 'omriss') return false;
+    if (dra.type === 'omriss') {
+      // onto another layer that can have outlines, or onto the outline's own layer to wrap it all again
+      const fra = dra.lagId ? finnLag(t.dok, dra.lagId) : undefined;
+      if (!fra || fra.last) return false;
+      if (dra.lagId === lag.id) return !!fra.omriss?.find((x) => x.id === dra.id)?.gjelder?.length;
+      return kanHaOmriss(t.dok, lag);
+    }
     if (dra.type === 'objekt') {
       const o = t.dok.objekter[dra.id];
       return !!o && o.lagId !== lag.id && kanLiggeI(o, lag);
@@ -728,7 +783,28 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
       benk.velg({ lag: d.id, objekter: [] });
       return;
     }
-    if (d.type === 'omriss') return;
+    if (d.type === 'omriss') {
+      if (!d.lagId) return;
+      const fraId = d.lagId;
+      const m = finnLag(benk.dok, lagId);
+      if (fraId === lagId) {
+        benk.endre({
+          navn: 'La omrisset gjelde hele laget',
+          anvend: (dok: Dokument) => settOmrissGjelder(dok, lagId, d.id, null),
+        });
+        benk.melde('Omrisset gjelder hele laget igjen.');
+        return;
+      }
+      benk.endre({
+        navn: 'Flytt omriss til lag',
+        anvend: (dok: Dokument) => flyttOmrissTilLag(dok, fraId, d.id, lagId),
+      });
+      benk.velg({ lag: lagId, objekter: [] });
+      signtilstand(benk).sett({ omriss: d.id });
+      apneNytt(lagId);
+      if (m) benk.melde(`Omrisset er flyttet til «${m.navn}» og går rundt alt der.`);
+      return;
+    }
     const mal = finnLag(benk.dok, lagId);
     const r =
       d.type === 'objekt' ? flyttObjekterInnI(benk.dok, [d.id], lagId) : flyttLagInnI(benk.dok, d.id, lagId);
@@ -757,6 +833,24 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
       navn: 'Flytt omriss',
       anvend: (dok: Dokument) => flyttOmrissTil(dok, lagId, d.id, mal, plass),
     });
+  };
+  const slippOmrissPaaObjekt = (lagId: string, objektId: string) => {
+    const d = dra;
+    slutt();
+    if (d?.type !== 'omriss' || !d.lagId) return;
+    const fraId = d.lagId;
+    if (fraId !== lagId && !kanHaOmriss(benk.dok, finnLag(benk.dok, lagId)!)) return;
+    benk.endre({
+      navn: 'La omrisset gjelde objektet',
+      anvend: (dok: Dokument) =>
+        settOmrissGjelder(fraId === lagId ? dok : flyttOmrissTilLag(dok, fraId, d.id, lagId), lagId, d.id, [
+          objektId,
+        ]),
+    });
+    benk.velg({ lag: lagId, objekter: [objektId] });
+    signtilstand(benk).sett({ omriss: d.id });
+    apneNytt(lagId);
+    benk.melde(`Omrisset går nå bare rundt «${benk.dok.objekter[objektId]?.navn ?? 'objektet'}».`);
   };
   const slippUt = () => {
     const d = dra;
@@ -796,6 +890,7 @@ export function Lagpanel({ benk }: { benk: Arbeidsbenk }) {
     kan,
     slipp,
     slippOmriss,
+    slippOmrissPaaObjekt,
     omdop,
     ferdigOmdop: () => settOmdop(null),
     apneMeny: (lagId, x, y) => settLagmeny({ lagId, x, y }),
