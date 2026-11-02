@@ -176,9 +176,16 @@ describe('parametre', () => {
   });
 });
 
+/** A dragon made with the part picker (no drawing): how every project before the drawing editor was stored. */
+function klassiskDokument() {
+  const dok = dragePlugin.nyttDokument();
+  const { modus: _m, tegning: _t, ...parametre } = dok.parametre;
+  return { ...dok, parametre };
+}
+
 describe('plugin', () => {
   it('lager et dokument og bygger det', async () => {
-    const dok = dragePlugin.nyttDokument();
+    const dok = klassiskDokument();
     expect(dok.generator).toBe('drage');
     expect(lesParametre(dok.parametre)).toEqual(standardParametre);
     const r = await dragePlugin.byggModell(dok);
@@ -192,10 +199,7 @@ describe('handlinger', () => {
   it('endrer parametre gjennom historikken og kan angres', async () => {
     const { Arbeidsbenk } = await import('../../core/arbeidsbenk');
     const { endreDrage, parametre } = await import('./handlinger');
-    const benk = new Arbeidsbenk(
-      { ...dragePlugin, ui: { Inspektor: () => null } },
-      dragePlugin.nyttDokument(),
-    );
+    const benk = new Arbeidsbenk({ ...dragePlugin, ui: { Inspektor: () => null } }, klassiskDokument());
     endreDrage(benk, 'Vinger: Store', (p) => ({ ...p, vinger: 'store' }));
     expect(parametre(benk).vinger).toBe('store');
     // A change that only produces invalid values is clamped, not stored raw.
@@ -208,7 +212,7 @@ describe('handlinger', () => {
   });
 
   it('bestilling beskriver valgene uten pris', async () => {
-    const dok = dragePlugin.nyttDokument();
+    const dok = klassiskDokument();
     const modell = await dragePlugin.byggModell(dok);
     const b = dragePlugin.bestilling!(dok, modell);
     expect(b.produktId).toBe('skaperverksted-drage');

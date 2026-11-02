@@ -15,9 +15,9 @@ import {
 import { brukUtdrag } from '../../shell/bruk-benk';
 import { Panel, TallFelt } from '../../shell/kontroller';
 import { mal } from '../../shell/mal';
-import { byttModus } from './brikker/handlinger';
 import { endreDrage, tilfeldig } from './handlinger';
 import { leddMal } from './ledd';
+import { fraKlassisk } from './tegning/operasjoner';
 import {
   forhandsvalg,
   katalog,
@@ -126,13 +126,29 @@ export function DrageInspektor({ benk }: { benk: Arbeidsbenk }) {
 
   return (
     <>
-      <Panel tittel="Brikkebygger">
+      <Panel tittel="Tegn dragen selv">
         <p class="merknad">
-          Bygg dragen av enkeltbrikker: hode, kroppsledd og hale som kobles, kobles fra og byttes hver for
-          seg. Starter med et hode, tre kroppsledd og en hale fra valgene dine her.
+          Denne dragen er laget med delvelgeren. I den nye Dragon Forge tegner du ryggen ovenfra, drar høyden
+          fra siden og ser 3D-modellen samtidig. Hode, horn, øyne, hale og pigger tas med.
         </p>
-        <button type="button" class="kontroll-knapp" onClick={() => byttModus(benk, 'brikker')}>
-          Bygg med brikker
+        <button
+          type="button"
+          class="kontroll-knapp"
+          onClick={() =>
+            benk.endre({
+              navn: 'Tegn dragen selv',
+              anvend: (d) => ({
+                ...d,
+                parametre: {
+                  ...d.parametre,
+                  modus: 'tegning',
+                  tegning: fraKlassisk(lesParametre(d.parametre)),
+                },
+              }),
+            })
+          }
+        >
+          Tegn dragen selv
         </button>
       </Panel>
 

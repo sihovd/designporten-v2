@@ -1,17 +1,19 @@
-# Dragon Forge: brick builder
+# Dragon Forge: drawing editor
 
-Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Extends [skaperverksted.md › Articulated dragon generator](skaperverksted.md#articulated-dragon-generator). Dragon Forge stays the `drage` generator on the same route; the classic part-picker dragon is unchanged and every existing project opens as before.
+Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Replaces the parameter picker described in [skaperverksted.md › Articulated dragon generator](skaperverksted.md#articulated-dragon-generator) for new dragons. Dragon Forge stays the `drage` generator on the same route. Dragons made with the earlier part picker open and work as before.
 
 ## Sources
 
 | Source | Status |
 |---|---|
-| Sivert's project treatise «Dragon Forge – et modulært verksted for artikulerte, 3D-printbare drager» v1.0, 2026-11-02, kept unchanged as [dragon-forge-prosjektavhandling.md](dragon-forge-prosjektavhandling.md) | New product direction. Its data model, phases and acceptance criteria (DF-01 to DF-18) are a proposal; this file records what is decided and built. |
-| Sivert's message in the Claude project thread, 2026-11-02 | Do phase 0 (map the existing code) and phase 1 (a working, graph-based brick builder); keep existing functionality; stay inside Dragon Forge. |
+| Sivert's project treatise «Dragon Forge – et modulært verksted for artikulerte, 3D-printbare drager» v1.0, 2026-11-02, kept unchanged as [dragon-forge-prosjektavhandling.md](dragon-forge-prosjektavhandling.md) | Background and phase 0 (map the existing code). Its brick-graph model was built first and then replaced, see below. Its rules on trial profiles and physical validation still apply. |
+| Sivert in the Claude project thread, 2026-11-02: «Dette skal bygges fra bunnen.» and «Ønsker samme prinsipp med 2d editoren der man tegner og legger til elementer samtidig som man ser hvordan det blir. Så kan man også se fra siden.» | The direction this file describes: a new drawing editor in the spirit of Sign Forge, with a top view, a side view and the result shown at the same time. |
 
-## Direction (2026-11-02)
+## Direction
 
-Dragon Forge becomes a CityKit-like workshop: the user builds a dragon by placing articulated **bricks** on the plate and joining them at **connection points**; bricks can be edited, repeated, swapped and saved as presets, and joints get their own designer. Four rooms in one project: Bygg drage, Rediger brikke, Design kobling, Klargjør print (treatise §5). This widens the older spec, which only described pre-modelled parts on fixed joints. The classic dragon remains as the «ferdig drage» mode of the same generator.
+The user draws the dragon. Seen from above they draw the spine and pull out the width; seen from the side they drag the height; they add spikes where they want them. The 3D model is built while they draw. Pieces and the joints between them are laid out along the spine automatically, and the joint's measurements are locked. The dragon prints in place in the pose that is drawn.
+
+A brick builder (place bricks and join them at points, treatise phase 1) was built first on the same branch and replaced by this before it was merged. It is in the git history of PR #58.
 
 ## Phase 0: what exists and what is reused
 
@@ -19,37 +21,71 @@ Read 2026-11-02 on `main` (`affab66`).
 
 | Existing | Verdict |
 |---|---|
-| `drage/ledd.ts`, `ledd-geometri.ts`: one joint standard, a vertical hinge printed in place (socket with a biconical cavity and wedge slot in the front part, pin and arm on the rear part), clearance 0.35–0.6 mm by size, own invariant check | **Reused unchanged** as the brick joint. It is the only mechanism with geometry and tests in Dragon Forge, so it is the first (trial) profile. |
-| `drage/utviklingsbibliotek.ts`: procedural bodies (dome over a superellipse, socket cut in by a loft), head with snout/eyes/horns, spikes, tail tips, wings, legs | **Reused**: body, head, spikes and tail are built per brick by the same functions (now exported). Wings and legs wait for later phases. |
-| `drage/skjelett.ts`: proportions and the rule that sizes a part around its socket (`delmaal`) | **Reused** (exported): a brick's size comes from the same rule, so walls round the socket keep their minimum. |
-| `drage.test.ts`: closed shells, clearance vertex-to-surface between moving parts | Helpers moved to `testgeometri.ts` and **reused** for brick pairs. |
-| Shell: history (one step per change, merge on drags), `lesInn`, autosave, file save/open, 3MF/STL export with one body per `ModellDel`, export rules, the 3D view with overlays | **Reused** without changes to the shell. |
-| BuildForge `graf.ts` (a modular body graph) | Read as a pattern only. Not imported: product models are kept apart (treatise §3). |
-| CityKit code | **Not in this repository.** Only the treatise's summary was available; no CityKit class is copied. |
+| `drage/ledd.ts`, `ledd-geometri.ts`: one joint standard, a vertical hinge printed in place (socket with a biconical cavity and wedge slot in the front piece, pin and arm on the rear piece), clearance 0.35–0.6 mm by size, own invariant check | **Reused** as the joint between drawn pieces. One small, compatible change: the socket's slot can open in another direction than straight back (`Sokkel.retning`, default straight back, so the classic dragon is unchanged). |
+| `drage/utviklingsbibliotek.ts`: procedural bodies, head with snout, eyes and horns, spikes, tail tips | **Reused** per piece (exported). Wings and legs are not in the drawing editor yet. |
+| `drage/skjelett.ts`: proportions, head and tail reach, arm length | **Reused** (exported). |
+| `drage.test.ts`: closed shells, clearance between moving pieces | Helpers moved to `testgeometri.ts` and reused for drawn dragons. |
+| Shell: history with merged drags, `lesInn`, autosave, files, 3MF/STL export with one body per part, export rules, the shared 3D view, the tool rail | **Reused** without changes to the shell. |
+| Sign Forge | Pattern only (tools in the rail, handles, snap to grid). No Sign Forge code is imported or changed. |
+| CityKit, BuildForge, Creature Forge, Form Forge | Not used and not changed. |
 
-Missing for production: physically tested joint measurements, Designporten's modelled parts, the printer and material for calibration, and which mechanism family comes after the trial hinge (treatise §34).
+## The drawing (`tegning/modell.ts`)
 
-## Phase 1: the brick builder (implemented)
+Stored in `parametre.tegning` (schema 1, plain JSON) with `parametre.modus = 'tegning'`. Colours and pattern stay in the classic keys (`farger`, `monster`), so the colour zones are shared.
 
-**Mode.** «Bygg med brikker» in the classic inspector switches the project to brick mode (`parametre.modus = 'brikker'`); «Tilbake til ferdig drage» switches back. Both are undo steps, and the classic values and the bricks stay in the same `parametre`, so neither is lost. A project without `modus` is classic. A new brick project starts from the reference dragon (treatise §32: one head, three body pieces, one tail end) in the head and tail chosen in the classic picker.
+| Field | What |
+|---|---|
+| `rygg` | Spine points on the plate in mm (plate centre 0), nose first; 2–40 points. The spine is a centripetal Catmull-Rom curve through them. |
+| `bredde`, `hoyde` | Full width and height along the spine as points `{t, verdi}` (t = 0 at the nose, 1 at the tail tip), smoothly interpolated. Width 6–80 mm, height 4–60 mm. |
+| `antallDeler` | Number of pieces including head and tail tip, or `null` for automatic. |
+| `hode`, `hale` | Head shape, horns, eyes; tail tip. Same catalogue as the classic dragon. |
+| `elementer` | Spikes: `{id, type: 'pigg', t, form}`. A spike sits in the middle of the piece its position falls on; one per piece. |
 
-**Project model** (`brikker/modell.ts`, `parametre.brikker`, schema 1, plain JSON):
+Positions along the spine are fractions, so width, height and spikes follow when the spine is redrawn. `lesTegning` fills defaults, clamps every number, removes broken entries, makes ids unique and says what it repaired. It also runs on open (`lesInn`).
 
-- *Definition*: id + version, category (hode, kropp, hale), size in the skeleton's relative units, head or tail recipe, connection points. Nine definitions, all development geometry: three heads, two body pieces, a tail joint, three tail ends.
-- *Point*: stable id (`foran`, `bak`), role (`tapp` = pin, `sokkel` = socket), profile id + version, capacity one. The point's frame (position and outward direction) is computed from the joint standard: the socket centre one socket radius inside the rear, a front pin `mellomrom` + one socket radius in front, exactly as in the classic skeleton.
-- *Instance*: id, definition reference, optional own name, local values (width ×0.8–1.4 with the joint locked, spikes, and for heads horns and eyes).
-- *Connection*: two ends, profile reference, joint angle (0 = print pose in phase 1), production `print-i-ett`.
-- *Group*: one per connected set; its root carries the placement (x, y in mm, angle in degrees). Every other brick is placed from its parent: `T_barn = T_forelder · K_forelder · R(180° + q) · K_barn⁻¹`.
-- *Profile*: `hengsel-m` v1, the existing joint at the 160 mm reference size, `fysiskStatus: 'proveprofil'`.
+## From drawing to pieces (`tegning/geometri.ts`)
 
-**Rules.** A pin joins a socket of the same profile; two pins, two sockets, an occupied point, the brick itself or a closed loop are refused with a reason, and nothing is created. Disconnect keeps both sides where they lie and makes the far side a loose group. Delete either leaves what hung on the brick as loose groups or deletes the branch behind it. Swap keeps every connection whose point id exists on the new brick with a fitting role and shows the ones it loses before the swap; what hung on a lost point stays where it lay. Each operation is one undo step. Reading a stored project (`lesBrikkeprosjekt`, also on open via `lesInn`) checks ids, references, capacity, compatibility and loops, repairs the groups, keeps an unknown definition version as it is and reports it.
+- The joint is sized for the spine length (`leddMal`, 100–240 mm). Its clearance is between 0.35 and 0.6 mm.
+- The head takes about a fifth of the spine; the rest is shared by the other pieces, with the tail tip getting more because it carries the tip. Automatic count aims at about eleven pieces on a long spine and never goes below what the joint needs.
+- Joints sit on the spine. Each piece is straight between its joints and built in its own frame from the classic recipe: socket at the rear, pin and arm into the piece in front, head details on the first, tail tip on the last.
+- Where the spine bends, the gap between two pieces grows until their bodies clear each other by the joint clearance plus 0.15 mm (searched for each joint).
+- The socket's slot turns to where the arm lies in the drawn pose, so the arm prints in the middle of it. From there the joint moves ±bevegelse (about 27° at 160 mm).
+- A drawn width too narrow for the socket wall is widened, and the user is told.
 
-**Geometry and checks** (`brikker/bygg.ts`). Each brick is built in its own frame from the classic recipe and placed by the graph; one `ModellDel` per brick and material, so each brick is a separate moving body in the 3MF. The build reports: development geometry, the trial profile, loose groups, plate and height limits, colour count, the joint's own check, and a red finding when two bricks that are not joined overlap seen from above (convex footprints). Brick-mode export offers one STL per brick and is blocked while a red finding stands; the project can still be saved.
+**Checks**, shared by the 2D views, the 3D model and the export:
 
-**Editor.** Bottom tray: library (Hoder, Kropp, Hale) with thumbnails rendered from the brick itself. Choosing a brick lights up the free points it fits on the model (cyan) and lists them as buttons; tapping one shows a see-through cyan preview and the sentence of what will happen, with «Koble» / «Avbryt». «Legg løst på platen» adds it unconnected. Tapping a brick selects it (light purple). Properties: the model tree (★ root, children indented, loose groups), the selected brick's points with «Koble fra» / «Koble til …», Bytt, Dupliser, Slett, Slett med grenen, its own values («Kun denne brikken»), the group's X, Y and direction, colours, and facts about the joint. Esc cancels a pending action, Delete deletes the selected brick. Nothing needs hover, right-click or dragging.
+- red (export blocked): spine too short for head, one piece and tail; a bend so tight that a piece has no room for its joint; a joint bent more than 40° in the print; two pieces that touch on the plate (neighbours in a bend or pieces whose spine crosses); the joint's own invariants;
+- warnings: outside the plate, taller than the printer, more colours than one print takes;
+- notes: development geometry, the trial profile (not physically tested in a bent pose), widened pieces, extra spikes on one piece, a spike hidden by horns, fewer pieces than chosen.
 
-**Tests** (`brikker/brikker.test.ts`): reference dragon, DF-01, DF-02, DF-03, DF-05, DF-07 (save and reopen gives the same bricks, connections and placement), DF-08, DF-11, DF-14, group move and turn, delete modes, repair on read, unknown version kept, closed shells for every definition, joint clearance in the print pose for ten neighbour pairs, mode switch with undo, export rules.
+## The editor
+
+**Workspace** (`tegning/Lerret.tsx`). Three views at once: Ovenfra (large), Fra siden (below), 3D (right column). Medium widths put the side view and 3D side by side under the top view; small screens share the lower pane with tabs «Fra siden» / «3D».
+
+- **Tools** in the workshop's tool rail: *Juster* (V), *Tegn rygg* (R), *Pigg* (P).
+- *Juster*: drag spine points (cyan, the nose in purple), width handles (white squares on both sides) and spikes (diamonds). Drag a piece to move the whole dragon; tap a piece to select it. Double-click on the spine adds a point; double-click beside it adds a width point. Drag the empty plate to pan; the wheel zooms round the pointer; «Vis hele platen» shows the plate.
+- *Tegn rygg*: one stroke from nose to tail tip becomes the new spine (simplified to at most 14 points). Strokes under 30 mm are refused, so a stray tap never erases the dragon.
+- *Pigg*: tap a piece to put a spike in its middle, in the form chosen in the bar.
+- *Fra siden*: the pieces' real silhouettes along the spine (nose to the right), joints as dashed lines, and the height curve with handles. Double-click on the curve adds a point.
+- «Fest til 5 mm» snaps spine points and moves to a 5 mm grid (shared workshop setting; Alt skips it).
+- Problems are drawn where they are: red dashed outline on pieces, red joints.
+- Every handle is a button that can be reached with Tab: arrow keys move it 1 mm (Shift 5 mm), Delete removes it, Esc clears the selection. Handles have 28 px hit areas.
+
+**Properties** (`tegning/Inspektor.tsx`): the selection (spine point X/Y; width or height and its place; a spike's form; a piece's width, height, gap and print angles, with «Legg til pigg» / «Fjern piggen»), the list of red findings (a finding about a piece selects it), pieces and joints (automatic or chosen count, spine length, size, clearance, movement, «Bytt nese og hale», «Tegn ny rygg»), head and tail, colours and pattern, and «Start med standarddragen».
+
+**Older dragons.** A project without `modus: 'tegning'` opens in the part picker with its 3D view, bottom tray and wiggle, as before. Its inspector offers «Tegn dragen selv», which keeps the head, horns, eyes, tail and spikes and starts the standard drawing (one undo step).
+
+**Export and order.** One STL per piece is offered (each piece is its own body in the 3MF). The note says it is a trial print. Export is blocked while a red finding stands; saving is not. The order summary lists spine length, pieces and joints, head, horns, tail, spikes, pattern and colours, and never a price.
+
+## Tests
+
+`tegning/tegning.test.ts`: the spine passes through its points; profile interpolation; the standard dragon has no red findings; every pin is exactly in the socket in front of it, also in bends; nose and tail tip land where the spine starts and ends; the gap grows in bends; the slot faces the arm; too sharp, too short and crossing spines give red findings; chosen piece counts are limited; narrow widths are widened; spikes land one per piece; closed shells; clearance between every moving neighbour (vertex to surface) in a straight and a bent pose; deterministic build; repair on read; the edit operations; the plug-in (new dragons are drawn, older dragons build as before, export rules, order). E2E: drawing, keyboard, undo, the three views on desktop and mobile, axe on the workspace and properties, the older dragon path and its switch to drawing.
 
 ## Not built yet
 
-Later phases of the treatise: the brick editor with positive/negative shapes and protected zones (phase 2), the joint designer and a chosen mechanism family with linking tests (phase 3), presets and a versioned library (phase 4), chains, mirrored pairs and paths (phase 5), print setup and a control report (phase 6). Also: posing a joint (the angle is stored but stays 0), dragging bricks in 3D (placement is by points and number fields), wings and legs as bricks, collision between bricks during movement, and a physical test print. Nothing here is physically validated.
+Drawing the outline of each piece freely (the width curve shapes it now), wings and legs, horns and other elements placed anywhere (horns follow the head choice), lifting the spine off the plate, posing the joints in 3D, the treatise's joint designer and other mechanism families, presets, and a physical test print. The drawn pose is checked digitally only: the joint is a trial profile that has not been printed bent. Nothing here is physically validated.
+
+## Open questions for Sivert
+
+- Should each piece's outline be drawn freely as well (as shapes in Sign Forge), or is the width along the spine enough? (Asked 2026-11-02.)
+- Physical measurements and the printer for calibrating the joint in a bent print.

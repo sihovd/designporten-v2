@@ -41,6 +41,12 @@ export interface Sokkel {
   /** Joint centre X (the socket is on the part's centre line). */
   jx: number;
   mal: LeddMal;
+  /**
+   * Direction the slot opens towards, radians (default π: straight back). A
+   * drawn dragon prints with its joints bent, so the slot is turned to where
+   * the arm lies in the print, and the arm sits in the middle of it.
+   */
+  retning?: number;
 }
 
 /**
@@ -53,10 +59,13 @@ export interface Sokkel {
 export function sokkelKropp(o: Omriss, profil: Kuppelprofil, sokkel: Sokkel): Mesh {
   const { jx, mal } = sokkel;
   const psi = mal.spalteVinkel;
-  const ePluss = utgang(o, jx, 0, Math.PI - psi);
-  const eMinus = utgang(o, jx, 0, Math.PI + psi);
+  const c = sokkel.retning ?? Math.PI;
+  const ePluss = utgang(o, jx, 0, c - psi);
+  const eMinus = utgang(o, jx, 0, c + psi);
   const tPluss = omrissParameter(o, ePluss[0], ePluss[1]);
-  const tMinus = omrissParameter(o, eMinus[0], eMinus[1]);
+  let tMinus = omrissParameter(o, eMinus[0], eMinus[1]);
+  // the front arc runs from E− round the front to E+
+  if (tMinus > tPluss) tMinus -= 2 * Math.PI;
 
   const foran: number[] = Array.from(
     { length: FORAN },
@@ -72,7 +81,7 @@ export function sokkelKropp(o: Omriss, profil: Kuppelprofil, sokkel: Sokkel): Me
   const hulrom = (z: number): V3[] => {
     const r = hulromRadius(mal, z);
     return Array.from({ length: HULROM }, (_, i) => {
-      const v = Math.PI - psi - (i / (HULROM - 1)) * 2 * (Math.PI - psi);
+      const v = c - psi - (i / (HULROM - 1)) * 2 * (Math.PI - psi);
       return [jx + r * Math.cos(v), r * Math.sin(v), z];
     });
   };
