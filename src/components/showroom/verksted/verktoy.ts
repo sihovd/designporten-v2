@@ -8,7 +8,7 @@ import { nettsti } from '@/lib/nettsti';
  */
 import { katalog } from '@/skaperverksted/generatorer';
 
-export type Forhandsvisning = 'signgen' | 'lampe' | 'drage' | 'buildforge';
+export type Forhandsvisning = 'signgen' | 'lampe' | 'buildforge';
 
 export interface Verktoy {
   id: string;
@@ -21,7 +21,7 @@ export interface Verktoy {
   forhandsvisning?: Forhandsvisning;
 }
 
-const forhandsvisbare = new Set<string>(['signgen', 'lampe', 'drage', 'buildforge']);
+const forhandsvisbare = new Set<string>(['signgen', 'lampe', 'buildforge']);
 
 export const verktoy: Verktoy[] = [
   ...katalog.map((g) => ({

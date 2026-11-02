@@ -31,7 +31,6 @@ test('all routes, local links and assets stay inside the subdirectory', async ({
     '/skaperverksted/',
     '/skaperverksted/signgen/',
     '/skaperverksted/lampe/',
-    '/skaperverksted/drage/',
     '/handlekurv/',
     '/sok/?q=petg',
   ];

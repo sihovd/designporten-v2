@@ -12,7 +12,7 @@ Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Covers site st
 /skaperverksted/          Skaperverksted (generator hub)
   /skaperverksted/signgen/  Signgen
   /skaperverksted/lampe/    Lamp generator
-  /skaperverksted/drage/    Articulated dragon generator
+  /skaperverksted/drage/    Articulated dragon generator (removed 2026-11-02, to be rebuilt)
 /spesialdesign/           Spesialdesign + idéskjema
 /bedrift/                 For bedrifter
 /inspirasjon/             Inspirasjon (projects, stories, guides)

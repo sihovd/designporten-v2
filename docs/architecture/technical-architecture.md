@@ -54,7 +54,6 @@ src/
     generatorer/
       signgen/
       lampe/
-      drage/
 tests/e2e/                  browser tests per area
 ```
 

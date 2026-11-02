@@ -82,7 +82,6 @@ Parallel work stays inside its own folders. Shared foundations change only in sm
 | `src/skaperverksted/core/`, `geometri/`, `eksport/`, `shell/`, `render2d/`, `render3d/` | Shared editor architecture | Foundation (Skaperverksted) |
 | `src/skaperverksted/generatorer/signgen/` | Signgen | Foundation (Skaperverksted) |
 | `src/skaperverksted/generatorer/lampe/` | Lamp generator | Lamp workstream |
-| `src/skaperverksted/generatorer/drage/` | Dragon generator | Dragon workstream |
 | `src/skaperverksted/generatorer/buildforge/` | BuildForge (build engine: clickers, figures) | BuildForge workstream |
 | `src/skaperverksted/generatorer/creatureforge/` | Creature Forge (articulated figures, loose joints, Boolean dome; separate from Dragon Forge and BuildForge) | Creature Forge workstream |
 | `src/pages/skaperverksted/` | Hub and editor routes | Foundation (Skaperverksted) |

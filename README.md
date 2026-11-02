@@ -4,7 +4,7 @@ Dette er det nye prosjektet for Designporten.no, etablert fra bunnen av som grun
 
 DESIGNPORTEN_MASTER.md er prosjektets overordnede spesifikasjon og eneste inngang. Detaljene ligger i `docs/`, og arbeidsreglene for alle som jobber i repoet står i `CLAUDE.md`.
 
-Nettstedet er en frittstående Astro-app (se ADR-001) med showroom, produkter og handlekurv med bestillingsforespørsel, og Skaperverkstedet med Signgen (skilt), lampegeneratoren og den artikulerte dragen. Eldre Designporten-kode er ikke brukt som grunnlag.
+Nettstedet er en frittstående Astro-app (se ADR-001) med showroom, produkter og handlekurv med bestillingsforespørsel, og Skaperverkstedet med Signgen (skilt), lampegeneratoren. Dragon Forge er fjernet og skal bygges på nytt. Eldre Designporten-kode er ikke brukt som grunnlag.
 
 ## Kom i gang
 

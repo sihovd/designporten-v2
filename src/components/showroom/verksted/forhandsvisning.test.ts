@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { skiltMedPlate } from '@/skaperverksted/generatorer/signgen/testskilt';
-import { SIGNGEN_START, drage, lampe, skilt } from './forhandsvisning';
+import { SIGNGEN_START, lampe, skilt } from './forhandsvisning';
 
 describe('generator previews', () => {
   it('matches a plate sign built in Signgen', () => {
@@ -35,13 +35,5 @@ describe('generator previews', () => {
     expect(l.kontur).toMatch(/^M/);
     expect(l.ribber.length).toBeGreaterThan(100);
     expect(l.ribberVridd).not.toBe(l.ribber);
-  });
-
-  it('draws every part of the default dragon with its joint', () => {
-    const d = drage();
-    expect(d.lengde).toBe(160);
-    expect(d.deler.length).toBeGreaterThan(4);
-    expect(d.deler[0]!.ledd).toBeNull();
-    expect(d.deler.slice(1).every((p) => p.ledd !== null)).toBe(true);
   });
 });
