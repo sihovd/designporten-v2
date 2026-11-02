@@ -25,4 +25,38 @@ test.describe('Artikulert drage', () => {
     const r = await new AxeBuilder({ page }).include('.bunnbrett').include('.inspektor').analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
+
+  test('bygger med brikker: kobler fra, kobler til igjen og angrer', async ({ page }) => {
+    await page.goto('/skaperverksted/drage/');
+    await expect(page.getByRole('tab', { name: 'Kropp' })).toBeVisible();
+    const egenskaper = page.getByRole('button', { name: 'Egenskaper', exact: true });
+    if (await egenskaper.isVisible()) await egenskaper.click();
+    await page.getByRole('button', { name: 'Bygg med brikker' }).click();
+    await expect(page.getByRole('button', { name: /Kroppsledd, avrundet 3/ })).toBeVisible();
+
+    await page.getByRole('button', { name: /^Hale med spade/ }).click();
+    await page.getByRole('button', { name: 'Koble fra' }).click();
+    await expect(page.getByText(/Løs gruppe 1/)).toBeVisible();
+
+    // connect it again through the point list and the preview
+    await page.getByRole('button', { name: 'Koble til …' }).click();
+    await page.getByRole('button', { name: 'Kroppsledd, avrundet 3, sokkel bak', exact: true }).click();
+    await page.locator('.panel').getByRole('button', { name: 'Koble', exact: true }).click();
+    await expect(page.getByText(/Løs gruppe 1/)).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Angre' }).first().click();
+    await expect(page.getByText(/Løs gruppe 1/)).toBeVisible();
+  });
+
+  test('brikkebyggeren har ingen tilgjengelighetsfeil', async ({ page }) => {
+    await page.goto('/skaperverksted/drage/');
+    await expect(page.getByRole('tab', { name: 'Kropp' })).toBeVisible();
+    const egenskaper = page.getByRole('button', { name: 'Egenskaper', exact: true });
+    if (await egenskaper.isVisible()) await egenskaper.click();
+    await page.getByRole('button', { name: 'Bygg med brikker' }).click();
+    await page.getByRole('button', { name: /Kroppsledd, avrundet 2/ }).click();
+    await expect(page.getByRole('tab', { name: 'Hoder' })).toBeVisible();
+    const r = await new AxeBuilder({ page }).include('.bunnbrett').include('.inspektor').analyze();
+    expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
 });

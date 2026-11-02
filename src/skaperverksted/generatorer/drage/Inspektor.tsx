@@ -15,6 +15,7 @@ import {
 import { brukUtdrag } from '../../shell/bruk-benk';
 import { Panel, TallFelt } from '../../shell/kontroller';
 import { mal } from '../../shell/mal';
+import { byttModus } from './brikker/handlinger';
 import { endreDrage, tilfeldig } from './handlinger';
 import { leddMal } from './ledd';
 import {
@@ -29,7 +30,7 @@ import {
 } from './parametre';
 import './drage.css';
 
-function Fargevelger({
+export function Fargevelger({
   sone,
   navn,
   verdi,
@@ -125,6 +126,16 @@ export function DrageInspektor({ benk }: { benk: Arbeidsbenk }) {
 
   return (
     <>
+      <Panel tittel="Brikkebygger">
+        <p class="merknad">
+          Bygg dragen av enkeltbrikker: hode, kroppsledd og hale som kobles, kobles fra og byttes hver for
+          seg. Starter med et hode, tre kroppsledd og en hale fra valgene dine her.
+        </p>
+        <button type="button" class="kontroll-knapp" onClick={() => byttModus(benk, 'brikker')}>
+          Bygg med brikker
+        </button>
+      </Panel>
+
       <Panel tittel="Start fra">
         <div class="drage-forhandsvalg">
           {forhandsvalg.map((f) => (

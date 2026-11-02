@@ -19,7 +19,8 @@ export function endreDrage(
       const forrige = lesParametre(d.parametre);
       const neste = lesParametre({ ...endring(forrige) });
       if (JSON.stringify(neste) === JSON.stringify(forrige)) return d;
-      return { ...d, parametre: { ...neste } };
+      // other keys (brick mode, its project) stay as they are
+      return { ...d, parametre: { ...d.parametre, ...neste } };
     },
   });
 }

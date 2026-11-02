@@ -43,7 +43,7 @@ export interface Skjelett {
 }
 
 /** [length, width, height] in relative units. */
-type Mal = [number, number, number];
+export type Mal = [number, number, number];
 
 interface Kroppsmal {
   hode: Mal;
@@ -114,23 +114,23 @@ const kroppsmaler: Record<Kroppsvariant, Kroppsmal> = {
 };
 
 /** Head variant: [length ×, width ×, height ×, snout reach (× head length)]. */
-const hodeformer: Record<Hodevariant, [number, number, number, number]> = {
+export const hodeformer: Record<Hodevariant, [number, number, number, number]> = {
   rund: [1, 1, 1, 0.12],
   lang: [1.1, 0.9, 0.95, 0.3],
   bred: [0.95, 1.2, 0.85, 0.14],
 };
 
 /** Tail tip reach behind the last part, × that part's length. */
-const halerekkevidde: Record<Halevariant, number> = {
+export const halerekkevidde: Record<Halevariant, number> = {
   spade: 1.0,
   spiss: 1.1,
   kolle: 0.55,
 };
 
-const N = 2.8;
-const N_HODE = 2.3;
+export const N = 2.8;
+export const N_HODE = 2.3;
 
-interface Maal {
+export interface Maal {
   af: number;
   ab: number;
   b: number;
@@ -139,7 +139,14 @@ interface Maal {
   j: number;
 }
 
-function delmaal(m: Mal, s: number, mal: LeddMal, harSokkel: boolean, veggHoyde: number, n: number): Maal {
+export function delmaal(
+  m: Mal,
+  s: number,
+  mal: LeddMal,
+  harSokkel: boolean,
+  veggHoyde: number,
+  n: number,
+): Maal {
   const R = sokkelRadius(mal);
   let af = (m[0] * s) / 2;
   let ab = (m[0] * s) / 2;
@@ -168,7 +175,7 @@ function delmaal(m: Mal, s: number, mal: LeddMal, harSokkel: boolean, veggHoyde:
 }
 
 /** Where the arm ends, relative to the part's own socket: inside the wall in front of its cavity. */
-function armEnde(mal: LeddMal): number {
+export function armEnde(mal: LeddMal): number {
   return hulromMaks(mal) + mal.vegg / 2;
 }
 

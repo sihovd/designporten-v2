@@ -25,3 +25,16 @@ The spec says the dragon parts are modelled by Designporten. Until they exist, `
 ## Tests
 
 `drage.test.ts` checks that every shell is closed and outward-facing, that no two moving pieces touch or come closer than the clearance in the print pose (vertex-to-surface distance and inside tests), that the skeleton hits the chosen length at every size and body type, that every catalogue variant builds, and that parameters are validated.
+
+## Brick mode (`brikker/`)
+
+A second mode of the same generator (spec: `docs/design/dragon-forge.md`). `parametre.modus = 'brikker'` switches the plug-in's inspector, bottom tray and 3D overlay to the brick builder; without it the project is the classic dragon above.
+
+| File | What |
+|---|---|
+| `modell.ts` | Joint profile `hengsel-m` (trial), brick definitions, instances, connections, groups; a brick's layout from the joint standard; reading and repairing a stored project |
+| `graf.ts` | Placement from connections, and the operations: add, connect, disconnect, move, swap, duplicate, delete, local values, the reference dragon |
+| `bygg.ts` | Builds every brick from the classic recipe in its own frame and places it; one part per brick and material; overlap check |
+| `handlinger.ts` | Mode switch, reading the project from the document, one undo step per operation |
+| `tilstand.ts` | Editor state (selection, placing, preview, swap), not saved |
+| `Bibliotek.tsx`, `Inspektor.tsx`, `Overlegg.tsx`, `miniatyr.ts` | Library tray with thumbnails, properties and model tree, points and preview in 3D |

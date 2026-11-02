@@ -341,6 +341,7 @@ Allowed to have more personality than the other tools while clearly being Design
 - **Personality:** the dragon can wiggle or react when a part is swapped (off under reduced motion).
 - Must stay consistent with the mascot direction: cute, slightly spiky, purple/dark blue/beige.
 - Model parts are prepared by Designporten (not procedurally generated), so the generator needs the part library as an asset; see open question in the decision log.
+- **Brick builder (2026-11-02):** a second mode of the same generator where the dragon is a graph of bricks joined at connection points (place, connect, disconnect, swap, save, undo), built from the same joint and part geometry. Specified in [dragon-forge.md](dragon-forge.md); the classic dragon above is unchanged.
 
 ## BuildForge
 
