@@ -9,9 +9,6 @@
  * Runs at build time; the component renders the result as SVG.
  */
 import { finnMateriale, standardPrinter } from '@/skaperverksted/core/materialer';
-import { omrissPunkt } from '@/skaperverksted/generatorer/drage/former';
-import { standardParametre as drageStandard } from '@/skaperverksted/generatorer/drage/parametre';
-import { lagSkjelett } from '@/skaperverksted/generatorer/drage/skjelett';
 import { klikkersnitt } from '@/skaperverksted/generatorer/buildforge/snitt';
 import { lagForm } from '@/skaperverksted/generatorer/lampe/form';
 import { standardParametre as lampeStandard } from '@/skaperverksted/generatorer/lampe/parametre';
@@ -192,60 +189,6 @@ export function lampe(): Lampe {
     ribber: ribbesett(p.vridning),
     ribberVridd: ribbesett(p.vridning + 90),
     visning: { x: -maksR - luft - 28, y: -luft - 10, b: 2 * maksR + 2 * luft + 56, h: H + 2 * luft + 20 },
-  };
-}
-
-/* ------------------------------------------------------------------ */
-/* Dragon: top view of the default dragon's articulated parts.        */
-/* ------------------------------------------------------------------ */
-
-export interface DrageDel {
-  navn: string;
-  omriss: string;
-  /** Joint to the previous part (towards the head), in mm. */
-  ledd: [number, number] | null;
-}
-
-export interface Drage {
-  lengde: number;
-  /** Body colour of the default dragon (material catalogue). */
-  farge: string;
-  deler: DrageDel[];
-  visning: Boks;
-}
-
-export function drage(): Drage {
-  const sk = lagSkjelett(drageStandard);
-  let minX = Infinity;
-  let maksX = -Infinity;
-  let maksY = 0;
-  const deler = sk.deler.map((d) => {
-    const punkter: [number, number][] = [];
-    for (let i = 0; i < 64; i++) {
-      const [x, y] = omrissPunkt(d.omriss, (i / 64) * Math.PI * 2);
-      // Nose points left in the drawing; SVG y is down.
-      punkter.push([-x, -y]);
-      minX = Math.min(minX, -x);
-      maksX = Math.max(maksX, -x);
-      maksY = Math.max(maksY, Math.abs(y));
-    }
-    return {
-      navn: d.navn,
-      omriss: sti(punkter, true),
-      ledd: d.tapp ? ([-d.tapp.jx, 0] as [number, number]) : null,
-    };
-  });
-  const luft = 16;
-  return {
-    lengde: drageStandard.lengde,
-    farge: finnMateriale(drageStandard.farger.kropp).hex,
-    deler,
-    visning: {
-      x: minX - luft,
-      y: -maksY - luft - 18,
-      b: maksX - minX + 2 * luft,
-      h: 2 * maksY + 2 * luft + 30,
-    },
   };
 }
 

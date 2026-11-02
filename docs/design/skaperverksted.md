@@ -1,6 +1,6 @@
 # Skaperverksted
 
-Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Covers the workspace, the canvas and grid, the shared editor model, Signgen, the lamp generator, the articulated dragon generator and the future ecosystem. Domain types are in [technical-architecture.md](../architecture/technical-architecture.md#domain-model).
+Part of the [master specification](../../DESIGNPORTEN_MASTER.md). Covers the workspace, the canvas and grid, the shared editor model, Signgen, the lamp generator, the articulated dragon generator (removed, to be rebuilt) and the future ecosystem. Domain types are in [technical-architecture.md](../architecture/technical-architecture.md#domain-model).
 
 Skaperverksted is one of the most important parts of Designporten. Moving into it is moving **from the showroom into the workshop**. It must feel like a genuine creative application in the browser, borrowing the interaction language of CAD, graphics and 3D tools without copying any one of them, while staying understandable to people who have never used such tools.
 
@@ -333,15 +333,7 @@ The user should feel that they are **designing a lamp**, not filling in a config
 
 ## Articulated dragon generator
 
-Allowed to have more personality than the other tools while clearly being Designporten.
-
-- **Parts:** body, head, horns, spikes, tail, wings, pattern, size, colours, details. Each part has a small set of pre-modelled variants designed to connect at fixed articulation joints, so every combination prints and moves.
-- **Choice UI:** visual pickers (thumbnails of each variant) in a bottom tray; the dragon stays visible in 3D at all times and **changes live** as parts are swapped. Colours per part or per zone.
-- **Size:** set in mm (overall length) with the joint tolerances scaled correctly; limits enforced.
-- **Personality:** the dragon can wiggle or react when a part is swapped (off under reduced motion).
-- Must stay consistent with the mascot direction: cute, slightly spiky, purple/dark blue/beige.
-- Model parts are prepared by Designporten (not procedurally generated), so the generator needs the part library as an asset; see open question in the decision log.
-- **Drawing editor (2026-11-02):** new dragons are drawn: the spine from above, width pulled out from it, height from the side and spikes, with the 3D model built at the same time; pieces and joints are laid out along the spine. Specified in [dragon-forge.md](dragon-forge.md). Dragons made with the part picker above open as before.
+Removed 2026-11-02 to be rebuilt from scratch (Sivert). See [dragon-forge.md](dragon-forge.md).
 
 ## BuildForge
 
