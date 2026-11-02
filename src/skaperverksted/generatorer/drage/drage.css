@@ -157,3 +157,390 @@
     transition: none;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Drawn dragon (tegning/): top view, side view and live 3D at once.   */
+/* ------------------------------------------------------------------ */
+
+.dt-lerret {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 34%);
+  grid-template-rows: auto minmax(0, 1fr) minmax(150px, 28%);
+  grid-template-areas:
+    'verktoy verktoy'
+    'ovenfra tre'
+    'siden tre';
+  gap: 6px;
+  padding: 6px;
+  background: var(--bg);
+}
+
+.dt-lerret.dt-middels {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) minmax(170px, 36%);
+  grid-template-areas:
+    'verktoy verktoy'
+    'ovenfra ovenfra'
+    'siden tre';
+}
+
+.dt-lerret.dt-smal {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto minmax(150px, 34%);
+  grid-template-areas:
+    'verktoy'
+    'ovenfra'
+    'valg'
+    'nede';
+}
+
+.dt-verktoylinje {
+  grid-area: verktoy;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dt-gruppe {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel);
+}
+
+.dt-verktoylinje button,
+.dt-nedrevalg button {
+  min-height: var(--kontroll-h);
+  min-width: var(--kontroll-h);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-felt) - 2px);
+  background: none;
+  color: var(--fg-dempet);
+  font: inherit;
+  cursor: pointer;
+}
+
+.dt-verktoylinje button:hover,
+.dt-nedrevalg button:hover {
+  color: var(--fg);
+}
+
+.dt-verktoylinje [aria-checked='true'],
+.dt-verktoylinje [aria-pressed='true'],
+.dt-nedrevalg [aria-selected='true'] {
+  border-color: var(--dp-lilla);
+  background: var(--panel-2);
+  color: var(--fg);
+}
+
+.dt-bryter {
+  border: 1px solid var(--linje) !important;
+  background: var(--panel) !important;
+}
+
+.dt-bryter[aria-pressed='true'] {
+  border-color: var(--dp-lilla) !important;
+}
+
+.dt-zoom {
+  margin-left: auto;
+}
+
+.dt-piggvalg select {
+  min-height: var(--kontroll-h);
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-felt);
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+}
+
+.dt-flate {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--linje);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+}
+
+.dt-ovenfra {
+  grid-area: ovenfra;
+}
+
+.dt-sideflate {
+  grid-area: siden;
+}
+
+.dt-3d {
+  grid-area: tre;
+}
+
+.dt-smal .dt-sideflate,
+.dt-smal .dt-3d {
+  grid-area: nede;
+}
+
+.dt-nedrevalg {
+  grid-area: valg;
+  display: flex;
+  gap: 4px;
+}
+
+.dt-tittel {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  left: 10px;
+  margin: 0;
+  color: var(--fg-dempet);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.dt-status {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  right: 10px;
+  margin: 0;
+  color: var(--fg-dempet);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+.dt-feiltall {
+  color: var(--feil-mork);
+}
+
+.dt-maal {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.dt-3d .dt-maal .visning3d.kompakt {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+}
+
+.dt-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.dt-svg.verktoy-tegn {
+  cursor: crosshair;
+}
+
+.dt-svg.verktoy-pigg .dt-del {
+  cursor: copy;
+}
+
+.dt-plate {
+  fill: var(--panel-2);
+  stroke: var(--linje-sterk);
+  vector-effect: non-scaling-stroke;
+}
+
+.dt-rutelinje {
+  fill: none;
+  stroke: var(--linje);
+  stroke-width: 0.25;
+}
+
+.dt-del {
+  fill-opacity: 0.55;
+  stroke: var(--fg-dempet);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  cursor: grab;
+}
+
+.dt-del.valgt {
+  fill-opacity: 0.8;
+  stroke: var(--dp-lilla);
+  stroke-width: 2.5;
+}
+
+.dt-del.feil {
+  stroke: var(--feil-mork);
+  stroke-width: 2.5;
+  stroke-dasharray: 5 3;
+}
+
+.dt-rygglinje {
+  fill: none;
+  stroke: var(--dp-cyan);
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.5 !important;
+  pointer-events: none;
+}
+
+.dt-ledd {
+  fill: var(--bg);
+  stroke: var(--dp-cyan);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.dt-ledd.feil {
+  fill: var(--feil-mork);
+  stroke: var(--feil-mork);
+}
+
+.dt-strek {
+  fill: none;
+  stroke: var(--dp-lilla);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.dt-handtak {
+  cursor: grab;
+  outline: none;
+}
+
+.dt-handtak .dt-treff {
+  fill: transparent;
+  stroke: none;
+}
+
+.dt-handtak :not(.dt-treff) {
+  fill: var(--fg);
+  stroke: var(--bg);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.dt-handtak.punkt :not(.dt-treff) {
+  fill: var(--dp-cyan);
+}
+
+.dt-handtak.nese :not(.dt-treff) {
+  fill: var(--dp-lilla);
+  stroke: var(--fg);
+}
+
+.dt-handtak.element.ubrukt {
+  opacity: 0.45;
+}
+
+.dt-handtak.valgt :not(.dt-treff),
+.dt-handtak:focus-visible :not(.dt-treff) {
+  stroke: var(--fokus);
+  stroke-width: 3;
+}
+
+.dt-handtak:focus-visible .dt-treff {
+  fill: none;
+  stroke: var(--fokus);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.dt-etikett {
+  fill: var(--fg-dempet);
+  font-size: 11px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.dt-siden .dt-etikett {
+  text-anchor: start;
+}
+
+.dt-siden .dt-etikett[text-anchor='end'] {
+  text-anchor: end;
+}
+
+.dt-skala {
+  fill: var(--fg-dempet);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-anchor: end;
+}
+
+.dt-hjelpelinje {
+  stroke: var(--linje);
+  stroke-dasharray: 2 4;
+}
+
+.dt-grunnlinje {
+  stroke: var(--linje-sterk);
+  stroke-width: 2;
+}
+
+.dt-leddlinje {
+  stroke: var(--dp-cyan);
+  stroke-dasharray: 2 2;
+}
+
+.dt-leddlinje.feil {
+  stroke: var(--feil-mork);
+  stroke-width: 2;
+}
+
+.dt-hoydekurve {
+  fill: none;
+  stroke: var(--dp-cyan);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+
+.dt-funn {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.dt-funn li {
+  padding-left: 10px;
+  border-left: 3px solid var(--advarsel-mork);
+}
+
+.dt-funn li.feil {
+  border-color: var(--feil-mork);
+}
+
+.dt-funnlenke {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dt-verktoylinje button,
+  .dt-nedrevalg button {
+    transition: none;
+  }
+}

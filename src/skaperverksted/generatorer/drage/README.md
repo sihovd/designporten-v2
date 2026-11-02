@@ -25,3 +25,17 @@ The spec says the dragon parts are modelled by Designporten. Until they exist, `
 ## Tests
 
 `drage.test.ts` checks that every shell is closed and outward-facing, that no two moving pieces touch or come closer than the clearance in the print pose (vertex-to-surface distance and inside tests), that the skeleton hits the chosen length at every size and body type, that every catalogue variant builds, and that parameters are validated.
+
+## Drawing editor (`tegning/`)
+
+New dragons are drawn (spec: `docs/design/dragon-forge.md`). `parametre.modus = 'tegning'` switches the plug-in's canvas, tool rail and inspector to the drawing editor; without it the project is the part-picker dragon above.
+
+| File | What |
+|---|---|
+| `modell.ts` | The drawing: spine, width and height along it, piece count, head and tail, spikes; reading and repairing a stored drawing |
+| `geometri.ts` | Spine curve, joints and pieces along it, gaps in bends, slot direction, each piece's shells, its outline from above and silhouette from the side |
+| `bygg.ts` | Builds the drawn dragon (one part per piece and material) and the checks |
+| `operasjoner.ts` | Pure edits: move, insert and delete points, profile points, spikes, a freehand spine, reverse, from a part-picker dragon |
+| `handlinger.ts` | Mode, reading the drawing from the document, one undo step per edit |
+| `tilstand.ts`, `visning.ts` | Editor state (tool, selection), and the layout cached per drawing for the views |
+| `Lerret.tsx`, `Inspektor.tsx` | Top view, side view and 3D at once, tools in the rail; properties |

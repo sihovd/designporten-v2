@@ -17,6 +17,7 @@ import { Panel, TallFelt } from '../../shell/kontroller';
 import { mal } from '../../shell/mal';
 import { endreDrage, tilfeldig } from './handlinger';
 import { leddMal } from './ledd';
+import { fraKlassisk } from './tegning/operasjoner';
 import {
   forhandsvalg,
   katalog,
@@ -29,7 +30,7 @@ import {
 } from './parametre';
 import './drage.css';
 
-function Fargevelger({
+export function Fargevelger({
   sone,
   navn,
   verdi,
@@ -125,6 +126,32 @@ export function DrageInspektor({ benk }: { benk: Arbeidsbenk }) {
 
   return (
     <>
+      <Panel tittel="Tegn dragen selv">
+        <p class="merknad">
+          Denne dragen er laget med delvelgeren. I den nye Dragon Forge tegner du ryggen ovenfra, drar høyden
+          fra siden og ser 3D-modellen samtidig. Hode, horn, øyne, hale og pigger tas med.
+        </p>
+        <button
+          type="button"
+          class="kontroll-knapp"
+          onClick={() =>
+            benk.endre({
+              navn: 'Tegn dragen selv',
+              anvend: (d) => ({
+                ...d,
+                parametre: {
+                  ...d.parametre,
+                  modus: 'tegning',
+                  tegning: fraKlassisk(lesParametre(d.parametre)),
+                },
+              }),
+            })
+          }
+        >
+          Tegn dragen selv
+        </button>
+      </Panel>
+
       <Panel tittel="Start fra">
         <div class="drage-forhandsvalg">
           {forhandsvalg.map((f) => (

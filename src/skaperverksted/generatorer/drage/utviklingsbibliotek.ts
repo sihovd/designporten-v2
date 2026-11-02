@@ -44,19 +44,19 @@ function speilet(m: Mesh): Mesh[] {
   return [m, speilY(m)];
 }
 
-class Samler {
+export class Samler {
   skall: Skall[] = [];
   legg(del: number, type: Skalltype, ...mesher: Mesh[]): void {
     for (const mesh of mesher) this.skall.push({ mesh, type, del });
   }
 }
 
-function kropp(s: Samler, d: Del): void {
+export function kropp(s: Samler, d: Del): void {
   const mesh = d.sokkel ? sokkelKropp(d.omriss, d.profil, d.sokkel) : kuppel(d.omriss, d.profil, 64);
   s.legg(d.indeks, 'kropp', mesh);
 }
 
-function hode(s: Samler, sk: Skjelett, p: DrageParametre): void {
+export function hode(s: Samler, sk: Skjelett, p: DrageParametre): void {
   const d = sk.deler[0]!;
   const o = d.omriss;
   const h = d.profil.hoyde;
@@ -106,7 +106,7 @@ function hode(s: Samler, sk: Skjelett, p: DrageParametre): void {
   }
 }
 
-function pigger(s: Samler, sk: Skjelett, p: DrageParametre): void {
+export function pigger(s: Samler, sk: Skjelett, p: DrageParametre): void {
   if (p.pigger === 'ingen') return;
   for (const d of sk.deler) {
     const o = d.omriss;
@@ -153,7 +153,7 @@ function pigger(s: Samler, sk: Skjelett, p: DrageParametre): void {
   }
 }
 
-function hale(s: Samler, sk: Skjelett, p: DrageParametre): void {
+export function hale(s: Samler, sk: Skjelett, p: DrageParametre): void {
   const d = sk.deler.at(-1)!;
   const o = d.omriss;
   const h = d.profil.hoyde;
