@@ -42,6 +42,7 @@
     "clipper2-ts": "^2.0.1-18",
     "earcut": "^3.2.4",
     "fflate": "^0.8.3",
+    "imagetracerjs": "^1.2.6",
     "nodemailer": "^10.0.12",
     "opentype.js": "^2.0.0",
     "preact": "^10.29.8",

@@ -93,6 +93,11 @@ export const HJELPEEMNER: Hjelpeemne[] = [
     ord: 'vektor import logo',
   },
   {
+    sporsmal: 'Gjøre et bilde eller en logo om til vektor',
+    svar: 'Trykk Bilde i verktøyskinnen og velg en PNG, JPG eller WebP. Juster farger, glatthet og flekker til forhåndsvisningen ser riktig ut, og trykk «Legg på skiltet».',
+    ord: 'vektorisere trace logo png jpg foto konvertere',
+  },
+  {
     sporsmal: 'Sette inn et dekor fra galleriet',
     svar: 'Trykk Dekor i verktøyskinnen, velg et tema og hold musen over et element. «Sett inn» legger hele elementet på skiltet, «Velg deler» lar deg velge ut deler først. Marker flere vektorer og velg «Lagre dekorelement» for å lagre dem som ett dekor under Dine egne.',
     ord: 'ikon pynt',
