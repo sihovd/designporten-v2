@@ -1,5 +1,7 @@
 # Publisering av Designporten på one.com
 
+> Vanlig publisering etter lanseringen: snarveien på Siverts PC, se [publisering-lokalt.md](publisering-lokalt.md).
+
 Sivert godkjente 14. oktober 2026 at den nye siden i `sihovd/designporten-v2` skal erstatte nettstedet på designporten.no. Den eldre instruksen om kun testutrulling gjelder ikke selve dette godkjente byttet. Arbeid skjer på branch og via PR; `main` har automatisk Render-publisering.
 
 ## Verifisert før byttet
