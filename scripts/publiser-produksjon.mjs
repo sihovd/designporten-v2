@@ -18,7 +18,7 @@ import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { createInterface } from 'node:readline/promises';
+import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 /** Progress to the terminal window (stderr, as the project's lint rule wants). */
@@ -231,8 +231,22 @@ async function lastOpp(sftp, mappe, filer) {
 // ---------- main ----------
 
 async function hoved() {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const spor = async (t) => (await rl.question(t)).trim();
+  // Answers are read line by line as they come; a line typed early (or piped)
+  // waits in the queue, and a closed input counts as «no».
+  const rl = createInterface({ input: process.stdin });
+  const linjer = [];
+  const ventende = [];
+  let lukket = false;
+  rl.on('line', (l) => (ventende.length ? ventende.shift()(l) : linjer.push(l)));
+  rl.on('close', () => {
+    lukket = true;
+    while (ventende.length) ventende.shift()('');
+  });
+  const spor = async (t) => {
+    process.stderr.write(t);
+    const svar = linjer.length ? linjer.shift() : lukket ? '' : await new Promise((ok) => ventende.push(ok));
+    return String(svar).trim();
+  };
   try {
     vis('=== Publiser Designporten ===');
     if (!existsSync(INNSTILLINGSFIL))
