@@ -97,12 +97,15 @@ export function fingeravtrykkAv(nokkel) {
 
 function kjor(tittel, kommando, args) {
   vis(`\n▶ ${tittel}`);
-  const r = spawnSync(kommando, args, { stdio: 'inherit', shell: process.platform === 'win32' });
+  const r = spawnSync(kommando, args, {
+    stdio: ['ignore', 'inherit', 'inherit'],
+    shell: process.platform === 'win32',
+  });
   if (r.status !== 0) throw new PubliseringsFeil(`«${tittel}» feilet. Ingenting er lastet opp.`);
 }
 
 function git(...args) {
-  const r = spawnSync('git', args, { encoding: 'utf8' });
+  const r = spawnSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   if (r.status !== 0) throw new PubliseringsFeil(`git ${args[0]} feilet: ${(r.stderr || '').trim()}`);
   return r.stdout.trim();
 }
@@ -303,6 +306,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.error(
       `\n✖ ${e instanceof PubliseringsFeil ? e.message : 'Noe gikk galt. Ingenting mer ble lastet opp.'}`,
     );
+    if (process.env.DP_FEILSOK && !(e instanceof PubliseringsFeil)) console.error(e);
     process.exitCode = 1;
   });
 }
