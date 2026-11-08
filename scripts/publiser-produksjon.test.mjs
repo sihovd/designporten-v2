@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PubliseringsFeil,
+  SERVERFILER,
   fingeravtrykkAv,
   lesInnstillinger,
   opplastingsrekkefolge,
@@ -63,4 +64,16 @@ test('assets go up first, pages and .htaccess last', () => {
 
 test('fingerprint in the OpenSSH SHA256 form', () => {
   assert.match(fingeravtrykkAv(Buffer.from('nokkel')), /^SHA256:[A-Za-z0-9+/]{43}$/);
+});
+
+test('settings files on the server are never sent, the data folder guard is', () => {
+  for (const f of [
+    'api/konto/konfig.php',
+    'api/cms/konfig.php',
+    'api/oppsett.php',
+    'api/cms/data/ordre.json',
+  ])
+    assert.ok(SERVERFILER.test(f), f);
+  for (const f of ['api/cms/data/.htaccess', 'api/bygg.php', 'index.html'])
+    assert.ok(!SERVERFILER.test(f), f);
 });
