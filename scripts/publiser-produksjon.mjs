@@ -121,7 +121,7 @@ function hentMain() {
   git('fetch', 'origin', 'main');
   git('merge', '--ff-only', 'origin/main');
   // Files that are not in git would be built into the site unreviewed, and can
-  // shadow the real ones (a stray Fargesamlinger.ts beside Fargesamlinger.tsx).
+  // shadow the real ones.
   const fremmede = git('ls-files', '--others', '--exclude-standard', '--', ...KILDEMAPPER)
     .split('\n')
     .filter(Boolean);

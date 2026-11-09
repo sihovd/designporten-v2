@@ -23,7 +23,7 @@ import { nyttSigngenDokument, palett, settPalett, startErValgt } from './dokumen
 import { signtilstand } from './tilstand';
 import { lastEgneFilamenter } from './filamenter';
 import { Filamentskjema, TOMT } from './Fargepanel';
-import { Samlingsvelger } from './Fargesamlinger';
+import { Samlingsvelger } from './Samlingsvelger';
 import { SAMLINGER, lagreSamlingFarger } from './fargesamlinger';
 
 function Fargerad({ farger }: { farger: string[] }) {
