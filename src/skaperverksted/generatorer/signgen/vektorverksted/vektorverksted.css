@@ -529,3 +529,13 @@
   border: 1px solid var(--vv-valg);
   border-radius: 4px;
 }
+.vv-penn path {
+  fill: rgb(57 208 255 / 0.18);
+  stroke: #39d0ff;
+  stroke-width: 1.5;
+}
+.vv-penn-strikk {
+  stroke: #39d0ff;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}

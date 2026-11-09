@@ -5,6 +5,9 @@ import { finnKjeder } from './kanter';
 import {
   byggModell,
   delSti,
+  etikettbilde,
+  leggTilFelt,
+  pennepunkter,
   flyttAnker,
   forenkle,
   gjorRett,
@@ -224,5 +227,62 @@ describe('tryllestav', () => {
     const med = lagRegionkart(ringbilde, null, { ...STANDARD_REGIONVALG, minHull: 0 }, vern);
     expect(med.regioner).toHaveLength(2);
     expect(med.regioner.map((r) => r.farge).sort()).toEqual(['#000000', '#ffffff']);
+  });
+});
+
+describe('penn', () => {
+  it('rebuilds the traced label image from the model', () => {
+    const k = lagRegionkart(halvdeler, null, toFarger);
+    const m = byggModell(k);
+    expect(Array.from(etikettbilde(m))).toEqual(Array.from(k.etikett));
+  });
+
+  it('adds a drawn field that shares its borders and keeps untouched curves', () => {
+    const m0 = byggModell(lagRegionkart(halvdeler, null, toFarger));
+    const flyttet = flyttAnker(m0, 0, 1, m0.kurver[0]!.ankre[1]!.x, m0.kurver[0]!.ankre[1]!.y);
+    // a square over the border between red and blue, partly outside both
+    const felt = pennepunkter([
+      { x: 50, y: 5, inn: null, ut: null, hjorne: true, ri: 0 },
+      { x: 70, y: 5, inn: null, ut: null, hjorne: true, ri: 0 },
+      { x: 70, y: 40, inn: null, ut: null, hjorne: true, ri: 0 },
+      { x: 50, y: 40, inn: null, ut: null, hjorne: true, ri: 0 },
+    ]);
+    const { modell: m, id } = leggTilFelt(flyttet, felt, '#00ff00');
+    expect(id).toBe(m0.deler.length);
+    expect(m.deler[id]!.areal).toBe(20 * 35);
+    const sum = [0, 1, id].reduce((s, i) => s + delFlate(m, i), 0);
+    expect(sum).toBeCloseTo(80 * 80 + 20 * 15, -1);
+    expect(delFlate(m, id)).toBeCloseTo(700, -1);
+    // merged with the red half, the field is one part
+    const sammen = slaSammenDeler(m, [id, 0]);
+    expect(sammen.deler.filter(Boolean)).toHaveLength(2);
+    // a field outside the image adds nothing
+    expect(
+      leggTilFelt(
+        m0,
+        [
+          [-10, -10],
+          [-5, -10],
+          [-5, -5],
+        ],
+        '#000',
+      ).id,
+    ).toBe(-1);
+  });
+
+  it('keeps the curves the field does not touch exactly as they were', () => {
+    const m0 = byggModell(lagRegionkart(halvdeler, null, toFarger));
+    const felt = pennepunkter([
+      { x: 2, y: 2, inn: null, ut: null, hjorne: true, ri: 0 },
+      { x: 10, y: 2, inn: null, ut: null, hjorne: true, ri: 0 },
+      { x: 10, y: 10, inn: null, ut: null, hjorne: true, ri: 0 },
+    ]);
+    const { modell: m } = leggTilFelt(m0, felt, '#00ff00');
+    const s0 = m0.kurver
+      .filter(Boolean)
+      .map((k) => JSON.stringify(k!.ankre))
+      .sort();
+    const s1 = m.kurver.filter(Boolean).map((k) => JSON.stringify(k!.ankre));
+    for (const s of s0) expect(s1).toContain(s);
   });
 });

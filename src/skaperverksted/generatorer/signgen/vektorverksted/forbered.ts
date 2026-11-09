@@ -10,6 +10,13 @@ import type { Piksler } from '../vektoriser';
 
 export const MAKS_MB = 25;
 export const MASKE_MAKS = 2400;
+/**
+ * Photos are scaled down when they are read, so the image, the mask and the
+ * protect canvas stay small enough for a phone (a 12 MP photo at full size
+ * crashed mobile Safari). Tracing never uses more than 2400 px.
+ */
+export const BILDE_MAKS = 2400;
+export const BILDE_MAKS_MOBIL = 1600;
 /** Removed parts of the image are shown red, protected parts green. */
 export const MASKEFARGE = '#e0325a';
 export const BESKYTTFARGE = '#2fd27a';
@@ -20,6 +27,8 @@ export interface Kildebilde {
   bilde: HTMLImageElement;
   bredde: number;
   hoyde: number;
+  /** The size of the file, when the image was scaled down on reading. */
+  original?: { bredde: number; hoyde: number };
 }
 
 export interface Rektangel {
@@ -29,27 +38,85 @@ export interface Rektangel {
   h: number;
 }
 
+const mobil = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
+async function lastBilde(url: string): Promise<HTMLImageElement> {
+  const bilde = new Image();
+  bilde.decoding = 'async';
+  bilde.src = url;
+  await bilde.decode();
+  return bilde;
+}
+
+/** A canvas as a new source image (PNG, so transparency is kept). The canvas is freed. */
+async function kildeFraLerret(c: HTMLCanvasElement, navn: string): Promise<Kildebilde> {
+  const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+  const bredde = c.width,
+    hoyde = c.height;
+  c.width = c.height = 0;
+  if (!blob) throw new Error('Bildet kunne ikke behandles.');
+  const url = URL.createObjectURL(blob);
+  try {
+    return { navn, url, bilde: await lastBilde(url), bredde, hoyde };
+  } catch {
+    URL.revokeObjectURL(url);
+    throw new Error('Bildet kunne ikke behandles.');
+  }
+}
+
 export async function lesBildefil(fil: File): Promise<Kildebilde> {
   if (!fil.type.startsWith('image/') || fil.type === 'image/svg+xml')
     throw new Error('Velg et bilde (PNG, JPG, WebP, GIF eller BMP).');
   if (fil.size > MAKS_MB * 1024 * 1024) throw new Error(`Bildet er større enn ${MAKS_MB} MB.`);
   const url = URL.createObjectURL(fil);
-  const bilde = new Image();
-  bilde.decoding = 'async';
-  bilde.src = url;
+  let bilde: HTMLImageElement;
   try {
-    await bilde.decode();
+    bilde = await lastBilde(url);
   } catch {
     URL.revokeObjectURL(url);
     throw new Error('Bildet kunne ikke leses. Bruk PNG, JPG eller WebP.');
   }
-  return {
-    navn: fil.name.replace(/\.[a-z0-9]+$/i, '') || 'Bilde',
-    url,
-    bilde,
-    bredde: bilde.naturalWidth,
-    hoyde: bilde.naturalHeight,
+  const navn = fil.name.replace(/\.[a-z0-9]+$/i, '') || 'Bilde';
+  const b = bilde.naturalWidth,
+    h = bilde.naturalHeight;
+  const s = Math.min(1, (mobil() ? BILDE_MAKS_MOBIL : BILDE_MAKS) / Math.max(b, h));
+  if (s >= 1) return { navn, url, bilde, bredde: b, hoyde: h };
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(b * s));
+  c.height = Math.max(1, Math.round(h * s));
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bilde, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(url);
+  return { ...(await kildeFraLerret(c, navn)), original: { bredde: b, hoyde: h } };
+}
+
+/**
+ * The crop applied: a new source image of only the cropped area, with the
+ * mask and the protect canvas cut to match (Sivert, 2026-11-09: «en
+ * funksjon som faktisk beskjærer bilde og ikke bare lager et
+ * beskjæringsfelt»).
+ */
+export async function beskjaerBilde(
+  k: Kildebilde,
+  maske: HTMLCanvasElement,
+  beskytt: HTMLCanvasElement,
+  u: Rektangel,
+): Promise<{ kilde: Kildebilde; maske: HTMLCanvasElement; beskytt: HTMLCanvasElement }> {
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(u.b));
+  c.height = Math.max(1, Math.round(u.h));
+  c.getContext('2d')!.drawImage(k.bilde, u.x, u.y, u.b, u.h, 0, 0, c.width, c.height);
+  const kilde = await kildeFraLerret(c, k.navn);
+  const klipp = (lerret: HTMLCanvasElement) => {
+    const ms = maskeskala(k, lerret);
+    const ny = document.createElement('canvas');
+    ny.width = Math.max(1, Math.round(u.b * ms));
+    ny.height = Math.max(1, Math.round(u.h * ms));
+    ny.getContext('2d')!.drawImage(lerret, u.x * ms, u.y * ms, u.b * ms, u.h * ms, 0, 0, ny.width, ny.height);
+    return ny;
   };
+  return { kilde, maske: klipp(maske), beskytt: klipp(beskytt) };
 }
 
 /** An empty mask for an image: nothing removed. */

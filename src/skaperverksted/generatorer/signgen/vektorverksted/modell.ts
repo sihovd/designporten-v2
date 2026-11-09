@@ -780,3 +780,202 @@ export function vater(m0: Vektormodell, ider: number[], grader = 3): Vektormodel
   }
   return m;
 }
+
+// ---------------------------------------------------------------- drawn fields
+
+/** Fills the pixels whose centres lie inside the rings (even-odd) with `verdi`. */
+export function fyllRinger(e: Int32Array, w: number, h: number, ringer: P[][], verdi: number): number {
+  let antall = 0;
+  let y0 = h,
+    y1 = 0;
+  for (const r of ringer)
+    for (const p of r) {
+      y0 = Math.min(y0, p[1]);
+      y1 = Math.max(y1, p[1]);
+    }
+  const fra = Math.max(0, Math.floor(y0)),
+    til = Math.min(h - 1, Math.ceil(y1));
+  for (let y = fra; y <= til; y++) {
+    const yc = y + 0.5;
+    const kryss: number[] = [];
+    for (const r of ringer) {
+      for (let i = 0; i < r.length; i++) {
+        const a = r[i]!,
+          b = r[(i + 1) % r.length]!;
+        if (a[1] <= yc === b[1] <= yc) continue;
+        kryss.push(a[0] + ((yc - a[1]) * (b[0] - a[0])) / (b[1] - a[1]));
+      }
+    }
+    kryss.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < kryss.length; i += 2) {
+      const xa = Math.max(0, Math.ceil(kryss[i]! - 0.5)),
+        xb = Math.min(w - 1, Math.ceil(kryss[i + 1]! - 0.5) - 1);
+      for (let x = xa; x <= xb; x++) {
+        e[y * w + x] = verdi;
+        antall++;
+      }
+    }
+  }
+  return antall;
+}
+
+/** The pixel rings of a part, from the traced points of its curves. */
+function pikselringer(m: Vektormodell, del: Del): P[][] {
+  return del.ringer.map((ring) => {
+    const pts: P[] = [];
+    for (const b of ring) {
+      const k = m.kurver[b.kjede];
+      if (!k) continue;
+      const n = k.punkter.length / 2;
+      for (let s = 0; s < n; s++) {
+        const i = b.bakover ? n - 1 - s : s;
+        pts.push([k.punkter[i * 2]!, k.punkter[i * 2 + 1]!]);
+      }
+    }
+    return pts;
+  });
+}
+
+/** The label image the model was traced from, merges and removals included. */
+export function etikettbilde(m: Vektormodell): Int32Array {
+  const e = new Int32Array(m.bredde * m.hoyde).fill(-1);
+  for (const d of m.deler) if (d) fyllRinger(e, m.bredde, m.hoyde, pikselringer(m, d), d.id);
+  return e;
+}
+
+function snuPunkter(p: number[]): number[] {
+  const ut: number[] = [];
+  for (let i = p.length - 2; i >= 0; i -= 2) ut.push(p[i]!, p[i + 1]!);
+  return ut;
+}
+
+/** A stable key for a traced chain: its points, or for a closed one its points from the smallest. */
+function kjedenokkel(punkter: number[], lukket: boolean): string {
+  if (!lukket) return punkter.join(',');
+  const n = punkter.length / 2;
+  let s = 0;
+  for (let i = 1; i < n; i++) {
+    const y = punkter[i * 2 + 1]!,
+      x = punkter[i * 2]!;
+    const sy = punkter[s * 2 + 1]!,
+      sx = punkter[s * 2]!;
+    if (y < sy || (y === sy && x < sx)) s = i;
+  }
+  const ut: number[] = [];
+  for (let i = 0; i < n; i++) ut.push(punkter[((s + i) % n) * 2]!, punkter[((s + i) % n) * 2 + 1]!);
+  return `o${ut.join(',')}`;
+}
+
+/**
+ * A field the user drew with the pen becomes a new part (Sivert,
+ * 2026-11-09: «penneverktøy likt som illustrator … tegne inn felt selv som
+ * man kan slå sammen med»). It is laid over the traced pixels and the map is
+ * traced again, so the field shares its borders with the parts it touches
+ * like every other part does. Borders the field does not touch keep their
+ * curves exactly as they were, edits included; borders it touches are
+ * fitted afresh. Returns the model unchanged and -1 when the field covers
+ * no pixel.
+ */
+export function leggTilFelt(
+  m0: Vektormodell,
+  omriss: P[],
+  farge: string,
+): { modell: Vektormodell; id: number } {
+  const w = m0.bredde,
+    h = m0.hoyde;
+  const e = etikettbilde(m0);
+  const nyId = m0.deler.length;
+  if (!fyllRinger(e, w, h, [omriss], nyId)) return { modell: m0, id: -1 };
+  const gamle = new Map<string, Kurve>();
+  let valg = STANDARD_TILPASNING;
+  for (const k of m0.kurver) {
+    if (!k) continue;
+    valg = k.valg;
+    gamle.set(`${kjedenokkel(k.punkter, k.lukket)}|${k.venstre}|${k.hoyre}`, k);
+  }
+  const kjeder = finnKjeder(e, w, h);
+  const noder = new Map<number, { x: number; y: number }>();
+  const nye: number[] = [];
+  const kurver: Kurve[] = kjeder.map((kj, id) => {
+    const grunn = {
+      id,
+      lukket: kj.lukket,
+      fra: kj.fra,
+      til: kj.til,
+      venstre: kj.venstre,
+      hoyre: kj.hoyre,
+      forsteRetning: kj.forsteRetning,
+      sisteRetning: kj.sisteRetning,
+    };
+    const rett = gamle.get(`${kjedenokkel(kj.punkter, kj.lukket)}|${kj.venstre}|${kj.hoyre}`);
+    const snudd = rett
+      ? null
+      : gamle.get(`${kjedenokkel(snuPunkter(kj.punkter), kj.lukket)}|${kj.hoyre}|${kj.venstre}`);
+    const gammel = rett ?? (snudd ? snu(snudd) : null);
+    if (gammel && (kj.lukket || kj.punkter.join(',') === gammel.punkter.join(','))) {
+      const k: Kurve = {
+        ...grunn,
+        punkter: gammel.punkter,
+        ankre: structuredClone(gammel.ankre),
+        valg: gammel.valg,
+      };
+      if (!k.lukket) {
+        noder.set(k.fra, { x: k.ankre[0]!.x, y: k.ankre[0]!.y });
+        const s = k.ankre[k.ankre.length - 1]!;
+        noder.set(k.til, { x: s.x, y: s.y });
+      }
+      return k;
+    }
+    nye.push(id);
+    const t = tilpassKjede(kj.punkter, kj.lukket, valg);
+    return { ...grunn, punkter: t.punkter, ankre: t.ankre, valg: { ...valg } };
+  });
+  // new borders end exactly where the kept borders they meet end
+  for (const id of nye) {
+    const k = kurver[id]!;
+    if (k.lukket) continue;
+    const a = k.ankre[0]!,
+      b = k.ankre[k.ankre.length - 1]!;
+    festEnder(k, noder.get(k.fra) ?? { x: a.x, y: a.y }, noder.get(k.til) ?? { x: b.x, y: b.y });
+  }
+  const areal = new Map<number, number>();
+  for (const v of e) if (v >= 0) areal.set(v, (areal.get(v) ?? 0) + 1);
+  const deler: (Del | null)[] = [
+    ...m0.deler.map((d) => (d ? { ...d } : null)),
+    { id: nyId, farge, areal: 0, ringer: [] },
+  ];
+  for (const d of deler) {
+    if (!d) continue;
+    const a = areal.get(d.id) ?? 0;
+    if (!a) deler[d.id] = null;
+    else d.areal = a;
+  }
+  const m: Vektormodell = { bredde: w, hoyde: h, kurver, deler };
+  byggDelRinger(m);
+  const ut = ryddFlate(m);
+  return { modell: ut, id: ut.deler[nyId] ? nyId : -1 };
+}
+
+/** Points along a closed pen path (anchors with handles), for filling. */
+export function pennepunkter(ankre: Anker[], perSegment = 24): P[] {
+  const ut: P[] = [];
+  const n = ankre.length;
+  for (let i = 0; i < n; i++) {
+    const a = ankre[i]!,
+      b = ankre[(i + 1) % n]!;
+    const p0: P = [a.x, a.y],
+      p3: P = [b.x, b.y];
+    const p1 = a.ut ?? p0,
+      p2 = b.inn ?? p3;
+    const steg = a.ut || b.inn ? perSegment : 1;
+    for (let s = 0; s < steg; s++) {
+      const t = s / steg,
+        u = 1 - t;
+      ut.push([
+        u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
+        u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1],
+      ]);
+    }
+  }
+  return ut;
+}

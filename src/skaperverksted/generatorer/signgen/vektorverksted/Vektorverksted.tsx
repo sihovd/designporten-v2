@@ -19,6 +19,7 @@ import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { Ikon, type IkonId } from '../../../shell/ikoner';
 import {
+  beskjaerBilde,
   brukUtvalg,
   inverterMaske,
   lesBildefil,
@@ -47,6 +48,8 @@ import {
   gjorBuet,
   gjorRett,
   kurverIOmrade,
+  leggTilFelt,
+  pennepunkter,
   kurverRundt,
   leggTilAnker,
   naermesteKurve,
@@ -63,7 +66,7 @@ import {
   type Vektormodell,
 } from './modell';
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionkart, type Regionvalg } from './regioner';
-import { STANDARD_TILPASNING, type Tilpasningsvalg } from './tilpass';
+import { STANDARD_TILPASNING, type Anker, type Tilpasningsvalg } from './tilpass';
 import {
   antallValgt,
   bakgrunnsutvalg,
@@ -78,7 +81,7 @@ import {
 type Steg = 'forbered' | 'konverter' | 'rediger';
 type Forberedverktoy =
   'beskjaer' | 'tryllestav' | 'beskytt' | 'pensel' | 'viskelar' | 'lasso-fjern' | 'lasso-behold';
-type Redigerverktoy = 'del' | 'linje' | 'punkt';
+type Redigerverktoy = 'del' | 'linje' | 'punkt' | 'penn';
 interface Visning {
   skala: number;
   tx: number;
@@ -249,6 +252,22 @@ function Knapp(props: {
   );
 }
 
+/** Path data of the pen path being drawn. */
+function pennSti(ankre: Anker[], lukket: boolean): string {
+  const f = (p: { x: number; y: number } | [number, number]) =>
+    'x' in p ? `${p.x} ${p.y}` : `${p[0]} ${p[1]}`;
+  let d = '';
+  const n = ankre.length;
+  for (let i = 0; i < n; i++) {
+    const a = ankre[i]!;
+    if (!i) d = `M${f(a)}`;
+    const b = ankre[i + 1] ?? (lukket ? ankre[0]! : null);
+    if (!b) break;
+    d += a.ut || b.inn ? `C${f(a.ut ?? a)} ${f(b.inn ?? b)} ${f(b)}` : `L${f(b)}`;
+  }
+  return d;
+}
+
 export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => void; lukk?: () => void }) {
   const [kilde, settKilde] = useState<Kildebilde | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
@@ -293,6 +312,19 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
   const [visOriginal, settVisOriginal] = useState(0.25);
   const [visKanter, settVisKanter] = useState(true);
   const [grupper, settGrupper] = useState(true);
+  /** The field being drawn with the pen, in vector coordinates. */
+  const [penn, settPenn] = useState<Anker[]>([]);
+  const [pennFarge, settPennFarge] = useState('#000000');
+  const [pennSlaSammen, settPennSlaSammen] = useState(true);
+  const [pennMelding, settPennMelding] = useState<string | null>(null);
+  /** The image before the last applied crop, to undo it. */
+  const beskjaerAngre = useRef<{
+    kilde: Kildebilde;
+    maske: HTMLCanvasElement;
+    beskytt: HTMLCanvasElement;
+    utsnitt: Rektangel;
+  } | null>(null);
+  const [beskjaerer, settBeskjaerer] = useState(false);
 
   const [visning, settVisning] = useState<Visning>({ skala: 1, tx: 0, ty: 0 });
   const flate = useRef<HTMLDivElement>(null);
@@ -309,6 +341,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     | { type: 'lasso' }
     | { type: 'beskjaer'; modus: string; start: { x: number; y: number }; fra: Rektangel }
     | { type: 'omrade'; leggTil: boolean }
+    | { type: 'penn'; idx: number; start: { x: number; y: number } }
     | { type: 'anker'; kurve: number; idx: number; base: Vektormodell }
     | { type: 'handtak'; kurve: number; idx: number; side: 'inn' | 'ut'; base: Vektormodell; bryt: boolean }
   >(null);
@@ -340,6 +373,12 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     try {
       const k = await lesBildefil(f);
       if (kilde) URL.revokeObjectURL(kilde.url);
+      if (beskjaerAngre.current) URL.revokeObjectURL(beskjaerAngre.current.kilde.url);
+      beskjaerAngre.current = null;
+      maskeData.current = null;
+      kartMinne.current = null;
+      settUtvalg(null);
+      settPenn([]);
       maske.current = nyMaske(k);
       beskytt.current = nyMaske(k);
       maskeAngre.current = [];
@@ -390,7 +429,8 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
   const lagreMaskeAngre = () => {
     if (!maske.current || !beskytt.current) return;
     maskeAngre.current.push({ maske: maskeKopi(maske.current), beskytt: maskeKopi(beskytt.current) });
-    if (maskeAngre.current.length > 12) maskeAngre.current.shift();
+    // each step holds two mask-sized copies: few, so a phone keeps up
+    if (maskeAngre.current.length > 8) maskeAngre.current.shift();
   };
   /** After every change to the mask: protected areas are cut out of it again. */
   const oppdaterMaske = () => {
@@ -404,6 +444,53 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
       settMaske(beskytt.current, d.beskytt);
       settMaskeVersjon((v) => v + 1);
     }
+  };
+
+  // ------------------------------------------------------------ crop
+
+  const helt = (k: Kildebilde, u: Rektangel) => u.x === 0 && u.y === 0 && u.b === k.bredde && u.h === k.hoyde;
+
+  /** Cuts the image, the mask and the protection to the crop. One step can be undone. */
+  const brukBeskjaering = async () => {
+    if (!kilde || !maske.current || !beskytt.current || beskjaerer || helt(kilde, utsnitt)) return;
+    settBeskjaerer(true);
+    try {
+      const r = await beskjaerBilde(kilde, maske.current, beskytt.current, utsnitt);
+      if (beskjaerAngre.current) URL.revokeObjectURL(beskjaerAngre.current.kilde.url);
+      beskjaerAngre.current = {
+        kilde,
+        maske: maske.current,
+        beskytt: beskytt.current,
+        utsnitt: { ...utsnitt },
+      };
+      byttBilde(r.kilde, r.maske, r.beskytt, { x: 0, y: 0, b: r.kilde.bredde, h: r.kilde.hoyde });
+    } catch (e) {
+      settFeil(e instanceof Error ? e.message : 'Bildet kunne ikke beskjæres.');
+    } finally {
+      settBeskjaerer(false);
+    }
+  };
+  const angreBeskjaering = () => {
+    const g = beskjaerAngre.current;
+    if (!g || !kilde) return;
+    URL.revokeObjectURL(kilde.url);
+    beskjaerAngre.current = null;
+    byttBilde(g.kilde, g.maske, g.beskytt, g.utsnitt);
+  };
+  const byttBilde = (k: Kildebilde, m: HTMLCanvasElement, b: HTMLCanvasElement, u: Rektangel) => {
+    maske.current = m;
+    beskytt.current = b;
+    maskeAngre.current = [];
+    maskeData.current = null;
+    kartMinne.current = null;
+    settUtvalg(null);
+    settKilde(k);
+    settUtsnitt(u);
+    settResultat(null);
+    settModellRa(null);
+    fortid.current = [];
+    fremtid.current = [];
+    settMaskeVersjon((v) => v + 1);
   };
 
   // ------------------------------------------------------------ magic wand
@@ -593,6 +680,36 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     settHistorikkTikk((v) => v + 1);
   };
 
+  // ------------------------------------------------------------ pen
+
+  /** Closes the pen path and adds it as a part, merged with the selected parts if asked. */
+  const fullforPenn = () => {
+    if (!modell) return;
+    if (penn.length < 3) {
+      settPennMelding('Et felt trenger minst tre punkter.');
+      return;
+    }
+    const sammen = pennSlaSammen && valgteDeler.length > 0;
+    const farge = sammen && valgtFarge ? valgtFarge : pennFarge;
+    const { modell: m, id } = leggTilFelt(modell, pennepunkter(penn), farge);
+    settPenn([]);
+    if (id < 0) {
+      settPennMelding('Feltet dekker ingen piksler i bildet. Tegn det større eller innenfor bildet.');
+      return;
+    }
+    if (sammen) {
+      const ider = [id, ...valgteDeler.filter((i) => m.deler[i])];
+      const ny = slaSammenDeler(m, ider);
+      settModell(ny);
+      settValgteDeler(ider.filter((i) => ny.deler[i]).slice(0, 1));
+      settPennMelding('Feltet er slått sammen med de valgte delene.');
+    } else {
+      settModell(m);
+      settValgteDeler([id]);
+      settPennMelding('Feltet er lagt til som en ny del og er valgt.');
+    }
+  };
+
   // keep selections pointing at things that still exist
   useEffect(() => {
     if (!modell) return;
@@ -658,9 +775,10 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     return () => el.removeEventListener('wheel', onWheel);
   });
 
-  const beskjaerTreff = (p: { x: number; y: number }): string => {
+  const beskjaerTreff = (p: { x: number; y: number }, beroring: boolean): string => {
     const u = utsnitt;
-    const tol = 10 / visning.skala;
+    // a finger needs a larger target than a mouse
+    const tol = (beroring ? 24 : 10) / visning.skala;
     const naerX0 = Math.abs(p.x - u.x) < tol,
       naerX1 = Math.abs(p.x - (u.x + u.b)) < tol;
     const naerY0 = Math.abs(p.y - u.y) < tol,
@@ -689,7 +807,12 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     const p = tilBilde(e);
     if (steg === 'forbered') {
       if (fverktoy === 'beskjaer') {
-        dra.current = { type: 'beskjaer', modus: beskjaerTreff(p), start: p, fra: { ...utsnitt } };
+        dra.current = {
+          type: 'beskjaer',
+          modus: beskjaerTreff(p, e.pointerType === 'touch'),
+          start: p,
+          fra: { ...utsnitt },
+        };
       } else if (fverktoy === 'tryllestav') {
         const d = bildedata();
         if (!d) return;
@@ -734,6 +857,17 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
       return;
     }
     if (steg !== 'rediger') return;
+    if (rverktoy === 'penn') {
+      const tol = (e.pointerType === 'touch' ? 18 : 8) / pxPerEnhet;
+      if (penn.length >= 3 && Math.hypot(v.x - penn[0]!.x, v.y - penn[0]!.y) < tol) {
+        fullforPenn();
+        return;
+      }
+      settPennMelding(null);
+      settPenn((s) => [...s, { x: v.x, y: v.y, inn: null, ut: null, hjorne: true, ri: 0 }]);
+      dra.current = { type: 'penn', idx: penn.length, start: v };
+      return;
+    }
     const naer = naermesteKurve(modell, v.x, v.y, 7 / pxPerEnhet);
     if (rverktoy === 'del') {
       const delEl = maal.closest('[data-del]');
@@ -828,6 +962,19 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
       const x1 = Math.min(kilde.bredde, Math.round(x + b)),
         y1 = Math.min(kilde.hoyde, Math.round(y + h));
       settUtsnitt({ x: x0, y: y0, b: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) });
+    } else if (d.type === 'penn') {
+      // dragging pulls out smooth handles, as in Illustrator
+      const v = tilVektor(p);
+      const glatt = Math.hypot(v.x - d.start.x, v.y - d.start.y) * pxPerEnhet > 3;
+      settPenn((s) =>
+        s.map((a, i) =>
+          i !== d.idx
+            ? a
+            : glatt
+              ? { ...a, hjorne: false, ut: [v.x, v.y], inn: [2 * a.x - v.x, 2 * a.y - v.y] }
+              : { ...a, hjorne: true, ut: null, inn: null },
+        ),
+      );
     } else if (d.type === 'omrade') {
       const v = tilVektor(p);
       settOmrade((o) => (o ? { ...o, x1: v.x, y1: v.y } : o));
@@ -932,6 +1079,16 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         if (e.key === 'v' || e.key === 'V') settRverktoy('del');
         if (e.key === 'l' || e.key === 'L') settRverktoy('linje');
         if (e.key === 'p' || e.key === 'P') settRverktoy('punkt');
+        if (e.key === 'n' || e.key === 'N') settRverktoy('penn');
+        if (rverktoy === 'penn' && penn.length) {
+          if (e.key === 'Enter') fullforPenn();
+          else if (e.key === 'Escape') settPenn([]);
+          else if (e.key === 'Delete' || e.key === 'Backspace') settPenn((s) => s.slice(0, -1));
+          if (['Enter', 'Escape', 'Delete', 'Backspace'].includes(e.key)) {
+            e.preventDefault();
+            return;
+          }
+        }
         if (e.key === 'Escape') {
           settValgteDeler([]);
           settValgteKurver([]);
@@ -1016,7 +1173,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         : fverktoy.startsWith('lasso')
           ? 'crosshair'
           : 'none'
-      : rverktoy === 'linje'
+      : rverktoy === 'linje' || rverktoy === 'penn'
         ? 'crosshair'
         : 'default';
 
@@ -1239,6 +1396,59 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                   })}
                 </g>
               ))}
+              {steg === 'rediger' && rverktoy === 'penn' && penn.length > 0 && (
+                <g class="vv-penn">
+                  <path d={pennSti(penn, false)} vector-effect="non-scaling-stroke" />
+                  {peker && !dra.current && (
+                    <line
+                      class="vv-penn-strikk"
+                      x1={penn[penn.length - 1]!.x}
+                      y1={penn[penn.length - 1]!.y}
+                      x2={tilVektor(peker).x}
+                      y2={tilVektor(peker).y}
+                      vector-effect="non-scaling-stroke"
+                    />
+                  )}
+                  {penn.map((a, i) => (
+                    <g key={i}>
+                      {a.inn && a.ut && (
+                        <>
+                          <line
+                            class="vv-handtakslinje"
+                            x1={a.inn[0]}
+                            y1={a.inn[1]}
+                            x2={a.ut[0]}
+                            y2={a.ut[1]}
+                            vector-effect="non-scaling-stroke"
+                          />
+                          <circle
+                            class="vv-handtak"
+                            cx={a.inn[0]}
+                            cy={a.inn[1]}
+                            r={handtakR}
+                            vector-effect="non-scaling-stroke"
+                          />
+                          <circle
+                            class="vv-handtak"
+                            cx={a.ut[0]}
+                            cy={a.ut[1]}
+                            r={handtakR}
+                            vector-effect="non-scaling-stroke"
+                          />
+                        </>
+                      )}
+                      <rect
+                        class={i === 0 && penn.length >= 3 ? 'vv-anker vv-anker-valgt' : 'vv-anker'}
+                        x={a.x - ankerR}
+                        y={a.y - ankerR}
+                        width={ankerR * 2}
+                        height={ankerR * 2}
+                        vector-effect="non-scaling-stroke"
+                      />
+                    </g>
+                  ))}
+                </g>
+              )}
               {omrade && (
                 <rect
                   class="vv-omrade"
@@ -1361,7 +1571,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 )}
                 <p class="vv-hjelp">
                   {fverktoy === 'beskjaer'
-                    ? 'Dra et nytt utsnitt, eller dra i kantene og hjørnene. Alt utenfor blir ikke med.'
+                    ? 'Dra et nytt utsnitt, eller dra i kantene og hjørnene. Trykk «Bruk beskjæring» for å klippe bildet til utsnittet.'
                     : fverktoy === 'beskytt'
                       ? 'Mal over felt som skal være med selv om de har bakgrunnsfargen, for eksempel hvite felt i en logo. Grønt blir aldri fjernet. Alt + mal tar bort beskyttelsen.'
                       : fverktoy === 'tryllestav'
@@ -1468,6 +1678,27 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                   />
                   <Knapp ikon="fit" navn="Zoom til utsnitt" onClick={() => tilpassVisning(utsnitt)} />
                 </div>
+                <div class="vv-knapperad">
+                  <Knapp
+                    klasse="vv-primar"
+                    ikon="beskjaer"
+                    navn={beskjaerer ? 'Beskjærer …' : 'Bruk beskjæring'}
+                    onClick={() => void brukBeskjaering()}
+                    av={beskjaerer || helt(kilde, utsnitt)}
+                  />
+                  <Knapp
+                    ikon="undo"
+                    navn="Angre beskjæring"
+                    onClick={angreBeskjaering}
+                    av={!beskjaerAngre.current || beskjaerer}
+                  />
+                </div>
+                {kilde.original && (
+                  <p class="vv-hjelp">
+                    Bildet er skalert ned fra {kilde.original.bredde} × {kilde.original.hoyde} px så det kan
+                    redigeres på mobil og nettbrett.
+                  </p>
+                )}
               </section>
               <section>
                 <h2>Maske og beskyttelse</h2>
@@ -1767,6 +1998,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                       ['del', 'select', 'Velg deler', 'V'],
                       ['linje', 'velg-linje', 'Velg linjer', 'L'],
                       ['punkt', 'edit-point', 'Rediger punkter', 'P'],
+                      ['penn', 'pen', 'Penn', 'N'],
                     ] as const
                   ).map(([id, ikon, navn, tast]) => (
                     <Knapp
@@ -1813,9 +2045,57 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                     ? 'Klikk en del. Shift-klikk velger flere.'
                     : rverktoy === 'linje'
                       ? 'Klikk en linje, eller dra et område for å velge alle linjene i det. Shift legger til.'
-                      : 'Klikk en linje for å se punktene. Dra punkter og håndtak; Alt bryter håndtaket. Dobbeltklikk på linjen legger til et punkt, på et punkt veksler hjørne og glatt. Delete sletter punktet.'}
+                      : rverktoy === 'penn'
+                        ? 'Klikk for hjørnepunkter, dra for buede punkter med håndtak. Klikk på første punkt (eller trykk Enter) for å lukke feltet. Backspace fjerner siste punkt, Esc avbryter.'
+                        : 'Klikk en linje for å se punktene. Dra punkter og håndtak; Alt bryter håndtaket. Dobbeltklikk på linjen legger til et punkt, på et punkt veksler hjørne og glatt. Delete sletter punktet.'}
                 </p>
               </section>
+
+              {rverktoy === 'penn' && (
+                <section>
+                  <h2>{penn.length ? `Felt med ${penn.length} punkter` : 'Tegn et felt'}</h2>
+                  <label class="vv-avkryss">
+                    <input
+                      type="checkbox"
+                      checked={pennSlaSammen}
+                      onChange={(e) => settPennSlaSammen(e.currentTarget.checked)}
+                    />
+                    <span>
+                      Slå sammen med valgte deler
+                      {valgteDeler.length ? ` (${valgteDeler.length} valgt)` : ' (velg deler med V først)'}
+                    </span>
+                  </label>
+                  {!(pennSlaSammen && valgteDeler.length) && (
+                    <div class="vv-felt">
+                      <label for="vv-pennfarge">
+                        <span>Farge på nytt felt</span>
+                        <output>{pennFarge}</output>
+                      </label>
+                      <input
+                        id="vv-pennfarge"
+                        type="color"
+                        value={pennFarge}
+                        onInput={(e) => settPennFarge(e.currentTarget.value)}
+                      />
+                    </div>
+                  )}
+                  <div class="vv-knapperad">
+                    <Knapp ikon="path-close" navn="Lukk feltet" onClick={fullforPenn} av={penn.length < 3} />
+                    <Knapp
+                      ikon="remove-point"
+                      navn="Fjern siste punkt"
+                      onClick={() => settPenn((s) => s.slice(0, -1))}
+                      av={!penn.length}
+                    />
+                    <Knapp ikon="panel-close" navn="Avbryt" onClick={() => settPenn([])} av={!penn.length} />
+                  </div>
+                  {pennMelding && (
+                    <p class="vv-hjelp" role="status">
+                      {pennMelding}
+                    </p>
+                  )}
+                </section>
+              )}
 
               {rverktoy === 'del' && (
                 <section>
