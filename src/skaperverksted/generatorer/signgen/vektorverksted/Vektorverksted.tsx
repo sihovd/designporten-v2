@@ -804,6 +804,24 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     );
   };
 
+  const [kopiStatus, settKopiStatus] = useState<string | null>(null);
+  const [visSvgTekst, settVisSvgTekst] = useState(false);
+  const kopierSvg = () => {
+    if (!modell) return;
+    const svg = tilSvg(modell, { grupperEtterFarge: grupper, bredde: bruktUtsnitt.b, hoyde: bruktUtsnitt.h });
+    // where the clipboard is refused, the code is shown to copy by hand
+    navigator.clipboard
+      .writeText(svg)
+      .then(() => {
+        settKopiStatus(`SVG-en er kopiert (${Math.round(svg.length / 1024)} kB).`);
+        settVisSvgTekst(false);
+      })
+      .catch(() => {
+        settKopiStatus('Kunne ikke kopiere automatisk. Merk teksten under og kopier den.');
+        settVisSvgTekst(true);
+      });
+  };
+
   const valgtFarge = valgteDeler.length ? (modell?.deler[valgteDeler[0]!]?.farge ?? '#000000') : null;
   const synligeAnkre =
     steg === 'rediger' && rverktoy === 'punkt' && modell
@@ -1739,6 +1757,9 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 <button type="button" class="vv-primar" onClick={eksporter}>
                   Last ned SVG
                 </button>
+                <button type="button" class="vv-sekundar" onClick={kopierSvg}>
+                  Kopier SVG
+                </button>
                 {props.ferdig && (
                   <button
                     type="button"
@@ -1758,6 +1779,25 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                   </button>
                 )}
               </div>
+              {kopiStatus && (
+                <p class="vv-hjelp" role="status">
+                  {kopiStatus}
+                </p>
+              )}
+              {visSvgTekst && (
+                <textarea
+                  id="vv-svgtekst"
+                  class="vv-svgtekst"
+                  readOnly
+                  aria-label="SVG-koden"
+                  value={tilSvg(modell, {
+                    grupperEtterFarge: grupper,
+                    bredde: bruktUtsnitt.b,
+                    hoyde: bruktUtsnitt.h,
+                  })}
+                  onFocus={(e) => (e.target as HTMLTextAreaElement).select()}
+                />
+              )}
             </section>
           )}
         </aside>

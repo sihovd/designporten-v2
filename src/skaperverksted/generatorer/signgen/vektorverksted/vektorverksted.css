@@ -482,3 +482,14 @@
     transition: none !important;
   }
 }
+.vv-svgtekst {
+  width: 100%;
+  min-height: 120px;
+  font:
+    11px/1.4 ui-monospace,
+    monospace;
+  background: var(--vv-panel-2);
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  color: var(--vv-tekst);
+}
