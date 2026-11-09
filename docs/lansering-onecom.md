@@ -9,7 +9,7 @@ Sivert godkjente 14. oktober 2026 at den nye siden i `sihovd/designporten-v2` sk
 - Webroten inneholder en statisk forside, gamle HTML-sider og WordPress-filer.
 - Permanent webbackup fra 14. oktober 2026, 20:42 UTC, er ferdig hos one.com: 718 MB. En permanent databasebackup fra 20:44 UTC er også ferdig. Databasene og e-postkontoene slettes ikke under byttet.
 - Brreg bekrefter Designporten Hovde, org.nr. 835 792 552, Nyveien 1457, 1960 Løken. Postkassene `kontakt@designporten.no` og `post@designporten.no` finnes hos one.com. Telefonnummer og åpningstider er ikke bekreftet.
-- Kortbetaling er avslått i butikkinnstillingene, og PHP-bygget har ikke Stripe-ruter. Handlekurven sender forespørsler.
+- Kortbetaling er avslått i butikkinnstillingene. PHP-bygget har Stripe-ruter (`api/kasse/`, `api/stripe/webhook/`), men de står av til `api/stripe/konfig.php` finnes på serveren. Handlekurven sender forespørsler til da. Se [betaling.md](betaling.md).
 
 ## Bygg og lokal kontroll
 
