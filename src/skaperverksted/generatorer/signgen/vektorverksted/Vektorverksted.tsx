@@ -1299,71 +1299,13 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
           <div
             ref={utvalgHolder}
             class="vv-maskeholder vv-utvalgholder"
-            style={{ display: steg === 'forbered' ? 'block' : 'none' }}
+            style={{ display: steg === 'forbered' && utvalg ? 'block' : 'none' }}
           />
           <div
             ref={maskeHolder}
             class="vv-maskeholder"
             style={{ display: steg === 'forbered' ? 'block' : 'none' }}
           />
-          {steg === 'forbered' && (
-            <svg
-              class="vv-overlegg"
-              width={kilde.bredde}
-              height={kilde.hoyde}
-              viewBox={`0 0 ${kilde.bredde} ${kilde.hoyde}`}
-            >
-              <path
-                class="vv-utenfor"
-                fill-rule="evenodd"
-                d={`M0 0H${kilde.bredde}V${kilde.hoyde}H0Z M${utsnitt.x} ${utsnitt.y}h${utsnitt.b}v${utsnitt.h}h${-utsnitt.b}Z`}
-              />
-              <rect
-                class="vv-utsnitt"
-                x={utsnitt.x}
-                y={utsnitt.y}
-                width={utsnitt.b}
-                height={utsnitt.h}
-                vector-effect="non-scaling-stroke"
-              />
-              {fverktoy === 'beskjaer' &&
-                [
-                  [0, 0],
-                  [0.5, 0],
-                  [1, 0],
-                  [0, 0.5],
-                  [1, 0.5],
-                  [0, 1],
-                  [0.5, 1],
-                  [1, 1],
-                ].map(([fx, fy]) => (
-                  <rect
-                    class="vv-utsnitt-hank"
-                    x={utsnitt.x + utsnitt.b * fx! - 5 / visning.skala}
-                    y={utsnitt.y + utsnitt.h * fy! - 5 / visning.skala}
-                    width={10 / visning.skala}
-                    height={10 / visning.skala}
-                    vector-effect="non-scaling-stroke"
-                  />
-                ))}
-              {lasso && (
-                <polyline
-                  class="vv-lasso"
-                  points={lasso.map((p) => `${p.x},${p.y}`).join(' ')}
-                  vector-effect="non-scaling-stroke"
-                />
-              )}
-              {peker && (fverktoy === 'pensel' || fverktoy === 'viskelar' || fverktoy === 'beskytt') && (
-                <circle
-                  class="vv-pensel"
-                  cx={peker.x}
-                  cy={peker.y}
-                  r={pensel / 2}
-                  vector-effect="non-scaling-stroke"
-                />
-              )}
-            </svg>
-          )}
           {steg !== 'forbered' && modell && (
             <svg
               class="vv-vektor"
@@ -1529,6 +1471,61 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
             </svg>
           )}
         </div>
+      )}
+      {kilde && steg === 'forbered' && (
+        <svg class="vv-overlegg" aria-hidden="true">
+          <g transform={`translate(${visning.tx} ${visning.ty}) scale(${visning.skala})`}>
+            <path
+              class="vv-utenfor"
+              fill-rule="evenodd"
+              d={`M0 0H${kilde.bredde}V${kilde.hoyde}H0Z M${utsnitt.x} ${utsnitt.y}h${utsnitt.b}v${utsnitt.h}h${-utsnitt.b}Z`}
+            />
+            <rect
+              class="vv-utsnitt"
+              x={utsnitt.x}
+              y={utsnitt.y}
+              width={utsnitt.b}
+              height={utsnitt.h}
+              vector-effect="non-scaling-stroke"
+            />
+            {fverktoy === 'beskjaer' &&
+              [
+                [0, 0],
+                [0.5, 0],
+                [1, 0],
+                [0, 0.5],
+                [1, 0.5],
+                [0, 1],
+                [0.5, 1],
+                [1, 1],
+              ].map(([fx, fy]) => (
+                <rect
+                  class="vv-utsnitt-hank"
+                  x={utsnitt.x + utsnitt.b * fx! - 5 / visning.skala}
+                  y={utsnitt.y + utsnitt.h * fy! - 5 / visning.skala}
+                  width={10 / visning.skala}
+                  height={10 / visning.skala}
+                  vector-effect="non-scaling-stroke"
+                />
+              ))}
+            {lasso && (
+              <polyline
+                class="vv-lasso"
+                points={lasso.map((p) => `${p.x},${p.y}`).join(' ')}
+                vector-effect="non-scaling-stroke"
+              />
+            )}
+            {peker && (fverktoy === 'pensel' || fverktoy === 'viskelar' || fverktoy === 'beskytt') && (
+              <circle
+                class="vv-pensel"
+                cx={peker.x}
+                cy={peker.y}
+                r={pensel / 2}
+                vector-effect="non-scaling-stroke"
+              />
+            )}
+          </g>
+        </svg>
       )}
       {jobber && <div class="vv-jobber">Konverterer …</div>}
     </div>
