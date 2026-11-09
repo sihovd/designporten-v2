@@ -104,6 +104,9 @@ function kjor(tittel, kommando, args) {
   if (r.status !== 0) throw new PubliseringsFeil(`«${tittel}» feilet. Ingenting er lastet opp.`);
 }
 
+/** Folders whose files end up in the built site. */
+export const KILDEMAPPER = ['src', 'public', 'php', 'astro.config.mjs'];
+
 function git(...args) {
   const r = spawnSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   if (r.status !== 0) throw new PubliseringsFeil(`git ${args[0]} feilet: ${(r.stderr || '').trim()}`);
@@ -117,6 +120,18 @@ function hentMain() {
   if (git('rev-parse', '--abbrev-ref', 'HEAD') !== 'main') git('checkout', 'main');
   git('fetch', 'origin', 'main');
   git('merge', '--ff-only', 'origin/main');
+  // Files that are not in git would be built into the site unreviewed, and can
+  // shadow the real ones.
+  const fremmede = git('ls-files', '--others', '--exclude-standard', '--', ...KILDEMAPPER)
+    .split('\n')
+    .filter(Boolean);
+  if (fremmede.length) {
+    throw new PubliseringsFeil(
+      `Disse filene finnes bare på PC-en, ikke i GitHub, og ville blitt med i nettsiden:\n${fremmede
+        .map((f) => `  ${f}`)
+        .join('\n')}\nFlytt dem ut av designporten-mappen (for eksempel til Dokumenter), og prøv igjen.`,
+    );
+  }
   return git('log', '-1', '--format=%h %s');
 }
 
