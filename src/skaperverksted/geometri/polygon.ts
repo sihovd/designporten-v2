@@ -10,6 +10,7 @@
  */
 import {
   ClipType,
+  Delaunay,
   EndType,
   FillRule,
   JoinType,
@@ -226,13 +227,64 @@ export function transformerRegion(region: Region, fn: (p: Vec2) => Vec2): Region
   return region.map((f) => ({ ytre: t(f.ytre), hull: f.hull.map(t) }));
 }
 
+/** The triangulator went round in a circle and was stopped. */
+class TrianguleringSlynge extends Error {}
+
+/**
+ * Guard against an endless loop in clipper2-ts' triangulator (2.0.1-18). When it bridges an inner
+ * local minimum, `createInnerLocMinLooseEdge` moves the bridge to another vertex for as long as an edge
+ * blocks it. On some shapes (Pacifico «Sivert Hovde» at 8 mm with sharp corners, inset a little) two
+ * edges block each other's bridge, so the loop never ends and the whole page freezes; Sign Forge then
+ * stands still on «Bygger 3D-modellen … 45 %» (Sivert, 2026-11-09). The loop depends only on the bridge
+ * vertex, so if it moves more often than there are vertices it has been at one before and is going in
+ * circles: stop it, and the caller falls back to earcut.
+ */
+type DelaunayInnside = {
+  allVertices: unknown[];
+  segsIntersect(...a: unknown[]): number;
+  createInnerLocMinLooseEdge(...a: unknown[]): unknown;
+};
+const delaunayProto = Delaunay.prototype as unknown as DelaunayInnside;
+/** Bridge moves left before the loop counts as endless; -1 outside the guarded method. */
+let broflyttIgjen = -1;
+const KRYSSER = 2; // IntersectKind.intersect (not exported)
+export const trianguleringVaktet =
+  typeof delaunayProto.createInnerLocMinLooseEdge === 'function' &&
+  typeof delaunayProto.segsIntersect === 'function';
+if (trianguleringVaktet) {
+  const brosok = delaunayProto.createInnerLocMinLooseEdge;
+  const krysser = delaunayProto.segsIntersect;
+  delaunayProto.segsIntersect = function (this: DelaunayInnside, ...a: unknown[]) {
+    const svar = krysser.apply(this, a);
+    if (broflyttIgjen >= 0 && svar === KRYSSER && --broflyttIgjen < 0) throw new TrianguleringSlynge();
+    return svar;
+  };
+  delaunayProto.createInnerLocMinLooseEdge = function (this: DelaunayInnside, ...a: unknown[]) {
+    const ytre = broflyttIgjen;
+    broflyttIgjen = this.allVertices.length + 1;
+    try {
+      return brosok.apply(this, a);
+    } finally {
+      broflyttIgjen = ytre;
+    }
+  };
+}
+
 /**
  * Triangulate one polygon with holes (constrained Delaunay, no added
  * vertices). Returns triangles as mm coordinates, or null if the
  * triangulator gives up (the caller falls back to earcut).
  */
 export function trianguler(f: Flate, delaunay = true): [Vec2, Vec2, Vec2][] | null {
-  const { result, solution } = triangulate(tilPaths([f.ytre, ...f.hull]), delaunay);
+  let svar: ReturnType<typeof triangulate>;
+  try {
+    svar = triangulate(tilPaths([f.ytre, ...f.hull]), delaunay);
+  } catch (feil) {
+    // the guard above, or an internal error in the triangulator: let earcut take it
+    if (!(feil instanceof Error)) throw feil;
+    return null;
+  }
+  const { result, solution } = svar;
   if (result !== TriangulateResult.success) return null;
   const ut: [Vec2, Vec2, Vec2][] = [];
   for (const t of solution) {
