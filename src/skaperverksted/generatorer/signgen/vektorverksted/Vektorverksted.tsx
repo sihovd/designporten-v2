@@ -252,6 +252,17 @@ function Knapp(props: {
   );
 }
 
+/** A pen point moved, handles along. */
+function flyttPennpunkt(a: Anker, dx: number, dy: number): Anker {
+  return {
+    ...a,
+    x: a.x + dx,
+    y: a.y + dy,
+    inn: a.inn ? [a.inn[0] + dx, a.inn[1] + dy] : null,
+    ut: a.ut ? [a.ut[0] + dx, a.ut[1] + dy] : null,
+  };
+}
+
 /** Path data of the pen path being drawn. */
 function pennSti(ankre: Anker[], lukket: boolean): string {
   const f = (p: { x: number; y: number } | [number, number]) =>
@@ -341,7 +352,15 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     | { type: 'lasso' }
     | { type: 'beskjaer'; modus: string; start: { x: number; y: number }; fra: Rektangel }
     | { type: 'omrade'; leggTil: boolean }
-    | { type: 'penn'; idx: number; start: { x: number; y: number } }
+    | { type: 'penn'; idx: number; start: { x: number; y: number }; siste: { x: number; y: number } }
+    | {
+        type: 'pennpunkt';
+        idx: number;
+        side: 'punkt' | 'inn' | 'ut';
+        start: { x: number; y: number };
+        flyttet: boolean;
+        lukk: boolean;
+      }
     | { type: 'anker'; kurve: number; idx: number; base: Vektormodell }
     | { type: 'handtak'; kurve: number; idx: number; side: 'inn' | 'ut'; base: Vektormodell; bryt: boolean }
   >(null);
@@ -859,13 +878,31 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     if (steg !== 'rediger') return;
     if (rverktoy === 'penn') {
       const tol = (e.pointerType === 'touch' ? 18 : 8) / pxPerEnhet;
-      if (penn.length >= 3 && Math.hypot(v.x - penn[0]!.x, v.y - penn[0]!.y) < tol) {
-        fullforPenn();
+      const naerPunkt = (x: number, y: number) => Math.hypot(v.x - x, v.y - y) < tol;
+      // a placed point or handle can be dragged again; a click on the first point closes the field
+      for (let i = penn.length - 1; i >= 0; i--) {
+        const a = penn[i]!;
+        const side = naerPunkt(a.x, a.y)
+          ? 'punkt'
+          : a.ut && naerPunkt(a.ut[0], a.ut[1])
+            ? 'ut'
+            : a.inn && naerPunkt(a.inn[0], a.inn[1])
+              ? 'inn'
+              : null;
+        if (!side) continue;
+        dra.current = {
+          type: 'pennpunkt',
+          idx: i,
+          side,
+          start: v,
+          flyttet: false,
+          lukk: side === 'punkt' && i === 0 && penn.length >= 3,
+        };
         return;
       }
       settPennMelding(null);
       settPenn((s) => [...s, { x: v.x, y: v.y, inn: null, ut: null, hjorne: true, ri: 0 }]);
-      dra.current = { type: 'penn', idx: penn.length, start: v };
+      dra.current = { type: 'penn', idx: penn.length, start: v, siste: v };
       return;
     }
     const naer = naermesteKurve(modell, v.x, v.y, 7 / pxPerEnhet);
@@ -963,8 +1000,17 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         y1 = Math.min(kilde.hoyde, Math.round(y + h));
       settUtsnitt({ x: x0, y: y0, b: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) });
     } else if (d.type === 'penn') {
-      // dragging pulls out smooth handles, as in Illustrator
+      // dragging pulls out smooth handles, as in Illustrator; with Space held it moves the point
       const v = tilVektor(p);
+      if (mellomrom.current) {
+        const dx = v.x - d.siste.x,
+          dy = v.y - d.siste.y;
+        d.siste = v;
+        d.start = { x: d.start.x + dx, y: d.start.y + dy };
+        settPenn((s) => s.map((a, i) => (i !== d.idx ? a : flyttPennpunkt(a, dx, dy))));
+        return;
+      }
+      d.siste = v;
       const glatt = Math.hypot(v.x - d.start.x, v.y - d.start.y) * pxPerEnhet > 3;
       settPenn((s) =>
         s.map((a, i) =>
@@ -974,6 +1020,26 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
               ? { ...a, hjorne: false, ut: [v.x, v.y], inn: [2 * a.x - v.x, 2 * a.y - v.y] }
               : { ...a, hjorne: true, ut: null, inn: null },
         ),
+      );
+    } else if (d.type === 'pennpunkt') {
+      const v = tilVektor(p);
+      if (!d.flyttet && Math.hypot(v.x - d.start.x, v.y - d.start.y) * pxPerEnhet < 3) return;
+      d.flyttet = true;
+      settPenn((s) =>
+        s.map((a, i) => {
+          if (i !== d.idx) return a;
+          if (d.side === 'punkt') return flyttPennpunkt(a, v.x - a.x, v.y - a.y);
+          const mot = d.side === 'ut' ? 'inn' : 'ut';
+          // the opposite handle follows (mirrored length kept) unless Alt breaks it
+          const ny: Anker = { ...a, [d.side]: [v.x, v.y] };
+          const m = a[mot];
+          if (m && !e.altKey && !a.hjorne) {
+            const l = Math.hypot(m[0] - a.x, m[1] - a.y);
+            const lv = Math.hypot(v.x - a.x, v.y - a.y) || 1;
+            ny[mot] = [a.x - ((v.x - a.x) * l) / lv, a.y - ((v.y - a.y) * l) / lv];
+          } else if (e.altKey) ny.hjorne = true;
+          return ny;
+        }),
       );
     } else if (d.type === 'omrade') {
       const v = tilVektor(p);
@@ -991,6 +1057,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     const d = dra.current;
     dra.current = null;
     if (!d || !kilde) return;
+    if (d.type === 'pennpunkt' && d.lukk && !d.flyttet) fullforPenn();
     if (d.type === 'pensel' || d.type === 'beskytt') oppdaterMaske();
     else if (d.type === 'lasso') {
       if (lasso && lasso.length > 2) {
@@ -2046,7 +2113,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                     : rverktoy === 'linje'
                       ? 'Klikk en linje, eller dra et område for å velge alle linjene i det. Shift legger til.'
                       : rverktoy === 'penn'
-                        ? 'Klikk for hjørnepunkter, dra for buede punkter med håndtak. Klikk på første punkt (eller trykk Enter) for å lukke feltet. Backspace fjerner siste punkt, Esc avbryter.'
+                        ? 'Klikk for hjørnepunkter, dra for buede punkter med håndtak. Hold mellomrom mens du drar for å flytte punktet. Plasserte punkter og håndtak kan dras etterpå (Alt bryter håndtaket). Klikk på første punkt (eller trykk Enter) for å lukke feltet. Backspace fjerner siste punkt, Esc avbryter.'
                         : 'Klikk en linje for å se punktene. Dra punkter og håndtak; Alt bryter håndtaket. Dobbeltklikk på linjen legger til et punkt, på et punkt veksler hjørne og glatt. Delete sletter punktet.'}
                 </p>
               </section>
