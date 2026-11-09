@@ -16,6 +16,7 @@ import {
   type Vektormodell,
 } from './modell';
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionvalg } from './regioner';
+import { antallValgt, bakgrunnsutvalg, kombiner, tryllestav, utvid } from './tryllestav';
 
 type Rgba = [number, number, number, number];
 function bilde(b: number, h: number, farge: (x: number, y: number) => Rgba): Piksler {
@@ -179,5 +180,49 @@ describe('levelling', () => {
     expect(a[0]!.x).toBeCloseTo(a[a.length - 1]!.x, 6);
     const begge = flate(delSti(rett, rett.deler[0]!) + delSti(rett, rett.deler[1]!));
     expect(delFlate(rett, 0) + delFlate(rett, 1)).toBeCloseTo(begge, 3);
+  });
+});
+
+describe('tryllestav', () => {
+  // white background, a black ring with a white inside, 60 × 60
+  const ringbilde = bilde(60, 60, (x, y) => {
+    const r = Math.hypot(x - 30, y - 30);
+    return r < 20 && r > 10 ? SVART : HVIT;
+  });
+
+  it('selects only the connected background, not the white inside the ring', () => {
+    const u = tryllestav(ringbilde.data, 60, 60, 1, 1, 32, true);
+    expect(u[0]).toBe(1);
+    expect(u[30 * 60 + 30]).toBe(0); // the centre
+    const alle = tryllestav(ringbilde.data, 60, 60, 1, 1, 32, false);
+    expect(alle[30 * 60 + 30]).toBe(1);
+  });
+
+  it('finds the background from the image edge', () => {
+    const u = bakgrunnsutvalg(ringbilde.data, 60, 60, 32);
+    expect(u[0]).toBe(1);
+    expect(u[30 * 60 + 15]).toBe(0); // the ring
+    expect(u[30 * 60 + 30]).toBe(0);
+  });
+
+  it('combines, grows and shrinks selections', () => {
+    const a = new Uint8Array(25);
+    a[12] = 1;
+    expect(antallValgt(utvid(a, 5, 5, 1))).toBe(9);
+    expect(antallValgt(utvid(utvid(a, 5, 5, 1), 5, 5, -1))).toBe(1);
+    const b = new Uint8Array(25);
+    b[0] = 1;
+    expect(antallValgt(kombiner(a, b, 'legg-til'))).toBe(2);
+    expect(antallValgt(kombiner(a, a, 'trekk-fra'))).toBe(0);
+  });
+
+  it('keeps a protected white field as a part when the background is removed', () => {
+    const uten = lagRegionkart(ringbilde, null, { ...STANDARD_REGIONVALG, minHull: 0 });
+    expect(uten.regioner).toHaveLength(1);
+    const vern = new Uint8Array(60 * 60);
+    vern[30 * 60 + 30] = 1;
+    const med = lagRegionkart(ringbilde, null, { ...STANDARD_REGIONVALG, minHull: 0 }, vern);
+    expect(med.regioner).toHaveLength(2);
+    expect(med.regioner.map((r) => r.farge).sort()).toEqual(['#000000', '#ffffff']);
   });
 });

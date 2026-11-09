@@ -10,6 +10,9 @@ import type { Piksler } from '../vektoriser';
 
 export const MAKS_MB = 25;
 export const MASKE_MAKS = 2400;
+/** Removed parts of the image are shown red, protected parts green. */
+export const MASKEFARGE = '#e0325a';
+export const BESKYTTFARGE = '#2fd27a';
 
 export interface Kildebilde {
   navn: string;
@@ -69,13 +72,14 @@ export function malStrok(
   b: { x: number; y: number },
   radius: number,
   fjern: boolean,
+  farge = MASKEFARGE,
 ): void {
   const s = maskeskala(k, maske);
   const ctx = maske.getContext('2d')!;
   ctx.save();
   ctx.globalCompositeOperation = fjern ? 'source-over' : 'destination-out';
-  ctx.strokeStyle = '#000';
-  ctx.fillStyle = '#000';
+  ctx.strokeStyle = farge;
+  ctx.fillStyle = farge;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(1, radius * 2 * s);
@@ -95,6 +99,7 @@ export function malLasso(
   maske: HTMLCanvasElement,
   punkter: { x: number; y: number }[],
   modus: 'fjern' | 'behold' | 'gjenopprett',
+  farge = MASKEFARGE,
 ): void {
   if (punkter.length < 3) return;
   const s = maskeskala(k, maske);
@@ -105,7 +110,7 @@ export function malLasso(
   ctx.moveTo(punkter[0]!.x * s, punkter[0]!.y * s);
   for (const p of punkter.slice(1)) ctx.lineTo(p.x * s, p.y * s);
   ctx.closePath();
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = farge;
   ctx.globalCompositeOperation = modus === 'gjenopprett' ? 'destination-out' : 'source-over';
   ctx.fill(modus === 'behold' ? 'evenodd' : 'nonzero');
   ctx.restore();
@@ -118,7 +123,12 @@ export function tomMaske(maske: HTMLCanvasElement): void {
 export function inverterMaske(maske: HTMLCanvasElement): void {
   const ctx = maske.getContext('2d')!;
   const d = ctx.getImageData(0, 0, maske.width, maske.height);
-  for (let i = 3; i < d.data.length; i += 4) d.data[i] = 255 - d.data[i]!;
+  for (let i = 0; i < d.data.length; i += 4) {
+    d.data[i] = 224;
+    d.data[i + 1] = 50;
+    d.data[i + 2] = 90;
+    d.data[i + 3] = 255 - d.data[i + 3]!;
+  }
   ctx.putImageData(d, 0, 0);
 }
 
@@ -163,4 +173,70 @@ export function sporgrunnlag(
   const ut = new Uint8Array(b * h);
   for (let i = 0; i < ut.length; i++) ut[i] = md[i * 4 + 3]! < 128 ? 1 : 0;
   return { piksler, maske: ut, faktor: f };
+}
+
+/** The image at mask resolution, for the magic wand. */
+export function maskepiksler(k: Kildebilde, maske: HTMLCanvasElement): ImageData {
+  const c = document.createElement('canvas');
+  c.width = maske.width;
+  c.height = maske.height;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(k.bilde, 0, 0, c.width, c.height);
+  return ctx.getImageData(0, 0, c.width, c.height);
+}
+
+/**
+ * A wand selection applied to the mask: «fjern» removes what is selected,
+ * «behold» removes everything else, «gjenopprett» brings the selected back.
+ */
+export function brukUtvalg(
+  maske: HTMLCanvasElement,
+  utvalg: Uint8Array,
+  modus: 'fjern' | 'behold' | 'gjenopprett',
+  farge = MASKEFARGE,
+): void {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(farge.slice(i, i + 2), 16));
+  const ctx = maske.getContext('2d')!;
+  const d = ctx.getImageData(0, 0, maske.width, maske.height);
+  for (let i = 0; i < utvalg.length; i++) {
+    const valgt = utvalg[i] === 1;
+    const p = i * 4;
+    if ((modus === 'fjern' && valgt) || (modus === 'behold' && !valgt)) {
+      d.data[p] = r!;
+      d.data[p + 1] = g!;
+      d.data[p + 2] = b!;
+      d.data[p + 3] = 255;
+    } else if (modus === 'gjenopprett' && valgt) d.data[p + 3] = 0;
+  }
+  ctx.putImageData(d, 0, 0);
+}
+
+/** What is protected is never removed: the protection is cut out of the mask. */
+export function beskyttMaske(maske: HTMLCanvasElement, beskytt: HTMLCanvasElement): void {
+  const ctx = maske.getContext('2d')!;
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.drawImage(beskytt, 0, 0, maske.width, maske.height);
+  ctx.restore();
+}
+
+/** A mask-sized canvas read at trace size for one crop: 1 where it is painted. */
+export function lesLerret(
+  k: Kildebilde,
+  lerret: HTMLCanvasElement,
+  utsnitt: Rektangel,
+  b: number,
+  h: number,
+): Uint8Array {
+  const c = document.createElement('canvas');
+  c.width = b;
+  c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  const ms = maskeskala(k, lerret);
+  ctx.drawImage(lerret, utsnitt.x * ms, utsnitt.y * ms, utsnitt.b * ms, utsnitt.h * ms, 0, 0, b, h);
+  const d = ctx.getImageData(0, 0, b, h).data;
+  const ut = new Uint8Array(b * h);
+  for (let i = 0; i < ut.length; i++) ut[i] = d[i * 4 + 3]! >= 128 ? 1 : 0;
+  return ut;
 }

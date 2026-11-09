@@ -493,3 +493,39 @@
   border-radius: 4px;
   color: var(--vv-tekst);
 }
+.vv-ikonknapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.vv-ikonknapp .ikon {
+  flex: none;
+}
+.vv-verktoy.vv-ikonknapp span {
+  flex: 1;
+}
+.vv-utvalgholder {
+  z-index: 2;
+}
+.vv-utvalg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.vv-beskytt {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.vv-utvalgsboks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--vv-valg);
+  border-radius: 4px;
+}

@@ -143,17 +143,33 @@ export function fargeindekser(
   return { ind, palett, bakgrunn, terskel };
 }
 
-/** The colour most common along the edge of what is kept: the image edge and the mask edge. */
+/**
+ * The colour most common along the image edge (the crop's edge), counting
+ * only pixels the mask keeps. Where the mask has already taken away
+ * everything along the edge, the background is gone and nothing more is
+ * removed (-1): the parts left must not lose a colour of their own.
+ */
 export function kantfarge(ind: Int32Array, w: number, h: number, antall: number): number {
   const tell = new Array<number>(antall).fill(0);
-  const hent = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? -1 : ind[y * w + x]!);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const k = ind[y * w + x]!;
-      if (k < 0) continue;
-      if (hent(x - 1, y) < 0 || hent(x + 1, y) < 0 || hent(x, y - 1) < 0 || hent(x, y + 1) < 0) tell[k]!++;
+  let sum = 0;
+  const tel = (i: number) => {
+    const k = ind[i]!;
+    if (k >= 0) {
+      tell[k]!++;
+      sum++;
     }
+  };
+  for (let x = 0; x < w; x++) {
+    tel(x);
+    if (h > 1) tel((h - 1) * w + x);
   }
+  for (let y = 1; y < h - 1; y++) {
+    tel(y * w);
+    if (w > 1) tel(y * w + w - 1);
+  }
+  const omkrets = 2 * (w + h) - 4;
+  // less than a tenth of the edge left: the mask has already removed the background
+  if (sum < omkrets * 0.1) return -1;
   let beste = 0;
   for (let k = 1; k < antall; k++) if (tell[k]! > tell[beste]!) beste = k;
   return tell[beste]! > 0 ? beste : -1;
@@ -406,7 +422,12 @@ export function fjernSmaaDeler(
 }
 
 /** The whole step: pixels and mask in, label image out. */
-export function lagRegionkart(bilde: Piksler, maske: Uint8Array | null, valg: Regionvalg): Regionkart {
+export function lagRegionkart(
+  bilde: Piksler,
+  maske: Uint8Array | null,
+  valg: Regionvalg,
+  beskytt: Uint8Array | null = null,
+): Regionkart {
   const w = bilde.width,
     h = bilde.height;
   const { ind: raa, palett, bakgrunn, terskel } = fargeindekser(bilde, maske, valg);
@@ -419,12 +440,18 @@ export function lagRegionkart(bilde: Piksler, maske: Uint8Array | null, valg: Re
   const { etikett, farge } = komponenter(ind, w, h);
   const rens = fjernSmaaDeler(etikett, w, h, farge, valg);
   const hex = palett.map((f) => tilHex(f));
+  // a background part the user has protected (a white field inside a logo) stays as a part
+  const beskyttet = new Uint8Array(rens.farge.length);
+  if (beskytt)
+    for (let i = 0; i < beskytt.length; i++)
+      if (beskytt[i] && rens.etikett[i]! >= 0) beskyttet[rens.etikett[i]!] = 1;
   const ny = new Int32Array(rens.farge.length).fill(-1);
   const regioner: Regioninfo[] = [];
   rens.farge.forEach((k, i) => {
-    if (k === bakgrunn) return;
+    if (k === bakgrunn && !beskyttet[i]) return;
     ny[i] = regioner.length;
-    regioner.push({ farge: valg.farger <= 1 ? '#000000' : hex[k]!, fargeIndeks: k, areal: rens.areal[i]! });
+    const farge = valg.farger <= 1 ? (k === 0 ? '#000000' : '#ffffff') : hex[k]!;
+    regioner.push({ farge, fargeIndeks: k, areal: rens.areal[i]! });
   });
   const ut = rens.etikett.map((e) => (e < 0 ? -1 : ny[e]!));
   return {

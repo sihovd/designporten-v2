@@ -158,7 +158,15 @@ export type MidlertidigIkon =
   | 'monster'
   | 'tekst-venstre'
   | 'tekst-midt'
-  | 'tekst-hoyre';
+  | 'tekst-hoyre'
+  | 'beskjaer'
+  | 'tryllestav'
+  | 'lasso'
+  | 'viskelar'
+  | 'rett-linje'
+  | 'vater'
+  | 'velg-linje'
+  | 'velg-omrade';
 
 export type IkonId = PakkeIkon | MidlertidigIkon;
 
@@ -226,6 +234,61 @@ const midlertidige: Record<MidlertidigIkon, () => JSX.Element> = {
       <path d="M3 20h18" />
       <rect x="6" y="4" width="4" height="13" />
       <rect x="14" y="9" width="4" height="8" />
+    </>
+  ),
+  // Vektorverksted (2026-11-09): tools the set does not have yet
+  // crop: two overlapping corner brackets
+  beskjaer: () => <path d="M7 3v14h14M3 7h14v14" />,
+  // magic wand: a stick with sparkle marks at its tip
+  tryllestav: () => (
+    <>
+      <path d="M4 20 15 9" />
+      <path d="M17 3v3M17 10v1M20.5 6.5h-2.5M14 6.5h-1M19.5 4 18 5.5M19.5 9 18 7.5" />
+    </>
+  ),
+  // lasso: a loose loop with a tail
+  lasso: () => (
+    <>
+      <ellipse cx="13" cy="9" rx="8" ry="5" stroke-dasharray="3 2" />
+      <path d="M7 12.5c-1 2-1 4 1 5s1 3-1 3.5" />
+    </>
+  ),
+  // eraser: a tilted block on a base line
+  viskelar: () => (
+    <>
+      <path d="m14 4 6 6-9 9H6l-3-3z" />
+      <path d="m9 9 6 6M6 19h15" />
+    </>
+  ),
+  // straighten: a curve above a straight line
+  'rett-linje': () => (
+    <>
+      <path d="M4 10c4-6 12-6 16 0" stroke-dasharray="2 2" />
+      <path d="M4 17h16" />
+      <circle cx="4" cy="17" r="1.5" />
+      <circle cx="20" cy="17" r="1.5" />
+    </>
+  ),
+  // level: a spirit level with its bubble
+  vater: () => (
+    <>
+      <rect x="2.5" y="8" width="19" height="8" rx="1.5" />
+      <path d="M10 10v4M14 10v4" />
+      <circle cx="12" cy="12" r="1" />
+    </>
+  ),
+  // select a line: a curve with a cursor on it
+  'velg-linje': () => (
+    <>
+      <path d="M3 17c3-9 9-9 12-4" />
+      <path d="m14 11 6 2.5-2.6 1 2 3-1.4 1-2-3L14 17z" />
+    </>
+  ),
+  // select an area: a dashed rectangle with a cursor
+  'velg-omrade': () => (
+    <>
+      <rect x="3" y="3" width="13" height="13" stroke-dasharray="2.5 2" />
+      <path d="m13 13 7 2.8-3 1.2 2.2 3.2-1.5 1.1-2.2-3.2L13 21z" />
     </>
   ),
 };

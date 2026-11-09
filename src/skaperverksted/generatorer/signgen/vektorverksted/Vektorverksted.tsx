@@ -17,15 +17,21 @@
  */
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { Ikon, type IkonId } from '../../../shell/ikoner';
 import {
+  brukUtvalg,
   inverterMaske,
   lesBildefil,
   malLasso,
   malStrok,
   maskeKopi,
+  maskepiksler,
   nyMaske,
   settMaske,
   sporgrunnlag,
+  beskyttMaske,
+  lesLerret,
+  BESKYTTFARGE,
   tomMaske,
   type Kildebilde,
   type Rektangel,
@@ -58,9 +64,20 @@ import {
 } from './modell';
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionkart, type Regionvalg } from './regioner';
 import { STANDARD_TILPASNING, type Tilpasningsvalg } from './tilpass';
+import {
+  antallValgt,
+  bakgrunnsutvalg,
+  inverterUtvalg,
+  kombiner,
+  tryllestav,
+  utvalgsbilde,
+  utvid,
+  type Utvalg,
+} from './tryllestav';
 
 type Steg = 'forbered' | 'konverter' | 'rediger';
-type Forberedverktoy = 'beskjaer' | 'pensel' | 'viskelar' | 'lasso-fjern' | 'lasso-behold';
+type Forberedverktoy =
+  'beskjaer' | 'tryllestav' | 'beskytt' | 'pensel' | 'viskelar' | 'lasso-fjern' | 'lasso-behold';
 type Redigerverktoy = 'del' | 'linje' | 'punkt';
 interface Visning {
   skala: number;
@@ -204,6 +221,34 @@ function Glidebryter(props: {
   );
 }
 
+/** A button with an icon from Sign Forge's icon set and its name beside it. */
+function Knapp(props: {
+  ikon: IkonId;
+  navn: string;
+  klasse?: string;
+  onClick: () => void;
+  av?: boolean;
+  tittel?: string;
+  trykket?: boolean;
+  tast?: string;
+}) {
+  return (
+    <button
+      type="button"
+      class={`${props.klasse ?? 'vv-sekundar'} vv-ikonknapp`}
+      onClick={props.onClick}
+      disabled={props.av}
+      title={props.tittel}
+      aria-pressed={props.trykket}
+      aria-keyshortcuts={props.tast}
+    >
+      <Ikon id={props.ikon} storrelse={18} />
+      <span>{props.navn}</span>
+      {props.tast && <kbd>{props.tast}</kbd>}
+    </button>
+  );
+}
+
 export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => void; lukk?: () => void }) {
   const [kilde, settKilde] = useState<Kildebilde | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
@@ -211,9 +256,19 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
   const [utsnitt, settUtsnitt] = useState<Rektangel>({ x: 0, y: 0, b: 1, h: 1 });
   const maske = useRef<HTMLCanvasElement | null>(null);
   const [maskeVersjon, settMaskeVersjon] = useState(0);
-  const maskeAngre = useRef<ImageData[]>([]);
+  const maskeAngre = useRef<{ maske: ImageData; beskytt: ImageData }[]>([]);
+  /** Protected areas: never removed, and kept as parts even in the background colour. */
+  const beskytt = useRef<HTMLCanvasElement | null>(null);
+  const beskyttHolder = useRef<HTMLDivElement>(null);
   const [fverktoy, settFverktoy] = useState<Forberedverktoy>('beskjaer');
   const [pensel, settPensel] = useState(24);
+  const [utvalg, settUtvalg] = useState<Utvalg | null>(null);
+  const [toleranse, settToleranse] = useState(32);
+  const [sammenhengende, settSammenhengende] = useState(true);
+  const [utvidPx, settUtvidPx] = useState(2);
+  const maskeData = useRef<{ url: string; data: ImageData } | null>(null);
+  const utvalgLerret = useRef<HTMLCanvasElement | null>(null);
+  const utvalgHolder = useRef<HTMLDivElement>(null);
 
   const [farger, settFarger] = useState(1);
   const [terskel, settTerskel] = useState<number | null>(null);
@@ -250,6 +305,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     | null
     | { type: 'panorer'; x: number; y: number; tx: number; ty: number }
     | { type: 'pensel'; siste: { x: number; y: number } }
+    | { type: 'beskytt'; siste: { x: number; y: number }; fjern: boolean }
     | { type: 'lasso' }
     | { type: 'beskjaer'; modus: string; start: { x: number; y: number }; fra: Rektangel }
     | { type: 'omrade'; leggTil: boolean }
@@ -285,6 +341,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
       const k = await lesBildefil(f);
       if (kilde) URL.revokeObjectURL(kilde.url);
       maske.current = nyMaske(k);
+      beskytt.current = nyMaske(k);
       maskeAngre.current = [];
       settKilde(k);
       settUtsnitt({ x: 0, y: 0, b: k.bredde, h: k.hoyde });
@@ -318,18 +375,109 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     }
   });
 
+  useEffect(() => {
+    const holder = beskyttHolder.current;
+    const c = beskytt.current;
+    if (!holder || !c || !kilde) return;
+    if (c.parentElement !== holder) {
+      holder.replaceChildren(c);
+      c.className = 'vv-beskytt';
+      c.style.width = `${kilde.bredde}px`;
+      c.style.height = `${kilde.hoyde}px`;
+    }
+  });
+
   const lagreMaskeAngre = () => {
-    if (!maske.current) return;
-    maskeAngre.current.push(maskeKopi(maske.current));
+    if (!maske.current || !beskytt.current) return;
+    maskeAngre.current.push({ maske: maskeKopi(maske.current), beskytt: maskeKopi(beskytt.current) });
     if (maskeAngre.current.length > 12) maskeAngre.current.shift();
+  };
+  /** After every change to the mask: protected areas are cut out of it again. */
+  const oppdaterMaske = () => {
+    if (maske.current && beskytt.current) beskyttMaske(maske.current, beskytt.current);
+    settMaskeVersjon((v) => v + 1);
   };
   const angreMaske = () => {
     const d = maskeAngre.current.pop();
-    if (d && maske.current) {
-      settMaske(maske.current, d);
+    if (d && maske.current && beskytt.current) {
+      settMaske(maske.current, d.maske);
+      settMaske(beskytt.current, d.beskytt);
       settMaskeVersjon((v) => v + 1);
     }
   };
+
+  // ------------------------------------------------------------ magic wand
+
+  /** The image at mask resolution, read once per image. */
+  const bildedata = (): ImageData | null => {
+    if (!kilde || !maske.current) return null;
+    if (maskeData.current?.url !== kilde.url)
+      maskeData.current = { url: kilde.url, data: maskepiksler(kilde, maske.current) };
+    return maskeData.current.data;
+  };
+
+  // the selection is drawn on a canvas of its own over the image
+  useEffect(() => {
+    const holder = utvalgHolder.current;
+    const m = maske.current;
+    if (!holder || !m || !kilde) return;
+    let c = utvalgLerret.current;
+    if (!c || c.width !== m.width || c.height !== m.height) {
+      c = document.createElement('canvas');
+      c.width = m.width;
+      c.height = m.height;
+      c.className = 'vv-utvalg';
+      utvalgLerret.current = c;
+    }
+    if (c.parentElement !== holder) holder.replaceChildren(c);
+    c.style.width = `${kilde.bredde}px`;
+    c.style.height = `${kilde.hoyde}px`;
+    const ctx = c.getContext('2d')!;
+    if (!utvalg) {
+      ctx.clearRect(0, 0, c.width, c.height);
+      return;
+    }
+    const bilde = ctx.createImageData(c.width, c.height);
+    utvalgsbilde(utvalg, c.width, c.height, bilde.data);
+    ctx.putImageData(bilde, 0, 0);
+  }, [utvalg, kilde, steg]);
+
+  const bruk = (modus: 'fjern' | 'behold' | 'gjenopprett') => {
+    if (!utvalg || !maske.current) return;
+    lagreMaskeAngre();
+    brukUtvalg(maske.current, utvalg, modus);
+    oppdaterMaske();
+    settUtvalg(null);
+  };
+
+  const beskyttUtvalg = () => {
+    if (!utvalg || !beskytt.current) return;
+    lagreMaskeAngre();
+    brukUtvalg(beskytt.current, utvalg, 'fjern', BESKYTTFARGE);
+    oppdaterMaske();
+    settUtvalg(null);
+  };
+
+  const fjernBakgrunnNa = () => {
+    const d = bildedata();
+    if (!d || !maske.current) return;
+    lagreMaskeAngre();
+    brukUtvalg(maske.current, bakgrunnsutvalg(d.data, d.width, d.height, toleranse), 'fjern');
+    oppdaterMaske();
+  };
+
+  const velgBakgrunn = () => {
+    const d = bildedata();
+    if (d) settUtvalg(bakgrunnsutvalg(d.data, d.width, d.height, toleranse));
+  };
+
+  const endreUtvalg = (r: number) => {
+    const m = maske.current;
+    if (!utvalg || !m || !kilde) return;
+    settUtvalg(utvid(utvalg, m.width, m.height, (r * m.width) / kilde.bredde));
+  };
+
+  const valgtAndel = utvalg ? antallValgt(utvalg) / utvalg.length : 0;
 
   // ------------------------------------------------------------ conversion
 
@@ -366,7 +514,10 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         minHull: rens.minHull * f * f,
         smaaDeler: rens.smaaDeler,
       };
-      const kart = lagRegionkart(g.piksler, g.maske, valg);
+      const vern = beskytt.current
+        ? lesLerret(kilde, beskytt.current, utsnitt, g.piksler.width, g.piksler.height)
+        : null;
+      const kart = lagRegionkart(g.piksler, g.maske, valg, vern);
       k = { nokkel, kart, faktor: f, utsnitt: { ...utsnitt } };
       kartMinne.current = k;
       settBrukteTerskel(kart.terskel);
@@ -539,6 +690,16 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     if (steg === 'forbered') {
       if (fverktoy === 'beskjaer') {
         dra.current = { type: 'beskjaer', modus: beskjaerTreff(p), start: p, fra: { ...utsnitt } };
+      } else if (fverktoy === 'tryllestav') {
+        const d = bildedata();
+        if (!d) return;
+        const s = d.width / kilde.bredde;
+        const ny = tryllestav(d.data, d.width, d.height, p.x * s, p.y * s, toleranse, sammenhengende);
+        settUtvalg((u) => kombiner(u, ny, e.shiftKey ? 'legg-til' : e.altKey ? 'trekk-fra' : 'ny'));
+      } else if (fverktoy === 'beskytt') {
+        lagreMaskeAngre();
+        malStrok(kilde, beskytt.current!, p, p, pensel / 2, !e.altKey, BESKYTTFARGE);
+        dra.current = { type: 'beskytt', siste: p, fjern: e.altKey };
       } else if (fverktoy === 'pensel' || fverktoy === 'viskelar') {
         lagreMaskeAngre();
         malStrok(kilde, maske.current!, p, p, pensel / 2, fverktoy === 'pensel');
@@ -623,6 +784,9 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     } else if (d.type === 'pensel') {
       malStrok(kilde, maske.current!, d.siste, p, pensel / 2, fverktoy === 'pensel');
       d.siste = p;
+    } else if (d.type === 'beskytt') {
+      malStrok(kilde, beskytt.current!, d.siste, p, pensel / 2, !d.fjern, BESKYTTFARGE);
+      d.siste = p;
     } else if (d.type === 'lasso') {
       settLasso((l) => (l ? [...l, p] : [p]));
     } else if (d.type === 'beskjaer') {
@@ -680,12 +844,12 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     const d = dra.current;
     dra.current = null;
     if (!d || !kilde) return;
-    if (d.type === 'pensel') settMaskeVersjon((v) => v + 1);
+    if (d.type === 'pensel' || d.type === 'beskytt') oppdaterMaske();
     else if (d.type === 'lasso') {
       if (lasso && lasso.length > 2) {
         lagreMaskeAngre();
         malLasso(kilde, maske.current!, lasso, fverktoy === 'lasso-behold' ? 'behold' : 'fjern');
-        settMaskeVersjon((v) => v + 1);
+        oppdaterMaske();
       }
       settLasso(null);
     } else if (d.type === 'beskjaer') {
@@ -748,6 +912,21 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         e.preventDefault();
         gjenta();
         return;
+      }
+      if (steg === 'forbered' && !mod && !e.altKey) {
+        const t: Record<string, Forberedverktoy> = {
+          c: 'beskjaer',
+          w: 'tryllestav',
+          p: 'beskytt',
+          b: 'pensel',
+          e: 'viskelar',
+          l: 'lasso-fjern',
+          k: 'lasso-behold',
+        };
+        const v = t[e.key.toLowerCase()];
+        if (v) settFverktoy(v);
+        if (e.key === 'Escape') settUtvalg(null);
+        if ((e.key === 'Delete' || e.key === 'Backspace') && utvalg) bruk('fjern');
       }
       if (steg === 'rediger') {
         if (e.key === 'v' || e.key === 'V') settRverktoy('del');
@@ -889,6 +1068,16 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
             style={{ opacity: steg === 'forbered' ? 1 : visOriginal }}
           />
           <div
+            ref={beskyttHolder}
+            class="vv-maskeholder"
+            style={{ display: steg === 'forbered' ? 'block' : 'none' }}
+          />
+          <div
+            ref={utvalgHolder}
+            class="vv-maskeholder vv-utvalgholder"
+            style={{ display: steg === 'forbered' ? 'block' : 'none' }}
+          />
+          <div
             ref={maskeHolder}
             class="vv-maskeholder"
             style={{ display: steg === 'forbered' ? 'block' : 'none' }}
@@ -940,7 +1129,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                   vector-effect="non-scaling-stroke"
                 />
               )}
-              {peker && (fverktoy === 'pensel' || fverktoy === 'viskelar') && (
+              {peker && (fverktoy === 'pensel' || fverktoy === 'viskelar' || fverktoy === 'beskytt') && (
                 <circle
                   class="vv-pensel"
                   cx={peker.x}
@@ -1068,10 +1257,10 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     </div>
   );
 
-  const fanevalg: { id: Steg; navn: string }[] = [
-    { id: 'forbered', navn: '1 Beskjær og masker' },
-    { id: 'konverter', navn: '2 Konverter' },
-    { id: 'rediger', navn: '3 Rediger' },
+  const fanevalg: { id: Steg; navn: string; ikon: IkonId }[] = [
+    { id: 'forbered', navn: '1 Beskjær og masker', ikon: 'beskjaer' },
+    { id: 'konverter', navn: '2 Konverter', ikon: 'generate' },
+    { id: 'rediger', navn: '3 Rediger', ikon: 'edit-point' },
   ];
 
   const endreRens = (d: Partial<Rensevalg>) => settRens((r) => ({ ...r, ...d }));
@@ -1086,22 +1275,26 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
             <button
               key={f.id}
               type="button"
-              class="vv-fane"
+              class="vv-fane vv-ikonknapp"
               aria-current={steg === f.id ? 'step' : undefined}
               disabled={!kilde || (f.id === 'rediger' && !modell)}
               onClick={() => gaaTil(f.id)}
             >
-              {f.navn}
+              <Ikon id={f.ikon} storrelse={18} />
+              <span>{f.navn}</span>
             </button>
           ))}
         </nav>
         <div class="vv-topp-hoyre">
-          <button type="button" class="vv-sekundar" onClick={() => filvelger.current?.click()}>
-            {kilde ? 'Nytt bilde' : 'Velg bilde'}
-          </button>
+          <Knapp
+            ikon="image"
+            navn={kilde ? 'Nytt bilde' : 'Velg bilde'}
+            onClick={() => filvelger.current?.click()}
+          />
           {props.lukk && (
-            <button type="button" class="vv-sekundar" onClick={props.lukk}>
-              Lukk
+            <button type="button" class="vv-sekundar vv-ikonknapp" onClick={props.lukk}>
+              <Ikon id="panel-close" storrelse={18} />
+              <span>Lukk</span>
             </button>
           )}
         </div>
@@ -1135,25 +1328,27 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 <div class="vv-knappegrid">
                   {(
                     [
-                      ['beskjaer', 'Beskjær'],
-                      ['pensel', 'Pensel: fjern'],
-                      ['viskelar', 'Pensel: gjenopprett'],
-                      ['lasso-fjern', 'Lasso: fjern'],
-                      ['lasso-behold', 'Lasso: behold'],
+                      ['beskjaer', 'beskjaer', 'Beskjær', 'C'],
+                      ['tryllestav', 'tryllestav', 'Tryllestav', 'W'],
+                      ['beskytt', 'lock', 'Beskytt', 'P'],
+                      ['pensel', 'paint', 'Pensel', 'B'],
+                      ['viskelar', 'viskelar', 'Viskelær', 'E'],
+                      ['lasso-fjern', 'lasso', 'Lasso fjern', 'L'],
+                      ['lasso-behold', 'lasso', 'Lasso behold', 'K'],
                     ] as const
-                  ).map(([id, navn]) => (
-                    <button
+                  ).map(([id, ikon, navn, tast]) => (
+                    <Knapp
                       key={id}
-                      type="button"
-                      class="vv-verktoy"
-                      aria-pressed={fverktoy === id}
+                      klasse="vv-verktoy"
+                      ikon={ikon}
+                      navn={navn}
+                      tast={tast}
+                      trykket={fverktoy === id}
                       onClick={() => settFverktoy(id)}
-                    >
-                      {navn}
-                    </button>
+                    />
                   ))}
                 </div>
-                {(fverktoy === 'pensel' || fverktoy === 'viskelar') && (
+                {(fverktoy === 'pensel' || fverktoy === 'viskelar' || fverktoy === 'beskytt') && (
                   <Glidebryter
                     navn="Penselstørrelse"
                     verdi={pensel}
@@ -1167,13 +1362,98 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 <p class="vv-hjelp">
                   {fverktoy === 'beskjaer'
                     ? 'Dra et nytt utsnitt, eller dra i kantene og hjørnene. Alt utenfor blir ikke med.'
-                    : fverktoy.startsWith('lasso')
-                      ? fverktoy === 'lasso-fjern'
-                        ? 'Tegn rundt det som skal fjernes.'
-                        : 'Tegn rundt det som skal være med. Resten fjernes.'
-                      : 'Mal over det som ikke skal konverteres. Rødt blir ikke med.'}{' '}
+                    : fverktoy === 'beskytt'
+                      ? 'Mal over felt som skal være med selv om de har bakgrunnsfargen, for eksempel hvite felt i en logo. Grønt blir aldri fjernet. Alt + mal tar bort beskyttelsen.'
+                      : fverktoy === 'tryllestav'
+                        ? 'Klikk på en farge for å velge den. Shift legger til, Alt trekker fra. Velg så hva som skal skje med utvalget.'
+                        : fverktoy.startsWith('lasso')
+                          ? fverktoy === 'lasso-fjern'
+                            ? 'Tegn rundt det som skal fjernes.'
+                            : 'Tegn rundt det som skal være med. Resten fjernes.'
+                          : 'Mal over det som ikke skal konverteres. Rødt blir ikke med.'}{' '}
                   Mellomrom + dra flytter visningen, hjulet zoomer.
                 </p>
+              </section>
+              <section>
+                <h2>Tryllestav</h2>
+                <Glidebryter
+                  navn="Toleranse"
+                  verdi={toleranse}
+                  min={0}
+                  max={255}
+                  steg={1}
+                  hjelp="Hvor ulik en farge kan være den du klikker, og fortsatt bli valgt."
+                  endre={settToleranse}
+                />
+                <label class="vv-avkryss">
+                  <input
+                    id="vv-sammenhengende"
+                    type="checkbox"
+                    checked={sammenhengende}
+                    onChange={(e) => settSammenhengende((e.target as HTMLInputElement).checked)}
+                  />
+                  Bare sammenhengende område
+                </label>
+                <div class="vv-knapperad">
+                  <Knapp
+                    ikon="tryllestav"
+                    navn="Velg bakgrunnen"
+                    tittel="Velger fargen langs bildekanten og alt som henger sammen med den."
+                    onClick={velgBakgrunn}
+                  />
+                  <Knapp
+                    ikon="delete"
+                    navn="Fjern bakgrunnen nå"
+                    tittel="Fjerner bakgrunnen i ett steg."
+                    onClick={fjernBakgrunnNa}
+                  />
+                </div>
+                {utvalg && (
+                  <div class="vv-utvalgsboks">
+                    <p class="vv-tall">{(valgtAndel * 100).toFixed(1)} % av bildet er valgt</p>
+                    <div class="vv-knapperad">
+                      <Knapp
+                        ikon="delete"
+                        navn="Fjern utvalget"
+                        klasse="vv-primar"
+                        onClick={() => bruk('fjern')}
+                      />
+                      <Knapp ikon="beskjaer" navn="Behold bare utvalget" onClick={() => bruk('behold')} />
+                      <Knapp ikon="viskelar" navn="Hent tilbake" onClick={() => bruk('gjenopprett')} />
+                      <Knapp
+                        ikon="lock"
+                        navn="Beskytt utvalget"
+                        tittel="Utvalget blir aldri fjernet, heller ikke når bakgrunnen fjernes."
+                        onClick={beskyttUtvalg}
+                      />
+                    </div>
+                    <div class="vv-felt">
+                      <label for="vv-utvid">
+                        <span>Utvid eller krymp</span>
+                        <output for="vv-utvid">{utvidPx} px</output>
+                      </label>
+                      <input
+                        id="vv-utvid"
+                        type="range"
+                        min={1}
+                        max={20}
+                        step={1}
+                        value={utvidPx}
+                        onInput={(e) => settUtvidPx(Number((e.target as HTMLInputElement).value))}
+                      />
+                    </div>
+                    <div class="vv-knapperad">
+                      <Knapp ikon="zoom-in" navn="Utvid" onClick={() => endreUtvalg(utvidPx)} />
+                      <Knapp ikon="zoom-out" navn="Krymp" onClick={() => endreUtvalg(-utvidPx)} />
+                      <Knapp
+                        ikon="exclude"
+                        navn="Inverter"
+                        onClick={() => settUtvalg(inverterUtvalg(utvalg))}
+                      />
+                      <Knapp ikon="panel-close" navn="Opphev" onClick={() => settUtvalg(null)} />
+                    </div>
+                  </div>
+                )}
               </section>
               <section>
                 <h2>Utsnitt</h2>
@@ -1181,56 +1461,53 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                   {utsnitt.b} × {utsnitt.h} px fra ({utsnitt.x}, {utsnitt.y})
                 </p>
                 <div class="vv-knapperad">
-                  <button
-                    type="button"
-                    class="vv-sekundar"
+                  <Knapp
+                    ikon="actual-size"
+                    navn="Hele bildet"
                     onClick={() => settUtsnitt({ x: 0, y: 0, b: kilde.bredde, h: kilde.hoyde })}
-                  >
-                    Hele bildet
-                  </button>
-                  <button type="button" class="vv-sekundar" onClick={() => tilpassVisning(utsnitt)}>
-                    Zoom til utsnitt
-                  </button>
+                  />
+                  <Knapp ikon="fit" navn="Zoom til utsnitt" onClick={() => tilpassVisning(utsnitt)} />
                 </div>
               </section>
               <section>
-                <h2>Maske</h2>
+                <h2>Maske og beskyttelse</h2>
                 <div class="vv-knapperad">
-                  <button
-                    type="button"
-                    class="vv-sekundar"
-                    onClick={angreMaske}
-                    disabled={!maskeAngre.current.length}
-                  >
-                    Angre
-                  </button>
-                  <button
-                    type="button"
-                    class="vv-sekundar"
+                  <Knapp ikon="undo" navn="Angre" onClick={angreMaske} av={!maskeAngre.current.length} />
+                  <Knapp
+                    ikon="exclude"
+                    navn="Inverter"
                     onClick={() => {
                       lagreMaskeAngre();
                       inverterMaske(maske.current!);
-                      settMaskeVersjon((v) => v + 1);
+                      oppdaterMaske();
                     }}
-                  >
-                    Inverter
-                  </button>
-                  <button
-                    type="button"
-                    class="vv-sekundar"
+                  />
+                  <Knapp
+                    ikon="delete"
+                    navn="Tøm"
                     onClick={() => {
                       lagreMaskeAngre();
                       tomMaske(maske.current!);
-                      settMaskeVersjon((v) => v + 1);
+                      oppdaterMaske();
                     }}
-                  >
-                    Tøm
-                  </button>
+                  />
+                  <Knapp
+                    ikon="unlock"
+                    navn="Tøm beskyttelse"
+                    onClick={() => {
+                      lagreMaskeAngre();
+                      tomMaske(beskytt.current!);
+                      oppdaterMaske();
+                    }}
+                  />
                 </div>
               </section>
-              <button type="button" class="vv-primar vv-bred" onClick={() => gaaTil('konverter')}>
-                Konverter
-              </button>
+              <Knapp
+                ikon="generate"
+                navn="Konverter"
+                klasse="vv-primar vv-bred"
+                onClick={() => gaaTil('konverter')}
+              />
             </>
           )}
 
@@ -1239,8 +1516,9 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
               {redigert && (
                 <div class="vv-merknad">
                   <p>Du har redigert vektoren. Endrer du innstillingene her, forsvinner redigeringene.</p>
-                  <button type="button" class="vv-sekundar" onClick={konverterPaNytt}>
-                    Konverter på nytt
+                  <button type="button" class="vv-sekundar vv-ikonknapp" onClick={konverterPaNytt}>
+                    <Ikon id="generate" storrelse={18} />
+                    <span>Konverter på nytt</span>
                   </button>
                 </div>
               )}
@@ -1469,11 +1747,12 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
               </section>
               <button
                 type="button"
-                class="vv-primar vv-bred"
+                class="vv-primar vv-bred vv-ikonknapp"
                 disabled={!modell}
                 onClick={() => gaaTil('rediger')}
               >
-                Rediger
+                <Ikon id="edit-point" storrelse={18} />
+                <span>Rediger</span>
               </button>
             </>
           )}
@@ -1485,37 +1764,48 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 <div class="vv-knappegrid">
                   {(
                     [
-                      ['del', 'Velg deler', 'V'],
-                      ['linje', 'Velg linjer', 'L'],
-                      ['punkt', 'Rediger punkter', 'P'],
+                      ['del', 'select', 'Velg deler', 'V'],
+                      ['linje', 'velg-linje', 'Velg linjer', 'L'],
+                      ['punkt', 'edit-point', 'Rediger punkter', 'P'],
                     ] as const
-                  ).map(([id, navn, tast]) => (
-                    <button
+                  ).map(([id, ikon, navn, tast]) => (
+                    <Knapp
                       key={id}
-                      type="button"
-                      class="vv-verktoy"
-                      aria-pressed={rverktoy === id}
-                      aria-keyshortcuts={tast}
+                      klasse="vv-verktoy"
+                      ikon={ikon}
+                      navn={navn}
+                      tast={tast}
+                      trykket={rverktoy === id}
                       onClick={() => settRverktoy(id)}
-                    >
-                      {navn} <kbd>{tast}</kbd>
-                    </button>
+                    />
                   ))}
                 </div>
                 <div class="vv-knapperad">
-                  <button type="button" class="vv-sekundar" onClick={angre} disabled={!fortid.current.length}>
-                    Angre
+                  <button
+                    type="button"
+                    class="vv-sekundar vv-ikonknapp"
+                    onClick={angre}
+                    disabled={!fortid.current.length}
+                  >
+                    <Ikon id="undo" storrelse={18} />
+                    <span>Angre</span>
                   </button>
                   <button
                     type="button"
-                    class="vv-sekundar"
+                    class="vv-sekundar vv-ikonknapp"
                     onClick={gjenta}
                     disabled={!fremtid.current.length}
                   >
-                    Gjør om
+                    <Ikon id="redo" storrelse={18} />
+                    <span>Gjør om</span>
                   </button>
-                  <button type="button" class="vv-sekundar" onClick={() => tilpassVisning(bruktUtsnitt)}>
-                    Tilpass visning
+                  <button
+                    type="button"
+                    class="vv-sekundar vv-ikonknapp"
+                    onClick={() => tilpassVisning(bruktUtsnitt)}
+                  >
+                    <Ikon id="fit" storrelse={18} />
+                    <span>Tilpass visning</span>
                   </button>
                 </div>
                 <p class="vv-hjelp">
@@ -1562,31 +1852,34 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                       <div class="vv-knapperad">
                         <button
                           type="button"
-                          class="vv-sekundar"
+                          class="vv-sekundar vv-ikonknapp"
                           disabled={valgteDeler.length < 2}
                           onClick={() => {
                             settModell(slaSammenDeler(modell, valgteDeler));
                             settValgteDeler([]);
                           }}
                         >
-                          Slå sammen
+                          <Ikon id="union" storrelse={18} />
+                          <span>Slå sammen</span>
                         </button>
                         <button
                           type="button"
-                          class="vv-sekundar"
+                          class="vv-sekundar vv-ikonknapp"
                           onClick={() => settModell(slettDeler(modell, valgteDeler))}
                         >
-                          Slett
+                          <Ikon id="delete" storrelse={18} />
+                          <span>Slett</span>
                         </button>
                         <button
                           type="button"
-                          class="vv-sekundar"
+                          class="vv-sekundar vv-ikonknapp"
                           onClick={() => {
                             settValgteKurver(kurverRundt(modell, valgteDeler));
                             settRverktoy('linje');
                           }}
                         >
-                          Velg kantene
+                          <Ikon id="velg-linje" storrelse={18} />
+                          <span>Velg kantene</span>
                         </button>
                       </div>
                     </>
@@ -1631,64 +1924,71 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                   <div class="vv-knapperad">
                     <button
                       type="button"
-                      class="vv-sekundar"
+                      class="vv-sekundar vv-ikonknapp"
                       disabled={!valgteKurver.length}
                       onClick={() => settModell(forenkle(modell, valgteKurver, styrke))}
                     >
-                      Forenkle
+                      <Ikon id="smooth" storrelse={18} />
+                      <span>Forenkle</span>
                     </button>
                     <button
                       type="button"
-                      class="vv-sekundar"
+                      class="vv-sekundar vv-ikonknapp"
                       disabled={!valgteKurver.length}
                       onClick={() => settModell(gjorRett(modell, valgteKurver))}
                     >
-                      Gjør rett
+                      <Ikon id="rett-linje" storrelse={18} />
+                      <span>Gjør rett</span>
                     </button>
                     <button
                       type="button"
-                      class="vv-sekundar"
+                      class="vv-sekundar vv-ikonknapp"
                       disabled={!valgteKurver.length}
                       onClick={() => settModell(gjorBuet(modell, valgteKurver))}
                     >
-                      Gjør buet
+                      <Ikon id="pen" storrelse={18} />
+                      <span>Gjør buet</span>
                     </button>
                     <button
                       type="button"
-                      class="vv-sekundar"
+                      class="vv-sekundar vv-ikonknapp"
                       disabled={!valgteKurver.length}
                       title="Rette linjer som nesten er vannrette eller loddrette, blir helt det."
                       onClick={() => settModell(vater(modell, valgteKurver))}
                     >
-                      Vater
+                      <Ikon id="vater" storrelse={18} />
+                      <span>Vater</span>
                     </button>
                     <button
                       type="button"
-                      class="vv-sekundar"
+                      class="vv-sekundar vv-ikonknapp"
                       disabled={!valgteKurver.length}
                       onClick={() => settModell(tilpassPaNytt(modell, valgteKurver, tilpasning))}
                     >
-                      Tilbakestill
+                      <Ikon id="history" storrelse={18} />
+                      <span>Tilbakestill</span>
                     </button>
                   </div>
                   <div class="vv-knapperad">
                     <button
                       type="button"
-                      class="vv-sekundar"
+                      class="vv-sekundar vv-ikonknapp"
                       onClick={() => settValgteKurver(modell.kurver.flatMap((k) => (k ? [k.id] : [])))}
                     >
-                      Velg alle
+                      <Ikon id="select" storrelse={18} />
+                      <span>Velg alle</span>
                     </button>
                     <button
                       type="button"
-                      class="vv-sekundar"
+                      class="vv-sekundar vv-ikonknapp"
                       disabled={!valgteKurver.length}
                       onClick={() => {
                         settValgteDeler(delerVed(modell, valgteKurver));
                         settRverktoy('del');
                       }}
                     >
-                      Velg delene ved
+                      <Ikon id="select" storrelse={18} />
+                      <span>Velg delene ved</span>
                     </button>
                   </div>
                   {rverktoy === 'punkt' && valgtAnker && (
@@ -1708,13 +2008,14 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                       </button>
                       <button
                         type="button"
-                        class="vv-sekundar"
+                        class="vv-sekundar vv-ikonknapp"
                         onClick={() => {
                           settModell(slettAnker(modell, valgtAnker.kurve, valgtAnker.idx));
                           settValgtAnker(null);
                         }}
                       >
-                        Slett punkt
+                        <Ikon id="remove-point" storrelse={18} />
+                        <span>Slett punkt</span>
                       </button>
                     </div>
                   )}
@@ -1754,16 +2055,18 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 Grupper etter farge
               </label>
               <div class="vv-knapperad">
-                <button type="button" class="vv-primar" onClick={eksporter}>
-                  Last ned SVG
+                <button type="button" class="vv-primar vv-ikonknapp" onClick={eksporter}>
+                  <Ikon id="export" storrelse={18} />
+                  <span>Last ned SVG</span>
                 </button>
-                <button type="button" class="vv-sekundar" onClick={kopierSvg}>
-                  Kopier SVG
+                <button type="button" class="vv-sekundar vv-ikonknapp" onClick={kopierSvg}>
+                  <Ikon id="copy" storrelse={18} />
+                  <span>Kopier SVG</span>
                 </button>
                 {props.ferdig && (
                   <button
                     type="button"
-                    class="vv-primar"
+                    class="vv-primar vv-ikonknapp"
                     onClick={() =>
                       props.ferdig!(
                         tilSvg(modell, {
@@ -1775,7 +2078,8 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                       )
                     }
                   >
-                    Legg på skiltet
+                    <Ikon id="svg-import" storrelse={18} />
+                    <span>Legg på skiltet</span>
                   </button>
                 )}
               </div>
