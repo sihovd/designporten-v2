@@ -305,7 +305,7 @@ async function hoved() {
       const forsok = await kobleTil(inn, true);
       forsok.ssh.end();
       vis(`\n  Første tilkobling. Serverens fingeravtrykk er:\n  ${forsok.sett}`);
-      if ((await spor('  Stoler du på denne serveren (one.com)? Skriv JA: ')) !== 'JA')
+      if ((await spor('  Stoler du på denne serveren (one.com)? Skriv JA: ')).trim().toUpperCase() !== 'JA')
         throw new PubliseringsFeil('Avbrutt. Ingenting er lastet opp.');
       writeFileSync(
         INNSTILLINGSFIL,
@@ -329,7 +329,7 @@ async function hoved() {
       vis(`  Ny versjon: ${String(bygg.commit).slice(0, 7)}  (${filer.length} filer)`);
       if (live?.commit === bygg.commit)
         vis('  Denne versjonen er allerede live. Du kan likevel laste opp på nytt.');
-      if ((await spor('\n  Laste opp til designporten.no? Skriv JA: ')) !== 'JA')
+      if ((await spor('\n  Laste opp til designporten.no? Skriv JA: ')).trim().toUpperCase() !== 'JA')
         throw new PubliseringsFeil('Avbrutt. Ingenting er lastet opp.');
       vis('\n▶ Laster opp');
       await lastOpp(sftp, inn.mappe, filer);
