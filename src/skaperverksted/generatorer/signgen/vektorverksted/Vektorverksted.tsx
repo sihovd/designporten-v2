@@ -290,7 +290,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
   /** Protected areas: never removed, and kept as parts even in the background colour. */
   const beskytt = useRef<HTMLCanvasElement | null>(null);
   const beskyttHolder = useRef<HTMLDivElement>(null);
-  const [fverktoy, settFverktoy] = useState<Forberedverktoy>('beskjaer');
+  const [fverktoy, settFverktoy] = useState<Forberedverktoy | null>(null);
   const [pensel, settPensel] = useState(24);
   const [utvalg, settUtvalg] = useState<Utvalg | null>(null);
   const [toleranse, settToleranse] = useState(32);
@@ -404,7 +404,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
       settKilde(k);
       settUtsnitt({ x: 0, y: 0, b: k.bredde, h: k.hoyde });
       settSteg('forbered');
-      settFverktoy('beskjaer');
+      settFverktoy(null);
       settResultat(null);
       settModellRa(null);
       fortid.current = [];
@@ -483,6 +483,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         utsnitt: { ...utsnitt },
       };
       byttBilde(r.kilde, r.maske, r.beskytt, { x: 0, y: 0, b: r.kilde.bredde, h: r.kilde.hoyde });
+      settFverktoy(null);
     } catch (e) {
       settFeil(e instanceof Error ? e.message : 'Bildet kunne ikke beskjæres.');
     } finally {
@@ -818,7 +819,8 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     if (!kilde) return;
     const el = flate.current!;
     el.setPointerCapture(e.pointerId);
-    if (e.button === 1 || e.button === 2 || mellomrom.current) {
+    // with no tool chosen, dragging moves the view
+    if (e.button === 1 || e.button === 2 || mellomrom.current || (steg === 'forbered' && !fverktoy)) {
       dra.current = { type: 'panorer', x: e.clientX, y: e.clientY, tx: visning.tx, ty: visning.ty };
       return;
     }
@@ -950,6 +952,11 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     settPeker(p);
     const d = dra.current;
     if (!d) return;
+    // the button was released outside the page (or the frame it runs in): the drag is over
+    if (e.pointerType === 'mouse' && e.buttons === 0) {
+      onPointerUp(e);
+      return;
+    }
     if (d.type === 'panorer') {
       settVisning((v) => ({ ...v, tx: d.tx + e.clientX - d.x, ty: d.ty + e.clientY - d.y }));
     } else if (d.type === 'pensel') {
@@ -1237,9 +1244,11 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     steg === 'forbered'
       ? fverktoy === 'beskjaer'
         ? 'crosshair'
-        : fverktoy.startsWith('lasso') || fverktoy === 'tryllestav'
-          ? 'crosshair'
-          : 'none'
+        : !fverktoy
+          ? 'grab'
+          : fverktoy.startsWith('lasso') || fverktoy === 'tryllestav'
+            ? 'crosshair'
+            : 'none'
       : rverktoy === 'linje' || rverktoy === 'penn'
         ? 'crosshair'
         : 'default';
@@ -1255,6 +1264,8 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
       onPointerDown={onPointerDown as unknown as JSX.PointerEventHandler<HTMLDivElement>}
       onPointerMove={onPointerMove as unknown as JSX.PointerEventHandler<HTMLDivElement>}
       onPointerUp={onPointerUp as unknown as JSX.PointerEventHandler<HTMLDivElement>}
+      onPointerCancel={onPointerUp as unknown as JSX.PointerEventHandler<HTMLDivElement>}
+      onLostPointerCapture={onPointerUp as unknown as JSX.PointerEventHandler<HTMLDivElement>}
       onPointerLeave={() => settPeker(null)}
       onDblClick={onDblClick as unknown as JSX.MouseEventHandler<HTMLDivElement>}
       onContextMenu={(e) => e.preventDefault()}
@@ -1618,7 +1629,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                       navn={navn}
                       tast={tast}
                       trykket={fverktoy === id}
-                      onClick={() => settFverktoy(id)}
+                      onClick={() => settFverktoy((v) => (v === id ? null : id))}
                     />
                   ))}
                 </div>
@@ -1634,17 +1645,19 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                   />
                 )}
                 <p class="vv-hjelp">
-                  {fverktoy === 'beskjaer'
-                    ? 'Dra et nytt utsnitt, eller dra i kantene og hjørnene. Trykk «Bruk beskjæring» for å klippe bildet til utsnittet.'
-                    : fverktoy === 'beskytt'
-                      ? 'Mal over felt som skal være med selv om de har bakgrunnsfargen, for eksempel hvite felt i en logo. Grønt blir aldri fjernet. Alt + mal tar bort beskyttelsen.'
-                      : fverktoy === 'tryllestav'
-                        ? 'Klikk på en farge for å velge den. Shift legger til, Alt trekker fra. Velg så hva som skal skje med utvalget.'
-                        : fverktoy.startsWith('lasso')
-                          ? fverktoy === 'lasso-fjern'
-                            ? 'Tegn rundt det som skal fjernes.'
-                            : 'Tegn rundt det som skal være med. Resten fjernes.'
-                          : 'Mal over det som ikke skal konverteres. Rødt blir ikke med.'}{' '}
+                  {!fverktoy
+                    ? 'Velg et verktøy. Uten verktøy flytter du visningen ved å dra.'
+                    : fverktoy === 'beskjaer'
+                      ? 'Dra et nytt utsnitt, eller dra i kantene og hjørnene. Trykk «Bruk beskjæring» for å klippe bildet til utsnittet.'
+                      : fverktoy === 'beskytt'
+                        ? 'Mal over felt som skal være med selv om de har bakgrunnsfargen, for eksempel hvite felt i en logo. Grønt blir aldri fjernet. Alt + mal tar bort beskyttelsen.'
+                        : fverktoy === 'tryllestav'
+                          ? 'Klikk på en farge for å velge den. Shift legger til, Alt trekker fra. Velg så hva som skal skje med utvalget.'
+                          : fverktoy.startsWith('lasso')
+                            ? fverktoy === 'lasso-fjern'
+                              ? 'Tegn rundt det som skal fjernes.'
+                              : 'Tegn rundt det som skal være med. Resten fjernes.'
+                            : 'Mal over det som ikke skal konverteres. Rødt blir ikke med.'}{' '}
                   Mellomrom + dra flytter visningen, hjulet zoomer.
                 </p>
               </section>
