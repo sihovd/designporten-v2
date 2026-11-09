@@ -107,6 +107,20 @@ function kjor(tittel, kommando, args) {
 /** Folders whose files end up in the built site. */
 export const KILDEMAPPER = ['src', 'public', 'php', 'astro.config.mjs'];
 
+/** Why a connection failed, in plain words, without any secret (only host, port and error code). */
+export function kontaktfeil(e, inn) {
+  const kode = e?.code || e?.level || '';
+  const hva = {
+    ENOTFOUND: `fant ikke verten «${inn.host}»`,
+    EAI_AGAIN: `fant ikke verten «${inn.host}» (DNS)`,
+    ECONNREFUSED: `${inn.host} avviste port ${inn.port}`,
+    ETIMEDOUT: `ingen svar fra ${inn.host}:${inn.port}`,
+    ECONNRESET: `${inn.host} brøt forbindelsen`,
+    'client-timeout': `ingen svar fra ${inn.host}:${inn.port} på 30 sekunder`,
+  }[kode];
+  return hva ?? `${inn.host}:${inn.port}${kode ? `, ${kode}` : ''}`;
+}
+
 function git(...args) {
   const r = spawnSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   if (r.status !== 0) throw new PubliseringsFeil(`git ${args[0]} feilet: ${(r.stderr || '').trim()}`);
@@ -187,7 +201,9 @@ function kobleTil(inn, godtaNokkel) {
               ? new PubliseringsFeil(
                   'Innloggingen ble avvist. Sjekk brukernavn og passord i .env.publisering.',
                 )
-              : new PubliseringsFeil('Fikk ikke kontakt med one.com. Sjekk vert, port og nettverk.'),
+              : new PubliseringsFeil(
+                  `Fikk ikke kontakt med one.com (${kontaktfeil(e, inn)}). Sjekk vert, port og nettverk.`,
+                ),
         ),
       )
       .connect({
@@ -289,7 +305,7 @@ async function hoved() {
       const forsok = await kobleTil(inn, true);
       forsok.ssh.end();
       vis(`\n  Første tilkobling. Serverens fingeravtrykk er:\n  ${forsok.sett}`);
-      if ((await spor('  Stoler du på denne serveren (one.com)? Skriv JA: ')) !== 'JA')
+      if ((await spor('  Stoler du på denne serveren (one.com)? Skriv JA: ')).trim().toUpperCase() !== 'JA')
         throw new PubliseringsFeil('Avbrutt. Ingenting er lastet opp.');
       writeFileSync(
         INNSTILLINGSFIL,
@@ -313,7 +329,7 @@ async function hoved() {
       vis(`  Ny versjon: ${String(bygg.commit).slice(0, 7)}  (${filer.length} filer)`);
       if (live?.commit === bygg.commit)
         vis('  Denne versjonen er allerede live. Du kan likevel laste opp på nytt.');
-      if ((await spor('\n  Laste opp til designporten.no? Skriv JA: ')) !== 'JA')
+      if ((await spor('\n  Laste opp til designporten.no? Skriv JA: ')).trim().toUpperCase() !== 'JA')
         throw new PubliseringsFeil('Avbrutt. Ingenting er lastet opp.');
       vis('\n▶ Laster opp');
       await lastOpp(sftp, inn.mappe, filer);

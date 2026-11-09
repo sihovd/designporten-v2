@@ -4,6 +4,7 @@ import {
   PubliseringsFeil,
   SERVERFILER,
   fingeravtrykkAv,
+  kontaktfeil,
   lesInnstillinger,
   opplastingsrekkefolge,
   sjekkBygg,
@@ -78,4 +79,14 @@ test('settings files on the server are never sent, the data folder guard is', ()
     assert.ok(SERVERFILER.test(f), f);
   for (const f of ['api/cms/data/.htaccess', 'api/stripe/data/.htaccess', 'api/bygg.php', 'index.html'])
     assert.ok(!SERVERFILER.test(f), f);
+});
+
+test('connection errors say what failed, never the password', () => {
+  const inn = { host: 'ssh.example.invalid', port: 22, passord: 'hemmelig' };
+  assert.match(kontaktfeil({ code: 'ENOTFOUND' }, inn), /fant ikke verten «ssh\.example\.invalid»/);
+  assert.match(kontaktfeil({ code: 'ETIMEDOUT' }, inn), /ingen svar fra ssh\.example\.invalid:22/);
+  assert.match(kontaktfeil({ level: 'client-timeout' }, inn), /30 sekunder/);
+  assert.equal(kontaktfeil({}, inn), 'ssh.example.invalid:22');
+  for (const k of ['ENOTFOUND', 'ECONNREFUSED', 'XYZ'])
+    assert.ok(!kontaktfeil({ code: k }, inn).includes('hemmelig'));
 });
