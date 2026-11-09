@@ -1237,7 +1237,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     steg === 'forbered'
       ? fverktoy === 'beskjaer'
         ? 'crosshair'
-        : fverktoy.startsWith('lasso')
+        : fverktoy.startsWith('lasso') || fverktoy === 'tryllestav'
           ? 'crosshair'
           : 'none'
       : rverktoy === 'linje' || rverktoy === 'penn'
