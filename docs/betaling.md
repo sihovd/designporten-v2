@@ -1,6 +1,6 @@
 # Slik kobler du Stripe til Designporten
 
-Veiledning for Sivert. Kortbetaling går gjennom **Stripe Checkout**, en betalingsside som Stripe selv viser. Kortnummer kommer aldri innom serveren vår (CLAUDE.md regel 5).
+Veiledning for Sivert, for ekte betaling med Stripe-kontoen hans. Kortbetaling går gjennom **Stripe Checkout**, en betalingsside som Stripe selv viser. Kortnummer kommer aldri innom serveren vår (CLAUDE.md regel 5).
 
 > **Viktig:** Nøkler fra Stripe limes aldri inn i en chat, en e-post, GitHub eller CMS-et. De skrives bare i én fil på serveren (`api/stripe/konfig.php`) eller i Render → Environment.
 
@@ -13,8 +13,8 @@ Veiledning for Sivert. Kortbetaling går gjennom **Stripe Checkout**, en betalin
 | Stripe Checkout på Render (Node) | Ferdig siden oktober. |
 | Stripe Checkout på one.com (PHP) | **Ny:** `api/kasse/`, `api/kasse/okt/` og `api/stripe/webhook/`. |
 | Kvittering til kunden | Stripe sender den (slås på i Stripe, se steg 5). |
-| Ordre til deg | Webhooken sender deg en e-post med varer, adresse, frakt og sum når betalingen er bekreftet. Hver betaling sendes én gang. Står det «TESTMODUS» i e-posten, er det ingen ekte penger. |
-| Live-nøkler | Blir avvist til du selv skriver `'tillat_live' => true` i konfig-filen. På testbygg avvises de alltid. |
+| Ordre til deg | Webhooken sender deg en e-post med varer, adresse, frakt og sum når betalingen er bekreftet. Hver betaling sendes én gang. |
+| Live-nøkler | Virker når du skriver `'tillat_live' => true` i konfig-filen (steg 4). På testbygg avvises de alltid. |
 
 **Ikke bygget ennå:** ordrer og lager i CMS-databasen (i dag ligger ordren i Stripe og i e-posten din), Vipps, rabattkoder, refusjon fra Studio (gjøres i Stripe-dashbordet).
 
@@ -22,51 +22,52 @@ Veiledning for Sivert. Kortbetaling går gjennom **Stripe Checkout**, en betalin
 
 Dette fyller ikke Claude inn for deg: hvilke produkter som selges og til hvilken pris, fraktvalg og fraktpriser, salgsvilkår, angrerett og retur, og MVA-oppsettet (sjekk med regnskapsfører). Prisene på nettsiden er **inkludert MVA**, og Stripe trekker beløpet slik det står.
 
-## Steg for steg
+## Steg for steg (ekte betaling)
 
-### 1. Bruk testmodus først
+### 1. Gjør Stripe-kontoen klar til å ta imot penger
 
-Logg inn på [dashboard.stripe.com](https://dashboard.stripe.com). Slå på **Test mode** (bryteren øverst, kan hete «Sandbox»). Alt du gjør i steg 2 til 5 skjer i testmodus. Ingen ekte penger flyttes.
+Logg inn på [dashboard.stripe.com](https://dashboard.stripe.com) og sørg for at **Test mode** er **av**. Fullfør aktiveringen hvis Stripe ber om det: firmaopplysninger (org.nr.), bankkonto for utbetaling og ID. Før dette er gjort, kan ikke kontoen ta imot ekte betalinger.
 
-### 2. Hent den hemmelige testnøkkelen
+Under **Settings → Business → Public details** legger du inn firmanavn, kundeservice-e-post og lenke til salgsvilkårene. Dette vises på betalingssiden.
 
-**Developers → API keys.** Kopier **Secret key**, som begynner med `sk_test_`. Lim den rett inn i konfig-filen i steg 4, ikke noe annet sted.
+### 2. Hent den hemmelige nøkkelen
 
-Tryggere valg: lag en **Restricted key** (`rk_test_…`) med skrivetilgang til *Checkout Sessions* og ellers ingenting.
+**Developers → API keys.** Kopier **Secret key**, som begynner med `sk_live_`. Lim den rett inn i konfig-filen i steg 4, ikke noe annet sted.
+
+Tryggere valg: lag en **Restricted key** (`rk_live_…`) med skrivetilgang til *Checkout Sessions* og ellers ingenting.
 
 ### 3. Legg til webhooken
 
 **Developers → Webhooks → Add endpoint**:
 
-- Adresse: `https://designporten.no/api/stripe/webhook/` (eller adressen til testsiden din).
+- Adresse: `https://designporten.no/api/stripe/webhook/`
 - Hendelser: `checkout.session.completed` og `checkout.session.async_payment_succeeded`.
 
 Åpne endepunktet etterpå og kopier **Signing secret** (`whsec_…`).
 
 ### 4. Lag konfig-filen på one.com
 
-1. Ta kopien av `api/stripe/konfig.eksempel.php` fra repoet, eller lag en fil med dette innholdet:
+1. Lag en fil med dette innholdet (malen er `api/stripe/konfig.eksempel.php` i repoet):
 
    ```php
    <?php
    return [
-       'hemmelig_nokkel' => 'sk_test_…',     // fra steg 2
+       'hemmelig_nokkel' => 'sk_live_…',     // fra steg 2
        'webhook_hemmelighet' => 'whsec_…',   // fra steg 3
        'nettsted_url' => 'https://designporten.no',
-       'tillat_live' => false,
+       'tillat_live' => true,                 // du slår på ekte betaling
    ];
    ```
 
-2. Kall den `konfig.php` og last den opp med one.com File Manager til mappen `api/stripe/` på nettstedet. Den samme mappen har allerede en `.htaccess` som gjør at filen aldri kan lastes ned.
+2. Kall den `konfig.php` og last den opp med one.com File Manager til mappen `api/stripe/` på nettstedet. Mappen har en `.htaccess` som gjør at filen aldri kan lastes ned.
 3. Publiseringen («Publiser Designporten») sender aldri `konfig.php`, så filen overlever oppdateringer.
 
-På **Render** legger du i stedet nøklene inn under *Environment* som `STRIPE_SECRET_KEY` og `STRIPE_WEBHOOK_SECRET`.
+`'tillat_live' => true` er bryteren for ekte penger. Uten den avviser siden en live-nøkkel.
 
 ### 5. Kvitteringer og betalingsmåter i Stripe
 
 - **Settings → Customer emails:** slå på *Successful payments*, så kunden får kvittering.
 - **Settings → Payment methods:** her bestemmer du hva Checkout tilbyr. Koden låser ikke betalingsmåtene, så det du slår på her, vises. Kort er på fra start. Apple Pay og Google Pay kan slås på her.
-- **Settings → Business → Public details:** firmanavn, kundeservice-e-post og vilkår-lenke vises på betalingssiden.
 
 ### 6. Slå på butikken
 
@@ -74,28 +75,19 @@ I `/admin` → **Butikk**:
 
 1. Slå på **Kortbetaling**.
 2. Legg inn minst ett **fraktvalg** med navn og pris (inkl. MVA). Uten frakt forblir betaling av.
-3. Sett minst ett produkt til **«Klar for salg»** med en pris.
+3. Sett produktene du vil selge til **«Klar for salg»** med pris (inkl. MVA).
 
-Disse endringene lagres i GitHub, så siden må publiseres på nytt («Publiser Designporten») før one.com får dem. Uten `konfig.php` på serveren står betaling fortsatt av, og handlekurven sender forespørsler som før.
+Endringene lagres i GitHub, så siden må publiseres på nytt («Publiser Designporten») før one.com får dem. Den nye koden (PR #63) må også være slått sammen i `main` før publiseringen.
 
-### 7. Prøv et kjøp
+### 7. Sjekk med ett ekte kjøp
 
-Legg varen i handlekurven, trykk **Gå til betaling** og betal med testkortet `4242 4242 4242 4242`, en dato fram i tid og en hvilken som helst CVC. Etterpå skal du se:
+Kjøp den billigste varen selv med ditt eget kort. Etterpå skal du se:
 
 1. Takkesiden sier «Betalt», og handlekurven er tom.
-2. Betalingen står under **Payments** i Stripe (testmodus).
-3. Du får e-posten «Betalt ordre DP-…» merket TESTMODUS.
+2. Betalingen står under **Payments** i Stripe.
+3. Du får e-posten «Betalt ordre DP-…» med varer, adresse og sum.
 
-Kort som avvises: `4000 0000 0000 0002`. Kort som krever ekstra bekreftelse (3D Secure): `4000 0025 0000 3155`.
-
-**Pass på:** Med testnøkkel på designporten.no kan en ekte kunde «betale» med testkort uten at det kommer penger inn. Test derfor helst på testsiden eller Render, eller test raskt og ta testnøkkelen bort igjen.
-
-### 8. Gå live (når vilkår, priser og frakt er klare)
-
-1. Fullfør aktiveringen av kontoen i Stripe (firma, bankkonto, ID).
-2. Slå av Test mode. Hent den **live** hemmelige nøkkelen (`sk_live_…`) og lag en ny webhook med den samme adressen i live-modus. Det gir en ny `whsec_…`.
-3. Bytt nøklene i `konfig.php` og sett `'tillat_live' => true`.
-4. Gjør ett ekte kjøp med lite beløp og refunder det i Stripe.
+Refunder kjøpet i Stripe (Payments → betalingen → Refund). Stripe beholder vanligvis gebyret på en refundert betaling.
 
 ## Vipps
 
@@ -110,7 +102,8 @@ Kilde: [Stripe: Vipps](https://docs.stripe.com/payments/vipps).
 | Handlekurven sier «Betalingsløsningen er ikke koblet til ennå» | `api/stripe/konfig.php` mangler, nøkkelen har feil form, eller det er en live-nøkkel uten `tillat_live`. |
 | «Frakt er ikke satt opp ennå» | Ingen fraktvalg i `/admin` → Butikk, eller siden er ikke publisert etterpå. |
 | Betalt, men ingen e-post | Webhooken svarer ikke 200. Se Developers → Webhooks → endepunktet → *Event deliveries*. 400 betyr feil `whsec_`, 503 betyr at konfig-filen mangler, 500 betyr at e-posten feilet (Stripe prøver igjen). |
-| Takkesiden sier «Vi fant ikke betalingen» | Stripe har ikke bekreftet ennå, eller nøkkelen på serveren er fra en annen modus (test/live) enn betalingen. |
+| Takkesiden sier «Vi fant ikke betalingen» | Stripe har ikke bekreftet ennå, eller nøkkelen på serveren er en testnøkkel mens betalingen var ekte (eller omvendt). |
+| Webhooken svarer 400 «Feil modus» | Webhooken er laget i Test mode i Stripe. Lag den på nytt med Test mode av. |
 
 ## Teknisk
 
