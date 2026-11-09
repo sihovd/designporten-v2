@@ -34,11 +34,55 @@ define('DP_KONTO_KONFIG', [
     'epost' => ['driver' => 'fil', 'mappe' => getenv('DP_KONTO_POST') ?: dirname(__DIR__, 2) . '/var/konto-post'],
 ]);
 
+// Stripe: never the real API. X-DP-Test-Stripe picks a test-mode or live key,
+// X-DP-Test-Katalog: pris gives one product a price and turns card payment on
+// (test data only, never in a build). The fake records what it was sent.
+$stripeTest = $_SERVER['HTTP_X_DP_TEST_STRIPE'] ?? '';
+if ($stripeTest !== '') {
+    define('DP_STRIPE_KONFIG', [
+        'hemmelig_nokkel' => ($stripeTest === 'live' ? 'sk_live_' : 'sk_test_') . 'lokaltestnokkel123',
+        'webhook_hemmelighet' => 'whsec_lokaltest',
+        'nettsted_url' => 'http://127.0.0.1:' . $_SERVER['SERVER_PORT'] . rtrim($base, '/'),
+        'tillat_live' => $stripeTest === 'live',
+    ]);
+    define('DP_STRIPE_DATA', getenv('DP_STRIPE_DATA') ?: dirname(__DIR__, 2) . '/var/stripe-data');
+}
+if (($_SERVER['HTTP_X_DP_TEST_KATALOG'] ?? '') === 'pris') {
+    $k = json_decode((string) file_get_contents($rot . '/api/katalog.json'), true);
+    foreach ($k['produkter'] as &$p) {
+        if ($p['id'] === 'spiralvase') { $p['status'] = 'bekreftet'; $p['prisOre'] = 12300; }
+    }
+    unset($p);
+    $k['butikk'] = ['betaling' => true, 'frakt' => [['navn' => 'Testfrakt', 'prisOre' => 4500, 'dagerMin' => 2, 'dagerMaks' => 4]]];
+    define('DP_LOKAL_KATALOG', $k);
+}
+function dp_stripe_fake(string $metode, string $sti, array $kropp, string $idempotens): array
+{
+    $mappe = dirname(__DIR__, 2) . '/var/stripe-fake';
+    if (!is_dir($mappe)) mkdir($mappe, 0700, true);
+    if (($_SERVER['HTTP_X_DP_TEST_STRIPE_SVAR'] ?? '') === 'feil') return ['ok' => false, 'status' => 500, 'melding' => 'fake failure'];
+    if ($metode === 'POST' && $sti === '/checkout/sessions') {
+        file_put_contents("$mappe/$idempotens.json", json_encode($kropp, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        return ['ok' => true, 'data' => ['id' => 'cs_test_fake' . $idempotens, 'url' => 'https://checkout.stripe.invalid/c/pay/' . $idempotens]];
+    }
+    if ($metode === 'GET' && preg_match('~^/checkout/sessions/(cs_[A-Za-z0-9_]+)/line_items~', $sti)) {
+        return ['ok' => true, 'data' => ['data' => [['description' => 'Spiralvase', 'quantity' => 1, 'amount_total' => 12300]]]];
+    }
+    if ($metode === 'GET' && preg_match('~^/checkout/sessions/(cs_[A-Za-z0-9_]+)$~', $sti, $m)) {
+        if (str_contains($m[1], 'ukjent')) return ['ok' => false, 'status' => 404, 'melding' => 'No such session'];
+        return ['ok' => true, 'data' => [
+            'payment_status' => str_contains($m[1], 'ubetalt') ? 'unpaid' : 'paid',
+            'client_reference_id' => 'DP-TEST-REF', 'amount_total' => 16800,
+        ]];
+    }
+    return ['ok' => false, 'status' => 400, 'melding' => "fake: $metode $sti"];
+}
+
 header('X-Robots-Tag: noindex, nofollow');
 if (!str_starts_with($sti, $base)) { http_response_code(404); echo 'Outside test site'; return; }
 $relativ = substr($sti, strlen($base));
 if (preg_match('~(?:^|/)\.|\\\\|\x00~', $relativ)) { http_response_code(403); return; }
-foreach (['api/foresporsel/', 'api/bestilling/'] as $api) {
+foreach (['api/foresporsel/', 'api/bestilling/', 'api/kasse/', 'api/kasse/okt/', 'api/stripe/webhook/'] as $api) {
     if ($relativ === $api || $relativ === $api . 'index.php') { require $rot . '/' . $api . 'index.php'; return; }
 }
 if ($relativ === 'api/cms/' || $relativ === 'api/cms/index.php') { require $rot . '/api/cms/index.php'; return; }

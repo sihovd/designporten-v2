@@ -1,10 +1,12 @@
 /**
- * The catalogue facts the PHP order route checks a cart against (php build
- * only): the same data the product pages show, so nothing here is secret.
+ * The catalogue facts the PHP order and payment routes check a cart against
+ * (php build only): the same data the product pages show, plus the shop
+ * settings (card payment switch, shipping), so nothing here is secret.
  * The Node build checks against the content collection directly.
  */
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
+import { butikk } from '@/lib/handel/butikk';
 import { tilVisning } from '@/lib/handel/visning';
 import { DOKUMENT_VERSJON } from '@/skaperverksted/core/dokument';
 
@@ -23,7 +25,7 @@ export const GET: APIRoute = async () => {
       egenTekst: v.egenTekst,
     };
   });
-  return new Response(JSON.stringify({ dokumentVersjon: DOKUMENT_VERSJON, produkter }), {
+  return new Response(JSON.stringify({ dokumentVersjon: DOKUMENT_VERSJON, produkter, butikk }), {
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
   });
 };

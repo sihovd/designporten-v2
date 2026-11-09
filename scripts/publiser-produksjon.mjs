@@ -29,7 +29,7 @@ export class PubliseringsFeil extends Error {}
 export const INNSTILLINGSFIL = '.env.publisering';
 
 /** Files the server keeps for itself; a build never carries them, and this script never sends them. */
-export const SERVERFILER = /(^|\/)(konfig\.php|oppsett\.php)$|^api\/cms\/data\/(?!\.htaccess$)/;
+export const SERVERFILER = /(^|\/)(konfig\.php|oppsett\.php)$|^api\/(cms|stripe)\/data\/(?!\.htaccess$)/;
 const WP = /^(wp-(config\.php|admin|content|includes|load\.php)|wordpress)$/i;
 
 /** KEY=value lines; # comments and blank lines skipped, quotes around a value removed. */

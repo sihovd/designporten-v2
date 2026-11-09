@@ -72,8 +72,10 @@ test('settings files on the server are never sent, the data folder guard is', ()
     'api/cms/konfig.php',
     'api/oppsett.php',
     'api/cms/data/ordre.json',
+    'api/stripe/konfig.php',
+    'api/stripe/data/cs_test_123.json',
   ])
     assert.ok(SERVERFILER.test(f), f);
-  for (const f of ['api/cms/data/.htaccess', 'api/bygg.php', 'index.html'])
+  for (const f of ['api/cms/data/.htaccess', 'api/stripe/data/.htaccess', 'api/bygg.php', 'index.html'])
     assert.ok(!SERVERFILER.test(f), f);
 });
