@@ -1,4 +1,4 @@
-import { nettsti, phpmiljo } from '@/lib/nettsti';
+import { nettsti } from '@/lib/nettsti';
 /**
  * Cart page island. Shows the lines kept in the browser (src/lib/handel/kurv.ts),
  * lets the visitor change quantities, and sends the cart through the active
@@ -63,11 +63,8 @@ export default function Handlekurv({ produkter }: Props) {
   }, []);
 
   useEffect(() => {
-    // Hosts without the payment route (the static PHP build) answer 404: requests only.
-    if (phpmiljo) {
-      settKort({ aktiv: false, grunn: 'Bestillingen sendes som forespørsel uten betaling.' });
-      return;
-    }
+    // Both builds have the payment route (PHP: api/kasse/index.php). A host
+    // without it answers 404 or something unreadable: requests only.
     fetch(nettsti('/api/kasse/'), { headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? (r.json() as Promise<Kassestatus>) : null))
       .catch(() => null)

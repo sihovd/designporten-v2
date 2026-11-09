@@ -33,6 +33,7 @@ cpSync('php', 'dist', { recursive: true });
 rmSync('dist/api/oppsett.eksempel.php');
 rmSync('dist/api/cms/konfig.eksempel.php');
 rmSync('dist/api/konto/konfig.eksempel.php');
+rmSync('dist/api/stripe/konfig.eksempel.php');
 writeFileSync('dist/api/cms/nokler.json', `${JSON.stringify(lagNokler('dist'), null, 2)}\n`);
 writeFileSync(
   'dist/api/bygg.php',
@@ -76,6 +77,12 @@ for (const fil of [
   'skjema/kvittering/index.html',
   'api/foresporsel/index.php',
   'api/bestilling/index.php',
+  'api/kasse/index.php',
+  'api/kasse/okt/index.php',
+  'api/stripe/_stripe.php',
+  'api/stripe/webhook/index.php',
+  'api/stripe/.htaccess',
+  'api/stripe/data/.htaccess',
   'api/bygg.php',
   '.htaccess',
   'api/.htaccess',

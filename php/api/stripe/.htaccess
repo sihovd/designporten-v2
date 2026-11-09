@@ -1,0 +1,5 @@
+# Public entry point: webhook/index.php. Settings, shared code and the record
+# of handled payments are included by the routes and never served.
+<FilesMatch "^_.*\.php$|^konfig(?:\.eksempel)?\.php$">
+  Require all denied
+</FilesMatch>
