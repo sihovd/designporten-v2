@@ -22,6 +22,8 @@
  *   POST last-opp            upload one picture (multipart, field «fil»)
  *   POST medium              change a picture's name, alt text, labels, or archive it
  *   GET  drift               what this server supports (admin), no secrets
+ *   GET  butikk / POST butikk-produkt / POST butikk-innstillinger   the shop (admin, _handel.php)
+ *   GET  ordrer / POST ordre / POST ordre-varsle                     paid orders (admin)
  *
  * See docs/cms/README.md.
  */
@@ -596,6 +598,7 @@ try {
     }
 
     cms_studio_rute($r);
+    cms_handel_rute($r);
 
     if ($r === 'drift') {
         cms_krev('drift');
@@ -605,7 +608,7 @@ try {
     if ($r === 'eksport') {
         $aktor = cms_krev('sikkerhetskopi');
         $data = ['format' => 'designporten-cms', 'versjon' => 1, 'laget' => cms_na(), 'tabeller' => []];
-        foreach ([...CMS_TABELLER, 'cms_medier', 'cms_brukere', 'cms_innlegg', 'cms_innlegg_revisjoner'] as $t) $data['tabeller'][$t] = cms_alle("SELECT * FROM $t ORDER BY id");
+        foreach ([...CMS_TABELLER, 'cms_medier', 'cms_brukere', 'cms_innlegg', 'cms_innlegg_revisjoner', 'cms_butikk', 'cms_ordrer'] as $t) $data['tabeller'][$t] = cms_alle("SELECT * FROM $t ORDER BY id");
         cms_logg($aktor, 'sikkerhetskopi.eksport', null, null, null);
         header('Content-Disposition: attachment; filename="designporten-cms-' . gmdate('Ymd-His') . '.json"');
         cms_svar($data);
@@ -647,12 +650,14 @@ try {
                 $antall['cms_medier']++;
             }
             cms_blogg_import($data['tabeller'], $antall);
+            cms_handel_import($data['tabeller'], $antall);
             $db->commit();
         } catch (Throwable $e) {
             $db->rollBack();
             throw new CmsFeil('Gjenopprettingen feilet, ingenting ble endret.', 422);
         }
         cms_skriv_publisert();
+        cms_skriv_butikk();
         cms_logg($aktor, 'sikkerhetskopi.import', (string) ($data['laget'] ?? ''), null, $antall);
         cms_svar(['ok' => true, 'antall' => $antall]);
     }

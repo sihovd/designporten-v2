@@ -1,4 +1,17 @@
 {
-  "betaling": false,
-  "frakt": []
+  "betaling": true,
+  "frakt": [
+    {
+      "navn": "Posten, levert i postkassen",
+      "prisOre": 8900,
+      "dagerMin": 3,
+      "dagerMaks": 8
+    },
+    {
+      "navn": "Hentes hos designporten",
+      "prisOre": 0,
+      "dagerMin": 1,
+      "dagerMaks": 3
+    }
+  ]
 }

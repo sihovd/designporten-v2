@@ -20,7 +20,7 @@ import {
 } from '../../core/materialer';
 import { brukBenk } from '../../shell/bruk-benk';
 import { Ikon } from '../../shell/ikoner';
-import { Samlingsvelger } from './Fargesamlinger';
+import { Samlingsvelger } from './Samlingsvelger';
 import { lagreSamlingFarger } from './fargesamlinger';
 import { palett, settPalett, synkFilamenter } from './dokument';
 import {

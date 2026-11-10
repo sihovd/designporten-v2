@@ -1,4 +1,4 @@
-import { nettsti, phpmiljo } from '@/lib/nettsti';
+import { nettsti } from '@/lib/nettsti';
 /**
  * Cart page island. Shows the lines kept in the browser (src/lib/handel/kurv.ts),
  * lets the visitor change quantities, and sends the cart through the active
@@ -23,6 +23,8 @@ import {
 } from '@/lib/handel/kurv';
 import { hvorforIkkeKort, type Kassestatus, type Kassesvar } from '@/lib/handel/kasse';
 import { aktivLeverandor } from '@/lib/handel/leverandor';
+import { medButikk } from '@/lib/handel/overstyring';
+import { beregnPris } from '@/lib/handel/pris';
 import type { ProduktVisning } from '@/lib/handel/visning';
 import { hentDesign } from '@/skaperverksted/core/lagring';
 import './handlekurv.css';
@@ -48,9 +50,24 @@ function valgTekst(l: KurvLinje, p: ProduktVisning | undefined): string {
     .join(' · ');
 }
 
-export default function Handlekurv({ produkter }: Props) {
+export default function Handlekurv({ produkter: bygget }: Props) {
   const leverandor = aktivLeverandor;
-  const [linjer, settLinjer] = useState<KurvLinje[] | null>(null);
+  // Studio's names, prices and status when changed after the build (overstyring.ts).
+  const produkter = useMemo(
+    () => Object.fromEntries(Object.entries(bygget).map(([id, p]) => [id, medButikk(p)])),
+    [bygget],
+  );
+  const [lagrede, settLinjer] = useState<KurvLinje[] | null>(null);
+  // A line's price is the product's price now, not when it was added: the
+  // payment route charges the catalogue price, so the cart shows the same.
+  const linjer = useMemo(
+    () =>
+      lagrede?.map((l) => {
+        const p = erDesignlinje(l) ? undefined : produkter[l.produktId];
+        return p ? { ...l, navn: p.navn, enhetspris: beregnPris(p, l.valg) } : l;
+      }) ?? null,
+    [lagrede, produkter],
+  );
   const [sender, settSender] = useState(false);
   const [feil, settFeil] = useState<string | null>(null);
   const [feltfeil, settFeltfeil] = useState<Record<string, string>>({});
@@ -63,11 +80,8 @@ export default function Handlekurv({ produkter }: Props) {
   }, []);
 
   useEffect(() => {
-    // Hosts without the payment route (the static PHP build) answer 404: requests only.
-    if (phpmiljo) {
-      settKort({ aktiv: false, grunn: 'Bestillingen sendes som forespørsel uten betaling.' });
-      return;
-    }
+    // Both builds have the payment route (PHP: api/kasse/index.php). A host
+    // without it answers 404 or something unreadable: requests only.
     fetch(nettsti('/api/kasse/'), { headers: { Accept: 'application/json' } })
       .then((r) => (r.ok ? (r.json() as Promise<Kassestatus>) : null))
       .catch(() => null)
