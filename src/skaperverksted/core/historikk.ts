@@ -12,6 +12,11 @@ export interface Endring<T> {
   anvend: (forrige: T) => T;
   /** Merge with the previous step when the keys match (drags, sliders). */
   slaSammen?: string;
+  /**
+   * A step of a drag on the canvas (moving, scaling, rotating). The workbench lets the generator keep
+   * slow derived geometry until the drag ends (see `GeneratorPlugin.underveis`).
+   */
+  dra?: boolean;
 }
 
 interface Steg<T> {

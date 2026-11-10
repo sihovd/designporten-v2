@@ -1402,7 +1402,7 @@ test.describe('Signgen', () => {
     expect(a.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
 
-  test('historikken er en tidslinje nederst som kan gå tilbake til et trinn, og Historikk og Produksjon er ikke paneler lenger', async ({
+  test('historikklinjen nederst er borte, men Angre og Gjør om virker, og Historikk og Produksjon er ikke paneler', async ({
     page,
     isMobile,
   }) => {
@@ -1411,9 +1411,8 @@ test.describe('Signgen', () => {
     await expect(page.getByRole('button', { name: 'Historikk', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Produksjon', exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
-    const tid = page.getByRole('region', { name: 'Historikk' });
-    await expect(tid).toContainText('Ingen endringer ennå');
-    await page.getByRole('button', { name: 'Rutenett', exact: true }).click(); // not a document change
+    await expect(page.locator('.tidslinje')).toHaveCount(0);
+    await expect(page.locator('.bunnbrett')).toBeHidden();
     const lerret = page.locator('canvas').first();
     const b = (await lerret.boundingBox())!;
     await page.keyboard.press('r');
@@ -1421,13 +1420,10 @@ test.describe('Signgen', () => {
     await page.mouse.down();
     await page.mouse.move(b.x + b.width * 0.8, b.y + b.height * 0.35, { steps: 5 });
     await page.mouse.up();
-    await expect(tid.getByRole('button', { name: 'Utgangspunkt' })).toBeEnabled();
-    await expect(tid.locator('.tidstrinn[aria-current="step"]')).toContainText('Legg til');
     const antall = await page.locator('.objektliste li').count();
-    await tid.getByRole('button', { name: 'Utgangspunkt' }).click();
+    await page.getByRole('button', { name: /Angre/ }).click();
     await expect(page.locator('.objektliste li')).toHaveCount(antall - 1);
-    // the undone step stays on the strip and can be done again
-    await tid.locator('.tidstrinn.gjort-om').click();
+    await page.getByRole('button', { name: /Gjør om/ }).click();
     await expect(page.locator('.objektliste li')).toHaveCount(antall);
   });
 

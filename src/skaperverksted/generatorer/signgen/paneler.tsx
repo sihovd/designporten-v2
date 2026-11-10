@@ -1,7 +1,7 @@
 /**
  * Dockable panels for Sign Forge and the workspaces they are arranged in.
- * The history is a timeline along the bottom (Tidslinje.tsx) and the production controls are in the
- * export dialog, so neither is a panel any more.
+ * Undo and redo are in the top bar (the history timeline was removed 2026-11-10) and the production
+ * controls are in the export dialog, so neither is a panel.
  */
 import type { Arbeidsbenk } from '../../core/arbeidsbenk';
 import type { PanelDef } from '../../core/generator';

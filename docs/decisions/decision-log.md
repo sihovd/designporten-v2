@@ -219,6 +219,15 @@ Kilde: Sivert i Claude-prosjektet: «Beskjæringsdelen på foto kræsjer på mob
 
 Tillegg samme dag (Sivert: «beskjæring av bildet får appen til å kræsje», «Når man etter beskjæring forlater editoren med musepekeren forsvinner bildet», «kanskje det er lurt at ingen verktøy er aktive nå appen får innlimt et bilde»): ingen verktøy er valgt når et bilde lastes inn eller etter «Bruk beskjæring», og uten verktøy flytter man visningen ved å dra. Et klikk på et aktivt verktøy slår det av. Et drag avsluttes når knappen slippes utenfor siden eller rammen den kjører i, så beskjæringsrammen ikke lenger følger musen etterpå. Beskjæringsrammen tegnes i skjermstørrelse, ikke bildestørrelse.
 
+## 2026-11-10 — Sign Forge: lettere å dra, historikklinjen fjernet
+
+Kilde: Sivert i Claude-prosjektet: «vi må optimalisere skiltbyggeren. Det henger veldig når vi flytter elementer. og den tåler lite prosjekter med flere punkter. Jeg trenger ikke historikk linjen nederst. den kan sløyfes … Men vi må fortsatt beholde undo funksjonen.»
+
+- Historikklinjen nederst (fra 2026-10-08) er fjernet. Angre/Gjør om i toppen og hurtigtastene er beholdt.
+- Under et drag på lerretet regnes stablingen av lag (grunnfest) og omriss rundt tekst først når draget slippes eller pekeren står stille i 180 ms. Under draget står omrisset der det var. Valgt av Claude for flyt; kan snus hvis Sivert vil se omrisset følge med (da trengs utregning i en web worker).
+- Vektorer tynnes til 0,01 mm når geometrien lages (samme toleranse som brede omriss allerede brukte).
+- Detaljer i [docs/design/skaperverksted.md](../design/skaperverksted.md) («Performance while dragging»).
+
 ## 2026-11-10 — Skaper som Stripe-abonnement
 
 Kilde: Sivert i Claude-prosjektet: «vi må koble medlemsstyring til medlemshåndtering i stripe med alle funksjoner».

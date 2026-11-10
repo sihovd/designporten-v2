@@ -136,6 +136,12 @@ export interface GeneratorPlugin {
    */
   normaliser?(dok: Dokument): Dokument;
   /**
+   * A drag on the canvas starts (true) or ends or pauses (false). While it runs, a generator may keep
+   * slow derived geometry from before it (Sign Forge: outlines round text) and work it out again when it
+   * ends, so what is dragged follows the pointer. `normaliser` is not called while a gesture runs.
+   */
+  underveis?(paa: boolean): void;
+  /**
    * Build printable parts from the document. Pure and deterministic; may run
    * in a worker. Throws nothing: problems become advarsler.
    */

@@ -95,7 +95,7 @@ export function Silhuettredigerer({
           flytt(grep, Math.abs(q.r), q.z, `lampe-silhuett-${grep.i}-${grep.del}`);
         }}
         onPointerUp={() => {
-          if (grep) benk.historikk.avsluttSammenslaing();
+          if (grep) benk.avsluttSammenslaing();
           settGrep(null);
         }}
         onPointerCancel={() => settGrep(null)}

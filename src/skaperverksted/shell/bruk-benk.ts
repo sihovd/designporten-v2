@@ -2,13 +2,36 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { Arbeidsbenk, BenkTilstand } from '../core/arbeidsbenk';
 
-/** Re-render on every workbench change. */
-export function brukBenk(benk: Arbeidsbenk): BenkTilstand {
+/** How often panels follow a drag on the canvas (ms); they catch up at once when it ends. */
+const ROLIG_PANEL = 150;
+
+/**
+ * Re-render on every workbench change. While a drag runs on the canvas (`drar`), at most every
+ * 150 ms, so the panels (layers, properties) do not hold back the canvas on every frame;
+ * `straks` follows every change (overlays that move with the selection).
+ */
+export function brukBenk(benk: Arbeidsbenk, straks = false): BenkTilstand {
   const [t, settT] = useState(benk.tilstand);
   useEffect(() => {
     settT(benk.tilstand);
-    return benk.lytt(settT);
-  }, [benk]);
+    let tidsur: ReturnType<typeof setTimeout> | undefined;
+    const av = benk.lytt((ny) => {
+      if (ny.drar && !straks) {
+        tidsur ??= setTimeout(() => {
+          tidsur = undefined;
+          settT(benk.tilstand);
+        }, ROLIG_PANEL);
+        return;
+      }
+      clearTimeout(tidsur);
+      tidsur = undefined;
+      settT(ny);
+    });
+    return () => {
+      av();
+      clearTimeout(tidsur);
+    };
+  }, [benk, straks]);
   return t;
 }
 

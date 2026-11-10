@@ -76,18 +76,34 @@ import { strekRing } from '../../geometri/strek';
 
 // ---------- drawing ----------
 
-function sti(ctx: CanvasRenderingContext2D, v: Visning, region: Region) {
-  ctx.beginPath();
+/**
+ * A region as a path in millimetres, made once per region. Regions are not changed after they are made,
+ * so a part that did not change is not walked point by point again on the next frame; the view's zoom
+ * and position are applied by the canvas (`iModell`).
+ */
+const stiBuffer = new WeakMap<Region, Path2D>();
+
+function stiAv(region: Region): Path2D {
+  let sti = stiBuffer.get(region);
+  if (sti) return sti;
+  sti = new Path2D();
   for (const f of region) {
     for (const r of [f.ytre, ...f.hull]) {
-      r.forEach((p, i) => {
-        const s = v.tilSkjerm(p);
-        if (i === 0) ctx.moveTo(s.x, s.y);
-        else ctx.lineTo(s.x, s.y);
-      });
-      ctx.closePath();
+      r.forEach((p, i) => (i === 0 ? sti!.moveTo(p.x, p.y) : sti!.lineTo(p.x, p.y)));
+      sti.closePath();
     }
   }
+  stiBuffer.set(region, sti);
+  return sti;
+}
+
+/** Draw in model millimetres (Y up). `px` is one screen pixel in mm, for line widths and dashes. */
+function iModell(ctx: CanvasRenderingContext2D, v: Visning, fn: (px: number) => void): void {
+  const o = v.tilSkjerm({ x: 0, y: 0 });
+  ctx.save();
+  ctx.transform(v.pxPerMm, 0, 0, -v.pxPerMm, o.x, o.y);
+  fn(1 / v.pxPerMm);
+  ctx.restore();
 }
 
 function etikett(ctx: CanvasRenderingContext2D, f: Farger, s: Vec2, tekst: string) {
@@ -203,35 +219,36 @@ export function tegnSign(ctx: CanvasRenderingContext2D, v: Visning, f: Farger, b
   const valgt = new Set(benk.tilstand.utvalg.objekter);
 
   // layers bottom to top in their material colours: the sign seen from above
-  for (const [r, materialId] of skiltdeler(d)) {
-    sti(ctx, v, r);
-    ctx.fillStyle = finnMateriale(materialId).hex;
-    ctx.fill('evenodd');
+  iModell(ctx, v, (px) => {
     ctx.strokeStyle = f.bakgrunn;
-    ctx.globalAlpha = 0.55;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
+    ctx.lineWidth = px;
+    for (const [r, materialId] of skiltdeler(d)) {
+      const sti = stiAv(r);
+      ctx.fillStyle = finnMateriale(materialId).hex;
+      ctx.fill(sti, 'evenodd');
+      ctx.globalAlpha = 0.55;
+      ctx.stroke(sti);
+      ctx.globalAlpha = 1;
+    }
+  });
 
   tegnHjelpelinjer(ctx, v, f, benk, st);
 
   // object outlines: the active layer's objects, and all cutting objects
-  ctx.lineWidth = 1;
-  for (const o of Object.values(d.objekter)) {
-    if (!o.synlig) continue;
-    const kutt = o.operasjon === 'trekk-fra';
-    if (o.lagId !== aktivt && !kutt && !valgt.has(o.id)) continue;
-    const r = verdensRegion(o);
-    if (!r) continue;
-    sti(ctx, v, r);
-    ctx.setLineDash(kutt ? [4, 3] : [2, 3]);
-    ctx.strokeStyle = kutt ? f.cyan : f.dempet;
+  iModell(ctx, v, (px) => {
+    ctx.lineWidth = px;
     ctx.globalAlpha = 0.8;
-    ctx.stroke();
-  }
-  ctx.setLineDash([]);
-  ctx.globalAlpha = 1;
+    for (const o of Object.values(d.objekter)) {
+      if (!o.synlig) continue;
+      const kutt = o.operasjon === 'trekk-fra';
+      if (o.lagId !== aktivt && !kutt && !valgt.has(o.id)) continue;
+      const r = verdensRegion(o);
+      if (!r) continue;
+      ctx.setLineDash(kutt ? [4 * px, 3 * px] : [2 * px, 3 * px]);
+      ctx.strokeStyle = kutt ? f.cyan : f.dempet;
+      ctx.stroke(stiAv(r));
+    }
+  });
 
   // selection
   for (const o of valgte(benk)) {
@@ -860,6 +877,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
           benk.endre({
             navn: 'Flytt',
             slaSammen: 'flytt-dra',
+            dra: true,
             anvend: (d) =>
               oppdaterObjekter(d, [...orig.keys()], (o) => {
                 const t = orig.get(o.id)!;
@@ -884,6 +902,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
             benk.endre({
               navn: 'Endre størrelse',
               slaSammen: 'skaler-dra',
+              dra: true,
               anvend: (d) => oppdaterObjekter(d, [o0.id], () => ny),
             });
             const g = lokalGeometri(ny.kilde)!;
@@ -903,6 +922,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
             benk.endre({
               navn: 'Endre størrelse',
               slaSammen: 'skaler-dra',
+              dra: true,
               anvend: (d) =>
                 oppdaterObjekter(d, [...orig.keys()], (o) => {
                   const o0 = orig.get(o.id)!;
@@ -935,6 +955,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
           benk.endre({
             navn: 'Roter',
             slaSammen: 'roter-dra',
+            dra: true,
             anvend: (d) =>
               oppdaterObjekter(d, [o0.id], (o) => ({
                 ...o,
@@ -977,7 +998,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
           lager.sett({ guideDra: null });
           return;
         }
-        if (drag && drag.type !== 'marker') benk.historikk.avsluttSammenslaing();
+        if (drag && drag.type !== 'marker') benk.avsluttSammenslaing();
         if (drag?.type === 'flytt' && !drag.flyttet && ventendeBredde) {
           leggTilBreddepunkt(benk, ventendeBredde.id, ventendeBredde.t);
         }
@@ -991,7 +1012,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
       },
       avbryt() {
         if (drag?.type === 'guide') lager.sett({ guideDra: null });
-        if (drag && drag.type !== 'marker') benk.historikk.avsluttSammenslaing();
+        if (drag && drag.type !== 'marker') benk.avsluttSammenslaing();
         drag = null;
         lager.sett({ snaplinjer: [], snapkontakt: null, markering: null, maletikett: null });
       },
@@ -1165,7 +1186,7 @@ function lagVerktoy(benk: Arbeidsbenk, id: VerktoyId): Verktoyhandler | null {
 // ---------- floating contextual toolbar ----------
 
 function Flytlinje({ benk }: { benk: Arbeidsbenk }) {
-  const t = brukBenk(benk);
+  const t = brukBenk(benk, true);
   const ref = useRef<HTMLDivElement>(null);
   const [str, settStr] = useState({ b: 0, h: 0 });
   useEffect(() => {
@@ -1228,7 +1249,7 @@ function Flytlinje({ benk }: { benk: Arbeidsbenk }) {
 
 /** Union, Subtract, Intersect and Exclude: shown under two or more selected shapes. */
 function Boolskbar({ benk }: { benk: Arbeidsbenk }) {
-  const t = brukBenk(benk);
+  const t = brukBenk(benk, true);
   const ref = useRef<HTMLDivElement>(null);
   const [str, settStr] = useState({ b: 0, h: 0 });
   useEffect(() => {
@@ -1281,7 +1302,7 @@ function Boolskbar({ benk }: { benk: Arbeidsbenk }) {
 
 /** The chosen guide line: its position, lock and delete, at the edge of the canvas. */
 function Guidebar({ benk }: { benk: Arbeidsbenk }) {
-  const t = brukBenk(benk);
+  const t = brukBenk(benk, true);
   const st = brukSigntilstand(benk);
   const ref = useRef<HTMLDivElement>(null);
   const [str, settStr] = useState({ b: 0, h: 0 });
@@ -1342,7 +1363,7 @@ function Guidebar({ benk }: { benk: Arbeidsbenk }) {
 
 export function SigngenLerret({ benk }: { benk: Arbeidsbenk }) {
   const st = brukSigntilstand(benk);
-  const t = brukBenk(benk);
+  const t = brukBenk(benk, true);
   useEffect(
     () =>
       nårFontLastes(() => {
