@@ -4,6 +4,7 @@
  */
 import { hentKurv, leggTil, linjeNokkel, lyttPaKurv, settAntall, type KurvLinje } from '@/lib/handel/kurv';
 import { beregnPris, valgTilPoster } from '@/lib/handel/pris';
+import { medButikk } from '@/lib/handel/overstyring';
 import type { ProduktVisning } from '@/lib/handel/visning';
 import { kunngjor } from './kunngjoring';
 
@@ -19,7 +20,7 @@ declare global {
 
 function lesProdukt(kort: HTMLElement): ProduktVisning | null {
   try {
-    return JSON.parse(kort.dataset.produkt ?? '') as ProduktVisning;
+    return medButikk(JSON.parse(kort.dataset.produkt ?? '') as ProduktVisning);
   } catch {
     return null;
   }

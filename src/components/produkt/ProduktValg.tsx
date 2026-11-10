@@ -8,6 +8,7 @@ import { nettsti } from '@/lib/nettsti';
 import { useId, useState } from 'preact/hooks';
 import { formaterKroner, leggTil } from '@/lib/handel/kurv';
 import { beregnPris, harTekst, valgTilPoster } from '@/lib/handel/pris';
+import { medButikk } from '@/lib/handel/overstyring';
 import type { ProduktVisning } from '@/lib/handel/visning';
 import './produktvalg.css';
 
@@ -17,7 +18,9 @@ interface Props {
   vedLagtTil?: () => void;
 }
 
-export default function ProduktValg({ produkt: p, vedLagtTil }: Props) {
+export default function ProduktValg({ produkt, vedLagtTil }: Props) {
+  // Studio's price and status, when changed after the build (overstyring.ts).
+  const p = medButikk(produkt);
   const id = useId();
   const [farge, settFarge] = useState(p.farger[0]?.id ?? '');
   const [materiale, settMateriale] = useState(p.materialer[0]?.type ?? '');

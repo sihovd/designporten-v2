@@ -162,6 +162,23 @@ function cms_migreringer(): array
             ){TABELL}',
             'CREATE INDEX cms_innlegg_revisjoner_id ON cms_innlegg_revisjoner (innlegg_id)',
         ],
+        // The shop in Studio (_handel.php): changes over the build's catalogue, and paid orders.
+        4 => [
+            'CREATE TABLE cms_butikk (
+                id {ID}, nokkel VARCHAR(191) NOT NULL UNIQUE, verdi {DOKUMENT} NOT NULL,
+                versjon INTEGER NOT NULL, endret VARCHAR(32) NOT NULL, endret_av INTEGER NULL
+            ){TABELL}',
+            'CREATE TABLE cms_ordrer (
+                id {ID}, stripe_okt VARCHAR(191) NOT NULL UNIQUE, referanse VARCHAR(64) NOT NULL,
+                modus VARCHAR(8) NOT NULL, betaling_id VARCHAR(191) NULL, levering VARCHAR(32) NOT NULL,
+                navn VARCHAR(191) NOT NULL, epost VARCHAR(191) NOT NULL, telefon VARCHAR(64) NOT NULL,
+                adresse TEXT NOT NULL, melding TEXT NOT NULL, linjer {DOKUMENT} NOT NULL,
+                frakt_ore INTEGER NULL, total_ore INTEGER NULL, valuta VARCHAR(8) NOT NULL,
+                varslet INTEGER NOT NULL DEFAULT 0, notat TEXT NULL,
+                opprettet VARCHAR(32) NOT NULL, endret VARCHAR(32) NOT NULL
+            ){TABELL}',
+            'CREATE INDEX cms_ordrer_levering ON cms_ordrer (levering)',
+        ],
     ];
 }
 
@@ -417,3 +434,4 @@ function cms_krev(string $rett): array
 }
 
 require_once __DIR__ . '/_medier.php';
+require_once __DIR__ . '/_handel.php';

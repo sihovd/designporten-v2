@@ -24,7 +24,10 @@ function dp_testmail(string $ref, string $tekst, array $vedlegg): bool
 // CMS: a local SQLite database instead of one.com's MySQL (DP_CMS_DB picks the file).
 $cmsdb = getenv('DP_CMS_DB') ?: __DIR__ . '/../../var/cms-test.sqlite';
 if (!is_dir(dirname($cmsdb))) mkdir(dirname($cmsdb), 0700, true);
-define('DP_CMS_KONFIG', ['dsn' => 'sqlite:' . $cmsdb, 'oppsettkode' => 'lokal-test-oppsettkode']);
+// X-DP-Test-Cms: av runs a request as on a server without the CMS (no database).
+if (($_SERVER['HTTP_X_DP_TEST_CMS'] ?? '') !== 'av') {
+    define('DP_CMS_KONFIG', ['dsn' => 'sqlite:' . $cmsdb, 'oppsettkode' => 'lokal-test-oppsettkode']);
+}
 // Accounts: their own settings and their own file, never the CMS's settings (no legacy fallback in tests).
 $kontodb = getenv('DP_KONTO_DB') ?: __DIR__ . '/../../var/konto-test.sqlite';
 define('DP_KONTO_KONFIG', [
@@ -47,6 +50,8 @@ if ($stripeTest !== '') {
     ]);
     define('DP_STRIPE_DATA', getenv('DP_STRIPE_DATA') ?: dirname(__DIR__, 2) . '/var/stripe-data');
 }
+// X-DP-Test-Kortbetaling: av is Studio with the card switch off (api/_butikk.php), whatever the repository ships.
+if (($_SERVER['HTTP_X_DP_TEST_KORTBETALING'] ?? '') === 'av') define('DP_LOKAL_BUTIKK', ['betaling' => false]);
 if (($_SERVER['HTTP_X_DP_TEST_KATALOG'] ?? '') === 'pris') {
     $k = json_decode((string) file_get_contents($rot . '/api/katalog.json'), true);
     foreach ($k['produkter'] as &$p) {

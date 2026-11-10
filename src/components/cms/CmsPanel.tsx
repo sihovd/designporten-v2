@@ -24,7 +24,8 @@ import {
 import { cmsEtikett } from '@/lib/cms/etiketter';
 import { DriftStatus, Medier } from './Medier';
 import { Medlemmer } from './Medlemmer';
-import { StudioSkall, StudioOversiktSide, StudioButikk, type StudioFane } from './Studio';
+import { StudioSkall, StudioOversiktSide, type StudioFane } from './Studio';
+import Butikk from './Butikk';
 import Blogg from './Blogg';
 import './cms.css';
 import './studio.css';
@@ -1033,7 +1034,7 @@ export default function CmsPanel() {
     <StudioSkall bruker={bruker} fane={fane} bytt={byttFane}>
       {fane === 'oversikt' && <StudioOversiktSide bruker={bruker} bytt={byttFane} />}
       {fane === 'blogg' && <Blogg bruker={bruker} ulagretEndret={settUlagret} />}
-      {fane === 'butikk' && <StudioButikk />}
+      {fane === 'butikk' && <Butikk />}
       {fane === 'medlemmer' && <Medlemmer />}
       {fane === 'innhold' && <Innhold bruker={bruker} />}
       {fane === 'bilder' && <Medier />}

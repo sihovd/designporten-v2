@@ -48,7 +48,8 @@ export function StudioSkall({
     { navn: 'Arbeidsrom', faner: ['oversikt', 'innhold', 'blogg', 'bilder', 'forslag'] },
     {
       navn: 'Butikken',
-      faner: ['butikk', ...(bruker.rolle === 'admin' ? (['medlemmer'] as StudioFane[]) : [])],
+      // Prices, payment and orders: administrators only (php/api/cms/_handel.php).
+      faner: bruker.rolle === 'admin' ? ['butikk', 'medlemmer'] : [],
     },
     {
       navn: 'Kontrollrom',
@@ -100,32 +101,34 @@ export function StudioSkall({
           </div>
         </div>
         <nav aria-label="CMS">
-          {grupper.map((g) => (
-            <div key={g.navn} class="studio__navgruppe">
-              <p>{g.navn}</p>
-              {g.faner.map((id) => (
-                <button
-                  type="button"
-                  key={id}
-                  aria-current={fane === id ? 'page' : undefined}
-                  onClick={() => velg(id)}
-                >
-                  <span aria-hidden="true" class="studio__navmerke">
-                    {id === 'oversikt'
-                      ? '◈'
-                      : id === 'blogg'
-                        ? '✎'
-                        : id === 'bilder'
-                          ? '▧'
-                          : id === 'butikk'
-                            ? '◇'
-                            : '·'}
-                  </span>
-                  {NAVN[id]}
-                </button>
-              ))}
-            </div>
-          ))}
+          {grupper
+            .filter((g) => g.faner.length > 0)
+            .map((g) => (
+              <div key={g.navn} class="studio__navgruppe">
+                <p>{g.navn}</p>
+                {g.faner.map((id) => (
+                  <button
+                    type="button"
+                    key={id}
+                    aria-current={fane === id ? 'page' : undefined}
+                    onClick={() => velg(id)}
+                  >
+                    <span aria-hidden="true" class="studio__navmerke">
+                      {id === 'oversikt'
+                        ? '◈'
+                        : id === 'blogg'
+                          ? '✎'
+                          : id === 'bilder'
+                            ? '▧'
+                            : id === 'butikk'
+                              ? '◇'
+                              : '·'}
+                    </span>
+                    {NAVN[id]}
+                  </button>
+                ))}
+              </div>
+            ))}
         </nav>
         <div class="studio__person">
           <span>
@@ -412,24 +415,5 @@ export function StudioOversiktSide({ bruker, bytt }: { bruker: Bruker; bytt: (f:
         tilkoblet» betyr at datakilden mangler.
       </p>
     </>
-  );
-}
-
-export function StudioButikk() {
-  return (
-    <section class="studio__panel">
-      <h2>Butikken bygges videre i egne moduler</h2>
-      <p>
-        Produktinnholdet ligger fortsatt i den eksisterende produktadministrasjonen. Denne Studio-leveransen
-        flytter ikke varer, lager eller ordre til en ny handelsmotor.
-      </p>
-      <a class="cms__knapp cms__knapp--primar" href={nettsti('/admin/')} target="_blank" rel="noopener">
-        Åpne eksisterende produktadministrasjon ↗
-      </a>
-      <p class="studio__dempet">
-        Den bruker GitHub-innlogging. Vipps, Stripe, ordrestyring og lager er ikke koblet til Studio ennå.
-        Ingen reelle betalinger kan aktiveres fra denne siden.
-      </p>
-    </section>
   );
 }
