@@ -79,7 +79,7 @@ test('unsellable carts, bad fields and a failing Stripe are refused', async ({ r
     headers: priset,
     data: {
       ...ordre,
-      linjer: [{ produktId: 'nokkelring', antall: 1, valg: { farge: 'x', materiale: 'PLA' } }],
+      linjer: [{ produktId: 'bokstotter', antall: 1, valg: { farge: 'x', materiale: 'PLA' } }],
     },
   });
   expect(plassholder.status()).toBe(400);

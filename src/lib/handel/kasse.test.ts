@@ -92,15 +92,15 @@ describe('kasse', () => {
     expect(p.get('client_reference_id')).toBe('DP-1');
   });
 
-  // Sivert set the switch and shipping himself in /admin (d60250f, 2026-11-09);
-  // since then Studio can change both on one.com. The file only has to be valid.
-  it('ships shop settings Stripe Checkout can use', async () => {
+  it('ships valid shop settings: card payment only with real shipping options', async () => {
+    // Sivert switches card payment on himself in /admin (CLAUDE.md rule 5);
+    // the file must stay valid, and «on» is only allowed with shipping set up.
     const fil = await import('@/content/butikk/innstillinger.json');
     const b = butikkSkjema.parse(fil.default);
-    expect(b.frakt.length).toBeLessThanOrEqual(5);
+    if (b.betaling) expect(b.frakt.length).toBeGreaterThan(0);
     for (const f of b.frakt) {
-      expect((f.dagerMin === null) === (f.dagerMaks === null)).toBe(true);
-      if (f.dagerMin !== null) expect(f.dagerMaks!).toBeGreaterThanOrEqual(f.dagerMin);
+      expect(f.navn.trim()).not.toBe('');
+      expect(Number.isInteger(f.prisOre) && f.prisOre >= 0).toBe(true);
     }
   });
 });
