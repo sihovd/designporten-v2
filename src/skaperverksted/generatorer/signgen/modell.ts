@@ -30,6 +30,7 @@ import {
   areal,
   differanse,
   flyttRegion,
+  forenkle,
   forskyv,
   regionBoks,
   regionFraRinger,
@@ -158,7 +159,9 @@ export function lokalGeometri(k: ObjektKilde): LokalGeometri | null {
         return [];
       }
     });
-    const alle = regionFraRinger(ringer, k.fyllregel);
+    // thinned to 0.01 mm (as wide offsets already are): traced and finely flattened vectors carry many
+    // points that change nothing in print, and every later step (joins, outlines, drawing) pays for them
+    const alle = forenkle(regionFraRinger(ringer, k.fyllregel), 0.01);
     // «fyll»: close the holes in the vector, leaving its silhouette
     const region = k.hull === 'fyll' ? utenHull(alle) : alle;
     g = { region, boks: region.length ? regionBoks(region) : TOM.boks, mangler: [] };
@@ -178,11 +181,18 @@ export function lokalGeometri(k: ObjektKilde): LokalGeometri | null {
 
 // ---------- world geometry ----------
 
+/** World regions by object: objects are immutable, so an unchanged object keeps its region (and its cached drawing). */
+const verdenEtterObjekt = new WeakMap<Objekt, { g: LokalGeometri; r: Region }>();
+
 export function verdensRegion(o: Objekt): Region | null {
   const g = lokalGeometri(o.kilde);
   if (!g) return null;
+  const b = verdenEtterObjekt.get(o);
+  if (b && b.g === g) return b.r;
   const m = tilMatrise(o.transform);
-  return transformerRegion(g.region, (p) => anvend(m, p));
+  const r = transformerRegion(g.region, (p) => anvend(m, p));
+  verdenEtterObjekt.set(o, { g, r });
+  return r;
 }
 
 /** Corners of the object's box in world space (for handles). */
@@ -283,10 +293,22 @@ function sammeListe(a: readonly unknown[], b: readonly unknown[]): boolean {
 /** One remembered result per slot, reused while its inputs are the same. */
 const minne = new Map<string, { inn: unknown[]; verdi: unknown }>();
 
+/**
+ * True while a drag or a slider runs (the workbench says so through the plugin's `underveis`). Slots that
+ * may wait (`kanVente`) then keep their last result even though their inputs changed: the outlines round
+ * a text stay where they were while the text is dragged, and are worked out again when the gesture ends
+ * or pauses. Offsetting a whole text on every frame was what made dragging slow (2026-11-10).
+ */
+let underveis = false;
+
+export function settUnderveis(paa: boolean): void {
+  underveis = paa;
+}
+
 /** `lag()` returns null while fonts load; that is not remembered. */
-function husk<T>(slot: string, inn: unknown[], lag: () => T | null): T | null {
+function husk<T>(slot: string, inn: unknown[], lag: () => T | null, kanVente = false): T | null {
   const b = minne.get(slot);
-  if (b && sammeListe(b.inn, inn)) return b.verdi as T;
+  if (b && (sammeListe(b.inn, inn) || (kanVente && underveis))) return b.verdi as T;
   const verdi = lag();
   if (verdi !== null) {
     if (minne.size > 2000) minne.clear();
@@ -309,7 +331,32 @@ function iVerden(slot: string, p: Plassert): Region {
 
 // ---------- layers ----------
 
-const lagBuffer = new WeakMap<Dokument, Map<string, Region | null>>();
+/**
+ * Cache per document for the last few documents only. A WeakMap keyed by the document kept every
+ * snapshot in the undo history alive together with all its layer regions; the slots in `husk` already
+ * reuse what did not change, so older documents are not worth remembering.
+ */
+class Dokumentbuffer<T> {
+  private nokler: Dokument[] = [];
+  private verdier: T[] = [];
+  constructor(private readonly maks = 12) {}
+  get(d: Dokument): T | undefined {
+    const i = this.nokler.indexOf(d);
+    return i < 0 ? undefined : this.verdier[i];
+  }
+  set(d: Dokument, v: T): void {
+    const i = this.nokler.indexOf(d);
+    if (i >= 0) this.verdier[i] = v;
+    else {
+      this.nokler.unshift(d);
+      this.verdier.unshift(v);
+      this.nokler.length = Math.min(this.nokler.length, this.maks);
+      this.verdier.length = this.nokler.length;
+    }
+  }
+}
+
+const lagBuffer = new Dokumentbuffer<Map<string, Region | null>>();
 
 /**
  * A layer with outlines: every text layer, and any other layer that has been given outlines. Shapes and
@@ -340,12 +387,17 @@ function egenLokal(dok: Dokument, lag: Lag): Plassert | null {
   const lokal = husk(`egen:${lag.id}`, inn, () => {
     const pluss: Region[] = [];
     const minus: Region[] = [];
+    const speilet: boolean[] = [];
     for (const [i, o] of objekter.entries()) {
       const r = verdensRegion({ ...o, transform: relativ[i]! });
       if (!r) return null;
-      (o.operasjon === 'trekk-fra' ? minus : pluss).push(r);
+      if (o.operasjon === 'trekk-fra') minus.push(r);
+      else {
+        pluss.push(r);
+        speilet.push(o.transform.skalaX * o.transform.skalaY < 0);
+      }
     }
-    let region = unionAlle(pluss);
+    let region = unionSpredt(pluss, speilet);
     if (minus.length) region = differanse(region, unionAlle(minus));
     const k = lag.kontur;
     if (k.avstand !== 0 || k.kunRing) {
@@ -357,6 +409,34 @@ function egenLokal(dok: Dokument, lag: Lag): Plassert | null {
     return region;
   });
   return lokal && { lokal, dx, dy };
+}
+
+/**
+ * The union of the regions, where only regions whose boxes meet go through Clipper: a region that
+ * touches no other is already apart from the rest and is kept as it is. A vector moved beside another
+ * then costs nothing, where joining the two on every frame was slow (2026-11-10). A mirrored region
+ * (`speilet`) still goes through Clipper, so its rings turn the usual way.
+ */
+function unionSpredt(regioner: Region[], speilet: boolean[] = []): Region {
+  if (regioner.length < 2 && !speilet[0]) return regioner[0] ?? [];
+  const bokser = regioner.map((r) => delerBoks([r]));
+  // group the regions whose boxes meet, through any chain of others
+  const gruppe = regioner.map((_, i) => i);
+  const rot = (i: number): number => (gruppe[i] === i ? i : (gruppe[i] = rot(gruppe[i]!)));
+  for (let i = 0; i < regioner.length; i++)
+    for (let j = i + 1; j < regioner.length; j++)
+      if (overlapper(bokser[i]!, bokser[j]!)) gruppe[rot(i)] = rot(j);
+  const grupper = new Map<number, number[]>();
+  regioner.forEach((_, i) => {
+    const g = rot(i);
+    grupper.set(g, [...(grupper.get(g) ?? []), i]);
+  });
+  const ut: Region = [];
+  for (const ider of grupper.values()) {
+    if (ider.length === 1 && !speilet[ider[0]!]) ut.push(...regioner[ider[0]!]!);
+    else ut.push(...unionAlle(ider.map((i) => regioner[i]!)));
+  }
+  return ut;
 }
 
 /** Outline of a layer before influences (objects + Kontur). Null while fonts load. */
@@ -405,8 +485,12 @@ function hullObjekter(dok: Dokument): Objekt[] {
   return Object.values(dok.objekter).filter((o) => o.synlig && erGjennomgaende(o));
 }
 
-/** Everything the sign prints, before holes and eyes. Null while fonts load. */
-function modellFlate(dok: Dokument): Region | null {
+/**
+ * Everything the sign prints, before holes and eyes, as separate parts (they may overlap). Null while
+ * fonts load. Nothing needs them joined: a box is the box of the boxes, and a hole only asks about the
+ * parts it lies on (joining the whole sign on every change was what made drags slow, 2026-11-10).
+ */
+function modellDeler(dok: Dokument): Region[] | null {
   const deler: Region[] = [];
   for (const lag of dok.lag) {
     if (!lag.synlig) continue;
@@ -419,7 +503,30 @@ function modellFlate(dok: Dokument): Region | null {
       for (const x of o) deler.push(x.region);
     }
   }
-  return husk('modellflate', deler, () => unionAlle(deler));
+  return deler;
+}
+
+const flateBoksBuffer = new WeakMap<object, Boks>();
+
+/** The box of one face of a region (remembered: regions are not changed after they are made). */
+function flateBoks(f: Region[number]): Boks {
+  let b = flateBoksBuffer.get(f);
+  if (!b) flateBoksBuffer.set(f, (b = regionBoks([f])));
+  return b;
+}
+
+/** The box round several regions, from their faces' boxes. */
+function delerBoks(deler: Region[]): Boks {
+  let b = tomBoks();
+  for (const r of deler) for (const f of r) b = slaSammen(b, flateBoks(f));
+  return b;
+}
+
+/** The faces of the parts that reach into the box. */
+function flaterInnenfor(deler: Region[], b: Boks): Region {
+  const ut: Region = [];
+  for (const r of deler) for (const f of r) if (overlapper(flateBoks(f), b)) ut.push(f);
+  return ut;
 }
 
 /** Default width of the ring around an eye (mm). */
@@ -457,28 +564,29 @@ function hullOgOyne(dok: Dokument): { hull: Region; liste: Hullobjekt[]; oyne: O
   const objekter = hullObjekter(dok);
   const tom = { hull: [], liste: [], oyne: [] };
   if (!objekter.length) return tom;
-  const flate = modellFlate(dok) ?? [];
+  const deler = modellDeler(dok) ?? [];
+  // each hole is judged on only the faces it reaches into, and remembered while those stay the same
+  const svar: (Hullobjekt | Oye)[] = [];
+  for (const o of objekter) {
+    const r = verdensRegion(o);
+    if (!r?.length) continue;
+    const under = flaterInnenfor(deler, delerBoks([r]));
+    const ett = husk(`hull:${o.id}`, [o, ...under], () => {
+      const inne = under.length ? areal(snitt(r, unionAlle([under]))) : 0;
+      if (inne >= areal(r) / 2) return { objekt: o, region: r, hoyde: hullHoyde(o) };
+      const bredde = Math.max(
+        MIN_OMRISSBREDDE,
+        o.kilde.type === 'form' ? (o.kilde.ringBredde ?? STANDARD_RINGBREDDE) : STANDARD_RINGBREDDE,
+      );
+      return { objekt: o, hull: r, ytre: forskyv(r, bredde, 'rund') };
+    })!;
+    svar.push(ett);
+  }
   return (
-    husk('hulloyne', [flate, ...objekter], () => {
-      const hull: Region[] = [];
-      const liste: Hullobjekt[] = [];
-      const oyne: Oye[] = [];
-      for (const o of objekter) {
-        const r = verdensRegion(o);
-        if (!r?.length) continue;
-        const inne = areal(snitt(r, flate));
-        if (inne >= areal(r) / 2) {
-          hull.push(r);
-          liste.push({ objekt: o, region: r, hoyde: hullHoyde(o) });
-        } else {
-          const bredde = Math.max(
-            MIN_OMRISSBREDDE,
-            o.kilde.type === 'form' ? (o.kilde.ringBredde ?? STANDARD_RINGBREDDE) : STANDARD_RINGBREDDE,
-          );
-          oyne.push({ objekt: o, hull: r, ytre: forskyv(r, bredde, 'rund') });
-        }
-      }
-      return { hull: unionAlle(hull), liste, oyne };
+    husk('hulloyne', svar, () => {
+      const liste = svar.filter((x): x is Hullobjekt => 'region' in x);
+      const oyne = svar.filter((x): x is Oye => 'ytre' in x);
+      return { hull: unionAlle(liste.map((x) => x.region)), liste, oyne };
     }) ?? tom
   );
 }
@@ -528,16 +636,22 @@ function oyeMal(dok: Dokument): { lagId: string; omrissId?: string } | null {
 function utenOyehull(slot: string, region: Region, oyne: Oye[]): Region {
   if (!oyne.length) return region;
   return husk(`oyehull:${slot}`, [region, ...oyne], () =>
-    differanse(region, unionAlle(oyne.map((x) => x.hull))),
+    utenHullGjennom(region, unionAlle(oyne.map((x) => x.hull))),
   )!;
 }
 
 /** A region with the eyes joined on and their holes kept open. */
 function medOyne(slot: string, region: Region, oyne: Oye[]): Region {
   if (!oyne.length) return region;
-  return husk(`oyne:${slot}`, [region, ...oyne], () =>
-    differanse(unionAlle([region, ...oyne.map((x) => x.ytre)]), unionAlle(oyne.map((x) => x.hull))),
-  )!;
+  return husk(`oyne:${slot}`, [region, ...oyne], () => {
+    // the faces are apart, so only those an eye reaches go through Clipper
+    const ytre = oyne.map((x) => x.ytre);
+    const bokser = ytre.map((r) => delerBoks([r]));
+    const rorte: Region = [];
+    const urort: Region = [];
+    for (const f of region) (bokser.some((b) => overlapper(flateBoks(f), b)) ? rorte : urort).push(f);
+    return [...urort, ...differanse(unionAlle([rorte, ...ytre]), unionAlle(oyne.map((x) => x.hull)))];
+  })!;
 }
 
 function overlapper(a: Boks, b: Boks): boolean {
@@ -750,6 +864,7 @@ function omrissFra(lag: Lag, tekst: Region, slot: string, deler?: Map<string, Re
       }
       return ut;
     },
+    true,
   )!;
 }
 
@@ -776,8 +891,12 @@ function omrissForHull(dok: Dokument, lag: Lag): Omrissliste | null {
   const tekst = egenLokal(dok, lag);
   if (!tekst) return null;
   const lokal = omrissFra(lag, tekst.lokal, 'egen', omrissDeler(dok, lag));
-  return husk(`omriss-egen:${lag.id}@`, [lokal, tekst.dx, tekst.dy], () =>
-    lokal.map((o) => ({ id: o.id, region: flyttRegion(o.region, tekst.dx, tekst.dy) })),
+  // kept in place too while a gesture runs, so the outline does not ride along with the first object
+  return husk(
+    `omriss-egen:${lag.id}@`,
+    [lokal, tekst.dx, tekst.dy],
+    () => lokal.map((o) => ({ id: o.id, region: flyttRegion(o.region, tekst.dx, tekst.dy) })),
+    true,
   );
 }
 
@@ -897,7 +1016,7 @@ interface Stotteskive {
   topp: Region;
 }
 
-const stotteBuffer = new WeakMap<Dokument, Stotteskive[]>();
+const stotteBuffer = new Dokumentbuffer<Stotteskive[]>();
 
 /**
  * Every visible slab with its bottom and top footprint. A side profile that
@@ -920,8 +1039,12 @@ function stotteskiver(dok: Dokument): Stotteskive[] {
         navn: lag.navn,
         zBunn: lag.zBunn,
         hoyde: lag.hoyde,
-        bunn: forskyv(region, -bunnInset(lag.profil), lag.kontur.hjorne),
-        topp: forskyv(region, -toppInset(lag.profil), lag.kontur.hjorne),
+        bunn: husk(`stotte-bunn:${lag.id}`, [region, bunnInset(lag.profil), lag.kontur.hjorne], () =>
+          forskyv(region, -bunnInset(lag.profil), lag.kontur.hjorne),
+        )!,
+        topp: husk(`stotte-topp:${lag.id}`, [region, toppInset(lag.profil), lag.kontur.hjorne], () =>
+          forskyv(region, -toppInset(lag.profil), lag.kontur.hjorne),
+        )!,
       });
     }
     for (const o of lag.omriss ?? []) {
@@ -1019,6 +1142,8 @@ export async function byggSigngen(
     await pause();
   };
   await meld(0);
+  // a model is never built from geometry kept during a gesture
+  settUnderveis(false);
   const fontFeil = await lastFonter(dok);
   dok = grunnfest(dok);
   await meld(0.05);
@@ -1250,8 +1375,10 @@ export function innholdsboks(dok: Dokument): Boks | null {
 
 /** Bounds of what the sign prints, outlines included (before holes and eyes). */
 export function modellBoks(dok: Dokument): Boks | null {
-  const f = modellFlate(dok);
-  return f?.length ? regionBoks(f) : null;
+  const deler = modellDeler(dok);
+  if (!deler) return null;
+  const b = delerBoks(deler);
+  return erTom(b) ? null : b;
 }
 
 /**
@@ -1259,9 +1386,9 @@ export function modellBoks(dok: Dokument): Boks | null {
  * and eyes included. Used to lay signs out side by side. Null while fonts load.
  */
 export function fotavtrykkBoks(dok: Dokument): Boks | null {
-  const flate = modellFlate(dok);
-  if (!flate) return null;
-  let b = flate.length ? regionBoks(flate) : tomBoks();
+  const deler = modellDeler(dok);
+  if (!deler) return null;
+  let b = delerBoks(deler);
   for (const o of hullOgOyne(dok).oyne) {
     const e = regionBoks(o.ytre);
     b = slaSammen(b, { minX: e.minX, minY: e.minY, maksX: e.maksX, maksY: e.maksY });

@@ -187,7 +187,7 @@ export function LampeInspektor({ benk }: { benk: Arbeidsbenk }) {
                     'lampe-vri-glider',
                   )
                 }
-                onChange={() => benk.historikk.avsluttSammenslaing()}
+                onChange={() => benk.avsluttSammenslaing()}
               />
             </label>
           </>
