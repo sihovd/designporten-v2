@@ -47,13 +47,20 @@ if ($stripeTest !== '') {
     ]);
     define('DP_STRIPE_DATA', getenv('DP_STRIPE_DATA') ?: dirname(__DIR__, 2) . '/var/stripe-data');
 }
-if (($_SERVER['HTTP_X_DP_TEST_KATALOG'] ?? '') === 'pris') {
+// X-DP-Test-Katalog: av = the shop switched off; pris = only the test product
+// sellable, with test shipping. Independent of what Sivert sets in /admin.
+$katalogTest = $_SERVER['HTTP_X_DP_TEST_KATALOG'] ?? '';
+if ($katalogTest === 'pris' || $katalogTest === 'av') {
     $k = json_decode((string) file_get_contents($rot . '/api/katalog.json'), true);
     foreach ($k['produkter'] as &$p) {
-        if ($p['id'] === 'spiralvase') { $p['status'] = 'bekreftet'; $p['prisOre'] = 12300; }
+        [$p['status'], $p['prisOre']] = $katalogTest === 'pris' && $p['id'] === 'spiralvase'
+            ? ['bekreftet', 12300]
+            : ['plassholder', null];
     }
     unset($p);
-    $k['butikk'] = ['betaling' => true, 'frakt' => [['navn' => 'Testfrakt', 'prisOre' => 4500, 'dagerMin' => 2, 'dagerMaks' => 4]]];
+    $k['butikk'] = $katalogTest === 'pris'
+        ? ['betaling' => true, 'frakt' => [['navn' => 'Testfrakt', 'prisOre' => 4500, 'dagerMin' => 2, 'dagerMaks' => 4]]]
+        : ['betaling' => false, 'frakt' => []];
     define('DP_LOKAL_KATALOG', $k);
 }
 function dp_stripe_fake(string $metode, string $sti, array $kropp, string $idempotens): array

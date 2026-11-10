@@ -19,6 +19,10 @@ require __DIR__ . '/../_stripe.php';
 dp_bare_post();
 
 const MAKS_BYTE = 512 * 1024;
+const FORLATT_ETTER = 120; // seconds
+
+ignore_user_abort(true);
+@set_time_limit(90);
 
 function kroner(int $ore): string
 {
@@ -78,44 +82,77 @@ if (!is_dir($mappe) && !mkdir($mappe, 0700, true) && !is_dir($mappe)) {
 $krav = $mappe . '/' . $okt['id'] . '.json';
 $h = @fopen($krav, 'x');
 if ($h === false) {
-    svar('ok', 200); // already delivered, or being delivered right now
+    // An empty claim older than two minutes is left by an attempt that died
+    // (timeout, fatal error) before it delivered: take it over so Stripe's
+    // retry or «Resend» still gets the order through.
+    clearstatcache(true, $krav);
+    $tid = @filemtime($krav);
+    if (@filesize($krav) === 0 && $tid !== false && time() - $tid > FORLATT_ETTER) {
+        error_log('Designporten webhook: tar over et avbrutt forsøk for ' . $okt['id'] . '.');
+        @unlink($krav);
+        $h = @fopen($krav, 'x');
+    }
+    if ($h === false) svar('ok', 200); // already delivered, or being delivered right now
 }
+// If the script dies before the order is delivered, drop the empty claim and
+// log why, so the next attempt is not mistaken for a finished delivery.
+$ferdig = false;
+register_shutdown_function(function () use (&$ferdig, $krav, $okt): void {
+    if ($ferdig) return;
+    $feil = error_get_last();
+    error_log('Designporten webhook: ordre ' . $okt['id'] . ' ble avbrutt før levering'
+        . ($feil ? ' (' . $feil['message'] . ' i ' . basename((string) $feil['file']) . ':' . $feil['line'] . ')' : '') . '.');
+    clearstatcache(true, $krav);
+    if (@filesize($krav) === 0) @unlink($krav);
+});
 
-$oppsett = dp_oppsett();
+$oppsett = null;
 $sendt = null;
-if ($oppsett !== null) {
-    $linjer = dp_stripe($konfig, 'GET', '/checkout/sessions/' . $okt['id'] . '/line_items?limit=100');
-    $varer = $linjer['ok'] && is_array($linjer['data']['data'] ?? null)
-        ? array_map(
-            fn($l) => ($l['quantity'] ?? 1) . ' × ' . ($l['description'] ?? 'Vare') . '  ' . kroner((int) ($l['amount_total'] ?? 0)),
-            $linjer['data']['data'],
-        )
-        : ['(Varelinjene kunne ikke hentes. Se ordren i Stripe-dashbordet.)'];
-    $meta = is_array($okt['metadata'] ?? null) ? $okt['metadata'] : [];
-    $kunde = is_array($okt['customer_details'] ?? null) ? $okt['customer_details'] : [];
-    $ref = (string) ($okt['client_reference_id'] ?? $okt['id']);
-    $navn = dp_tekst($meta['navn'] ?? '', 120) ?: dp_tekst($kunde['name'] ?? '', 120) ?: 'kunde';
-    $epost = dp_tekst($kunde['email'] ?? '', 200);
-    $adresse = $okt['collected_information']['shipping_details'] ?? $okt['shipping_details'] ?? null;
-    $sendt = dp_send($oppsett, "Betalt ordre $ref fra $navn", [
-        ['Referanse', $ref],
-        ['Navn', $navn],
-        ['E-post', $epost],
-        ['Telefon', dp_tekst($kunde['phone'] ?? '', 40) ?: dp_tekst($meta['telefon'] ?? '', 40)],
-        ['Leveringsadresse', dp_tekst(adressetekst(is_array($adresse) ? $adresse : null), 1000)],
-        ['Melding', dp_tekst($meta['melding'] ?? '', 4000)],
-        ['Varer', dp_tekst(implode("\n", $varer), 20000)],
-        ['Frakt', isset($okt['shipping_cost']['amount_total']) ? kroner((int) $okt['shipping_cost']['amount_total']) : ''],
-        ['Totalt betalt', isset($okt['amount_total']) ? kroner((int) $okt['amount_total']) : ''],
-        ['Betaling', 'Betalt med kort via Stripe' . ($konfig['live'] ? '' : ' (TESTMODUS, ingen ekte penger)') . '. Stripe-økt: ' . $okt['id']],
-    ], $epost, []);
+$krasj = '';
+try {
+    $oppsett = dp_oppsett();
+    if ($oppsett !== null) {
+        $linjer = dp_stripe($konfig, 'GET', '/checkout/sessions/' . $okt['id'] . '/line_items?limit=100');
+        $varer = $linjer['ok'] && is_array($linjer['data']['data'] ?? null)
+            ? array_map(
+                fn($l) => ($l['quantity'] ?? 1) . ' × ' . ($l['description'] ?? 'Vare') . '  ' . kroner((int) ($l['amount_total'] ?? 0)),
+                $linjer['data']['data'],
+            )
+            : ['(Varelinjene kunne ikke hentes. Se ordren i Stripe-dashbordet.)'];
+        $meta = is_array($okt['metadata'] ?? null) ? $okt['metadata'] : [];
+        $kunde = is_array($okt['customer_details'] ?? null) ? $okt['customer_details'] : [];
+        $ref = (string) ($okt['client_reference_id'] ?? $okt['id']);
+        $navn = dp_tekst($meta['navn'] ?? '', 120) ?: dp_tekst($kunde['name'] ?? '', 120) ?: 'kunde';
+        $epost = dp_tekst($kunde['email'] ?? '', 200);
+        $adresse = $okt['collected_information']['shipping_details'] ?? $okt['shipping_details'] ?? null;
+        $sendt = dp_send($oppsett, "Betalt ordre $ref fra $navn", [
+            ['Referanse', $ref],
+            ['Navn', $navn],
+            ['E-post', $epost],
+            ['Telefon', dp_tekst($kunde['phone'] ?? '', 40) ?: dp_tekst($meta['telefon'] ?? '', 40)],
+            ['Leveringsadresse', dp_tekst(adressetekst(is_array($adresse) ? $adresse : null), 1000)],
+            ['Melding', dp_tekst($meta['melding'] ?? '', 4000)],
+            ['Varer', dp_tekst(implode("\n", $varer), 20000)],
+            ['Frakt', isset($okt['shipping_cost']['amount_total']) ? kroner((int) $okt['shipping_cost']['amount_total']) : ''],
+            ['Totalt betalt', isset($okt['amount_total']) ? kroner((int) $okt['amount_total']) : ''],
+            ['Betaling', 'Betalt med kort via Stripe' . ($konfig['live'] ? '' : ' (TESTMODUS, ingen ekte penger)') . '. Stripe-økt: ' . $okt['id']],
+        ], $epost, []);
+    }
+} catch (Throwable $e) {
+    // Shown in Stripe's «Event deliveries» as the response, and in the error
+    // log. Class and message only: no keys or customer data.
+    $krasj = get_class($e) . ': ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')';
+    error_log('Designporten webhook: ' . $krasj);
+    $sendt = null;
 }
+if ($oppsett === null) error_log('Designporten webhook: api/oppsett.php mangler eller har ugyldig «til»-adresse.');
 
+$ferdig = true;
 if ($sendt === null) {
     fclose($h);
     @unlink($krav);
     error_log('Designporten webhook: ordre ' . $okt['id'] . ' ble ikke levert, Stripe prøver igjen.');
-    svar('Kunne ikke levere', 500);
+    svar('Kunne ikke levere: ' . ($krasj !== '' ? $krasj : ($oppsett === null ? 'e-postoppsett (api/oppsett.php) mangler' : 'mail() feilet')), 500);
 }
 fwrite($h, json_encode(['okt' => $okt['id'], 'epostreferanse' => $sendt, 'tid' => gmdate('c')]));
 fclose($h);

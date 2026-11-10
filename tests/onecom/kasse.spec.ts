@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { createHmac } from 'node:crypto';
-import { readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 
 // Card payment on the PHP build (php/api/kasse/, php/api/stripe/). The local
 // router replaces Stripe with a fake and never reaches the real API; the
-// priced product and shipping exist only behind the X-DP-Test-Katalog header.
+// shop state comes from the X-DP-Test-Katalog header, never from the real
+// catalogue, which Sivert changes in /admin.
 test.skip(({ isMobile }) => isMobile, 'Kjøres én gang.');
 
 const base = '/designporten-test';
@@ -30,7 +31,7 @@ test.beforeAll(async () => {
 });
 
 test('card payment stays off until the shop switch, the keys and shipping all exist', async ({ request }) => {
-  expect(await (await request.get(kasse)).json()).toEqual({
+  expect(await (await request.get(kasse, { headers: { 'X-DP-Test-Katalog': 'av' } })).json()).toEqual({
     aktiv: false,
     grunn: 'Kortbetaling er ikke slått på ennå.',
   });
@@ -42,7 +43,10 @@ test('card payment stays off until the shop switch, the keys and shipping all ex
   });
   expect((await live.json()).aktiv).toBe(false);
   expect(await (await request.get(kasse, { headers: priset })).json()).toEqual({ aktiv: true });
-  const av = await request.post(kasse, { headers: { 'X-DP-Test-Stripe': 'test' }, data: ordre });
+  const av = await request.post(kasse, {
+    headers: { 'X-DP-Test-Katalog': 'av', 'X-DP-Test-Stripe': 'test' },
+    data: ordre,
+  });
   expect(av.status()).toBe(503);
 });
 
@@ -159,6 +163,20 @@ test('webhook: only a valid signature delivers a paid order, and only once', asy
   expect(nyeste.tekst).toContain('Betalt ordre DP-20261109-TEST1 fra Lokal Test');
   expect(nyeste.tekst).toContain('Testveien 1');
   expect(nyeste.tekst).toContain('TESTMODUS');
+
+  // an empty claim left by an attempt that died is taken over after two minutes
+  const forlatt = hendelse('cs_test_forlatt1234567');
+  await mkdir('var/stripe-data', { recursive: true });
+  await writeFile('var/stripe-data/cs_test_forlatt1234567.json', '');
+  expect((await send(forlatt, signer(forlatt))).status()).toBe(200);
+  expect((await readdir('var/php-mail')).length).toBe(foer + 1); // fresh claim: still in progress
+  const gammel = new Date(Date.now() - 10 * 60 * 1000);
+  await utimes('var/stripe-data/cs_test_forlatt1234567.json', gammel, gammel);
+  expect((await send(forlatt, signer(forlatt))).status()).toBe(200);
+  expect((await readdir('var/php-mail')).length).toBe(foer + 2);
+  expect(JSON.parse(await readFile('var/stripe-data/cs_test_forlatt1234567.json', 'utf8')).okt).toBe(
+    'cs_test_forlatt1234567',
+  );
 
   // other events are acknowledged and ignored
   const annen = JSON.stringify({ type: 'payment_intent.created', data: { object: { id: 'pi_1' } } });
