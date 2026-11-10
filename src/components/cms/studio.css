@@ -920,3 +920,119 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Butikk og betaling (Butikk.tsx) */
+.butikk__innhold {
+  display: grid;
+  gap: var(--r-4);
+  margin-top: var(--r-4);
+}
+
+.butikk__produkt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--r-3);
+}
+
+.butikk__produkt img {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+}
+
+.butikk__produkttekst {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.butikk__produkttekst p {
+  margin: 0;
+}
+
+.butikk__skjema {
+  display: grid;
+  gap: var(--r-3);
+  margin-top: var(--r-4);
+  padding-top: var(--r-4);
+  border-top: 1px solid var(--linje);
+}
+
+.butikk__valg,
+.butikk__frakt {
+  display: grid;
+  gap: var(--r-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.butikk__valg legend,
+.butikk__frakt legend {
+  margin-bottom: var(--r-2);
+  padding: 0;
+  font-weight: 600;
+}
+
+.butikk__valg label,
+.butikk__bryter {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--r-2);
+  min-height: var(--mal-beroring);
+}
+
+.cms .butikk__valg input[type='radio'],
+.cms .butikk__bryter input[type='checkbox'] {
+  min-height: 0;
+  padding: 0;
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+}
+
+.butikk__bryter {
+  align-items: center;
+  font-weight: 600;
+}
+
+.butikk__frakt {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--r-3);
+}
+
+.butikk__fraktnavn {
+  grid-column: 1 / -1;
+}
+
+.butikk__hjelp {
+  font-weight: 400;
+}
+
+.butikk__detaljer {
+  margin-block: var(--r-2);
+}
+
+.butikk__detaljer summary {
+  min-height: var(--mal-beroring);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.butikk__detaljer ul {
+  padding-left: var(--r-4);
+}
+
+.butikk__adresse {
+  white-space: pre-line;
+}
+
+.butikk__levering {
+  max-width: 18rem;
+  margin-top: var(--r-2);
+}

@@ -50,10 +50,21 @@ const mal = formaterMal(p.mal);
       {!p.egenTekst && p.generator && <span class="produktkort__tag mono">Lag i Skaperverksted</span>}
     </span>
     <span class="produktkort__tekst">
-      <Overskrift class="produktkort__navn">{p.navn}</Overskrift>
+      <!-- data-butikk: Studio can change name, status and price after the build (php/api/_butikk.php). -->
+      <Overskrift class="produktkort__navn" data-butikk={`${p.id}#navn`}>
+        {p.navn}
+      </Overskrift>
       <span class="produktkort__spec mono">{mal ?? p.kategoriNavn}</span>
-      {p.status === 'plassholder' && <span class="produktkort__status mono">Plassholder</span>}
-      {p.prisOre !== null && <span class="produktkort__pris tall">{formaterKroner(p.prisOre)}</span>}
+      <span
+        class="produktkort__status mono"
+        data-butikk={`${p.id}#status`}
+        hidden={p.status !== 'plassholder'}
+      >
+        Plassholder
+      </span>
+      <span class="produktkort__pris tall" data-butikk={`${p.id}#pris`} hidden={p.prisOre === null}>
+        {p.prisOre !== null ? formaterKroner(p.prisOre) : ''}
+      </span>
     </span>
   </a>
   <div class="produktkort__kapselflate">
@@ -72,14 +83,18 @@ const mal = formaterMal(p.mal);
         <span class="kurvkapsel__plusstegn">
           <Ikon navn="pluss" storrelse={18} />
         </span>
-        <span class="visuelt-skjult">Legg {p.navn} i handlekurven</span>
+        <span class="visuelt-skjult">
+          Legg <span data-butikk={`${p.id}#navn`}>{p.navn}</span> i handlekurven
+        </span>
         <span class="kurvkapsel__merke tall" data-kurv-merke hidden aria-hidden="true">
           0
         </span>
       </button>
       <button class="kurvkapsel__knapp kurvkapsel__minus" type="button" data-kurv-minus hidden>
         <Ikon navn="minus" storrelse={18} />
-        <span class="visuelt-skjult">Ta én {p.navn} ut av handlekurven</span>
+        <span class="visuelt-skjult">
+          Ta én <span data-butikk={`${p.id}#navn`}>{p.navn}</span> ut av handlekurven
+        </span>
       </button>
     </div>
   </div>

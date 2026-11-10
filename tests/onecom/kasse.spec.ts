@@ -4,8 +4,7 @@ import { mkdir, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promise
 
 // Card payment on the PHP build (php/api/kasse/, php/api/stripe/). The local
 // router replaces Stripe with a fake and never reaches the real API; the
-// shop state comes from the X-DP-Test-Katalog header, never from the real
-// catalogue, which Sivert changes in /admin.
+// priced product and shipping exist only behind the X-DP-Test-Katalog header.
 test.skip(({ isMobile }) => isMobile, 'Kjøres én gang.');
 
 const base = '/designporten-test';
@@ -31,10 +30,14 @@ test.beforeAll(async () => {
 });
 
 test('card payment stays off until the shop switch, the keys and shipping all exist', async ({ request }) => {
-  expect(await (await request.get(kasse, { headers: { 'X-DP-Test-Katalog': 'av' } })).json()).toEqual({
+  // the switch as Studio sets it (the repository's own setting may be on)
+  expect(await (await request.get(kasse, { headers: { 'X-DP-Test-Kortbetaling': 'av' } })).json()).toEqual({
     aktiv: false,
     grunn: 'Kortbetaling er ikke slått på ennå.',
   });
+  // Studio's switch wins over a priced catalogue with the switch on
+  const avIStudio = await request.get(kasse, { headers: { ...priset, 'X-DP-Test-Kortbetaling': 'av' } });
+  expect((await avIStudio.json()).aktiv).toBe(false);
   const utenNokler = await request.get(kasse, { headers: { 'X-DP-Test-Katalog': 'pris' } });
   expect((await utenNokler.json()).grunn).toBe('Betalingsløsningen er ikke koblet til ennå.');
   // a live key is refused on a test build even with tillat_live
@@ -44,7 +47,7 @@ test('card payment stays off until the shop switch, the keys and shipping all ex
   expect((await live.json()).aktiv).toBe(false);
   expect(await (await request.get(kasse, { headers: priset })).json()).toEqual({ aktiv: true });
   const av = await request.post(kasse, {
-    headers: { 'X-DP-Test-Katalog': 'av', 'X-DP-Test-Stripe': 'test' },
+    headers: { 'X-DP-Test-Stripe': 'test', 'X-DP-Test-Kortbetaling': 'av' },
     data: ordre,
   });
   expect(av.status()).toBe(503);
@@ -76,7 +79,7 @@ test('unsellable carts, bad fields and a failing Stripe are refused', async ({ r
     headers: priset,
     data: {
       ...ordre,
-      linjer: [{ produktId: 'nokkelring', antall: 1, valg: { farge: 'x', materiale: 'PLA' } }],
+      linjer: [{ produktId: 'bokstotter', antall: 1, valg: { farge: 'x', materiale: 'PLA' } }],
     },
   });
   expect(plassholder.status()).toBe(400);
@@ -150,11 +153,12 @@ test('webhook: only a valid signature delivers a paid order, and only once', asy
   const live = hendelse('cs_test_webhook1234567', { livemode: true });
   expect((await send(live, signer(live))).status()).toBe(400);
 
-  // e-mail down: no claim is kept, so Stripe's retry delivers later
-  expect((await send(p, signer(p), { 'X-DP-Test-Delivery': 'fail' })).status()).toBe(500);
+  // Without the CMS database, e-mail down keeps no claim, so Stripe's retry delivers later.
+  const utenCms = { 'X-DP-Test-Cms': 'av' };
+  expect((await send(p, signer(p), { ...utenCms, 'X-DP-Test-Delivery': 'fail' })).status()).toBe(500);
   const foer = (await readdir('var/php-mail').catch(() => [])).length;
-  expect((await send(p, signer(p))).status()).toBe(200);
-  expect((await send(p, signer(p))).status()).toBe(200);
+  expect((await send(p, signer(p), utenCms)).status()).toBe(200);
+  expect((await send(p, signer(p), utenCms)).status()).toBe(200);
   const etter = await readdir('var/php-mail');
   expect(etter.length).toBe(foer + 1);
   const nyeste = (
@@ -163,6 +167,13 @@ test('webhook: only a valid signature delivers a paid order, and only once', asy
   expect(nyeste.tekst).toContain('Betalt ordre DP-20261109-TEST1 fra Lokal Test');
   expect(nyeste.tekst).toContain('Testveien 1');
   expect(nyeste.tekst).toContain('TESTMODUS');
+
+  // With the CMS, the order is saved for Studio first: e-mail down still answers 200
+  // (Studio shows it as not notified), and a retry neither saves nor e-mails it twice.
+  const q = hendelse('cs_test_webhook7654321');
+  expect((await send(q, signer(q), { 'X-DP-Test-Delivery': 'fail' })).status()).toBe(200);
+  expect((await send(q, signer(q))).status()).toBe(200);
+  expect((await readdir('var/php-mail')).length).toBe(foer + 1);
 
   // an empty claim left by an attempt that died is taken over after two minutes
   const forlatt = hendelse('cs_test_forlatt1234567');

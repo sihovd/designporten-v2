@@ -2,19 +2,22 @@
 /**
  * Stripe webhook (POST /api/stripe/webhook/), PHP version of
  * src/server/ruter/stripe-webhook.ts. On a paid Checkout Session the order is
- * e-mailed to Designporten through the same delivery as the forms (_felles.php).
- * The customer's receipt is sent by Stripe. Refunds and disputes are handled
- * in the Stripe dashboard.
+ * saved in the CMS database (Studio → Butikk og betaling → Ordrer) when the
+ * CMS is set up, and e-mailed to Designporten through the same delivery as
+ * the forms (_felles.php). The customer's receipt is sent by Stripe. Refunds
+ * and disputes are handled in the Stripe dashboard.
  *
  * Each session is delivered once: a claim file in api/stripe/data/ (never
  * served) stops Stripe's retries and parallel deliveries from sending the
- * order twice. A failed e-mail drops the claim and answers 500, so Stripe
- * tries again later.
+ * order twice, and the order table has one row per session. If the e-mail
+ * fails, an order that is safe in the database still answers 200 (Studio
+ * shows it as «ikke varslet» and can send it again); without the database
+ * the claim is dropped and the answer is 500, so Stripe tries again later.
  */
 
 declare(strict_types=1);
 
-require __DIR__ . '/../_stripe.php';
+require_once __DIR__ . '/../_ordre.php';
 
 dp_bare_post();
 
@@ -24,29 +27,28 @@ const FORLATT_ETTER = 120; // seconds
 ignore_user_abort(true);
 @set_time_limit(90);
 
-function kroner(int $ore): string
-{
-    return number_format(round($ore / 100), 0, ',', "\u{00A0}") . "\u{00A0}kr";
-}
-
-function adressetekst(?array $a): string
-{
-    $x = $a['address'] ?? null;
-    if (!is_array($x)) return '';
-    return implode("\n", array_filter([
-        $a['name'] ?? null,
-        $x['line1'] ?? null,
-        $x['line2'] ?? null,
-        trim(($x['postal_code'] ?? '') . ' ' . ($x['city'] ?? '')),
-    ], fn($v) => is_string($v) && $v !== ''));
-}
-
 function svar(string $tekst, int $status): never
 {
     http_response_code($status);
     header('Content-Type: text/plain; charset=utf-8');
     echo $tekst;
     exit;
+}
+
+/** Save the order in the CMS database when the CMS is set up. True when it is there. */
+function lagre_i_cms(array $ordre): bool
+{
+    $kjerne = __DIR__ . '/../../cms/_kjerne.php';
+    if (!is_file($kjerne)) return false;
+    require_once $kjerne;
+    if (cms_konfig() === null) return false;
+    try {
+        cms_ordre_lagre($ordre);
+        return true;
+    } catch (Throwable $e) {
+        error_log('Designporten webhook: ordren ble ikke lagret i CMS-et: ' . $e->getMessage());
+        return false;
+    }
 }
 
 $konfig = dp_stripe_konfig($hvorfor);
@@ -106,54 +108,47 @@ register_shutdown_function(function () use (&$ferdig, $krav, $okt): void {
     if (@filesize($krav) === 0) @unlink($krav);
 });
 
-$oppsett = null;
-$sendt = null;
-$krasj = '';
-try {
-    $oppsett = dp_oppsett();
-    if ($oppsett !== null) {
-        $linjer = dp_stripe($konfig, 'GET', '/checkout/sessions/' . $okt['id'] . '/line_items?limit=100');
-        $varer = $linjer['ok'] && is_array($linjer['data']['data'] ?? null)
-            ? array_map(
-                fn($l) => ($l['quantity'] ?? 1) . ' × ' . ($l['description'] ?? 'Vare') . '  ' . kroner((int) ($l['amount_total'] ?? 0)),
-                $linjer['data']['data'],
-            )
-            : ['(Varelinjene kunne ikke hentes. Se ordren i Stripe-dashbordet.)'];
-        $meta = is_array($okt['metadata'] ?? null) ? $okt['metadata'] : [];
-        $kunde = is_array($okt['customer_details'] ?? null) ? $okt['customer_details'] : [];
-        $ref = (string) ($okt['client_reference_id'] ?? $okt['id']);
-        $navn = dp_tekst($meta['navn'] ?? '', 120) ?: dp_tekst($kunde['name'] ?? '', 120) ?: 'kunde';
-        $epost = dp_tekst($kunde['email'] ?? '', 200);
-        $adresse = $okt['collected_information']['shipping_details'] ?? $okt['shipping_details'] ?? null;
-        $sendt = dp_send($oppsett, "Betalt ordre $ref fra $navn", [
-            ['Referanse', $ref],
-            ['Navn', $navn],
-            ['E-post', $epost],
-            ['Telefon', dp_tekst($kunde['phone'] ?? '', 40) ?: dp_tekst($meta['telefon'] ?? '', 40)],
-            ['Leveringsadresse', dp_tekst(adressetekst(is_array($adresse) ? $adresse : null), 1000)],
-            ['Melding', dp_tekst($meta['melding'] ?? '', 4000)],
-            ['Varer', dp_tekst(implode("\n", $varer), 20000)],
-            ['Frakt', isset($okt['shipping_cost']['amount_total']) ? kroner((int) $okt['shipping_cost']['amount_total']) : ''],
-            ['Totalt betalt', isset($okt['amount_total']) ? kroner((int) $okt['amount_total']) : ''],
-            ['Betaling', 'Betalt med kort via Stripe' . ($konfig['live'] ? '' : ' (TESTMODUS, ingen ekte penger)') . '. Stripe-økt: ' . $okt['id']],
-        ], $epost, []);
-    }
-} catch (Throwable $e) {
-    // Shown in Stripe's «Event deliveries» as the response, and in the error
-    // log. Class and message only: no keys or customer data.
-    $krasj = get_class($e) . ': ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')';
-    error_log('Designporten webhook: ' . $krasj);
-    $sendt = null;
+/** Class and message only (no keys or customer data): logged, and shown in Stripe's «Event deliveries». */
+function krasjtekst(Throwable $e): string
+{
+    $t = get_class($e) . ': ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')';
+    error_log('Designporten webhook: ' . $t);
+    return $t;
 }
-if ($oppsett === null) error_log('Designporten webhook: api/oppsett.php mangler eller har ugyldig «til»-adresse.');
+
+$krasj = '';
+$ordre = null;
+$lagret = false;
+$sendt = null;
+try {
+    $linjer = dp_stripe($konfig, 'GET', '/checkout/sessions/' . $okt['id'] . '/line_items?limit=100');
+    $ordre = dp_ordre_fra_okt(
+        $okt,
+        $linjer['ok'] && is_array($linjer['data']['data'] ?? null) ? $linjer['data']['data'] : null,
+        $konfig['live'],
+    );
+} catch (Throwable $e) {
+    $krasj = krasjtekst($e);
+}
+if ($ordre !== null) {
+    $lagret = lagre_i_cms($ordre);
+    try {
+        $sendt = dp_ordre_send($ordre);
+        if ($sendt !== null && $lagret) cms_ordre_varslet($ordre['stripeOkt']);
+    } catch (Throwable $e) {
+        $krasj = krasjtekst($e);
+    }
+}
 
 $ferdig = true;
-if ($sendt === null) {
+if ($sendt === null && !$lagret) {
     fclose($h);
     @unlink($krav);
     error_log('Designporten webhook: ordre ' . $okt['id'] . ' ble ikke levert, Stripe prøver igjen.');
-    svar('Kunne ikke levere: ' . ($krasj !== '' ? $krasj : ($oppsett === null ? 'e-postoppsett (api/oppsett.php) mangler' : 'mail() feilet')), 500);
+    svar('Kunne ikke levere' . ($krasj !== '' ? ': ' . $krasj : ''), 500);
 }
-fwrite($h, json_encode(['okt' => $okt['id'], 'epostreferanse' => $sendt, 'tid' => gmdate('c')]));
+if ($sendt === null) error_log('Designporten webhook: ordre ' . $okt['id'] . ' er lagret i Studio, men e-posten ble ikke sendt.');
+fwrite($h, json_encode(['okt' => $okt['id'], 'epostreferanse' => $sendt, 'studio' => $lagret, 'tid' => gmdate('c')]));
 fclose($h);
-svar('ok', 200);
+// The order is safe in Studio; the reply still says why the e-mail failed.
+svar($sendt === null && $krasj !== '' ? 'ok (lagret i Studio, e-post feilet: ' . $krasj . ')' : 'ok', 200);

@@ -12,6 +12,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../_felles.php';
+require_once __DIR__ . '/../_butikk.php';
 
 const DP_STRIPE_API = 'https://api.stripe.com/v1';
 const DP_DESIGN_PREFIKS = 'skaperverksted-';
@@ -59,13 +60,14 @@ function dp_stripe_konfig(?string &$grunn = null): ?array
     ];
 }
 
-/** The catalogue and shop settings the build writes to api/katalog.json. */
+/**
+ * The catalogue and shop settings the build writes to api/katalog.json, with
+ * what Studio has changed (prices, status, card switch, shipping) laid over.
+ */
 function dp_katalog(): ?array
 {
-    if (PHP_SAPI === 'cli-server' && defined('DP_LOKAL_KATALOG')) return DP_LOKAL_KATALOG;
-    $fil = __DIR__ . '/../katalog.json';
-    $k = is_file($fil) ? json_decode((string) file_get_contents($fil), true) : null;
-    return is_array($k) && is_array($k['produkter'] ?? null) ? $k : null;
+    if (PHP_SAPI === 'cli-server' && defined('DP_LOKAL_KATALOG')) return dp_butikk_flett(DP_LOKAL_KATALOG, dp_butikk_overstyring());
+    return dp_butikk_katalog();
 }
 
 /** Same rule as kassestatus() in src/server/ruter/kasse.ts. */

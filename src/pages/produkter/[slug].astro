@@ -67,7 +67,9 @@ const strukturert =
         <li>
           <a href={nettsti(`/produkter/kategori/${p.kategori}/`)}>{p.kategoriNavn}</a>
         </li>
-        <li aria-current="page">{p.navn}</li>
+        <li aria-current="page" data-butikk={`${p.id}#navn`}>
+          {p.navn}
+        </li>
       </ol>
     </nav>
 
@@ -84,19 +86,19 @@ const strukturert =
 
       <div class="produktside__tekst">
         <p class="produktside__kategori mono">{p.kategoriNavn}</p>
-        <h1 class="produktside__tittel" data-rediger={`${fil}#navn`}>
+        <!-- data-butikk: Studio can change name, status and text after the build (php/api/_butikk.php). -->
+        <h1 class="produktside__tittel" data-rediger={`${fil}#navn`} data-butikk={`${p.id}#navn`}>
           {p.navn}
         </h1>
-        {plassholder && (
-          <p class="produktside__plassholder">
-            <strong>Plassholder.</strong> Produktet og bildet viser retningen, men modell, mål og pris er ikke
-            fastsatt ennå. Du kan likevel sende en uforpliktende forespørsel.
-          </p>
-        )}
+        <p class="produktside__plassholder" data-butikk={`${p.id}#plassholder`} hidden={!plassholder}>
+          <strong>Plassholder.</strong> Produktet og bildet viser retningen, men modell, mål og pris er ikke
+          fastsatt ennå. Du kan likevel sende en uforpliktende forespørsel.
+        </p>
         <div
           class="produktside__beskrivelse"
           data-rediger={`${fil}#${beskrivelseFelt}`}
           data-rediger-type="avsnitt"
+          data-butikk={`${p.id}#beskrivelse`}
         >
           {avsnitt.map((a) => (
             <p>{a}</p>

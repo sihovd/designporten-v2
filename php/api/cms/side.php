@@ -1,6 +1,7 @@
 <?php
 /**
- * Serves a built page (…/index.html) with the published CMS texts in place.
+ * Serves a built page (…/index.html) with the published CMS texts and
+ * Studio's shop changes in place.
  * Apache sends page requests here (see .htaccess). If anything goes wrong,
  * the page is served exactly as built.
  */
@@ -8,6 +9,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/_side.php';
+require_once dirname(__DIR__) . '/_butikk.php';
 
 $rot = dirname(__DIR__, 2);
 $byggfil = $rot . '/api/bygg.php';
@@ -32,6 +34,14 @@ try {
     $html = cms_sett_inn($html, cms_les_publisert(__DIR__ . '/data'));
 } catch (Throwable) {
     // Serve the page as built.
+}
+try {
+    // Studio's shop changes (names, prices, status): api/_butikk.php.
+    $over = dp_butikk_overstyring(__DIR__ . '/data/butikk.json');
+    $bygget = $over ? dp_butikk_bygget() : null;
+    if ($bygget) $html = dp_butikk_side($html, $bygget, $over, $sti);
+} catch (Throwable) {
+    // Keep the built shop.
 }
 
 header('Content-Type: text/html; charset=utf-8');
