@@ -159,8 +159,9 @@ function konto_send_epost(string $til, string $emne, string $tekst): void
     $kropp = chunk_split(base64_encode($tekst));
     try {
         $ok = mail($til, $emneHode, $kropp, implode("\r\n", $hoder), '-f' . $o['fra']);
-    } catch (TypeError | ValueError $e) {
-        // one.com refuses the fifth argument (see dp_mail() in api/_felles.php)
+    } catch (\Throwable $e) {
+        // one.com's mail() rejects a fifth argument; send without -f there.
+        error_log('Designporten konto: mail() avviste -f, sender uten.');
         $ok = mail($til, $emneHode, $kropp, implode("\r\n", $hoder));
     }
     if (!$ok) {

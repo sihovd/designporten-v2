@@ -126,17 +126,17 @@ function dp_send(array $oppsett, string $emne, array $felter, string $svarTil, a
 }
 
 /**
- * PHP mail() with the envelope sender (-f) where the host allows it. one.com
- * refuses the fifth argument (TypeError «additional_params … null given», seen
- * on the first live order 2026-11-10), so the mail is then sent without it and
- * the host sets the envelope sender itself.
+ * PHP mail() with the envelope sender (-f) when the host allows it. one.com's
+ * mail() throws «Argument #5 ($additional_params) must be of type string, null
+ * given» for a fifth argument, so there it is sent with four arguments and the
+ * host's own envelope sender. The From header is set either way.
  */
 function dp_mail(string $til, string $emne, string $kropp, string $hoder, string $fra): bool
 {
     try {
         return mail($til, $emne, $kropp, $hoder, '-f' . $fra);
-    } catch (TypeError | ValueError $e) {
-        error_log('Designporten skjema: mail() godtar ikke -f her (' . $e->getMessage() . '), sender uten.');
+    } catch (\Throwable $e) {
+        error_log('Designporten: mail() avviste -f (' . $e->getMessage() . '), sender uten.');
         return mail($til, $emne, $kropp, $hoder);
     }
 }
