@@ -100,3 +100,66 @@ function dp_ordre_send(array $o): ?string
     if ($oppsett === null) return null;
     return dp_send($oppsett, "Betalt ordre {$o['referanse']} fra {$o['navn']}", dp_ordre_epostfelt($o), $o['epost'], []);
 }
+
+/**
+ * The order confirmation to the customer, from Designporten's own address
+ * («fra» in api/oppsett.php) with Designporten as Reply-To. Plain text, sent
+ * once per order by the webhook. The payment receipt itself is Stripe's.
+ * Returns true when it was handed over; false when there is no customer
+ * address or no e-mail setup.
+ */
+function dp_ordre_bekreftelse(array $o): bool
+{
+    $oppsett = dp_oppsett();
+    if ($oppsett === null || !preg_match(DP_EPOST, $o['epost'])) return false;
+
+    $fornavn = trim(explode(' ', $o['navn'])[0] ?? '');
+    $linjer = is_array($o['linjer'])
+        ? array_map(fn($l) => '  ' . $l['antall'] . ' × ' . $l['navn'] . ' – ' . dp_butikk_kroner($l['belopOre']), $o['linjer'])
+        : ['  (Se varene i betalingskvitteringen.)'];
+    $deler = [
+        'Hei' . ($fornavn !== '' && $fornavn !== 'Kunde' ? ' ' . $fornavn : '') . ',',
+        '',
+        'Takk for bestillingen! Vi har mottatt betalingen, og ordren din er registrert hos Designporten.',
+        '',
+        'Ordrenummer: ' . $o['referanse'],
+        '',
+        'Varer:',
+        ...$linjer,
+    ];
+    if ($o['fraktOre'] !== null) $deler[] = 'Frakt: ' . dp_butikk_kroner($o['fraktOre']);
+    if ($o['totalOre'] !== null) $deler[] = 'Totalt betalt: ' . dp_butikk_kroner($o['totalOre']) . ' (inkl. mva)';
+    if ($o['adresse'] !== '') array_push($deler, '', 'Leveringsadresse:', $o['adresse']);
+    array_push(
+        $deler,
+        '',
+        'Du hører fra oss når ordren er sendt eller klar til henting.',
+        '',
+        'Lurer du på noe? Svar på denne e-posten, og oppgi ordrenummeret.',
+        '',
+        'Hilsen',
+        'Designporten',
+        'https://designporten.no',
+    );
+    if ($o['modus'] !== 'live') array_unshift($deler, '[TESTMODUS: ingen ekte penger er trukket]', '');
+    $tekst = implode("\n", $deler) . "\n";
+
+    $emne = 'Takk for bestillingen – ordre ' . $o['referanse'];
+    if (PHP_SAPI === 'cli-server' && function_exists('dp_testmail')) {
+        return dp_testmail('kunde-' . $o['referanse'], "Til: {$o['epost']}\nEmne: $emne\n\n$tekst", []);
+    }
+    $hoder = [
+        'From: Designporten <' . dp_linje($oppsett['fra']) . '>',
+        'Reply-To: ' . dp_linje($oppsett['fra']),
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=UTF-8',
+        'Content-Transfer-Encoding: base64',
+    ];
+    return dp_mail(
+        dp_linje($o['epost']),
+        mb_encode_mimeheader(dp_linje($emne), 'UTF-8', 'B'),
+        chunk_split(base64_encode($tekst)),
+        implode("\r\n", $hoder),
+        (string) $oppsett['fra'],
+    );
+}
