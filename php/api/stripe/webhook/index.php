@@ -22,6 +22,10 @@ require_once __DIR__ . '/../_ordre.php';
 dp_bare_post();
 
 const MAKS_BYTE = 512 * 1024;
+const FORLATT_ETTER = 120; // seconds
+
+ignore_user_abort(true);
+@set_time_limit(90);
 
 function svar(string $tekst, int $status): never
 {
@@ -80,26 +84,71 @@ if (!is_dir($mappe) && !mkdir($mappe, 0700, true) && !is_dir($mappe)) {
 $krav = $mappe . '/' . $okt['id'] . '.json';
 $h = @fopen($krav, 'x');
 if ($h === false) {
-    svar('ok', 200); // already delivered, or being delivered right now
+    // An empty claim older than two minutes is left by an attempt that died
+    // (timeout, fatal error) before it delivered: take it over so Stripe's
+    // retry or «Resend» still gets the order through.
+    clearstatcache(true, $krav);
+    $tid = @filemtime($krav);
+    if (@filesize($krav) === 0 && $tid !== false && time() - $tid > FORLATT_ETTER) {
+        error_log('Designporten webhook: tar over et avbrutt forsøk for ' . $okt['id'] . '.');
+        @unlink($krav);
+        $h = @fopen($krav, 'x');
+    }
+    if ($h === false) svar('ok', 200); // already delivered, or being delivered right now
+}
+// If the script dies before the order is delivered, drop the empty claim and
+// log why, so the next attempt is not mistaken for a finished delivery.
+$ferdig = false;
+register_shutdown_function(function () use (&$ferdig, $krav, $okt): void {
+    if ($ferdig) return;
+    $feil = error_get_last();
+    error_log('Designporten webhook: ordre ' . $okt['id'] . ' ble avbrutt før levering'
+        . ($feil ? ' (' . $feil['message'] . ' i ' . basename((string) $feil['file']) . ':' . $feil['line'] . ')' : '') . '.');
+    clearstatcache(true, $krav);
+    if (@filesize($krav) === 0) @unlink($krav);
+});
+
+/** Class and message only (no keys or customer data): logged, and shown in Stripe's «Event deliveries». */
+function krasjtekst(Throwable $e): string
+{
+    $t = get_class($e) . ': ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')';
+    error_log('Designporten webhook: ' . $t);
+    return $t;
 }
 
-$linjer = dp_stripe($konfig, 'GET', '/checkout/sessions/' . $okt['id'] . '/line_items?limit=100');
-$ordre = dp_ordre_fra_okt(
-    $okt,
-    $linjer['ok'] && is_array($linjer['data']['data'] ?? null) ? $linjer['data']['data'] : null,
-    $konfig['live'],
-);
-$lagret = lagre_i_cms($ordre);
-$sendt = dp_ordre_send($ordre);
-if ($sendt !== null && $lagret) cms_ordre_varslet($ordre['stripeOkt']);
+$krasj = '';
+$ordre = null;
+$lagret = false;
+$sendt = null;
+try {
+    $linjer = dp_stripe($konfig, 'GET', '/checkout/sessions/' . $okt['id'] . '/line_items?limit=100');
+    $ordre = dp_ordre_fra_okt(
+        $okt,
+        $linjer['ok'] && is_array($linjer['data']['data'] ?? null) ? $linjer['data']['data'] : null,
+        $konfig['live'],
+    );
+} catch (Throwable $e) {
+    $krasj = krasjtekst($e);
+}
+if ($ordre !== null) {
+    $lagret = lagre_i_cms($ordre);
+    try {
+        $sendt = dp_ordre_send($ordre);
+        if ($sendt !== null && $lagret) cms_ordre_varslet($ordre['stripeOkt']);
+    } catch (Throwable $e) {
+        $krasj = krasjtekst($e);
+    }
+}
 
+$ferdig = true;
 if ($sendt === null && !$lagret) {
     fclose($h);
     @unlink($krav);
     error_log('Designporten webhook: ordre ' . $okt['id'] . ' ble ikke levert, Stripe prøver igjen.');
-    svar('Kunne ikke levere', 500);
+    svar('Kunne ikke levere' . ($krasj !== '' ? ': ' . $krasj : ''), 500);
 }
 if ($sendt === null) error_log('Designporten webhook: ordre ' . $okt['id'] . ' er lagret i Studio, men e-posten ble ikke sendt.');
 fwrite($h, json_encode(['okt' => $okt['id'], 'epostreferanse' => $sendt, 'studio' => $lagret, 'tid' => gmdate('c')]));
 fclose($h);
-svar('ok', 200);
+// The order is safe in Studio; the reply still says why the e-mail failed.
+svar($sendt === null && $krasj !== '' ? 'ok (lagret i Studio, e-post feilet: ' . $krasj . ')' : 'ok', 200);

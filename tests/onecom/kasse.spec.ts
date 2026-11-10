@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createHmac } from 'node:crypto';
-import { readdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 
 // Card payment on the PHP build (php/api/kasse/, php/api/stripe/). The local
 // router replaces Stripe with a fake and never reaches the real API; the
@@ -174,6 +174,20 @@ test('webhook: only a valid signature delivers a paid order, and only once', asy
   expect((await send(q, signer(q), { 'X-DP-Test-Delivery': 'fail' })).status()).toBe(200);
   expect((await send(q, signer(q))).status()).toBe(200);
   expect((await readdir('var/php-mail')).length).toBe(foer + 1);
+
+  // an empty claim left by an attempt that died is taken over after two minutes
+  const forlatt = hendelse('cs_test_forlatt1234567');
+  await mkdir('var/stripe-data', { recursive: true });
+  await writeFile('var/stripe-data/cs_test_forlatt1234567.json', '');
+  expect((await send(forlatt, signer(forlatt))).status()).toBe(200);
+  expect((await readdir('var/php-mail')).length).toBe(foer + 1); // fresh claim: still in progress
+  const gammel = new Date(Date.now() - 10 * 60 * 1000);
+  await utimes('var/stripe-data/cs_test_forlatt1234567.json', gammel, gammel);
+  expect((await send(forlatt, signer(forlatt))).status()).toBe(200);
+  expect((await readdir('var/php-mail')).length).toBe(foer + 2);
+  expect(JSON.parse(await readFile('var/stripe-data/cs_test_forlatt1234567.json', 'utf8')).okt).toBe(
+    'cs_test_forlatt1234567',
+  );
 
   // other events are acknowledged and ignored
   const annen = JSON.stringify({ type: 'payment_intent.created', data: { object: { id: 'pi_1' } } });
