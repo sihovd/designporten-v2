@@ -92,11 +92,16 @@ describe('kasse', () => {
     expect(p.get('client_reference_id')).toBe('DP-1');
   });
 
-  it('ships with card payment off and no invented shipping', async () => {
+  it('ships valid shop settings: card payment only with real shipping options', async () => {
+    // Sivert switches card payment on himself in /admin (CLAUDE.md rule 5);
+    // the file must stay valid, and «on» is only allowed with shipping set up.
     const fil = await import('@/content/butikk/innstillinger.json');
     const b = butikkSkjema.parse(fil.default);
-    expect(b.betaling).toBe(false);
-    expect(b.frakt).toEqual([]);
+    if (b.betaling) expect(b.frakt.length).toBeGreaterThan(0);
+    for (const f of b.frakt) {
+      expect(f.navn.trim()).not.toBe('');
+      expect(Number.isInteger(f.prisOre) && f.prisOre >= 0).toBe(true);
+    }
   });
 });
 
