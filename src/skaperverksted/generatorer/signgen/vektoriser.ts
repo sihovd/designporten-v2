@@ -76,7 +76,7 @@ interface Sporbane {
   holechildren: number[];
   boundingbox: [number, number, number, number];
 }
-interface Farge {
+export interface Farge {
   r: number;
   g: number;
   b: number;
@@ -266,7 +266,7 @@ export function hovedfarger(p: Piksler, antall: number): Farge[] {
  * so a pixel that is explained much better as a blend of two colours is
  * given the one of those two it is closest to along the blend.
  */
-function blandingsfarge(pal: Farge[], r: number, g: number, b: number): number {
+export function blandingsfarge(pal: Farge[], r: number, g: number, b: number): number {
   const direkte = naermeste(pal, r, g, b);
   const f = pal[direkte]!;
   const dDirekte = (f.r - r) ** 2 + (f.g - g) ** 2 + (f.b - b) ** 2;

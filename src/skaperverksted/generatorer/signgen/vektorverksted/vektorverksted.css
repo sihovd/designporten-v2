@@ -1,0 +1,547 @@
+/* Vektorverksted: scoped to .vv, works on its own page and inside Sign Forge. */
+.vv {
+  --vv-bg: #141317;
+  --vv-panel: #1d1b22;
+  --vv-panel-2: #26232d;
+  --vv-linje: #3a3644;
+  --vv-tekst: #f3f1f7;
+  --vv-dempet: #b3adc0;
+  --vv-lilla: #883dff;
+  --vv-lilla-lys: #b797ff;
+  --vv-fokus: #b797ff;
+  --vv-feil: #ff8b8b;
+  --vv-valg: #39d0ff;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  min-height: 0;
+  background: var(--vv-bg);
+  color: var(--vv-tekst);
+  font:
+    14px/1.4 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+.vv *,
+.vv *::before,
+.vv *::after {
+  box-sizing: border-box;
+}
+.vv button,
+.vv select,
+.vv input {
+  font: inherit;
+  color: inherit;
+}
+.vv :focus-visible {
+  outline: 2px solid var(--vv-fokus);
+  outline-offset: 2px;
+}
+.vv-topp {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vv-linje);
+  background: var(--vv-panel);
+}
+.vv-tittel {
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.vv-faner {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.vv-fane {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--vv-linje);
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.vv-fane[aria-current='step'] {
+  background: var(--vv-lilla);
+  border-color: var(--vv-lilla);
+  color: #fff;
+}
+.vv-fane:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.vv-topp-hoyre {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.vv-hoved {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  min-height: 0;
+}
+.vv-flate {
+  position: relative;
+  overflow: hidden;
+  min-height: 320px;
+  touch-action: none;
+  user-select: none;
+  background-color: #2a2731;
+  background-image:
+    linear-gradient(45deg, #322e3a 25%, transparent 25%),
+    linear-gradient(-45deg, #322e3a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #322e3a 75%),
+    linear-gradient(-45deg, transparent 75%, #322e3a 75%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0;
+}
+.vv-tom {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 24px;
+}
+.vv-scene {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.vv-original {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: auto;
+  pointer-events: none;
+}
+.vv-maskeholder,
+.vv-overlegg,
+.vv-vektor {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+/* the crop and brush overlay is drawn in screen space, the size of the view,
+   so a phone never has to paint an image-sized layer while dragging */
+.vv-overlegg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+.vv-maske {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.vv-vektor {
+  overflow: visible;
+}
+.vv-utenfor {
+  fill: rgba(10, 8, 14, 0.62);
+}
+.vv-utsnitt {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+.vv-utsnitt-hank {
+  fill: #fff;
+  stroke: var(--vv-lilla);
+  stroke-width: 1.5;
+}
+.vv-lasso {
+  fill: rgba(136, 61, 255, 0.18);
+  stroke: var(--vv-lilla-lys);
+  stroke-width: 1.5;
+}
+.vv-pensel {
+  fill: rgba(224, 50, 90, 0.18);
+  stroke: #fff;
+  stroke-width: 1;
+}
+.vv-kanter {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.8;
+  pointer-events: none;
+  mix-blend-mode: difference;
+}
+.vv-valgte-kanter {
+  fill: none;
+  stroke: var(--vv-valg);
+  stroke-width: 2.5;
+  pointer-events: none;
+}
+.vv-valgte-deler path {
+  fill: rgba(57, 208, 255, 0.22);
+  stroke: var(--vv-valg);
+  stroke-width: 2;
+  pointer-events: none;
+}
+.vv-anker {
+  fill: #fff;
+  stroke: #1b1922;
+  stroke-width: 1.2;
+  cursor: move;
+}
+.vv-anker-valgt {
+  fill: var(--vv-valg);
+}
+.vv-handtak {
+  fill: var(--vv-lilla-lys);
+  stroke: #1b1922;
+  stroke-width: 1;
+  cursor: move;
+}
+.vv-handtakslinje {
+  stroke: var(--vv-lilla-lys);
+  stroke-width: 1;
+  pointer-events: none;
+}
+.vv-omrade {
+  fill: rgba(57, 208, 255, 0.12);
+  stroke: var(--vv-valg);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+.vv-jobber {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(20, 19, 23, 0.85);
+  color: var(--vv-dempet);
+}
+.vv-panel {
+  overflow-y: auto;
+  padding: 12px;
+  border-left: 1px solid var(--vv-linje);
+  background: var(--vv-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.vv-panel section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--vv-linje);
+}
+.vv-panel h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vv-dempet);
+}
+.vv-panel h3 {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--vv-dempet);
+}
+.vv-felt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vv-felt label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vv-felt output {
+  color: var(--vv-dempet);
+  font-variant-numeric: tabular-nums;
+}
+.vv-felt input[type='range'] {
+  width: 100%;
+  accent-color: var(--vv-lilla);
+}
+.vv-felt select {
+  min-height: 36px;
+  background: var(--vv-panel-2);
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+.vv-felt input[type='color'] {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--vv-linje);
+  background: var(--vv-panel-2);
+  border-radius: 4px;
+}
+.vv-hjelp,
+.vv-dempet {
+  margin: 0;
+  color: var(--vv-dempet);
+  font-size: 12.5px;
+}
+.vv-tall {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.vv-avkryss {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+.vv-avkryss input {
+  accent-color: var(--vv-lilla);
+  width: 16px;
+  height: 16px;
+}
+.vv-knapperad {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vv-knappegrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.vv-primar,
+.vv-sekundar,
+.vv-verktoy,
+.vv-segment button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.vv-primar {
+  background: var(--vv-lilla);
+  border: 1px solid var(--vv-lilla);
+  color: #fff;
+  font-weight: 600;
+}
+.vv-primar:hover {
+  background: #6e24e6;
+}
+.vv-sekundar,
+.vv-verktoy {
+  background: var(--vv-panel-2);
+  border: 1px solid var(--vv-linje);
+}
+.vv-sekundar:hover,
+.vv-verktoy:hover {
+  border-color: var(--vv-lilla-lys);
+}
+.vv-primar:disabled,
+.vv-sekundar:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.vv-verktoy {
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.vv-verktoy[aria-pressed='true'] {
+  border-color: var(--vv-lilla);
+  background: color-mix(in srgb, var(--vv-lilla) 30%, var(--vv-panel-2));
+}
+.vv-verktoy kbd {
+  font:
+    11px ui-monospace,
+    monospace;
+  color: var(--vv-dempet);
+}
+.vv-bred {
+  width: 100%;
+}
+.vv-segment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.vv-segment button {
+  min-width: 36px;
+  background: var(--vv-panel-2);
+  border: 1px solid var(--vv-linje);
+  padding: 6px 8px;
+}
+.vv-segment button[aria-pressed='true'] {
+  background: var(--vv-lilla);
+  border-color: var(--vv-lilla);
+  color: #fff;
+}
+.vv-farger {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vv-fargeprove {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  border-radius: 4px;
+  border: 1px solid var(--vv-linje);
+  cursor: pointer;
+}
+.vv-fargeliste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vv-fargeliste li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vv-fargeliste input[type='color'] {
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  background: none;
+}
+.vv-lenkeknapp {
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.vv-lenkeknapp:hover {
+  text-decoration: underline;
+}
+.vv-merknad {
+  padding: 10px;
+  border: 1px solid #a7781f;
+  background: #3a2c10;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vv-merknad p {
+  margin: 0;
+}
+.vv-feil {
+  margin: 0;
+  color: var(--vv-feil);
+}
+.vv-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--vv-linje);
+  background: var(--vv-panel);
+  color: var(--vv-dempet);
+  font-variant-numeric: tabular-nums;
+}
+.vv-status b {
+  color: var(--vv-tekst);
+}
+.vv-zoom {
+  margin-left: auto;
+}
+@media (max-width: 860px) {
+  .vv-hoved {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(320px, 60vh) auto;
+    overflow-y: auto;
+  }
+  .vv-panel {
+    overflow: visible;
+  }
+  .vv-panel {
+    border-left: 0;
+    border-top: 1px solid var(--vv-linje);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vv * {
+    transition: none !important;
+  }
+}
+.vv-svgtekst {
+  width: 100%;
+  min-height: 120px;
+  font:
+    11px/1.4 ui-monospace,
+    monospace;
+  background: var(--vv-panel-2);
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  color: var(--vv-tekst);
+}
+.vv-ikonknapp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.vv-ikonknapp .ikon {
+  flex: none;
+}
+.vv-verktoy.vv-ikonknapp span {
+  flex: 1;
+}
+.vv-utvalgholder {
+  z-index: 2;
+}
+.vv-utvalg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.vv-beskytt {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.vv-utvalgsboks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--vv-valg);
+  border-radius: 4px;
+}
+.vv-penn path {
+  fill: rgb(57 208 255 / 0.18);
+  stroke: #39d0ff;
+  stroke-width: 1.5;
+}
+.vv-penn-strikk {
+  stroke: #39d0ff;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
