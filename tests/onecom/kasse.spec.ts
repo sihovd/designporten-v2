@@ -19,6 +19,11 @@ const ordre = {
   linjer: [{ produktId: 'spiralvase', antall: 2, valg: { farge: 'pla-kritthvit', materiale: 'PLA' } }],
 };
 
+/** E-mails to Designporten (the customer's confirmations are named kunde-…). */
+async function ordreposter() {
+  return (await readdir('var/php-mail').catch(() => [] as string[])).filter((f) => !f.startsWith('kunde-'));
+}
+
 function signer(payload: string, hemmelighet = 'whsec_lokaltest', t = Math.floor(Date.now() / 1000)) {
   const v1 = createHmac('sha256', hemmelighet).update(`${t}.${payload}`).digest('hex');
   return `t=${t},v1=${v1}`;
@@ -156,10 +161,10 @@ test('webhook: only a valid signature delivers a paid order, and only once', asy
   // Without the CMS database, e-mail down keeps no claim, so Stripe's retry delivers later.
   const utenCms = { 'X-DP-Test-Cms': 'av' };
   expect((await send(p, signer(p), { ...utenCms, 'X-DP-Test-Delivery': 'fail' })).status()).toBe(500);
-  const foer = (await readdir('var/php-mail').catch(() => [])).length;
+  const foer = (await ordreposter()).length;
   expect((await send(p, signer(p), utenCms)).status()).toBe(200);
   expect((await send(p, signer(p), utenCms)).status()).toBe(200);
-  const etter = await readdir('var/php-mail');
+  const etter = await ordreposter();
   expect(etter.length).toBe(foer + 1);
   const nyeste = (
     await Promise.all(etter.map(async (f) => JSON.parse(await readFile(`var/php-mail/${f}`, 'utf8'))))
@@ -173,21 +178,28 @@ test('webhook: only a valid signature delivers a paid order, and only once', asy
   const q = hendelse('cs_test_webhook7654321');
   expect((await send(q, signer(q), { 'X-DP-Test-Delivery': 'fail' })).status()).toBe(200);
   expect((await send(q, signer(q))).status()).toBe(200);
-  expect((await readdir('var/php-mail')).length).toBe(foer + 1);
+  expect((await ordreposter()).length).toBe(foer + 1);
 
   // an empty claim left by an attempt that died is taken over after two minutes
   const forlatt = hendelse('cs_test_forlatt1234567');
   await mkdir('var/stripe-data', { recursive: true });
   await writeFile('var/stripe-data/cs_test_forlatt1234567.json', '');
   expect((await send(forlatt, signer(forlatt))).status()).toBe(200);
-  expect((await readdir('var/php-mail')).length).toBe(foer + 1); // fresh claim: still in progress
+  expect((await ordreposter()).length).toBe(foer + 1); // fresh claim: still in progress
   const gammel = new Date(Date.now() - 10 * 60 * 1000);
   await utimes('var/stripe-data/cs_test_forlatt1234567.json', gammel, gammel);
   expect((await send(forlatt, signer(forlatt))).status()).toBe(200);
-  expect((await readdir('var/php-mail')).length).toBe(foer + 2);
+  expect((await ordreposter()).length).toBe(foer + 2);
   expect(JSON.parse(await readFile('var/stripe-data/cs_test_forlatt1234567.json', 'utf8')).okt).toBe(
     'cs_test_forlatt1234567',
   );
+
+  // the customer gets one confirmation from Designporten per delivered order
+  const kunde = JSON.parse(await readFile('var/php-mail/kunde-DP-20261109-TEST1.json', 'utf8'));
+  expect(kunde.tekst).toContain('Til: local@example.invalid');
+  expect(kunde.tekst).toContain('Takk for bestillingen – ordre DP-20261109-TEST1');
+  expect(kunde.tekst).toContain('Totalt betalt: 291');
+  expect(kunde.tekst).toContain('TESTMODUS');
 
   // other events are acknowledged and ignored
   const annen = JSON.stringify({ type: 'payment_intent.created', data: { object: { id: 'pi_1' } } });

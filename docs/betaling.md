@@ -12,7 +12,7 @@ Veiledning for Sivert, for ekte betaling med Stripe-kontoen hans. Kortbetaling g
 | Prisen | Regnes alltid ut på serveren fra produktkatalogen. Nettleseren kan ikke endre prisen. |
 | Stripe Checkout på Render (Node) | Ferdig siden oktober. |
 | Stripe Checkout på one.com (PHP) | **Ny:** `api/kasse/`, `api/kasse/okt/` og `api/stripe/webhook/`. |
-| Kvittering til kunden | Stripe sender den (slås på i Stripe, se steg 5). |
+| Kvittering til kunden | Nettsiden sender en egen ordrebekreftelse «Takk for bestillingen – ordre DP-…» fra Designporten («fra» i `api/oppsett.php`, må være en e-postkonto på designporten.no), én gang per ordre. Stripe kan i tillegg sende betalingskvittering (steg 5); navnet der settes under Settings → Business → Public details. |
 | Ordre til deg | Webhooken sender deg en e-post med varer, adresse, frakt og sum når betalingen er bekreftet. Hver betaling sendes én gang. |
 | Live-nøkler | Virker når du skriver `'tillat_live' => true` i konfig-filen (steg 4). På testbygg avvises de alltid. |
 

@@ -162,6 +162,15 @@ if ($sendt === null && !$lagret) {
     svar('Kunne ikke levere' . ($krasj !== '' ? ': ' . $krasj : ''), 500);
 }
 if ($sendt === null) error_log('Designporten webhook: ordre ' . $okt['id'] . ' er lagret i Studio, men e-posten ble ikke sendt.');
+// The order is final now (the claim is kept), so the customer's confirmation
+// goes out exactly once. Its failure never fails the delivery.
+try {
+    if ($ordre !== null && !dp_ordre_bekreftelse($ordre)) {
+        error_log('Designporten webhook: ordrebekreftelsen til kunden ble ikke sendt for ' . $okt['id'] . '.');
+    }
+} catch (Throwable $e) {
+    krasjtekst($e);
+}
 fwrite($h, json_encode(['okt' => $okt['id'], 'epostreferanse' => $sendt, 'studio' => $lagret, 'tid' => gmdate('c')]));
 fclose($h);
 // The order is safe in Studio; the reply still says why the e-mail failed.
