@@ -9,6 +9,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../_felles.php';
+require __DIR__ . '/../_butikk.php';
 
 const MAKS_BYTE = 4 * 1024 * 1024;
 const DESIGN_PREFIKS = 'skaperverksted-';
@@ -103,8 +104,8 @@ foreach ($linjer as $l) {
 }
 
 // ---- The same checks as lagInnsending (foresporsel.ts) ----
-$katalogfil = __DIR__ . '/../katalog.json';
-$katalogdata = is_file($katalogfil) ? json_decode((string) file_get_contents($katalogfil), true) : null;
+// The build's catalogue with Studio's changes (names, prices, status), like the payment route.
+$katalogdata = dp_butikk_katalog();
 if (!is_array($katalogdata)) {
     error_log('Designporten bestilling: api/katalog.json mangler.');
     svar(['ok' => false, 'grunn' => 'Bestillinger kan ikke tas imot akkurat nå. Prøv igjen senere.'], 503);

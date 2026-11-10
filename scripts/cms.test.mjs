@@ -10,6 +10,7 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -860,6 +861,281 @@ describe('CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' }, ()
       });
     }
     assert.equal(siste.status, 429);
+  });
+  // ---------------------------------------------------------------- Butikk og betaling (_handel.php)
+
+  const KATALOG = {
+    dokumentVersjon: 1,
+    butikk: { betaling: false, frakt: [] },
+    produkter: [
+      {
+        id: 'vase',
+        navn: 'Vase',
+        status: 'plassholder',
+        prisOre: null,
+        farger: [{ id: 'hvit', navn: 'Hvit' }],
+        materialer: ['PLA'],
+        egenTekst: { maksTegn: 20, tilleggOre: null },
+        kortBeskrivelse: 'En vase.',
+        beskrivelse: 'En vase.\n\nPlassholder.',
+        kategoriNavn: 'Interiør',
+        bilde: '/vase.webp',
+        href: '/produkter/vase/',
+      },
+      {
+        id: 'krok',
+        navn: 'Krok',
+        status: 'plassholder',
+        prisOre: null,
+        farger: [{ id: 'hvit', navn: 'Hvit' }],
+        materialer: ['PLA'],
+        egenTekst: null,
+        kortBeskrivelse: 'En krok.',
+        beskrivelse: 'En krok.',
+        kategoriNavn: 'Interiør',
+        bilde: '/krok.webp',
+        href: '/produkter/krok/',
+      },
+    ],
+  };
+  const PRODUKTSIDE = `<!doctype html><html><head><title>Vase | Designporten</title>
+<meta name="description" content="En vase."><meta property="og:title" content="Vase | Designporten">
+<meta name="robots" content="noindex">
+<script type="application/ld+json">{"@type":"Product","name":"Vase","offers":{"@type":"Offer","price":"1.00"}}</script>
+</head><body><nav><li aria-current="page" data-butikk="vase#navn">Vase</li></nav>
+<h1 class="t" data-rediger="produkter/data/vase#navn" data-butikk="vase#navn">
+Vase
+</h1>
+<p class="p" data-butikk="vase#plassholder"><strong>Plassholder.</strong> Ikke fastsatt.</p>
+<div class="b" data-butikk="vase#beskrivelse"><p data-x>En vase.</p><p data-x>Plassholder.</p></div>
+<article><h3 data-butikk="krok#navn">Krok</h3><span class="s" data-butikk="krok#status">Plassholder</span><span data-butikk="krok#pris" hidden></span></article>
+</body></html>`;
+
+  test('butikk: bare administrator kan se og endre butikken', async () => {
+    writeFileSync(join(rot, 'api/katalog.json'), JSON.stringify(KATALOG));
+    mkdirSync(join(rot, 'produkter/vase'), { recursive: true });
+    writeFileSync(join(rot, 'produkter/vase/index.html'), PRODUKTSIDE);
+    assert.equal((await redaktor.kall('butikk')).status, 403);
+    assert.equal((await klient().kall('butikk')).status, 401);
+    const { status, data } = await admin.kall('butikk');
+    assert.equal(status, 200);
+    assert.deepEqual(
+      data.butikk.produkter.map((p) => [p.id, p.versjon, p.studio]),
+      [
+        ['vase', 0, null],
+        ['krok', 0, null],
+      ],
+    );
+    assert.equal(data.butikk.produkter[0].bygget.egenTekst, true);
+    assert.equal(data.butikk.kasse.aktiv, false);
+    assert.equal(data.butikk.stripe.tilkoblet, false);
+    assert.equal(JSON.stringify(data).includes('sk_'), false);
+  });
+
+  test('butikk: pris i hele kroner, og en lagring gjelder på sidene med en gang', async () => {
+    const vase = {
+      status: 'bekreftet',
+      prisOre: 24950,
+      tilleggOre: 5000,
+      navn: 'Spiralvase <3',
+      kortBeskrivelse: 'Vase i én spiral.',
+      beskrivelse: 'Første avsnitt.\n\nAndre avsnitt.',
+    };
+    const halv = await admin.kall('butikk-produkt', {
+      metode: 'POST',
+      kropp: { id: 'vase', versjon: 0, verdi: vase },
+    });
+    assert.equal(halv.status, 422);
+    assert.match(halv.data.feil, /hele kroner/);
+    const ukjent = await admin.kall('butikk-produkt', {
+      metode: 'POST',
+      kropp: { id: 'finnes-ikke', versjon: 0, verdi: vase },
+    });
+    assert.equal(ukjent.status, 404);
+    const ok = await admin.kall('butikk-produkt', {
+      metode: 'POST',
+      kropp: { id: 'vase', versjon: 0, verdi: { ...vase, prisOre: 24900 } },
+    });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.data.butikk.produkter[0].versjon, 1);
+    const igjen = await admin.kall('butikk-produkt', {
+      metode: 'POST',
+      kropp: { id: 'vase', versjon: 0, verdi: { ...vase, prisOre: 100 } },
+    });
+    assert.equal(igjen.status, 409);
+    await admin.kall('butikk-produkt', {
+      metode: 'POST',
+      kropp: {
+        id: 'krok',
+        versjon: 0,
+        verdi: {
+          status: 'bekreftet',
+          prisOre: 9900,
+          navn: 'Krok',
+          kortBeskrivelse: 'En krok.',
+          beskrivelse: 'En krok.',
+        },
+      },
+    });
+
+    // The snapshot is never served, and pages go through side.php once it exists.
+    assert.ok(existsSync(join(rot, 'api/cms/data/butikk.json')));
+    assert.ok(existsSync(join(rot, 'api/cms/data/publisert.json')));
+    const html = await side('/produkter/vase/');
+    assert.match(html, /<title>Spiralvase &lt;3 \| Designporten<\/title>/);
+    assert.match(html, /<meta property="og:title" content="Spiralvase &lt;3 \| Designporten">/);
+    assert.match(html, /<meta name="description" content="Vase i én spiral\.">/);
+    assert.doesNotMatch(html, /name="robots"/);
+    assert.match(html, /"price":"249\.00"/);
+    assert.match(
+      html,
+      /<h1 class="t" data-rediger="produkter\/data\/vase#navn" data-butikk="vase#navn">Spiralvase &lt;3<\/h1>/,
+    );
+    assert.match(html, /<li aria-current="page" data-butikk="vase#navn">Spiralvase &lt;3<\/li>/);
+    assert.match(html, /<p class="p" data-butikk="vase#plassholder" hidden>/);
+    assert.match(html, /<p data-x>Første avsnitt\.<\/p><p data-x>Andre avsnitt\.<\/p><\/div>/);
+    assert.match(html, /<span class="s" data-butikk="krok#status" hidden>Plassholder<\/span>/);
+    assert.match(html, /<span data-butikk="krok#pris">99\u00a0kr<\/span>/);
+    const skript = /<script type="application\/json" id="dp-butikk">(.*?)<\/script><\/head>/.exec(html);
+    assert.ok(skript);
+    assert.deepEqual(JSON.parse(skript[1]).vase, {
+      navn: 'Spiralvase <3',
+      status: 'bekreftet',
+      prisOre: 24900,
+      kortBeskrivelse: 'Vase i én spiral.',
+      tilleggOre: 5000,
+    });
+    assert.doesNotMatch(skript[1], /</);
+
+    // Payment and order requests read the same catalogue (api/_butikk.php).
+    const r = spawnSync(
+      php,
+      [
+        '-r',
+        'require $argv[1]; echo json_encode(dp_butikk_katalog()["produkter"][0]);',
+        join(rot, 'api/_butikk.php'),
+      ],
+      { encoding: 'utf8' },
+    );
+    const solgt = JSON.parse(r.stdout);
+    assert.equal(solgt.prisOre, 24900);
+    assert.equal(solgt.status, 'bekreftet');
+    assert.equal(solgt.egenTekst.tilleggOre, 5000);
+    assert.deepEqual(solgt.farger, KATALOG.produkter[0].farger);
+  });
+
+  test('butikk: tilbakestilling gir nettsidebyggets verdier igjen', async () => {
+    const krok = (await admin.kall('butikk')).data.butikk.produkter[1];
+    const svar = await admin.kall('butikk-produkt', {
+      metode: 'POST',
+      kropp: { id: 'krok', versjon: krok.versjon, verdi: null },
+    });
+    assert.equal(svar.status, 200);
+    assert.equal(svar.data.butikk.produkter[1].studio, null);
+    const html = await side('/produkter/vase/');
+    assert.match(
+      html,
+      /<h3 data-butikk="krok#navn">Krok<\/h3><span class="s" data-butikk="krok#status">Plassholder/,
+    );
+    assert.match(html, /<span data-butikk="krok#pris" hidden><\/span>/);
+    const logg = (await admin.kall('logg')).data.hendelser.map((h) => h.handling);
+    assert.ok(logg.includes('butikk.lagre') && logg.includes('butikk.tilbakestill'));
+  });
+
+  test('butikk: kortbetaling og frakt lagres med kontroll av hvert felt', async () => {
+    const frakt = [
+      { navn: 'Hentes', prisOre: 0, dagerMin: 1, dagerMaks: 3 },
+      { navn: 'Posten, liten pakke', prisOre: 8900, dagerMin: 3, dagerMaks: 8 },
+    ];
+    const kall = (verdi, versjon = 0) =>
+      admin.kall('butikk-innstillinger', { metode: 'POST', kropp: { versjon, verdi } });
+    assert.equal((await kall({ betaling: true, frakt: Array(6).fill(frakt[0]) })).status, 422);
+    assert.match(
+      (await kall({ betaling: true, frakt: [{ ...frakt[1], dagerMaks: 2 }] })).data.feil,
+      /før «fra»/,
+    );
+    assert.match(
+      (await kall({ betaling: true, frakt: [{ ...frakt[1], dagerMaks: null }] })).data.feil,
+      /begge/,
+    );
+    assert.match((await kall({ betaling: 'ja', frakt })).data.feil, /på eller av/);
+    const ok = await kall({ betaling: true, frakt });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(ok.data.butikk.innstillinger.studio, { betaling: true, frakt });
+    // keys are not on this server: card payment stays closed and says why
+    assert.deepEqual(ok.data.butikk.kasse, {
+      aktiv: false,
+      grunn: 'Betalingsløsningen er ikke koblet til ennå.',
+    });
+    const lagret = JSON.parse(readFileSync(join(rot, 'api/cms/data/butikk.json'), 'utf8'));
+    assert.equal(lagret.betaling, true);
+    assert.deepEqual(lagret.frakt, frakt);
+  });
+
+  test('ordre: webhooken lagrer en betalt ordre én gang, også uten e-postoppsett', async () => {
+    const hendelse = JSON.stringify({
+      type: 'checkout.session.completed',
+      livemode: false,
+      data: {
+        object: {
+          id: 'cs_test_studioordre123',
+          payment_status: 'paid',
+          payment_intent: 'pi_test_123456',
+          client_reference_id: 'DP-ABC12',
+          amount_total: 58700,
+          currency: 'nok',
+          shipping_cost: { amount_total: 8900 },
+          customer_details: { email: 'kunde@example.no', name: 'Kari Kunde', phone: '+4799999999' },
+          collected_information: {
+            shipping_details: {
+              name: 'Kari Kunde',
+              address: { line1: 'Gate 1', postal_code: '0150', city: 'Oslo' },
+            },
+          },
+          metadata: { navn: 'Kari Kunde', melding: 'Takk' },
+        },
+      },
+    });
+    const send = () => {
+      const t = Math.floor(Date.now() / 1000);
+      const v1 = createHmac('sha256', 'whsec_lokaltest').update(`${t}.${hendelse}`).digest('hex');
+      return fetch(`${URL_}/api/stripe/webhook/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Stripe-Signature': `t=${t},v1=${v1}` },
+        body: hendelse,
+      });
+    };
+    assert.equal((await send()).status, 200);
+    assert.equal((await send()).status, 200);
+    assert.equal((await redaktor.kall('ordrer')).status, 403);
+    const { data } = await admin.kall('ordrer');
+    assert.equal(data.ordrer.length, 1);
+    const o = data.ordrer[0];
+    assert.equal(o.referanse, 'DP-ABC12');
+    assert.equal(o.modus, 'test');
+    assert.equal(o.betalingId, 'pi_test_123456');
+    assert.equal(o.levering, 'ny');
+    assert.equal(o.varslet, false);
+    assert.equal(o.totalOre, 58700);
+    assert.equal(o.adresse, 'Kari Kunde\nGate 1\n0150 Oslo');
+    assert.deepEqual(o.linjer, [{ navn: 'Vase', antall: 2, belopOre: 49800 }]);
+    assert.equal((await admin.kall('butikk')).data.butikk.nyeOrdrer, 1);
+
+    const endret = await admin.kall('ordre', {
+      metode: 'POST',
+      kropp: { id: o.id, levering: 'sendt', notat: 'Sendt med Posten' },
+    });
+    assert.equal(endret.status, 200);
+    assert.equal(endret.data.ordre.levering, 'sendt');
+    assert.equal(endret.data.ordre.notat, 'Sendt med Posten');
+    assert.equal(
+      (await admin.kall('ordre', { metode: 'POST', kropp: { id: o.id, levering: 'betalt' } })).status,
+      422,
+    );
+    // no e-mail settings on this server: the order stays, and resending says why
+    const varsle = await admin.kall('ordre-varsle', { metode: 'POST', kropp: { id: o.id } });
+    assert.equal(varsle.status, 502);
+    assert.match(varsle.data.feil, /E-posten kunne ikke sendes/);
   });
 });
 

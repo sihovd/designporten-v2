@@ -220,6 +220,73 @@ export const BYGGET = '{"medium":null}';
 export const gjeldende = (f: Felt): string => f.publisert ?? (f.type === 'bilde' ? BYGGET : f.standard);
 export const visning = (f: Felt): string => f.utkast ?? gjeldende(f);
 
+/** Studio's shop (php/api/cms/_handel.php). Prices in øre including VAT. */
+export interface Butikkprodukt {
+  status: 'bekreftet' | 'plassholder';
+  prisOre: number | null;
+  tilleggOre?: number | null;
+  navn: string;
+  kortBeskrivelse: string;
+  beskrivelse: string;
+}
+
+export interface Fraktvalg {
+  navn: string;
+  prisOre: number;
+  dagerMin: number | null;
+  dagerMaks: number | null;
+}
+
+export interface Butikkinnstillinger {
+  betaling: boolean;
+  frakt: Fraktvalg[];
+}
+
+interface Butikkrad {
+  versjon: number;
+  endret: string | null;
+  endretAv: string | null;
+}
+
+export interface Butikkoversikt {
+  produkter: (Butikkrad & {
+    id: string;
+    bygget: Butikkprodukt & {
+      egenTekst: boolean;
+      kategori: string;
+      bilde: string | null;
+      href: string | null;
+    };
+    studio: Butikkprodukt | null;
+  })[];
+  innstillinger: Butikkrad & { bygget: Butikkinnstillinger; studio: Butikkinnstillinger | null };
+  stripe: { tilkoblet: boolean; modus: 'test' | 'live' | null; webhook: boolean; grunn: string | null };
+  kasse: { aktiv: boolean; grunn?: string };
+  nyeOrdrer: number;
+}
+
+export interface Ordre {
+  id: number;
+  referanse: string;
+  modus: 'test' | 'live';
+  stripeOkt: string;
+  betalingId: string | null;
+  levering: string;
+  navn: string;
+  epost: string;
+  telefon: string;
+  adresse: string;
+  melding: string;
+  linjer: { navn: string; antall: number; belopOre: number }[] | null;
+  fraktOre: number | null;
+  totalOre: number | null;
+  valuta: string;
+  varslet: boolean;
+  notat: string | null;
+  opprettet: string;
+  endret: string;
+}
+
 export class CmsFeil extends Error {
   constructor(
     melding: string,
@@ -307,6 +374,14 @@ const s = encodeURIComponent;
 
 export const cms = {
   gjenbyggVisning: () => post<{ ok: true }>('gjenbygg-visning', {}),
+  butikk: () => kall<{ butikk: Butikkoversikt }>('butikk'),
+  butikkProdukt: (id: string, versjon: number, verdi: Butikkprodukt | null) =>
+    post<{ butikk: Butikkoversikt }>('butikk-produkt', { id, versjon, verdi }),
+  butikkInnstillinger: (versjon: number, verdi: Butikkinnstillinger | null) =>
+    post<{ butikk: Butikkoversikt }>('butikk-innstillinger', { versjon, verdi }),
+  ordrer: () => kall<{ ordrer: Ordre[]; leveringer: Record<string, string> }>('ordrer'),
+  ordre: (d: { id: number; levering?: string; notat?: string }) => post<{ ordre: Ordre }>('ordre', d),
+  ordreVarsle: (id: number) => post<{ ordre: Ordre }>('ordre-varsle', { id }),
   oversikt: (dager = 30) => kall<{ oversikt: StudioOversikt }>('oversikt', { sok: `&dager=${dager}` }),
   innlegg: () => kall<{ innlegg: Innlegg[] }>('innlegg'),
   innleggEn: (id: number) =>

@@ -92,11 +92,16 @@ describe('kasse', () => {
     expect(p.get('client_reference_id')).toBe('DP-1');
   });
 
-  it('ships with card payment off and no invented shipping', async () => {
+  // Sivert set the switch and shipping himself in /admin (d60250f, 2026-11-09);
+  // since then Studio can change both on one.com. The file only has to be valid.
+  it('ships shop settings Stripe Checkout can use', async () => {
     const fil = await import('@/content/butikk/innstillinger.json');
     const b = butikkSkjema.parse(fil.default);
-    expect(b.betaling).toBe(false);
-    expect(b.frakt).toEqual([]);
+    expect(b.frakt.length).toBeLessThanOrEqual(5);
+    for (const f of b.frakt) {
+      expect((f.dagerMin === null) === (f.dagerMaks === null)).toBe(true);
+      if (f.dagerMin !== null) expect(f.dagerMaks!).toBeGreaterThanOrEqual(f.dagerMin);
+    }
   });
 });
 
