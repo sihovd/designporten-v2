@@ -117,12 +117,28 @@ function dp_send(array $oppsett, string $emne, array $felter, string $svarTil, a
     $emneHode = mb_encode_mimeheader(dp_linje("[$ref] $emne"), 'UTF-8', 'B');
     $ok = PHP_SAPI === 'cli-server' && function_exists('dp_testmail')
         ? dp_testmail($ref, $tekst, $vedlegg)
-        : mail((string) $oppsett['til'], $emneHode, $kropp, implode("\r\n", $hoder), '-f' . $oppsett['fra']);
+        : dp_mail((string) $oppsett['til'], $emneHode, $kropp, implode("\r\n", $hoder), (string) $oppsett['fra']);
     if (!$ok) {
         error_log('Designporten skjema: mail() feilet for ' . $ref);
         return null;
     }
     return $ref;
+}
+
+/**
+ * PHP mail() with the envelope sender (-f) when the host allows it. one.com's
+ * mail() throws «Argument #5 ($additional_params) must be of type string, null
+ * given» for a fifth argument, so there it is sent with four arguments and the
+ * host's own envelope sender. The From header is set either way.
+ */
+function dp_mail(string $til, string $emne, string $kropp, string $hoder, string $fra): bool
+{
+    try {
+        return mail($til, $emne, $kropp, $hoder, '-f' . $fra);
+    } catch (\Throwable $e) {
+        error_log('Designporten: mail() avviste -f (' . $e->getMessage() . '), sender uten.');
+        return mail($til, $emne, $kropp, $hoder);
+    }
 }
 
 function dp_bare_post(): void
