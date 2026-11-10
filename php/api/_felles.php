@@ -117,12 +117,28 @@ function dp_send(array $oppsett, string $emne, array $felter, string $svarTil, a
     $emneHode = mb_encode_mimeheader(dp_linje("[$ref] $emne"), 'UTF-8', 'B');
     $ok = PHP_SAPI === 'cli-server' && function_exists('dp_testmail')
         ? dp_testmail($ref, $tekst, $vedlegg)
-        : mail((string) $oppsett['til'], $emneHode, $kropp, implode("\r\n", $hoder), '-f' . $oppsett['fra']);
+        : dp_mail((string) $oppsett['til'], $emneHode, $kropp, implode("\r\n", $hoder), (string) $oppsett['fra']);
     if (!$ok) {
         error_log('Designporten skjema: mail() feilet for ' . $ref);
         return null;
     }
     return $ref;
+}
+
+/**
+ * PHP mail() with the envelope sender (-f) where the host allows it. one.com
+ * refuses the fifth argument (TypeError «additional_params … null given», seen
+ * on the first live order 2026-11-10), so the mail is then sent without it and
+ * the host sets the envelope sender itself.
+ */
+function dp_mail(string $til, string $emne, string $kropp, string $hoder, string $fra): bool
+{
+    try {
+        return mail($til, $emne, $kropp, $hoder, '-f' . $fra);
+    } catch (TypeError | ValueError $e) {
+        error_log('Designporten skjema: mail() godtar ikke -f her (' . $e->getMessage() . '), sender uten.');
+        return mail($til, $emne, $kropp, $hoder);
+    }
 }
 
 function dp_bare_post(): void
