@@ -93,10 +93,15 @@ function konto_tilganger(?array $medlem): array
     return $svar;
 }
 
-/** A payment that covers today. */
+/**
+ * A payment that covers today. 'forfalt' is a renewal Stripe is still trying
+ * to charge: the member keeps the package for a few days of grace
+ * (betalt_til, set by _abonnement.php), then falls back to the free account.
+ */
 function konto_har_betalt(?array $m): bool
 {
-    return $m !== null && $m['betaling_status'] === 'aktiv' && $m['betalt_til'] !== null && $m['betalt_til'] >= konto_na();
+    return $m !== null && in_array($m['betaling_status'], ['aktiv', 'forfalt'], true)
+        && $m['betalt_til'] !== null && $m['betalt_til'] >= konto_na();
 }
 
 /**
@@ -118,6 +123,7 @@ function konto_planer(bool $pa_nytt = false): array
         if (isset($p['pris'])) {
             if ($r['pris_maned'] !== null) $p['pris']['maned'] = (int) $r['pris_maned'];
             if ($r['pris_ar'] !== null) $p['pris']['ar'] = (int) $r['pris_ar'];
+            if (($r['kan_kjopes'] ?? null) !== null) $p['kanKjopes'] = (int) $r['kan_kjopes'] === 1;
         }
         $p['endret'] = $r['endret'];
         $p['endretAv'] = $r['endret_av'];
@@ -126,8 +132,11 @@ function konto_planer(bool $pa_nytt = false): array
     return $planer;
 }
 
-/** Studio: set a package's quota and (for a paid one) its price. */
-function konto_sett_plan(string $id, mixed $prosjekter, mixed $maned, mixed $ar, string $av): void
+/**
+ * Studio: set a package's quota and (for a paid one) its price and whether it
+ * is for sale. $kanKjopes null keeps what was there.
+ */
+function konto_sett_plan(string $id, mixed $prosjekter, mixed $maned, mixed $ar, string $av, mixed $kanKjopes = null): void
 {
     $fil = konto_tjenester()['planer'];
     if (!isset($fil[$id])) throw new KontoFeil('Ukjent pakke.', 404);
@@ -139,11 +148,17 @@ function konto_sett_plan(string $id, mixed $prosjekter, mixed $maned, mixed $ar,
     $betalt = isset($fil[$id]['pris']);
     $maned = $betalt ? $heltall($maned, 100000, 'Pris per måned') : null;
     $ar = $betalt ? $heltall($ar, 1000000, 'Pris per år') : null;
-    konto_transaksjon(function () use ($id, $prosjekter, $maned, $ar, $av) {
+    if ($kanKjopes !== null && !is_bool($kanKjopes)) throw new KontoFeil('«Kan kjøpes» må være ja eller nei.', 422);
+    if ($kanKjopes === true && (!$betalt || $maned < 1 || $ar < 1)) {
+        throw new KontoFeil('En pakke kan bare selges med en pris over 0 kr per måned og per år.', 422);
+    }
+    konto_transaksjon(function () use ($id, $prosjekter, $maned, $ar, $av, $betalt, $kanKjopes) {
+        $for = konto_en('SELECT kan_kjopes FROM dp_konto_planer WHERE plan = ?', [$id]);
+        $salg = !$betalt ? null : ($kanKjopes === null ? ($for['kan_kjopes'] ?? null) : ($kanKjopes ? 1 : 0));
         konto_kjor('DELETE FROM dp_konto_planer WHERE plan = ?', [$id]);
         konto_kjor(
-            'INSERT INTO dp_konto_planer (plan, prosjekter, pris_maned, pris_ar, endret, endret_av) VALUES (?, ?, ?, ?, ?, ?)',
-            [$id, $prosjekter, $maned, $ar, konto_na(), mb_substr($av, 0, 80)],
+            'INSERT INTO dp_konto_planer (plan, prosjekter, pris_maned, pris_ar, kan_kjopes, endret, endret_av) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$id, $prosjekter, $maned, $ar, $salg, konto_na(), mb_substr($av, 0, 80)],
         );
     });
     konto_planer(true);
@@ -276,6 +291,26 @@ function konto_migreringer(): array
                 endret VARCHAR(32) NOT NULL, endret_av VARCHAR(80) NULL
             ){TABELL}',
         ],
+        // 2026-11-10: Skaper as a Stripe subscription (Sivert: «koble medlemsstyring til
+        // medlemshåndtering i stripe med alle funksjoner»). The member row gets the subscription
+        // as Stripe last reported it; kan_kjopes on a package is the sales switch in Studio
+        // (NULL = the file's kanKjopes); dp_konto_stripe keeps Stripe object ids we made (the
+        // prices and the customer portal's settings); dp_konto_hendelser makes each Stripe event
+        // count once. betaling_status gains 'forfalt' (a renewal failed, Stripe retries). Only adds.
+        6 => [
+            'ALTER TABLE dp_medlemmer ADD COLUMN abonnement_id VARCHAR(191) NULL',
+            'ALTER TABLE dp_medlemmer ADD COLUMN abonnement_status VARCHAR(24) NULL',
+            'ALTER TABLE dp_medlemmer ADD COLUMN abonnement_periode VARCHAR(8) NULL',
+            'ALTER TABLE dp_medlemmer ADD COLUMN abonnement_slutter VARCHAR(32) NULL',
+            'ALTER TABLE dp_medlemmer ADD COLUMN abonnement_oppdatert VARCHAR(32) NULL',
+            'ALTER TABLE dp_konto_planer ADD COLUMN kan_kjopes INTEGER NULL',
+            'CREATE TABLE dp_konto_stripe (
+                nokkel VARCHAR(191) NOT NULL PRIMARY KEY, verdi VARCHAR(191) NOT NULL, endret VARCHAR(32) NOT NULL
+            ){TABELL}',
+            'CREATE TABLE dp_konto_hendelser (
+                hendelse_id VARCHAR(191) NOT NULL PRIMARY KEY, type VARCHAR(64) NOT NULL, mottatt VARCHAR(32) NOT NULL
+            ){TABELL}',
+        ],
     ];
 }
 
@@ -343,11 +378,31 @@ function konto_ut(array $m): array
     return [
         'id' => (int) $m['id'], 'navn' => $m['navn'], 'epost' => $m['epost'], 'plan' => $m['plan'],
         'betaling' => ['status' => $m['betaling_status'], 'leverandor' => $m['betaling_leverandor'], 'betaltTil' => $m['betalt_til']],
+        'abonnement' => konto_abonnement_ut($m),
         'status' => $m['status'], 'epostBekreftet' => $m['epost_bekreftet'],
         'pakke' => konto_plan($m),
         'tilgang' => array_map(fn($t) => $t['tilgang'], $tilganger = konto_tilganger($m)),
         'tilganger' => $tilganger,
         'opprettet' => $m['opprettet'], 'sistInne' => $m['sist_inne'],
+    ];
+}
+
+/**
+ * The member's subscription as the page shows it, or null without one. The
+ * Stripe ids stay on the server; `kanAdministreres` says whether Stripe's
+ * customer portal can be opened (a Stripe customer exists).
+ */
+function konto_abonnement_ut(array $m): ?array
+{
+    if (empty($m['abonnement_id']) && empty($m['betaling_kunde'])) return null;
+    return [
+        'status' => $m['abonnement_status'] ?? null,
+        'plan' => $m['plan'],
+        'periode' => $m['abonnement_periode'] ?? null,
+        'slutter' => $m['abonnement_slutter'] ?? null,
+        'betaltTil' => $m['betalt_til'],
+        'oppdatert' => $m['abonnement_oppdatert'] ?? null,
+        'kanAdministreres' => !empty($m['betaling_kunde']) && ($m['betaling_leverandor'] ?? 'stripe') === 'stripe',
     ];
 }
 
@@ -443,11 +498,15 @@ function konto_sett_status(int $id, string $status): void
     });
 }
 
-/** Deletes a member and everything tied to them: signs, projects, sign-ins, links, access exceptions. */
+/**
+ * Deletes a member and everything tied to them: signs, projects, sign-ins,
+ * links, access exceptions and our copy of their payments (Stripe keeps its
+ * own records). A running subscription is cancelled first (index.php).
+ */
 function konto_slett_medlem(int $id): void
 {
     konto_transaksjon(function () use ($id) {
-        foreach (['dp_skilt', 'dp_prosjekter', 'dp_konto_okter', 'dp_konto_tokens', 'dp_konto_tilganger'] as $t) {
+        foreach (['dp_skilt', 'dp_prosjekter', 'dp_konto_okter', 'dp_konto_tokens', 'dp_konto_tilganger', 'dp_betalinger'] as $t) {
             konto_kjor("DELETE FROM $t WHERE medlem_id = ?", [$id]);
         }
         konto_kjor('DELETE FROM dp_medlemmer WHERE id = ?', [$id]);

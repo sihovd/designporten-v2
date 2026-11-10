@@ -1,5 +1,5 @@
 {
-  "merknad": "Skaper er den eneste betalte pakken, og den kan ikke kjøpes ennå. CSV hører til Skaper, men er gratis for alle i en gratisperiode til betalingsløsningen er klar (Sivert, 2026-10-18).",
+  "merknad": "Skaper er den eneste betalte pakken. CSV hører til Skaper, men er gratis for alle inntil videre.",
   "tjenester": {
     "sign-forge": {
       "navn": "Sign Forge",
@@ -19,7 +19,7 @@
       "gratisperiode": {
         "apenFor": "alle",
         "til": "betalingslosning-klar",
-        "grunn": "Gratis for alle til betalingsløsningen er klar."
+        "grunn": "Gratis for alle inntil videre."
       }
     }
   },

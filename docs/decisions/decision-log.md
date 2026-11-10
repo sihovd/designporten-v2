@@ -227,3 +227,11 @@ Kilde: Sivert i Claude-prosjektet: «vi må optimalisere skiltbyggeren. Det heng
 - Under et drag på lerretet regnes stablingen av lag (grunnfest) og omriss rundt tekst først når draget slippes eller pekeren står stille i 180 ms. Under draget står omrisset der det var. Valgt av Claude for flyt; kan snus hvis Sivert vil se omrisset følge med (da trengs utregning i en web worker).
 - Vektorer tynnes til 0,01 mm når geometrien lages (samme toleranse som brede omriss allerede brukte).
 - Detaljer i [docs/design/skaperverksted.md](../design/skaperverksted.md) («Performance while dragging»).
+
+## 2026-11-10 — Skaper som Stripe-abonnement
+
+Kilde: Sivert i Claude-prosjektet: «vi må koble medlemsstyring til medlemshåndtering i stripe med alle funksjoner».
+
+Pakken Skaper selges som Stripe-abonnement (månedlig eller årlig, prisen fra Studio) gjennom Stripe Checkout, og administreres i Stripes kundeportal (kort, kvitteringer, bytte periode, oppsigelse). Webhooken holder medlemmets pakke i takt med abonnementet; abonnementet leses alltid på nytt fra Stripe før det lagres. Salget slås på per pakke i Studio («Til salgs») og virker bare når Stripe, webhooken og kontoene er satt opp. Ekte penger krever fortsatt `tillat_live` (Sivert). Se [konto.md](../konto.md#skaper-as-a-stripe-subscription) og [betaling.md](../betaling.md#medlemskap-skaper-som-abonnement).
+
+Valg Claude gjorde, åpne for Sivert: 7 dagers frist når en fornyelse feiler før kontoen faller til gratis; 48 timers margin etter periodens slutt; oppsigelse gjelder ut betalt periode (ingen refusjon); sletting av konto avslutter abonnementet med en gang uten refusjon; en ny pris gjelder bare nye kjøp; bytte mellom månedlig og årlig regnes forholdsmessig av Stripe; e-postene sendes fra Designporten, ikke Stripe. CSV-gratisperioden er urørt og slutter først når Sivert fjerner den. Salgsvilkår for abonnementet finnes ikke ennå.

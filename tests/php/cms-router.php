@@ -21,19 +21,17 @@ if (!getenv('DP_UTEN_KONTO')) {
         + ['offentlig_adresse' => 'http://127.0.0.1:' . $_SERVER['SERVER_PORT']]);
 }
 $sti = rawurldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/');
-if ($sti === '/api/cms/') { require $rot . '/api/cms/index.php'; return; }
-if ($sti === '/api/konto/') { require $rot . '/api/konto/index.php'; return; }
-// Stripe's webhook with a test key and a fake Stripe (never the real API); no e-mail settings exist here.
-if ($sti === '/api/stripe/webhook/') {
+// Stripe with a test key and a fake Stripe (tests/php/stripe-fake.php, never the real API); no
+// shop e-mail settings exist here. X-DP-Test-Stripe: av is a server without Stripe settings.
+// Only the accounts and the webhook get Stripe settings; the shop's CMS routes stay as before.
+require_once __DIR__ . '/stripe-fake.php';
+if (in_array($sti, ['/api/konto/', '/api/stripe/webhook/'], true) && ($_SERVER['HTTP_X_DP_TEST_STRIPE'] ?? '') !== 'av') {
     define('DP_STRIPE_KONFIG', ['hemmelig_nokkel' => 'sk_test_lokaltestnokkel123', 'webhook_hemmelighet' => 'whsec_lokaltest']);
     define('DP_STRIPE_DATA', $rot . '/stripe-data');
-    function dp_stripe_fake(string $metode, string $sti, array $kropp, string $idempotens): array
-    {
-        return ['ok' => true, 'data' => ['data' => [['description' => 'Vase', 'quantity' => 2, 'amount_total' => 49800]]]];
-    }
-    require $rot . '/api/stripe/webhook/index.php';
-    return;
 }
+if ($sti === '/api/cms/') { require $rot . '/api/cms/index.php'; return; }
+if ($sti === '/api/konto/') { require $rot . '/api/konto/index.php'; return; }
+if ($sti === '/api/stripe/webhook/') { require $rot . '/api/stripe/webhook/index.php'; return; }
 if ($sti === '/blogg' || str_starts_with($sti, '/blogg/') || $sti === '/api/cms/blogg.php') { require $rot . '/api/cms/blogg.php'; return; }
 if ($sti === '/sitemap.xml') { $_GET['kart'] = '1'; require $rot . '/api/cms/blogg.php'; return; }
 // Like medier/.htaccess: only the picture files the CMS made.

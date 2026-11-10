@@ -112,6 +112,8 @@ function dp_stripe(array $konfig, string $metode, string $sti, array $kropp = []
     if ($metode === 'POST') {
         curl_setopt($c, CURLOPT_POST, true);
         curl_setopt($c, CURLOPT_POSTFIELDS, http_build_query($kropp, '', '&', PHP_QUERY_RFC3986));
+    } elseif ($metode === 'DELETE') {
+        curl_setopt($c, CURLOPT_CUSTOMREQUEST, 'DELETE');
     }
     $raa = curl_exec($c);
     $status = (int) curl_getinfo($c, CURLINFO_RESPONSE_CODE);
