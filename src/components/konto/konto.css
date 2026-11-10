@@ -510,3 +510,23 @@
     padding-inline: 12px;
   }
 }
+
+/* Medlemskap: the paid package through Stripe (2026-11-10) */
+.konto__abonnement {
+  display: grid;
+  gap: var(--r-3);
+}
+
+.konto__perioder {
+  display: grid;
+  gap: var(--r-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.konto__perioder legend {
+  margin-bottom: var(--r-2);
+  padding: 0;
+  font-weight: 600;
+}

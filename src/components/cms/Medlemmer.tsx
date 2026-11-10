@@ -7,10 +7,12 @@
  * service or feature, and on a test build the captured e-mails.
  * Packages (2026-10-18, Sivert: «enkelt å endre i cms»): quota and price
  * per package, stored on the server in place of tjenester.json's numbers.
+ * Stripe subscriptions (2026-11-10): the sales switch per package, each
+ * member's subscription with a link to Stripe, and «Oppdater fra Stripe».
  */
 import { useEffect, useState } from 'preact/hooks';
 import { cmsCsrf } from '@/lib/cms/api';
-import { konto, type DeltSkilt, type Medlem } from '@/lib/konto/api';
+import { konto, type DeltSkilt, type Kjop, type Medlem } from '@/lib/konto/api';
 import { BETALINGSMERKNAD, betalingstekst, PLANER, TJENESTER, type Plan } from '@/lib/konto/tjenester';
 
 type Rad = Medlem & {
@@ -18,6 +20,7 @@ type Rad = Medlem & {
   antallProsjekter: number;
   aktiv: boolean;
   unntak: Record<string, 'ja' | 'nei'>;
+  stripe: { kunde: string; abonnement: string | null } | null;
 };
 type Testpost = { til: string; emne: string; tekst: string; tid: string };
 
@@ -26,23 +29,30 @@ const dato = (v: string | null) =>
 const BETALINGSSTATUS: Record<Medlem['betaling']['status'], string> = {
   ingen: 'Ingen betaling',
   aktiv: 'Betalt',
+  forfalt: 'Betaling feilet, prøver igjen',
   utlopt: 'Utløpt',
-  avbrutt: 'Avbrutt',
+  avbrutt: 'Avsluttet',
 };
+/** Stripe's dashboard, test or live. */
+const stripeLenke = (live: boolean | null, sti: string) =>
+  `https://dashboard.stripe.com/${live === false ? 'test/' : ''}${sti}`;
 
 /** One package: projects, and for a paid one the price. Saved on the server, used at once. */
 function Pakkeskjema({
   id,
   plan,
+  kjop,
   lagret,
 }: {
   id: string;
   plan: Plan;
-  lagret: (p: Record<string, Plan>) => void;
+  kjop: Kjop | null;
+  lagret: (p: Record<string, Plan>, kjop: Kjop) => void;
 }) {
   const [prosjekter, settProsjekter] = useState(String(plan.prosjekter));
   const [maned, settManed] = useState(String(plan.pris?.maned ?? ''));
   const [ar, settAr] = useState(String(plan.pris?.ar ?? ''));
+  const [tilSalgs, settTilSalgs] = useState(!!plan.kanKjopes);
   const [melding, settMelding] = useState<{ feil: boolean; tekst: string } | null>(null);
   const [lagrer, settLagrer] = useState(false);
   const tall = (v: string) => (/^\d+$/.test(v.trim()) ? Number(v.trim()) : NaN);
@@ -57,6 +67,7 @@ function Pakkeskjema({
           prosjekter: tall(prosjekter),
           prisManed: plan.pris ? tall(maned) : null,
           prisAr: plan.pris ? tall(ar) : null,
+          ...(plan.pris ? { kanKjopes: tilSalgs } : {}),
         },
         cmsCsrf(),
       );
@@ -66,8 +77,9 @@ function Pakkeskjema({
         settProsjekter(String(ny.prosjekter));
         settManed(String(ny.pris?.maned ?? ''));
         settAr(String(ny.pris?.ar ?? ''));
+        settTilSalgs(!!ny.kanKjopes);
       }
-      lagret(svar.planer);
+      lagret(svar.planer, svar.kjop);
       settMelding({ feil: false, tekst: `${plan.navn} er lagret og gjelder nå.` });
     } catch (feil) {
       settMelding({ feil: true, tekst: feil instanceof Error ? feil.message : 'Kunne ikke lagre pakken.' });
@@ -100,7 +112,13 @@ function Pakkeskjema({
         <div class="cms__radhode">
           <span class="cms__feltnavn">{plan.navn}</span>
           <span class="cms__merke">
-            {plan.pris ? (plan.kanKjopes ? 'Kan kjøpes' : 'Kan ikke kjøpes ennå') : 'Gratis'}
+            {!plan.pris
+              ? 'Gratis'
+              : plan.kanKjopes && kjop?.aktiv
+                ? 'Kan kjøpes'
+                : plan.kanKjopes
+                  ? 'Til salgs, men betaling er ikke klar'
+                  : 'Ikke til salgs'}
           </span>
         </div>
         <div class="cms__pakkefelt">
@@ -108,6 +126,19 @@ function Pakkeskjema({
           {plan.pris && felt('Pris per måned', maned, settManed, 'kr inkl. mva')}
           {plan.pris && felt('Pris per år', ar, settAr, 'kr inkl. mva')}
         </div>
+        {plan.pris && (
+          <label class="cms__avkryss">
+            <input
+              type="checkbox"
+              checked={tilSalgs}
+              onChange={(e) => settTilSalgs((e.target as HTMLInputElement).checked)}
+            />
+            Til salgs: medlemmer kan kjøpe {plan.navn} med kort (Stripe-abonnement)
+          </label>
+        )}
+        {plan.pris && tilSalgs && kjop && !kjop.aktiv && kjop.grunn && (
+          <p class="cms__dempet">Ikke kjøpbar ennå: {kjop.grunn}</p>
+        )}
         {plan.endret && (
           <p class="cms__dempet">
             Sist endret {dato(plan.endret)}
@@ -134,19 +165,24 @@ function Pakkeskjema({
 /** Pakker og priser: what each package gives and costs; read by the server on every request. */
 function Pakker() {
   const [planer, settPlaner] = useState<Record<string, Plan> | null>(null);
+  const [kjop, settKjop] = useState<Kjop | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
   useEffect(() => {
     konto.admin
       .planer()
-      .then((s) => settPlaner(s.planer))
+      .then((s) => {
+        settPlaner(s.planer);
+        settKjop(s.kjop);
+      })
       .catch((e: unknown) => settFeil(e instanceof Error ? e.message : 'Kunne ikke hente pakkene.'));
   }, []);
   return (
     <section aria-labelledby="cms-pakker">
       <h2 id="cms-pakker">Pakker og priser</h2>
       <p class="cms__dempet">
-        Endringer gjelder med en gang: kvoten for prosjekter på kontoen og prisen som vises på Min konto.
-        Ingen betaling er slått på, så pakken kan ikke kjøpes ennå.
+        Endringer gjelder med en gang: kvoten for prosjekter på kontoen, prisen på Min konto og om pakken kan
+        kjøpes. En ny pris gjelder nye kjøp; de som allerede abonnerer, beholder prisen de kjøpte til (endres
+        i Stripe om ønskelig).
       </p>
       {feil && (
         <p class="cms__melding cms__melding--feil" role="alert">
@@ -156,7 +192,16 @@ function Pakker() {
       {!planer && !feil && <p class="cms__dempet">Henter …</p>}
       <ul class="cms__liste">
         {Object.entries(planer ?? {}).map(([id, p]) => (
-          <Pakkeskjema key={id} id={id} plan={p} lagret={settPlaner} />
+          <Pakkeskjema
+            key={id}
+            id={id}
+            plan={p}
+            kjop={kjop}
+            lagret={(nye, k) => {
+              settPlaner(nye);
+              settKjop(k);
+            }}
+          />
         ))}
       </ul>
     </section>
@@ -169,6 +214,7 @@ export function Medlemmer() {
     antall: number;
     gjesteskilt: number;
     tilgangsnokler: string[];
+    stripeLive: boolean | null;
   } | null>(null);
   const [testpost, settTestpost] = useState<Testpost[] | null>(null);
   const [beskjed, settBeskjed] = useState<string | null>(null);
@@ -214,6 +260,16 @@ export function Medlemmer() {
       await hent();
     } catch (e) {
       settFeil(e instanceof Error ? e.message : 'Kunne ikke endre tilgangen.');
+    }
+  };
+
+  const synk = async (m: Rad) => {
+    try {
+      await konto.admin.abonnement(m.id, cmsCsrf());
+      settBeskjed(`Abonnementet til ${m.navn} er lest på nytt fra Stripe.`);
+      await hent();
+    } catch (e) {
+      settFeil(e instanceof Error ? e.message : 'Kunne ikke lese abonnementet fra Stripe.');
     }
   };
 
@@ -280,7 +336,29 @@ export function Medlemmer() {
                 {m.epostBekreftet ? `bekreftet ${dato(m.epostBekreftet)}` : 'ikke bekreftet'}
                 {m.betaling.leverandor && ` · betaler med ${m.betaling.leverandor}`}
                 {m.betaling.betaltTil && ` · betalt til ${dato(m.betaling.betaltTil)}`}
+                {m.abonnement?.periode && ` · ${m.abonnement.periode === 'ar' ? 'årlig' : 'månedlig'}`}
+                {m.abonnement?.slutter && ` · avsluttes ${dato(m.abonnement.slutter)}`}
               </p>
+              {m.stripe && (
+                <p class="cms__dempet">
+                  <a
+                    href={stripeLenke(
+                      register?.stripeLive ?? null,
+                      m.stripe.abonnement
+                        ? `subscriptions/${m.stripe.abonnement}`
+                        : `customers/${m.stripe.kunde}`,
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Åpne i Stripe<span class="visuelt-skjult"> for {m.navn} (ny fane)</span>
+                  </a>{' '}
+                  ·{' '}
+                  <button type="button" class="cms__lenkeknapp" onClick={() => void synk(m)}>
+                    Oppdater fra Stripe<span class="visuelt-skjult"> for {m.navn}</span>
+                  </button>
+                </p>
+              )}
               <details>
                 <summary>
                   Tilganger og status<span class="visuelt-skjult"> for {m.navn}</span>

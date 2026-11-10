@@ -5,8 +5,10 @@
  * password, deleting the account) and Mine prosjekter (where projects live
  * today, and the signs published in the gallery). Links from e-mails land
  * here with the token after «#»; the page removes it from the address bar
- * and acts only when the visitor presses the button. Payment is shown as
- * prepared, not working: no provider is switched on.
+ * and acts only when the visitor presses the button. A paid package is
+ * bought through Stripe Checkout and managed in Stripe's customer portal
+ * (Medlemskap, 2026-11-10) once Studio has put it up for sale and Stripe is
+ * set up on the server; until then it says it cannot be bought yet.
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren, JSX } from 'preact';
@@ -19,6 +21,7 @@ import {
   kontoMulig,
   KontoFeil,
   type DeltSkilt,
+  type Kjop,
   type Kvote,
   type Medlem,
   type Prosjekt,
@@ -53,6 +56,16 @@ function lesLenke(): Lenke | null {
   // out of the address bar, history and anything the page loads later
   history.replaceState(null, '', location.pathname + location.search);
   return { handling: m[1] as Lenke['handling'], token: m[2] ?? '' };
+}
+
+/** The return from Stripe: «?abonnement=ferdig&okt=…», «=portal» or «=avbrutt», taken out of the address bar. */
+function lesRetur(): { hva: 'ferdig' | 'portal' | 'avbrutt'; okt?: string } | null {
+  const sok = new URLSearchParams(location.search);
+  const hva = sok.get('abonnement');
+  if (hva !== 'ferdig' && hva !== 'portal' && hva !== 'avbrutt') return null;
+  const okt = sok.get('okt') ?? '';
+  history.replaceState(null, '', location.pathname + location.hash);
+  return { hva, okt: hva === 'ferdig' && /^cs_[A-Za-z0-9_]{10,200}$/.test(okt) ? okt : undefined };
 }
 
 function Felt({
@@ -375,21 +388,29 @@ function Innlogging({ ferdig }: { ferdig: (m: Medlem, beskjed?: string) => void 
   );
 }
 
-/** The packages with the price and quota set in Studio; the file's numbers until the server answers. */
-function brukPlaner(): Record<string, Plan> {
-  const [planer, settPlaner] = useState<Record<string, Plan>>(PLANER);
+const IKKE_KJOP: Kjop = { aktiv: false, grunn: null };
+
+/**
+ * The packages with the price and quota set in Studio (the file's numbers
+ * until the server answers), and whether a package can be bought here now.
+ */
+function brukPlaner(): { planer: Record<string, Plan>; kjop: Kjop } {
+  const [svar, settSvar] = useState<{ planer: Record<string, Plan>; kjop: Kjop }>({
+    planer: PLANER,
+    kjop: IKKE_KJOP,
+  });
   useEffect(() => {
     if (!kontoMulig) return;
     konto
       .status()
-      .then((s) => s.planer && settPlaner(s.planer))
+      .then((s) => s.planer && settSvar({ planer: s.planer, kjop: s.kjop ?? IKKE_KJOP }))
       .catch(() => {});
   }, []);
-  return planer;
+  return svar;
 }
 
 /** Gratis konto and Skaper: what each gives and costs. Nothing can be bought yet. */
-function Pakkeliste({ planer }: { planer: Record<string, Plan> }) {
+function Pakkeliste({ planer, kjop }: { planer: Record<string, Plan>; kjop: Kjop }) {
   return (
     <ul class="konto__tjenester" role="list" aria-label="Pakker">
       {Object.entries(planer).map(([id, p]) => {
@@ -402,7 +423,7 @@ function Pakkeliste({ planer }: { planer: Record<string, Plan> }) {
               <small>
                 Plass til {p.prosjekter} prosjekter på kontoen{csv}.{pris ? ` ${pris}, inkl. mva.` : ''}
               </small>
-              {pris && !p.kanKjopes && <small>Kan ikke kjøpes ennå.</small>}
+              {pris && (!p.kanKjopes || !kjop.aktiv) && <small>Kan ikke kjøpes ennå.</small>}
             </span>
             <span class={`konto__merke ${pris ? '' : 'konto__merke--gratis'}`}>
               {pris ? `${p.pris?.maned} kr/mnd` : 'Gratis'}
@@ -416,12 +437,13 @@ function Pakkeliste({ planer }: { planer: Record<string, Plan> }) {
 
 /** What the services cost, for visitors who are not signed in. */
 function Prisliste() {
-  const planer = brukPlaner();
+  const { planer, kjop } = brukPlaner();
   return (
     <section class="konto__kort" aria-labelledby="konto-plan-tittel">
       <h2 id="konto-plan-tittel">Tjenester og pris</h2>
       <p class="konto__dempet">{BETALINGSMERKNAD}</p>
-      <Pakkeliste planer={planer} />
+      <Pakkeliste planer={planer} kjop={kjop} />
+      {kjop.aktiv && <p class="konto__dempet">Logg inn eller lag en konto for å kjøpe Skaper.</p>}
       <ul class="konto__tjenester" role="list">
         {Object.entries(TJENESTER).map(([id, t]) => (
           <li key={id}>
@@ -437,9 +459,178 @@ function Prisliste() {
   );
 }
 
+/** Stripe's statuses that mean a subscription still runs (or is waiting for its first payment). */
+const LOPER = ['active', 'trialing', 'past_due', 'unpaid', 'incomplete', 'paused'];
+const PERIODE = { maned: 'Månedlig', ar: 'Årlig' } as const;
+/** betalt_til has two days' margin past the period's end (_abonnement.php), so the next renewal is two days earlier. */
+const fornyes = (betaltTil: string) =>
+  dato(new Date(new Date(betaltTil).getTime() - 2 * 86400_000).toISOString());
+
+/** Sends the browser to Stripe (Checkout or the customer portal); the button waits until it leaves. */
+function useTilStripe() {
+  const { sender, svar, send } = useSending();
+  const til = (hent: () => Promise<{ url: string }>) =>
+    send(async () => {
+      const { url } = await hent();
+      location.assign(url);
+      // stays «busy» while the browser leaves
+      await new Promise(() => {});
+      return null;
+    });
+  return { sender, svar, til };
+}
+
+/**
+ * Medlemskap: the paid package through Stripe. With a running subscription,
+ * its state and «Administrer abonnement» (Stripe's portal: card, receipts,
+ * monthly or yearly, cancel). Without one, «Kjøp Skaper» when the package is
+ * for sale. Nothing here holds card data; the server decides everything.
+ */
+function Medlemskap({
+  medlem,
+  planer,
+  kjop,
+  endret,
+}: {
+  medlem: Medlem;
+  planer: Record<string, Plan>;
+  kjop: Kjop;
+  endret: (m: Medlem) => void;
+}) {
+  const [periode, settPeriode] = useState<'maned' | 'ar'>('maned');
+  const { sender, svar, til } = useTilStripe();
+  const oppdater = useSending();
+  const a = medlem.abonnement;
+  const loper = !!a?.status && LOPER.includes(a.status) && a.status !== 'incomplete';
+  const plan = planer[a?.plan && a.plan !== 'gratis' ? a.plan : 'skaper'];
+  const navn = plan?.navn ?? 'Skaper';
+
+  if (loper && a) {
+    const forfalt = medlem.betaling.status === 'forfalt';
+    return (
+      <div class="konto__blokk konto__abonnement" aria-labelledby="konto-abonnement-tittel">
+        <h3 class="konto__undertittel" id="konto-abonnement-tittel">
+          Abonnement: {navn}
+        </h3>
+        <p>
+          {a.periode ? `${PERIODE[a.periode]} betaling. ` : ''}
+          {a.slutter
+            ? `Sagt opp: du har ${navn} til ${dato(a.slutter)}, og blir ikke trukket mer.`
+            : !forfalt && a.betaltTil
+              ? `Fornyes ${fornyes(a.betaltTil)}.`
+              : ''}
+        </p>
+        {forfalt && (
+          <p class="konto__feil" role="alert">
+            Den siste betalingen gikk ikke gjennom. Oppdater kortet under «Administrer abonnement».
+            {a.betaltTil ? ` Du beholder ${navn} til ${dato(a.betaltTil)} mens vi prøver igjen.` : ''}
+          </p>
+        )}
+        <div class="konto__knapper">
+          <button
+            type="button"
+            class="konto__knapp"
+            disabled={sender}
+            onClick={() => void til(konto.abonnement.portal)}
+          >
+            {sender ? 'Åpner …' : 'Administrer abonnement'}
+          </button>
+          <button
+            type="button"
+            class="konto__lenkeknapp"
+            disabled={oppdater.sender}
+            onClick={() =>
+              void oppdater.send(async () => {
+                endret((await konto.abonnement.sjekk()).medlem);
+                return 'Oppdatert fra betalingsløsningen.';
+              })
+            }
+          >
+            {oppdater.sender ? 'Oppdaterer …' : 'Oppdater status'}
+          </button>
+        </div>
+        <p class="konto__dempet">
+          Under «Administrer abonnement» bytter du kort, ser kvitteringer, bytter mellom månedlig og årlig
+          betaling og sier opp. Betalingen går gjennom Stripe; vi ser aldri kortnummeret ditt.
+        </p>
+        <Beskjed
+          tekst={svar?.tekst ?? oppdater.svar?.tekst ?? null}
+          feil={svar?.feil ?? oppdater.svar?.feil}
+        />
+      </div>
+    );
+  }
+
+  if (!plan?.pris || !plan.kanKjopes || !kjop.aktiv) {
+    // an ended subscription still has its receipts in the portal
+    return a?.kanAdministreres ? (
+      <div class="konto__blokk">
+        <button
+          type="button"
+          class="konto__lenkeknapp"
+          disabled={sender}
+          onClick={() => void til(konto.abonnement.portal)}
+        >
+          {sender ? 'Åpner …' : 'Se tidligere kvitteringer'}
+        </button>
+        <Beskjed tekst={svar?.tekst ?? null} feil={svar?.feil} />
+      </div>
+    ) : null;
+  }
+
+  return (
+    <form
+      class="konto__blokk konto__abonnement"
+      aria-labelledby="konto-kjop-tittel"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void til(() => konto.abonnement.start('skaper', periode));
+      }}
+    >
+      <h3 class="konto__undertittel" id="konto-kjop-tittel">
+        Bli {navn}
+      </h3>
+      <p>
+        Plass til {plan.prosjekter} prosjekter på kontoen
+        {plan.tjenester.includes('csv') ? ' og CSV-batch i Sign Forge' : ''}. Si opp når du vil; du beholder
+        pakken ut perioden du har betalt for.
+      </p>
+      <fieldset class="konto__perioder">
+        <legend>Betaling</legend>
+        {(['maned', 'ar'] as const).map((p) => (
+          <label key={p} class="konto__avkrysning">
+            <input
+              type="radio"
+              name="periode"
+              value={p}
+              checked={periode === p}
+              onChange={() => settPeriode(p)}
+            />
+            <span>
+              {PERIODE[p]}:{' '}
+              <strong>{p === 'maned' ? `${plan.pris?.maned} kr/mnd` : `${plan.pris?.ar} kr/år`}</strong> inkl.
+              mva
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      {!medlem.epostBekreftet && (
+        <p class="konto__feil">Bekreft e-postadressen din først. Det gjør du under Profil.</p>
+      )}
+      <button type="submit" class="konto__knapp" disabled={sender || !medlem.epostBekreftet}>
+        {sender ? 'Går til betaling …' : `Kjøp ${navn}`}
+      </button>
+      <p class="konto__dempet">
+        Du betaler med kort hos Stripe, og kommer tilbake hit etterpå. Vi ser aldri kortnummeret ditt.
+      </p>
+      <Beskjed tekst={svar?.tekst ?? null} feil={svar?.feil} />
+    </form>
+  );
+}
+
 /** Mine tjenester: the access the server reports, with the reason when something is closed. */
-function MineTjenester({ medlem }: { medlem: Medlem }) {
-  const planer = brukPlaner();
+function MineTjenester({ medlem, endret }: { medlem: Medlem; endret: (m: Medlem) => void }) {
+  const { planer, kjop } = brukPlaner();
   return (
     <Kort id="mine-tjenester" tittel="Mine tjenester">
       <p>
@@ -474,20 +665,23 @@ function MineTjenester({ medlem }: { medlem: Medlem }) {
           );
         })}
       </ul>
+      <Medlemskap medlem={medlem} planer={planer} kjop={kjop} endret={endret} />
       <h3 class="konto__undertittel">Pakker</h3>
-      <Pakkeliste planer={planer} />
+      <Pakkeliste planer={planer} kjop={kjop} />
       {medlem.tilganger['sign-forge']?.tilgang && (
         <a class="konto__knapp konto__knapp--lenke" href={nettsti(SIGN_FORGE)}>
           Åpne Sign Forge
         </a>
       )}
-      <p class="konto__dempet">
-        Betaling med{' '}
-        {Object.values(LEVERANDORER)
-          .map((l) => l.navn)
-          .join(' eller ')}{' '}
-        er forberedt, men ikke slått på. Du blir aldri belastet uten å ha valgt det selv.
-      </p>
+      {!kjop.aktiv && !medlem.abonnement && (
+        <p class="konto__dempet">
+          Betaling med{' '}
+          {Object.values(LEVERANDORER)
+            .map((l) => l.navn)
+            .join(' eller ')}{' '}
+          er forberedt, men ikke slått på. Du blir aldri belastet uten å ha valgt det selv.
+        </p>
+      )}
     </Kort>
   );
 }
@@ -1051,7 +1245,7 @@ function Medlemsside({
           {loggerUt ? 'Logger ut …' : 'Logg ut'}
         </button>
       </section>
-      <MineTjenester medlem={medlem} />
+      <MineTjenester medlem={medlem} endret={endret} />
       <Profil medlem={medlem} endret={endret} utlogget={utlogget} />
       <MineProsjekter medlem={medlem} />
     </>
@@ -1077,7 +1271,26 @@ export default function KontoSide() {
 
   useEffect(() => {
     settLenke(lesLenke());
-    if (kontoMulig) void hentMeg();
+    const retur = lesRetur();
+    if (kontoMulig && retur && retur.hva !== 'avbrutt') {
+      // back from Stripe: read the subscription back at once rather than wait for the webhook
+      konto.abonnement
+        .sjekk(retur.okt)
+        .then((s) => {
+          settMedlem(s.medlem);
+          settBeskjed(
+            retur.hva === 'ferdig'
+              ? s.medlem.pakke.id && s.medlem.pakke.id !== 'gratis'
+                ? `Takk! ${s.medlem.pakke.navn} er i gang. Du får en bekreftelse på e-post.`
+                : 'Takk! Betalingen behandles. Pakken dukker opp her straks den er bekreftet.'
+              : 'Abonnementet er oppdatert.',
+          );
+        })
+        .catch(() => void hentMeg());
+    } else if (kontoMulig) {
+      if (retur?.hva === 'avbrutt') settBeskjed('Kjøpet ble avbrutt. Ingenting er trukket.');
+      void hentMeg();
+    }
     // a link opened while the page is already open only changes the «#» part
     const vedEndring = () => {
       const l = lesLenke();

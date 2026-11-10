@@ -21,10 +21,13 @@ export interface Medlem {
   epost: string;
   plan: string;
   betaling: {
-    status: 'ingen' | 'aktiv' | 'utlopt' | 'avbrutt';
+    /** 'forfalt': a renewal failed and Stripe is trying again; the package lasts a few days more. */
+    status: 'ingen' | 'aktiv' | 'forfalt' | 'utlopt' | 'avbrutt';
     leverandor: string | null;
     betaltTil: string | null;
   };
+  /** The Stripe subscription as last reported, or null without one. */
+  abonnement: Abonnement | null;
   tilgang: Record<string, boolean>;
   tilganger: Record<string, Tilgang & { funksjoner: Record<string, Tilgang> }>;
   status: 'aktiv' | 'suspendert';
@@ -34,6 +37,25 @@ export interface Medlem {
   epostBekreftet: string | null;
   opprettet: string;
   sistInne: string | null;
+}
+
+export interface Abonnement {
+  /** Stripe's status: active, trialing, past_due, unpaid, canceled, incomplete, … */
+  status: string | null;
+  plan: string;
+  periode: 'maned' | 'ar' | null;
+  /** When a cancelled subscription ends (it lasts until then), or null. */
+  slutter: string | null;
+  betaltTil: string | null;
+  oppdatert: string | null;
+  /** Whether Stripe's customer portal can be opened (a Stripe customer exists). */
+  kanAdministreres: boolean;
+}
+
+/** Whether a package can be bought on this server now, and why not. */
+export interface Kjop {
+  aktiv: boolean;
+  grunn: string | null;
 }
 
 export interface Pakke {
@@ -86,6 +108,7 @@ export interface Kontostatus {
   leverandorer: Record<string, { navn: string; aktiv: boolean }>;
   /** With the price and quota set in Studio. */
   planer: Record<string, Plan>;
+  kjop: Kjop;
 }
 
 export class KontoFeil extends Error {
@@ -182,6 +205,14 @@ export const konto = {
   lagreProsjekt: (p: { app: string; navn: string; dokument: unknown; id?: string; revisjon?: number }) =>
     kall<{ prosjekt: Prosjekt; kvote: Kvote }>('prosjekt-lagre', { kropp: p }),
   slettProsjekt: (id: string) => kall<{ ok: true; kvote: Kvote }>('prosjekt-slett', { kropp: { id } }),
+  /** Paid packages through Stripe: Checkout to buy, the customer portal to manage, and reading it back. */
+  abonnement: {
+    start: (plan: string, periode: 'maned' | 'ar') =>
+      kall<{ url: string }>('abonnement-start', { kropp: { plan, periode } }),
+    portal: () => kall<{ url: string }>('abonnement-portal', { kropp: {} }),
+    /** After Checkout (`okt`) or the portal: the subscription read again from Stripe. */
+    sjekk: (okt?: string) => kall<{ medlem: Medlem }>('abonnement-sjekk', { kropp: okt ? { okt } : {} }),
+  },
   /** For CMS administrators; `csrf` is the CMS session's token. */
   admin: {
     medlemmer: () =>
@@ -191,11 +222,18 @@ export const konto = {
           antallProsjekter: number;
           aktiv: boolean;
           unntak: Record<string, 'ja' | 'nei'>;
+          stripe: { kunde: string; abonnement: string | null } | null;
         })[];
         antall: number;
         gjesteskilt: number;
         tilgangsnokler: string[];
+        /** Whether Stripe runs with live keys (null: not set up). */
+        stripeLive: boolean | null;
+        kjop: Kjop;
       }>('admin-medlemmer'),
+    /** Reads a member's subscription again from Stripe. */
+    abonnement: (id: number, csrf: string) =>
+      kall<{ medlem: Medlem }>('admin-abonnement', { kropp: { id }, hoder: { 'X-CSRF-Token': csrf } }),
     skilt: () => kall<{ skilt: DeltSkilt[] }>('admin-skilt'),
     skjul: (id: string, skjult: boolean, csrf: string) =>
       kall<{ ok: true }>('admin-skjul', { kropp: { id, skjult }, hoder: { 'X-CSRF-Token': csrf } }),
@@ -204,12 +242,25 @@ export const konto = {
     tilgang: (id: number, nokkel: string, verdi: 'ja' | 'nei' | null, csrf: string) =>
       kall<{ ok: true }>('admin-tilgang', { kropp: { id, nokkel, verdi }, hoder: { 'X-CSRF-Token': csrf } }),
     /** The packages with the numbers in use now. */
-    planer: () => kall<{ planer: Record<string, Plan> }>('admin-planer'),
-    /** Set a package's quota and, for a paid one, its price in whole kroner incl. VAT. */
+    planer: () => kall<{ planer: Record<string, Plan>; kjop: Kjop }>('admin-planer'),
+    /**
+     * Set a package's quota and, for a paid one, its price in whole kroner incl. VAT and
+     * whether it is for sale (`kanKjopes`, left out = unchanged).
+     */
     plan: (
-      p: { id: string; prosjekter: number; prisManed: number | null; prisAr: number | null },
+      p: {
+        id: string;
+        prosjekter: number;
+        prisManed: number | null;
+        prisAr: number | null;
+        kanKjopes?: boolean;
+      },
       csrf: string,
-    ) => kall<{ planer: Record<string, Plan> }>('admin-plan', { kropp: p, hoder: { 'X-CSRF-Token': csrf } }),
+    ) =>
+      kall<{ planer: Record<string, Plan>; kjop: Kjop }>('admin-plan', {
+        kropp: p,
+        hoder: { 'X-CSRF-Token': csrf },
+      }),
     /** The captured e-mails; test builds only. */
     testpost: () =>
       kall<{ eposter: { til: string; emne: string; tekst: string; tid: string }[] }>('admin-testpost'),

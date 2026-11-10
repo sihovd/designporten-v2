@@ -588,7 +588,7 @@ test('konto C: gjest lagrer ingenting på serveren; et medlem lagrer, åpner, f�
 
   const a = await loggInn(browser, 'kari@example.invalid', 'et-langt-passord', 'Kari Test');
   await expect(a.locator('#mine-prosjekter')).toContainText('0 av 5 prosjekter');
-  await expect(a.locator('#mine-tjenester')).toContainText('Gratis for alle til betalingsløsningen er klar.');
+  await expect(a.locator('#mine-tjenester')).toContainText('Gratis for alle inntil videre.');
   await a.goto(`${base}/skaperverksted/signgen/`);
   await a.getByRole('button', { name: /Tomt dokument/ }).click();
   await a.getByRole('button', { name: 'Start skiltet' }).click();
@@ -684,7 +684,13 @@ test('pakker: Studio endrer prisen på Skaper, og Min konto viser den med en gan
   await expect(skaper.getByLabel('Pris per måned')).toHaveValue('59');
   await expect(skaper.getByLabel('Pris per år')).toHaveValue('590');
   await expect(skaper.getByLabel('Prosjekter på kontoen')).toHaveValue('50');
-  await expect(skaper).toContainText('Kan ikke kjøpes ennå');
+  await expect(skaper).toContainText('Ikke til salgs');
+  // 2026-11-10: put up for sale, but this test server has no Stripe settings, so it says what is missing
+  await skaper.getByLabel(/Til salgs/).check();
+  await skaper.getByRole('button', { name: 'Lagre Skaper' }).click();
+  await expect(skaper).toContainText('Til salgs, men betaling er ikke klar');
+  await expect(skaper).toContainText('Betaling er ikke slått på ennå.');
+  await skaper.getByLabel(/Til salgs/).uncheck();
   await skaper.getByLabel('Pris per måned').fill('69');
   await skaper.getByRole('button', { name: 'Lagre Skaper' }).click();
   await expect(redaktor.getByText('Skaper er lagret og gjelder nå.')).toBeVisible();

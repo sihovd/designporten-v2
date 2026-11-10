@@ -274,7 +274,7 @@ describe(
       assert.equal(tall.medlemmer.aktive, 1);
       assert.equal(tall.galleri.utenEier, 1);
       assert.equal(tall.galleri.skjulte, 1);
-      assert.equal(tall.migrering.konto, 5);
+      assert.equal(tall.migrering.konto, 6);
       // counts only: no addresses or names
       assert.ok(!r.stdout.includes('@') && !r.stdout.includes('Ola'));
     });

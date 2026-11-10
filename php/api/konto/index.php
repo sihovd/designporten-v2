@@ -19,13 +19,16 @@
  *   GET  prosjekt       one project with its document (?id)
  *   POST prosjekt-lagre app, navn, dokument; with id + revisjon it updates (409 when older)
  *   POST prosjekt-slett id
+ *   POST abonnement-start   plan, periode (maned | ar): a Stripe Checkout link for the package (_abonnement.php)
+ *   POST abonnement-portal  a link into Stripe's customer portal (card, receipts, switch period, cancel)
+ *   POST abonnement-sjekk   okt (from Checkout's return) or nothing: reads the subscription back from Stripe
  *   GET  skilt          the gallery, newest first (?antall, ?for = cursor)
  *   GET  mine-skilt     the member's own signs
  *   POST del            publish a sign in the gallery (signed-in members only): mal, bilde; with id it updates that sign
  *   POST bruk           a sign's template, to start from (counts the use)
  *   POST slett-skilt    remove a shared sign (id + nokkel, or the member who shared it)
  *   GET  bilde          a sign's preview (PNG)
- *   GET  admin-medlemmer / admin-skilt, POST admin-skjul / admin-status / admin-tilgang,
+ *   GET  admin-medlemmer / admin-skilt, POST admin-skjul / admin-status / admin-tilgang / admin-abonnement,
  *   GET  admin-testpost (test builds only)   for CMS administrators (_admin.php)
  *
  * Links in e-mails open «Min konto» with the token after «#»; the page asks
@@ -44,6 +47,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/_konto.php';
 require_once __DIR__ . '/_prosjekter.php';
 require_once __DIR__ . '/_admin.php';
+require_once __DIR__ . '/_abonnement.php';
 
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -114,7 +118,8 @@ try {
         konto_get();
         $aktiv = konto_konfig() !== null;
         if ($aktiv) konto_db();
-        konto_svar(['aktiv' => $aktiv, 'oppsett' => konto_kilde(), 'planer' => konto_planer()] + konto_tjenester());
+        konto_svar(['aktiv' => $aktiv, 'oppsett' => konto_kilde(), 'planer' => konto_planer(),
+            'kjop' => $aktiv ? konto_kjop_status() : ['aktiv' => false, 'grunn' => 'Brukerkontoer er ikke slått på ennå.']] + konto_tjenester());
     }
 
     if (konto_konfig() === null) throw new KontoFeil('Brukerkontoer er ikke slått på på denne serveren ennå.', 503);
@@ -222,6 +227,8 @@ try {
         $k = konto_kropp();
         $m = konto_krev_medlem();
         if (!password_verify((string) ($k['passord'] ?? ''), $m['passord_hash'])) throw new KontoFeil('Feil passord.', 403);
+        // a running subscription ends first, so nobody is charged for an account that is gone
+        konto_avslutt_abonnement_na($m);
         konto_slett_medlem((int) $m['id']);
         konto_kake('', time() - 3600);
         konto_svar(['ok' => true]);
@@ -380,13 +387,35 @@ try {
                 }
                 if ($n !== 1) throw new KontoFeil(KONTO_UGYLDIG_LENKE, 400);
                 konto_kjor('DELETE FROM dp_konto_tokens WHERE medlem_id = ? AND brukt IS NULL', [$m['id']]);
-                return $ny;
+                return [$ny, $m];
             });
+            [$ny, $eier] = $ny;
+            konto_stripe_ny_epost($eier, $ny);
         } catch (KontoFeil $f) {
             konto_registrer_forsok('konto-lenke:' . konto_ip());
             throw $f;
         }
         konto_svar(['ok' => true, 'epost' => $ny]);
+    }
+
+    if ($r === 'abonnement-start') {
+        $k = konto_kropp();
+        $m = konto_krev_medlem();
+        konto_svar(['url' => konto_start_abonnement($m, $k['plan'] ?? 'skaper', $k['periode'] ?? null)]);
+    }
+
+    if ($r === 'abonnement-portal') {
+        konto_kropp();
+        konto_svar(['url' => konto_portal(konto_krev_medlem())]);
+    }
+
+    if ($r === 'abonnement-sjekk') {
+        $k = konto_kropp();
+        $m = konto_krev_medlem();
+        konto_begrens('konto-sjekk:' . $m['id'], 30, 3600);
+        konto_registrer_forsok('konto-sjekk:' . $m['id']);
+        $m = isset($k['okt']) ? konto_fullfor_kjop($m, $k['okt']) : konto_oppdater_fra_stripe($m);
+        konto_svar(['medlem' => konto_ut($m)]);
     }
 
     if ($r === 'prosjekter') {
@@ -493,12 +522,16 @@ try {
             konto_svar([
                 'medlemmer' => array_map(fn($m) => konto_ut($m) + [
                     'antallSkilt' => (int) $m['antall_skilt'], 'antallProsjekter' => (int) $m['antall_prosjekter'],
+                    // for the link to the member in Stripe's dashboard
+                    'stripe' => $m['betaling_kunde'] ? ['kunde' => $m['betaling_kunde'], 'abonnement' => $m['abonnement_id']] : null,
                     'aktiv' => $m['status'] === 'aktiv',
                     'unntak' => array_column(konto_alle('SELECT nokkel, verdi FROM dp_konto_tilganger WHERE medlem_id = ?', [$m['id']]), 'verdi', 'nokkel'),
                 ], $rader),
                 'tilgangsnokler' => konto_tilgangsnokler(),
                 'antall' => (int) konto_en('SELECT COUNT(*) AS n FROM dp_medlemmer')['n'],
                 'gjesteskilt' => (int) konto_en('SELECT COUNT(*) AS n FROM dp_skilt WHERE medlem_id IS NULL')['n'],
+                'stripeLive' => (dp_stripe_konfig()['live'] ?? null),
+                'kjop' => konto_kjop_status(),
             ]);
         }
         if ($r === 'admin-skilt') {
@@ -544,16 +577,24 @@ try {
             konto_admin_logg($aktor, 'tilgang.' . ($verdi ?? 'standard'), "$id:$nokkel");
             konto_svar(['ok' => true]);
         }
-        if ($r === 'admin-planer') {
-            konto_get();
-            konto_svar(['planer' => konto_planer()]);
-        }
         if ($r === 'admin-plan') {
             $k = konto_kropp();
             $id = (string) ($k['id'] ?? '');
-            konto_sett_plan($id, $k['prosjekter'] ?? null, $k['prisManed'] ?? null, $k['prisAr'] ?? null, (string) ($aktor['navn'] ?? 'admin'));
+            konto_sett_plan($id, $k['prosjekter'] ?? null, $k['prisManed'] ?? null, $k['prisAr'] ?? null, (string) ($aktor['navn'] ?? 'admin'), $k['kanKjopes'] ?? null);
             konto_admin_logg($aktor, 'plan.endre', $id);
-            konto_svar(['planer' => konto_planer()]);
+            konto_svar(['planer' => konto_planer(), 'kjop' => konto_kjop_status()]);
+        }
+        if ($r === 'admin-abonnement') {
+            $k = konto_kropp();
+            $m = konto_en('SELECT * FROM dp_medlemmer WHERE id = ?', [(int) ($k['id'] ?? 0)]);
+            if (!$m) throw new KontoFeil('Fant ikke medlemmet.', 404);
+            $m = konto_oppdater_fra_stripe($m);
+            konto_admin_logg($aktor, 'abonnement.synk', (string) $m['id']);
+            konto_svar(['medlem' => konto_ut($m)]);
+        }
+        if ($r === 'admin-planer') {
+            konto_get();
+            konto_svar(['planer' => konto_planer(), 'kjop' => konto_kjop_status()]);
         }
         if ($r === 'admin-testpost') {
             konto_get();

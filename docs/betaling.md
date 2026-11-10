@@ -89,6 +89,34 @@ Kjøp den billigste varen selv med ditt eget kort. Etterpå skal du se:
 
 Refunder kjøpet i Stripe (Payments → betalingen → Refund). Stripe beholder vanligvis gebyret på en refundert betaling.
 
+## Medlemskap: Skaper som abonnement
+
+Fra 10. november 2026 (Sivert: «vi må koble medlemsstyring til medlemshåndtering i stripe med alle funksjoner») kan medlemmer kjøpe pakken **Skaper** som et Stripe-abonnement, månedlig eller årlig, til prisen som står i Studio. Alt skjer hos Stripe: betalingssiden (Checkout) og **kundeportalen**, der medlemmet bytter kort, ser kvitteringer, bytter mellom månedlig og årlig og sier opp. Medlemmets pakke følger abonnementet automatisk.
+
+| Det som skjer | Hva medlemmet merker |
+|---|---|
+| Kjøp | «Kjøp Skaper» på Min konto → Stripe → tilbake til Min konto, der pakken gjelder med en gang. E-post «Velkommen som Skaper» fra Designporten, og en kort beskjed til deg. |
+| Fornyelse | Stripe trekker automatisk. E-post «Kvittering: Skaper er fornyet». |
+| Fornyelsen feiler | Medlemmet beholder Skaper i 7 dager mens Stripe prøver igjen, og får e-post om å oppdatere kortet. Går betalingen gjennom, fortsetter alt; ellers faller kontoen til gratis. |
+| Oppsigelse | I kundeportalen. Skaper gjelder ut perioden som er betalt, og kan trekkes tilbake til da. E-post om begge deler. |
+| Abonnementet slutter | Kontoen blir gratis. Ingen prosjekter slettes: alle kan åpnes og lastes ned, bare nye krever ledig plass. |
+| Kontoen slettes | Et løpende abonnement avsluttes i Stripe først (ingen refusjon av resten av perioden). Feiler det, slettes ikke kontoen. |
+| Ny e-postadresse | Følger med til Stripe-kunden, så kvitteringer kommer riktig fram. |
+
+**Prisen** settes i Studio → Medlemmer og skilt → Pakker og priser. En ny pris gjelder nye kjøp; de som allerede abonnerer, beholder prisen de kjøpte til (du kan flytte dem i Stripe om du vil). Produktet heter `dp_plan_skaper` i Stripe, og prisene lages automatisk første gang de trengs.
+
+### Slik slår du det på
+
+1. **Brukerkontoer må være på** (`api/konto/konfig.php` med database, `offentlig_adresse` og e-post, se [konto.md](konto.md)). Uten kontoer er det ingen å selge til.
+2. **Webhooken:** legg til disse hendelsene på det samme endepunktet som butikken bruker (Developers → Webhooks → endepunktet → *Select events*):
+   `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid` og `invoice.payment_failed`. (`checkout.session.completed` står der fra før.)
+3. **Nøkkelen:** en vanlig `sk_live_`-nøkkel virker. Bruker du en begrenset nøkkel (`rk_live_`), må den ha skrivetilgang til *Checkout Sessions, Customers, Products, Prices, Subscriptions* og *Customer portal*, og lesetilgang til *Invoices*.
+4. **Stripe-innstillinger** (Settings → Billing → Subscriptions and emails): la *Smart Retries* være på, og velg at abonnementet **avsluttes** (cancel) når alle forsøkene har feilet. Kundeportalen trenger du ikke sette opp: koden lager innstillingene selv.
+5. **Studio → Medlemmer og skilt → Pakker og priser:** kryss av **«Til salgs»** på Skaper og trykk Lagre. Merket viser «Kan kjøpes» når alt over er på plass, ellers hva som mangler.
+6. **Prøv selv:** kjøp Skaper månedlig med ditt eget kort, se at Min konto viser pakken, åpne «Administrer abonnement» og si opp, og refunder i Stripe.
+
+CSV er fortsatt gratis for alle i gratisperioden. Den slutter først når nøkkelen `gratisperiode` fjernes fra `tjenester.json`, og det bestemmer du.
+
 ## Vipps
 
 Stripe har Vipps, men bare som **privat forhåndsvisning** (private preview). Du må be Stripe om tilgang, og API-et krever en egen forhåndsversjon. Det er derfor ikke bygget inn. Alternativene er å søke om Vipps hos Stripe og la oss legge det til når du har tilgang, eller å bruke Vipps ePayment direkte via Vipps MobilePay-avtalen din (planen i CMS-dokumentene, 04_BETALING). Begge deler krever en avtale som du må ordne selv.
@@ -105,6 +133,10 @@ Kilde: [Stripe: Vipps](https://docs.stripe.com/payments/vipps).
 | Takkesiden sier «Vi fant ikke betalingen» | Stripe har ikke bekreftet ennå, eller nøkkelen på serveren er en testnøkkel mens betalingen var ekte (eller omvendt). |
 | Webhooken svarer 400 «Feil modus» | Webhooken er laget i Test mode i Stripe. Lag den på nytt med Test mode av. |
 
+| Skaper-abonnementet oppdaterer seg ikke | Abonnementshendelsene mangler på webhooken (se Medlemskap, steg 2), eller brukerkontoer er ikke slått på (webhooken svarer 503). «Oppdater fra Stripe» i Studio leser det på nytt. |
+
 ## Teknisk
 
 Filene er `php/api/stripe/_stripe.php` (felles), `php/api/kasse/index.php`, `php/api/kasse/okt/index.php` og `php/api/stripe/webhook/index.php`. Butikkinnstillingene følger med i `api/katalog.json`. Hvilke webhooker som allerede er levert, lagres i `api/stripe/data/` (aldri tilgjengelig fra nettet, aldri sendt ved publisering). Testene er i `tests/onecom/kasse.spec.ts` og bruker en falsk Stripe i `tests/php/router.php`, så de når aldri det ekte API-et.
+
+Abonnementene: `php/api/konto/_abonnement.php` (kjøp, kundeportal, synk fra Stripe, e-post) og aksjonene `abonnement-start`, `abonnement-portal`, `abonnement-sjekk` og `admin-abonnement` i `php/api/konto/index.php`. Webhooken sender abonnements- og fakturahendelser dit og lar butikken håndtere resten; en Checkout i abonnementsmodus blir aldri en butikkordre. Hver hendelse teller én gang (`dp_konto_hendelser`), og abonnementet leses alltid på nytt fra Stripe før det lagres, så hendelser som kommer sent eller dobbelt ikke endrer noe. Testene er `scripts/konto-abonnement.test.mjs` med en falsk Stripe i `tests/php/stripe-fake.php`.

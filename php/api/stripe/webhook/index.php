@@ -1,7 +1,9 @@
 <?php
 /**
  * Stripe webhook (POST /api/stripe/webhook/), PHP version of
- * src/server/ruter/stripe-webhook.ts. On a paid Checkout Session the order is
+ * src/server/ruter/stripe-webhook.ts. Subscription events (the paid account
+ * packages) go to the accounts (api/konto/_abonnement.php); the rest of this
+ * file is the shop. On a paid Checkout Session the order is
  * saved in the CMS database (Studio → Butikk og betaling → Ordrer) when the
  * CMS is set up, and e-mailed to Designporten through the same delivery as
  * the forms (_felles.php). The customer's receipt is sent by Stripe. Refunds
@@ -62,17 +64,29 @@ if (!dp_stripe_signatur($payload, (string) ($_SERVER['HTTP_STRIPE_SIGNATURE'] ??
     svar('Ugyldig signatur', 400);
 }
 $hendelse = json_decode($payload, true);
+if (!is_array($hendelse)) svar('Ugyldig hendelse', 400);
 $okt = $hendelse['data']['object'] ?? null;
-$type = $hendelse['type'] ?? '';
-$betalt = ($type === 'checkout.session.completed' && ($okt['payment_status'] ?? '') === 'paid')
-    || $type === 'checkout.session.async_payment_succeeded';
-if (!$betalt || !is_array($okt) || !preg_match('/^cs_[A-Za-z0-9_]{10,200}$/', (string) ($okt['id'] ?? ''))) {
-    svar('ok', 200);
-}
+$type = (string) ($hendelse['type'] ?? '');
 // A test-mode event never counts on a live setup, and the other way round.
 if (isset($hendelse['livemode']) && (bool) $hendelse['livemode'] !== $konfig['live']) {
     error_log('Designporten webhook: hendelse fra feil modus (test/live) avvist.');
     svar('Feil modus', 400);
+}
+// Subscriptions (the paid account packages) belong to the accounts, not the shop:
+// api/konto/_abonnement.php keeps the member's package in step with Stripe.
+$abonnement = __DIR__ . '/../../konto/_abonnement.php';
+if (is_file($abonnement)) {
+    require_once $abonnement;
+    if (konto_er_abonnementshendelse($type, $okt)) {
+        [$status, $tekst] = konto_stripe_hendelse($hendelse, $konfig);
+        svar($tekst, $status);
+    }
+}
+$betalt = (($type === 'checkout.session.completed' && ($okt['payment_status'] ?? '') === 'paid')
+    || $type === 'checkout.session.async_payment_succeeded')
+    && ($okt['mode'] ?? 'payment') === 'payment';
+if (!$betalt || !is_array($okt) || !preg_match('/^cs_[A-Za-z0-9_]{10,200}$/', (string) ($okt['id'] ?? ''))) {
+    svar('ok', 200);
 }
 
 // ---- Deliver each session once ----
