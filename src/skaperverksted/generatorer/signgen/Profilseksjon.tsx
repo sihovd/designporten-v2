@@ -143,7 +143,7 @@ export function Profilseksjon({ benk, lag }: { benk: Arbeidsbenk; lag: Lag }) {
         farge={finnMateriale(lag.materialId).hex}
         stotte={stotte}
         endre={(p, s) => endre('Endre profil', p, s)}
-        ferdig={() => benk.historikk.avsluttSammenslaing()}
+        ferdig={() => benk.avsluttSammenslaing()}
       />
       {overheng > maks + 0.5 && (
         <p class="merknad profil-advarsel" role="status">

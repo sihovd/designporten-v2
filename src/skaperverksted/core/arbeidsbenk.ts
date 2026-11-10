@@ -48,9 +48,14 @@ export interface BenkTilstand {
   /** The document has changed since `modell` was built (2D editing does not rebuild it). */
   modellForeldet: boolean;
   melding: string | null;
+  /** A drag on the canvas is running (panels may follow it less often). */
+  drar: boolean;
 }
 
 type Lytter = (t: BenkTilstand) => void;
+
+/** How long a gesture may pause before what it changed is settled anyway (ms). */
+const ROLIG_ETTER = 180;
 
 export class Arbeidsbenk {
   readonly historikk: Historikk<Dokument>;
@@ -59,6 +64,11 @@ export class Arbeidsbenk {
   private byggNr = 0;
   private byggTidsur: ReturnType<typeof setTimeout> | undefined;
   private byggVenter = false;
+  /** A running gesture has changed the document without settling it (see `endre`). */
+  private uroligTidsur: ReturnType<typeof setTimeout> | undefined;
+  private urolig = false;
+  /** A canvas drag runs, and the generator has been told (`underveis`). */
+  private drar = false;
   /**
    * View commands registered by the active view (tilpass, zoom-100,
    * zoom-inn, zoom-ut, tegn) so shortcuts and toolbars can drive whichever
@@ -91,6 +101,7 @@ export class Arbeidsbenk {
       byggFremdrift: null,
       modellForeldet: true,
       melding: null,
+      drar: false,
     };
     this.historikk.lytt((d) => {
       this.oppdater({ dok: d, utvalg: this.rensUtvalg(d, this.t.utvalg) });
@@ -112,21 +123,67 @@ export class Arbeidsbenk {
     return () => this.lyttere.delete(fn);
   }
 
-  /** Apply a document change through history. */
+  /**
+   * Apply a document change through history. A step of a running gesture (one with `slaSammen`: a drag or
+   * a slider) skips the generator's `normaliser` while it runs, since that may weigh the whole document
+   * (Sign Forge works out what every layer rests on). The document is settled when the gesture ends
+   * (`avsluttSammenslaing`) or after a short pause, so the result is the same, only not on every frame.
+   * A canvas drag (`dra`) also tells the generator, which may keep slow geometry until then.
+   */
   endre(e: Endring<Dokument>): void {
+    const lett = !!e.slaSammen && !!this.generator.normaliser;
+    // a change outside the gesture settles everything first, so it is never worked out from kept geometry
+    if (!lett) this.roligNa(false);
+    else {
+      this.urolig = true;
+      if (e.dra && !this.drar) {
+        this.drar = true;
+        this.generator.underveis?.(true);
+        this.t = { ...this.t, drar: true };
+      }
+    }
     this.historikk.utfor({
       ...e,
       anvend: (d) => {
         const ny = e.anvend(d);
         if (ny === d) return d;
-        const rolig = this.generator.normaliser?.(ny) ?? ny;
+        const rolig = lett ? ny : (this.generator.normaliser?.(ny) ?? ny);
         return { ...rolig, meta: { ...rolig.meta, endret: new Date().toISOString() } };
       },
     });
+    if (lett) {
+      clearTimeout(this.uroligTidsur);
+      this.uroligTidsur = setTimeout(() => this.roligNa(), ROLIG_ETTER);
+    }
+  }
+
+  /** End merging (pointer up): the next change becomes a new step, and the document is settled now. */
+  avsluttSammenslaing(): void {
+    this.historikk.avsluttSammenslaing();
+    this.roligNa();
+  }
+
+  /** Settle what a gesture left unsettled; `kjor` false only ends the gesture (the caller settles). */
+  private roligNa(kjor = true): void {
+    clearTimeout(this.uroligTidsur);
+    if (!this.urolig) return;
+    this.urolig = false;
+    if (this.drar) {
+      this.drar = false;
+      this.generator.underveis?.(false);
+      this.t = { ...this.t, drar: false };
+    }
+    if (!kjor) return;
+    const naa = this.historikk.naa;
+    const ny = this.generator.normaliser?.(naa) ?? naa;
+    if (ny !== naa) this.historikk.justerNaa(ny);
+    // what was kept during the gesture is worked out again: draw it
+    else this.oppdater({});
   }
 
   /** Settle the document again without a history step (fonts finished loading, so geometry can be measured). */
   normaliser(): void {
+    this.roligNa(false);
     const naa = this.historikk.naa;
     const ny = this.generator.normaliser?.(naa) ?? naa;
     if (ny !== naa) this.historikk.justerNaa(ny);
@@ -135,10 +192,12 @@ export class Arbeidsbenk {
   }
 
   angre(): void {
+    this.roligNa();
     if (this.historikk.angre()) this.melde(`Angret: ${this.historikk.nesteGjorOm ?? ''}`);
   }
 
   gjorOm(): void {
+    this.roligNa();
     if (this.historikk.gjorOm()) this.melde(`Gjort om: ${this.historikk.nesteAngre ?? ''}`);
   }
 
@@ -174,6 +233,7 @@ export class Arbeidsbenk {
   lastInn(dok: Dokument): void {
     dok = this.generator.lesInn?.(dok) ?? dok;
     dok = this.generator.normaliser?.(dok) ?? dok;
+    this.roligNa(false);
     this.historikk.nullstill(dok);
     this.oppdater({ utvalg: { objekter: [], lag: dok.lag.at(-1)?.id ?? null } });
   }
@@ -239,6 +299,7 @@ export class Arbeidsbenk {
 
   avslutt(): void {
     clearTimeout(this.byggTidsur);
+    clearTimeout(this.uroligTidsur);
     this.lyttere.clear();
   }
 }

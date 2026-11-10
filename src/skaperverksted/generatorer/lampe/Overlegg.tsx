@@ -137,7 +137,7 @@ export function LampeOverlegg({ benk, scene }: { benk: Arbeidsbenk; scene: Scene
     if (!grep) return;
     settGrep(null);
     scene.settKameraStyring(true);
-    benk.historikk.avsluttSammenslaing();
+    benk.avsluttSammenslaing();
   };
 
   const tast = (id: string, ev: KeyboardEvent, handling: (steg: number, akse: 'x' | 'y') => void) => {
