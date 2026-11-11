@@ -265,3 +265,11 @@ Kilde: Sivert i Claude-prosjektet, med skissen «Vectorim»: toppmeny med «1 Ma
 - Forhåndsinnstillinger: Logo, Strek (1 farge), Foto (6 farger), Skiltvinyl (minste tykkelse 4 px, færre småbiter) og Detaljert. Logo, Skiltvinyl og Detaljert beholder antall farger. Verdiene er Claudes valg og bør prøves på ekte bilder.
 - Fargelikhet måles med en vektet RGB-avstand; fargen med størst flate vinner når to slås sammen (`vektorverksted/farger.ts`).
 - Det gamle «Bilde til vektor»-vinduet i Sign Forge er beholdt og heter nå «Klassisk vindu» i Vectorim, til Sivert sier at det kan fjernes.
+
+## 2026-11-11 — Vectorim, etappe 2: lag og «Tegn på nytt i område»
+
+Kilde: Sivert i Claude-prosjektet: «Når det vektoriseres så vektoriseres det i «lag» så da må merge være med i planen», og «et verktøy som lar deg markere et område som tegner [...] på nytt med lokale instillinger akkurat der markeringen ligger». Godkjent forslag: lagpanel med skjul, lås, navn, rekkefølge og merge.
+
+- **Lag** (Edit, tast Y): hver farge er ett lag, slik SVG-en også grupperes. Hvert lag har navn (blir `<title>` i SVG-gruppen), skjul (blir ikke med i eksporten eller på skiltet), lås (delene og kantene deres kan ikke velges eller endres; en kant er låst når en av delene ved den er låst), rekkefølge (fremover/bakover, styrer rekkefølgen i SVG-en), «Merge ned» (laget under tar over delene og beholder sin farge) og «Slå sammen delene i laget» (alle delene blir én del). Lagdataene ligger ved siden av modellen, med fargen som nøkkel, og følger med når fargen byttes (`vektorverksted/lag.ts`).
+- **Tegn på nytt i område** (Edit, tast R): dra et område; egne innstillinger (beregn form, rett-toleranse, kurvetoleranse, glatting, hjørnevinkel) brukes bare på kantene der, og kantene mot resten henger fortsatt sammen fordi endene står fast. «Slå inn små deler under» slår deler som ligger helt inne i området og er mindre enn grensen inn i naboen de deler lengst kant med. Låste lag røres ikke.
+- Valg tatt av Claude: «tegn på nytt» tilpasser kantene på nytt fra de sporede pikslene og rydder små deler; det sporer ikke området med et annet antall farger. Lokalt fargeantall ville kreve at området spores som et eget bilde og sys inn i nabokantene, og kan komme senere hvis Sivert vil.

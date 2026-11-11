@@ -22,6 +22,7 @@ import {
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionvalg } from './regioner';
 import { antallValgt, bakgrunnsutvalg, kombiner, tryllestav, utvid } from './tryllestav';
 import { fargeavstand, fargebruk, flatUt, reduserFarger, slaSammenLikeFarger } from './farger';
+import { delerIFarger, flyttLag, lagrekkefolge, tegnOmradePaNytt } from './lag';
 
 type Rgba = [number, number, number, number];
 function bilde(b: number, h: number, farge: (x: number, y: number) => Rgba): Piksler {
@@ -323,5 +324,78 @@ describe('farger', () => {
   it('measures colour distance so near reds are closer than red and blue', () => {
     expect(fargeavstand('#dc1e28', '#e4242e')).toBeLessThan(fargeavstand('#dc1e28', '#1e3cdc'));
     expect(fargeavstand('#123456', '#123456')).toBe(0);
+  });
+});
+
+describe('lag', () => {
+  /** Red and blue halves with a small black speck inside the red. */
+  const flekkete = bilde(120, 120, (x, y) => {
+    if (x < 20 || x > 100 || y < 20 || y > 100) return HVIT;
+    if (x > 32 && x < 40 && y > 52 && y < 60) return SVART;
+    return x < 60 ? ROD : BLA;
+  });
+  const modell = () =>
+    byggModell(
+      lagRegionkart(flekkete, null, {
+        ...STANDARD_REGIONVALG,
+        farger: 3,
+        minAreal: 0,
+        minHull: 0,
+        stoyfilter: 0,
+      }),
+    );
+
+  it('orders layers by the given order, the rest by area', () => {
+    const m = modell();
+    const alle = lagrekkefolge(m, []);
+    expect(alle).toHaveLength(3);
+    const minst = alle[2]!;
+    expect(lagrekkefolge(m, [minst])[0]).toBe(minst);
+  });
+
+  it('moves a layer’s metadata with its colour, and drops it when merged into another', () => {
+    const a = flyttLag({ '#111111': { navn: 'Tekst' } }, ['#111111', '#222222'], '#111111', '#333333');
+    expect(a.lag['#333333']?.navn).toBe('Tekst');
+    expect(a.rekkefolge).toEqual(['#333333', '#222222']);
+    const b = flyttLag({ '#111111': { navn: 'Tekst' } }, ['#111111', '#222222'], '#111111', '#222222');
+    expect(b.lag['#111111']).toBeUndefined();
+    expect(b.rekkefolge).toEqual(['#222222']);
+  });
+
+  it('merges small parts inside an area into the neighbour, and leaves locked ones', () => {
+    const m = modell();
+    const for_ = m.deler.filter(Boolean).length;
+    const r = { x0: 0, y0: 0, x1: 120, y1: 120 };
+    const laste = delerIFarger(m, new Set(lagrekkefolge(m, []).slice(2)));
+    expect(tegnOmradePaNytt(m, r, { tilpasning: {}, minAreal: 100 }, laste).smaaDeler).toBe(0);
+    const ny = tegnOmradePaNytt(m, r, { tilpasning: { kurveToleranse: 2 }, minAreal: 100 });
+    expect(ny.smaaDeler).toBe(1);
+    expect(ny.modell.deler.filter(Boolean).length).toBe(for_ - 1);
+    expect(ny.kurver).toBeGreaterThan(0);
+  });
+
+  it('redraws only the borders inside the area', () => {
+    const m = modell();
+    const venstre = { x0: 0, y0: 0, x1: 50, y1: 120 };
+    const r = tegnOmradePaNytt(m, venstre, { tilpasning: { kurveToleranse: 3 }, minAreal: 0 });
+    const endret = r.modell.kurver.filter(
+      (k, i) => k && k.valg.kurveToleranse !== m.kurver[i]!.valg.kurveToleranse,
+    );
+    expect(endret.length).toBe(r.kurver);
+    expect(r.kurver).toBeLessThan(m.kurver.filter(Boolean).length);
+  });
+
+  it('writes layers in order, leaves hidden ones out and names the groups', () => {
+    const m = modell();
+    const [a, b, c] = lagrekkefolge(m, []);
+    const svg = tilSvg(m, {
+      grupperEtterFarge: true,
+      rekkefolge: [c!, a!],
+      skjulte: new Set([b!]),
+      navn: { [a!]: 'Bakgrunn & ramme' },
+    });
+    expect(svg.indexOf(`farge-${c!.slice(1)}`)).toBeLessThan(svg.indexOf(`farge-${a!.slice(1)}`));
+    expect(svg).not.toContain(`farge-${b!.slice(1)}`);
+    expect(svg).toContain('<title>Bakgrunn &#38; ramme</title>');
   });
 });

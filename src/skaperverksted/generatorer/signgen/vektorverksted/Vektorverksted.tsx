@@ -67,6 +67,15 @@ import {
   type Vektormodell,
 } from './modell';
 import { fargebruk, reduserFarger, slaSammenLikeFarger } from './farger';
+import {
+  delerIFarger,
+  flyttLag,
+  kurveLast,
+  lagrekkefolge,
+  tegnOmradePaNytt,
+  type Lagkart,
+  type Omrade,
+} from './lag';
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionkart, type Regionvalg } from './regioner';
 import { STANDARD_TILPASNING, type Anker, type Tilpasningsvalg } from './tilpass';
 import {
@@ -87,7 +96,7 @@ type Nivaa = 'enkel' | 'avansert';
 type Forberedverktoy = 'beskjaer' | 'tryllestav' | 'pensel' | 'viskelar' | 'lasso' | 'rektangel';
 /** What a drawn field does: red removes (masks), green protects. */
 type Felttype = 'masker' | 'beskytt';
-type Redigerverktoy = 'spor' | 'farger' | 'del' | 'linje' | 'punkt' | 'penn';
+type Redigerverktoy = 'spor' | 'lag' | 'farger' | 'omrade' | 'del' | 'linje' | 'punkt' | 'penn';
 interface Visning {
   skala: number;
   tx: number;
@@ -338,6 +347,14 @@ export function Vektorverksted(props: {
   const [forhandsvalgId, settForhandsvalgId] = useState<string | null>(null);
   const [fargeTerskel, settFargeTerskel] = useState(40);
   const [fargeMaal, settFargeMaal] = useState(3);
+  /** Layers (one per colour): name, hidden, locked, and their order, bottom first. */
+  const [lagMeta, settLagMeta] = useState<Lagkart>({});
+  const [lagRekkefolge, settLagRekkefolge] = useState<string[]>([]);
+  /** The area marked for «Tegn på nytt», in vector units, and its own settings. */
+  const [lokalOmrade, settLokalOmrade] = useState<Omrade | null>(null);
+  const [lokalTilpasning, settLokalTilpasning] = useState<Tilpasningsvalg>(STANDARD_TILPASNING);
+  const [lokalMinAreal, settLokalMinAreal] = useState(0);
+  const [lokalMelding, settLokalMelding] = useState<string | null>(null);
   const [kilde, settKilde] = useState<Kildebilde | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
   const [steg, settSteg] = useState<Steg>('masker');
@@ -410,6 +427,7 @@ export function Vektorverksted(props: {
     | { type: 'rekt' }
     | { type: 'beskjaer'; modus: string; start: { x: number; y: number }; fra: Rektangel }
     | { type: 'omrade'; leggTil: boolean }
+    | { type: 'lokal'; start: { x: number; y: number } }
     | { type: 'penn'; idx: number; start: { x: number; y: number }; siste: { x: number; y: number } }
     | {
         type: 'pennpunkt';
@@ -816,14 +834,38 @@ export function Vektorverksted(props: {
 
   // ------------------------------------------------------------ derived
 
+  const skjulteFarger = useMemo(
+    () => new Set(Object.entries(lagMeta).flatMap(([f, l]) => (l.skjult ? [f] : []))),
+    [lagMeta],
+  );
+  const lasteFarger = useMemo(
+    () => new Set(Object.entries(lagMeta).flatMap(([f, l]) => (l.last ? [f] : []))),
+    [lagMeta],
+  );
+  const lasteDeler = useMemo(
+    () => (modell ? delerIFarger(modell, lasteFarger) : new Set<number>()),
+    [modell, lasteFarger],
+  );
+  const lagliste = useMemo(
+    () => (modell ? lagrekkefolge(modell, lagRekkefolge) : []),
+    [modell, lagRekkefolge],
+  );
   const stier = useMemo(() => {
     if (!modell) return [];
-    return modell.deler.flatMap((d) => (d ? [{ id: d.id, farge: d.farge, d: delSti(modell, d) }] : []));
-  }, [modell]);
-  const kantSti = useMemo(
-    () => (modell && visKanter ? modell.kurver.map((k) => (k ? kurveSti(k) : '')).join('') : ''),
-    [modell, visKanter],
-  );
+    return modell.deler.flatMap((d) =>
+      d && !skjulteFarger.has(d.farge) ? [{ id: d.id, farge: d.farge, d: delSti(modell, d) }] : [],
+    );
+  }, [modell, skjulteFarger]);
+  const kantSti = useMemo(() => {
+    if (!modell || !visKanter) return '';
+    const synlig = (id: number) => id >= 0 && !skjulteFarger.has(modell.deler[id]?.farge ?? '');
+    return modell.kurver
+      .map((k) => (k && (synlig(k.venstre) || synlig(k.hoyre)) ? kurveSti(k) : ''))
+      .join('');
+  }, [modell, visKanter, skjulteFarger]);
+  /** Locked layers keep their parts and borders out of every selection. */
+  const ulaste = (ider: number[]) =>
+    modell ? ider.filter((id) => !kurveLast(modell, id, lasteDeler)) : ider;
   const statistikk = useMemo(() => (modell ? tall(modell) : null), [modell]);
   const fargeliste = useMemo(() => {
     const m = new Map<string, number>();
@@ -900,7 +942,7 @@ export function Vektorverksted(props: {
       (viserMaske && !fverktoy) ||
       (!viserMaske && !kanRedigere) ||
       (kanRedigere && rverktoy === 'spor') ||
-      (kanRedigere && rverktoy === 'farger');
+      (kanRedigere && (rverktoy === 'farger' || rverktoy === 'lag'));
     if (e.button === 1 || e.button === 2 || mellomrom.current || utenVerktoy) {
       dra.current = { type: 'panorer', x: e.clientX, y: e.clientY, tx: visning.tx, ty: visning.ty };
       return;
@@ -993,7 +1035,8 @@ export function Vektorverksted(props: {
     const naer = naermesteKurve(modell, v.x, v.y, 7 / pxPerEnhet);
     if (rverktoy === 'del') {
       const delEl = maal.closest('[data-del]');
-      const id = delEl ? Number(delEl.getAttribute('data-del')) : null;
+      const funnet = delEl ? Number(delEl.getAttribute('data-del')) : null;
+      const id = funnet !== null && lasteDeler.has(funnet) ? null : funnet;
       if (id === null) {
         if (!e.shiftKey) settValgteDeler([]);
       } else
@@ -1002,6 +1045,13 @@ export function Vektorverksted(props: {
         );
       return;
     }
+    if (rverktoy === 'omrade') {
+      settLokalOmrade({ x0: v.x, y0: v.y, x1: v.x, y1: v.y });
+      settLokalMelding(null);
+      dra.current = { type: 'lokal', start: v };
+      return;
+    }
+    if (naer && kurveLast(modell, naer.kurve, lasteDeler)) return;
     if (rverktoy === 'linje') {
       if (naer) {
         settValgteKurver((s) =>
@@ -1135,6 +1185,9 @@ export function Vektorverksted(props: {
     } else if (d.type === 'omrade') {
       const v = tilVektor(p);
       settOmrade((o) => (o ? { ...o, x1: v.x, y1: v.y } : o));
+    } else if (d.type === 'lokal') {
+      const v = tilVektor(p);
+      settLokalOmrade({ x0: d.start.x, y0: d.start.y, x1: v.x, y1: v.y });
     } else if (d.type === 'anker') {
       const v = tilVektor(p);
       settModellRa(flyttAnker(d.base, d.kurve, d.idx, v.x, v.y));
@@ -1171,9 +1224,14 @@ export function Vektorverksted(props: {
     } else if (d.type === 'omrade' && omrade && modell) {
       const liten =
         Math.abs(omrade.x1 - omrade.x0) * pxPerEnhet < 3 && Math.abs(omrade.y1 - omrade.y0) * pxPerEnhet < 3;
-      const ider = liten ? [] : kurverIOmrade(modell, omrade);
+      const ider = liten ? [] : ulaste(kurverIOmrade(modell, omrade));
       settValgteKurver((s) => (d.leggTil ? [...new Set([...s, ...ider])] : ider));
       settOmrade(null);
+    } else if (d.type === 'lokal' && lokalOmrade) {
+      const liten =
+        Math.abs(lokalOmrade.x1 - lokalOmrade.x0) * pxPerEnhet < 4 ||
+        Math.abs(lokalOmrade.y1 - lokalOmrade.y0) * pxPerEnhet < 4;
+      if (liten) settLokalOmrade(null);
     } else if ((d.type === 'anker' || d.type === 'handtak') && modell && modell !== d.base) {
       // one undo step for the whole drag
       fortid.current.push(d.base);
@@ -1260,6 +1318,11 @@ export function Vektorverksted(props: {
       if (kanRedigere) {
         if (e.key === 'k' || e.key === 'K') settRverktoy('spor');
         if (e.key === 'f' || e.key === 'F') settRverktoy('farger');
+        if (e.key === 'y' && !mod) settRverktoy('lag');
+        if ((e.key === 'r' || e.key === 'R') && rverktoy !== 'omrade') {
+          settRverktoy('omrade');
+          settLokalTilpasning(tilpasning);
+        }
         if (e.key === 'v' || e.key === 'V') settRverktoy('del');
         if (e.key === 'l' || e.key === 'L') settRverktoy('linje');
         if (e.key === 'p' || e.key === 'P') settRverktoy('punkt');
@@ -1329,17 +1392,14 @@ export function Vektorverksted(props: {
 
   const eksporter = () => {
     if (!modell || !kilde) return;
-    lastNed(
-      `${kilde.navn}.svg`,
-      tilSvg(modell, { grupperEtterFarge: grupper, bredde: bruktUtsnitt.b, hoyde: bruktUtsnitt.h }),
-    );
+    lastNed(`${kilde.navn}.svg`, svgTekst());
   };
 
   const [kopiStatus, settKopiStatus] = useState<string | null>(null);
   const [visSvgTekst, settVisSvgTekst] = useState(false);
   const kopierSvg = () => {
     if (!modell) return;
-    const svg = tilSvg(modell, { grupperEtterFarge: grupper, bredde: bruktUtsnitt.b, hoyde: bruktUtsnitt.h });
+    const svg = svgTekst();
     // where the clipboard is refused, the code is shown to copy by hand
     navigator.clipboard
       .writeText(svg)
@@ -1367,9 +1427,9 @@ export function Vektorverksted(props: {
       : fverktoy === 'pensel' || fverktoy === 'viskelar'
         ? 'none'
         : 'crosshair'
-    : !kanRedigere || rverktoy === 'spor' || rverktoy === 'farger'
+    : !kanRedigere || rverktoy === 'spor' || rverktoy === 'farger' || rverktoy === 'lag'
       ? 'grab'
-      : rverktoy === 'linje' || rverktoy === 'penn'
+      : rverktoy === 'linje' || rverktoy === 'penn' || rverktoy === 'omrade'
         ? 'crosshair'
         : 'default';
 
@@ -1585,6 +1645,16 @@ export function Vektorverksted(props: {
                   ))}
                 </g>
               )}
+              {lokalOmrade && kanRedigere && rverktoy === 'omrade' && (
+                <rect
+                  class="vv-lokalomrade"
+                  x={Math.min(lokalOmrade.x0, lokalOmrade.x1)}
+                  y={Math.min(lokalOmrade.y0, lokalOmrade.y1)}
+                  width={Math.abs(lokalOmrade.x1 - lokalOmrade.x0)}
+                  height={Math.abs(lokalOmrade.y1 - lokalOmrade.y0)}
+                  vector-effect="non-scaling-stroke"
+                />
+              )}
               {omrade && (
                 <rect
                   class="vv-omrade"
@@ -1692,18 +1762,27 @@ export function Vektorverksted(props: {
     { id: 'rektangel', ikon: 'rectangle', navn: 'Rektangel', tast: 'M' },
   ];
   const redigeringsverktoy: { id: Redigerverktoy; ikon: IkonId; navn: string; tast: string }[] = [
-    { id: 'spor', ikon: 'generate', navn: 'Konvertering', tast: 'K' },
+    { id: 'spor', ikon: 'adjustments', navn: 'Konvertering', tast: 'K' },
+    { id: 'lag', ikon: 'layers', navn: 'Lag', tast: 'Y' },
     { id: 'farger', ikon: 'palette', navn: 'Farger', tast: 'F' },
+    { id: 'omrade', ikon: 'velg-omrade', navn: 'Tegn på nytt i område', tast: 'R' },
     { id: 'del', ikon: 'select', navn: 'Velg deler', tast: 'V' },
     { id: 'linje', ikon: 'velg-linje', navn: 'Velg linjer', tast: 'L' },
     { id: 'punkt', ikon: 'edit-point', navn: 'Punkter', tast: 'P' },
     { id: 'penn', ikon: 'pen', navn: 'Penn', tast: 'N' },
   ];
 
-  const svgTekst = () =>
-    modell
-      ? tilSvg(modell, { grupperEtterFarge: grupper, bredde: bruktUtsnitt.b, hoyde: bruktUtsnitt.h })
-      : '';
+  function svgTekst() {
+    if (!modell) return '';
+    return tilSvg(modell, {
+      grupperEtterFarge: grupper,
+      bredde: bruktUtsnitt.b,
+      hoyde: bruktUtsnitt.h,
+      rekkefolge: lagliste,
+      skjulte: skjulteFarger,
+      navn: Object.fromEntries(Object.entries(lagMeta).map(([f, l]) => [f, l.navn])),
+    });
+  }
 
   const fargebrukListe = useMemo(() => (modell ? fargebruk(modell) : []), [modell]);
 
@@ -2284,7 +2363,9 @@ export function Vektorverksted(props: {
                 class="vv-lenkeknapp"
                 title="Velg delene i denne fargen"
                 onClick={() => {
-                  settValgteDeler(stier.filter((s) => s.farge === f.farge).map((s) => s.id));
+                  settValgteDeler(
+                    stier.filter((s) => s.farge === f.farge && !lasteDeler.has(s.id)).map((s) => s.id),
+                  );
                   settRverktoy('del');
                 }}
               >
@@ -2384,7 +2465,7 @@ export function Vektorverksted(props: {
               ikon="velg-linje"
               navn="Velg kantene"
               onClick={() => {
-                settValgteKurver(kurverRundt(modell, valgteDeler));
+                settValgteKurver(ulaste(kurverRundt(modell, valgteDeler)));
                 settRverktoy('linje');
               }}
             />
@@ -2448,7 +2529,7 @@ export function Vektorverksted(props: {
         <Knapp
           ikon="select"
           navn="Velg alle"
-          onClick={() => settValgteKurver(modell.kurver.flatMap((k) => (k ? [k.id] : [])))}
+          onClick={() => settValgteKurver(ulaste(modell.kurver.flatMap((k) => (k ? [k.id] : []))))}
         />
         <Knapp
           ikon="select"
@@ -2545,6 +2626,274 @@ export function Vektorverksted(props: {
     </div>
   );
 
+  /** Layer metadata, changed for one colour. */
+  const endreLag = (f: string, d: Partial<Lagkart[string]>) =>
+    settLagMeta((l) => ({ ...l, [f]: { ...l[f], ...d } }));
+  /** Moves a layer one step toward the front (+1) or the back (-1). */
+  const flyttLagSteg = (f: string, retning: 1 | -1) => {
+    const r = [...lagliste];
+    const i = r.indexOf(f),
+      j = i + retning;
+    if (i < 0 || j < 0 || j >= r.length) return;
+    [r[i], r[j]] = [r[j]!, r[i]!];
+    settLagRekkefolge(r);
+  };
+  /** A layer gets another colour; its name, visibility and lock go with it. */
+  const byttLagfarge = (fra: string, til: string) => {
+    if (!modell || fra === til) return;
+    settModell(byttFarge(modell, fra, til));
+    const ny = flyttLag(lagMeta, lagliste, fra, til);
+    settLagMeta(ny.lag);
+    settLagRekkefolge(ny.rekkefolge);
+  };
+
+  const lagPanel = modell && (
+    <section>
+      <p class="vv-hjelp">
+        Hver farge er ett lag. Øverst i lista ligger forrest. Skjulte lag blir ikke med i eksporten; låste lag
+        kan ikke velges eller endres.
+      </p>
+      <ol class="vv-lagliste">
+        {[...lagliste].reverse().map((f, i, alle) => {
+          const l = lagMeta[f] ?? {};
+          const under = alle[i + 1];
+          const antall =
+            stier.filter((s) => s.farge === f).length || modell.deler.filter((d) => d?.farge === f).length;
+          const navn = l.navn || f;
+          return (
+            <li key={f} class={l.skjult ? 'vv-lag vv-lag-skjult' : 'vv-lag'}>
+              <div class="vv-lagrad">
+                <input
+                  type="color"
+                  value={f}
+                  aria-label={`Farge på laget ${navn}`}
+                  disabled={l.last}
+                  onChange={(e) => byttLagfarge(f, (e.target as HTMLInputElement).value)}
+                />
+                <input
+                  type="text"
+                  class="vv-lagnavn"
+                  value={l.navn ?? ''}
+                  placeholder={f}
+                  aria-label={`Navn på laget ${f}`}
+                  onInput={(e) => endreLag(f, { navn: (e.target as HTMLInputElement).value || undefined })}
+                />
+                <button
+                  type="button"
+                  class="vv-lagknapp"
+                  aria-pressed={!l.skjult}
+                  aria-label={`${l.skjult ? 'Vis' : 'Skjul'} laget ${navn}`}
+                  title={l.skjult ? 'Vis' : 'Skjul'}
+                  onClick={() => endreLag(f, { skjult: !l.skjult })}
+                >
+                  <Ikon id="visible" storrelse={16} />
+                </button>
+                <button
+                  type="button"
+                  class="vv-lagknapp"
+                  aria-pressed={!!l.last}
+                  aria-label={`${l.last ? 'Lås opp' : 'Lås'} laget ${navn}`}
+                  title={l.last ? 'Lås opp' : 'Lås'}
+                  onClick={() => {
+                    endreLag(f, { last: !l.last });
+                    if (!l.last) {
+                      settValgteDeler((v) => v.filter((id) => modell.deler[id]?.farge !== f));
+                      settValgteKurver([]);
+                    }
+                  }}
+                >
+                  <Ikon id={l.last ? 'lock' : 'unlock'} storrelse={16} />
+                </button>
+              </div>
+              <div class="vv-lagrad vv-lagrad-handlinger">
+                <span class="vv-dempet">
+                  {antall} {antall === 1 ? 'del' : 'deler'}
+                </span>
+                <button
+                  type="button"
+                  class="vv-lagknapp"
+                  aria-label={`Flytt laget ${navn} fremover`}
+                  title="Fremover"
+                  disabled={i === 0}
+                  onClick={() => flyttLagSteg(f, 1)}
+                >
+                  <Ikon id="bring-forward" storrelse={16} />
+                </button>
+                <button
+                  type="button"
+                  class="vv-lagknapp"
+                  aria-label={`Flytt laget ${navn} bakover`}
+                  title="Bakover"
+                  disabled={!under}
+                  onClick={() => flyttLagSteg(f, -1)}
+                >
+                  <Ikon id="send-backward" storrelse={16} />
+                </button>
+                <button
+                  type="button"
+                  class="vv-lagknapp"
+                  aria-label={`Velg delene i laget ${navn}`}
+                  title="Velg delene"
+                  disabled={l.last}
+                  onClick={() => {
+                    settValgteDeler(modell.deler.flatMap((d) => (d && d.farge === f ? [d.id] : [])));
+                    settRverktoy('del');
+                  }}
+                >
+                  <Ikon id="select" storrelse={16} />
+                </button>
+                <button
+                  type="button"
+                  class="vv-lagknapp"
+                  aria-label={`Slå sammen delene i laget ${navn} til én del`}
+                  title="Slå sammen delene i laget"
+                  disabled={l.last || antall < 2}
+                  onClick={() =>
+                    settModell(
+                      slaSammenDeler(
+                        modell,
+                        modell.deler.flatMap((d) => (d && d.farge === f ? [d.id] : [])),
+                      ),
+                    )
+                  }
+                >
+                  <Ikon id="union" storrelse={16} />
+                </button>
+                <button
+                  type="button"
+                  class="vv-sekundar vv-lagslaa"
+                  aria-label={`Slå sammen laget ${navn} med laget under`}
+                  title="Laget under tar over delene og beholder sin farge"
+                  disabled={!under || l.last || !!lagMeta[under]?.last}
+                  onClick={() => under && byttLagfarge(f, under)}
+                >
+                  Merge ned
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+
+  /** Original pixels² to vector units² for the area setting. */
+  const enhetPerPx = modell ? modell.bredde / bruktUtsnitt.b : 1;
+  const endreLokal = (d: Partial<Tilpasningsvalg>) => settLokalTilpasning((t) => ({ ...t, ...d }));
+  const tegnPaNytt = () => {
+    if (!modell || !lokalOmrade) return;
+    const r = tegnOmradePaNytt(
+      modell,
+      lokalOmrade,
+      { tilpasning: lokalTilpasning, minAreal: lokalMinAreal * enhetPerPx * enhetPerPx },
+      lasteDeler,
+    );
+    settModell(r.modell);
+    settLokalMelding(
+      r.kurver || r.smaaDeler
+        ? `${r.kurver} ${r.kurver === 1 ? 'linje' : 'linjer'} tegnet på nytt${r.smaaDeler ? `, ${r.smaaDeler} små deler slått inn i naboen` : ''}.`
+        : 'Fant ingen linjer i området. Marker et større område.',
+    );
+  };
+
+  const omradePanel = modell && (
+    <section>
+      <p class="vv-hjelp">
+        Dra et område på vektoren. Innstillingene under gjelder bare der, og resten av vektoren er urørt.
+        Kantene mot resten henger fortsatt sammen.
+      </p>
+      {lokalOmrade ? (
+        <p class="vv-tall">Område markert.</p>
+      ) : (
+        <p class="vv-dempet">Ingen område markert ennå.</p>
+      )}
+      <div class="vv-knapperad">
+        <Knapp
+          ikon="history"
+          navn="Hent globale innstillinger"
+          tittel="Start fra innstillingene under Konvertering."
+          onClick={() => settLokalTilpasning(tilpasning)}
+        />
+      </div>
+      <label class="vv-avkryss">
+        <input
+          type="checkbox"
+          checked={lokalTilpasning.beregnForm}
+          onChange={(e) => endreLokal({ beregnForm: (e.target as HTMLInputElement).checked })}
+        />
+        Beregn form (finn rette sider)
+      </label>
+      <Glidebryter
+        navn="Lokal rett-toleranse"
+        verdi={lokalTilpasning.rettToleranse}
+        min={0.1}
+        max={4}
+        steg={0.05}
+        enhet="px"
+        av={!lokalTilpasning.beregnForm}
+        endre={(v) => endreLokal({ rettToleranse: v })}
+      />
+      <Glidebryter
+        navn="Lokal kurvetoleranse"
+        verdi={lokalTilpasning.kurveToleranse}
+        min={0.2}
+        max={6}
+        steg={0.05}
+        enhet="px"
+        hjelp="Høyere gir færre punkter og rolige kurver."
+        endre={(v) => endreLokal({ kurveToleranse: v })}
+      />
+      <Glidebryter
+        navn="Lokal glatting"
+        verdi={lokalTilpasning.glatting}
+        min={0}
+        max={5}
+        steg={0.1}
+        enhet="px"
+        endre={(v) => endreLokal({ glatting: v })}
+      />
+      <Glidebryter
+        navn="Lokal hjørnevinkel"
+        verdi={lokalTilpasning.hjorneVinkel}
+        min={20}
+        max={150}
+        steg={1}
+        enhet="°"
+        endre={(v) => endreLokal({ hjorneVinkel: v })}
+      />
+      <Glidebryter
+        navn="Slå inn små deler under"
+        verdi={lokalMinAreal}
+        min={0}
+        max={2000}
+        steg={1}
+        enhet="px²"
+        hjelp="Deler helt inne i området som er mindre enn dette, går inn i naboen. 0 lar dem være."
+        endre={settLokalMinAreal}
+      />
+      <div class="vv-knapperad">
+        <Knapp
+          ikon="generate"
+          navn="Tegn på nytt i området"
+          klasse="vv-primar"
+          av={!lokalOmrade}
+          onClick={tegnPaNytt}
+        />
+        <Knapp
+          ikon="panel-close"
+          navn="Fjern markeringen"
+          av={!lokalOmrade}
+          onClick={() => settLokalOmrade(null)}
+        />
+      </div>
+      {lokalMelding && (
+        <p class="vv-hjelp" role="status">
+          {lokalMelding}
+        </p>
+      )}
+    </section>
+  );
+
   const redigerPanel = kilde && (
     <>
       <section class="vv-verktoyvalg">
@@ -2553,6 +2902,8 @@ export function Vektorverksted(props: {
       </section>
       {rverktoy === 'spor' && sporPanel}
       {rverktoy === 'farger' && fargePanel}
+      {rverktoy === 'lag' && lagPanel}
+      {rverktoy === 'omrade' && omradePanel}
       {rverktoy === 'del' && delPanel}
       {(rverktoy === 'linje' || rverktoy === 'punkt') && linjePanel}
       {rverktoy === 'penn' && pennPanel}
@@ -2648,6 +2999,7 @@ export function Vektorverksted(props: {
                 onClick={() => {
                   settRverktoy(v.id);
                   if (v.id !== 'penn') settPenn([]);
+                  if (v.id === 'omrade' && rverktoy !== 'omrade') settLokalTilpasning(tilpasning);
                 }}
               >
                 <Ikon id={v.ikon} storrelse={20} />
@@ -2696,8 +3048,8 @@ export function Vektorverksted(props: {
           <dd>Beskjær, tryllestav, pensel, viskelær, lasso, rektangel (Mask)</dd>
           <dt>X</dt>
           <dd>Bytt mellom Masker og Beskytt</dd>
-          <dt>K F V L P N</dt>
-          <dd>Konvertering, farger, deler, linjer, punkter, penn (Edit)</dd>
+          <dt>K Y F R V L P N</dt>
+          <dd>Konvertering, lag, farger, tegn på nytt i område, deler, linjer, punkter, penn (Edit)</dd>
           <dt>Ctrl Z / Ctrl Y</dt>
           <dd>Angre / gjør om</dd>
           <dt>Mellomrom + dra</dt>

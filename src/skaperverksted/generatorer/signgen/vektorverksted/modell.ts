@@ -228,16 +228,36 @@ export function tall(m: Vektormodell): Tall {
 /** The model as an SVG file: one path per part, optionally grouped by colour. */
 export function tilSvg(
   m: Vektormodell,
-  opt: { grupperEtterFarge?: boolean; bredde?: number; hoyde?: number } = {},
+  opt: {
+    grupperEtterFarge?: boolean;
+    bredde?: number;
+    hoyde?: number;
+    /** Colours (layers) in drawing order, first at the bottom; the rest follow. */
+    rekkefolge?: string[];
+    /** Colours (layers) left out. */
+    skjulte?: Set<string>;
+    /** Group titles per colour (layer names). */
+    navn?: Record<string, string | undefined>;
+  } = {},
 ): string {
-  const deler = m.deler.filter((d): d is Del => !!d);
+  const rang = (f: string) => {
+    const i = opt.rekkefolge?.indexOf(f) ?? -1;
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const deler = m.deler
+    .filter((d): d is Del => !!d && !opt.skjulte?.has(d.farge))
+    .sort((a, b) => rang(a.farge) - rang(b.farge));
   const sti = (d: Del) => `<path id="del-${d.id}" fill="${d.farge}" d="${delSti(m, d)}"/>`;
   let innhold: string;
   if (opt.grupperEtterFarge) {
     const grupper = new Map<string, Del[]>();
     for (const d of deler) grupper.set(d.farge, [...(grupper.get(d.farge) ?? []), d]);
     innhold = [...grupper]
-      .map(([f, ds]) => `<g id="farge-${f.slice(1)}">${ds.map(sti).join('')}</g>`)
+      .map(([f, ds]) => {
+        const t = opt.navn?.[f];
+        const tittel = t ? `<title>${t.replace(/[<&"]/g, (c) => `&#${c.charCodeAt(0)};`)}</title>` : '';
+        return `<g id="farge-${f.slice(1)}">${tittel}${ds.map(sti).join('')}</g>`;
+      })
       .join('');
   } else innhold = deler.map(sti).join('');
   const st = opt.bredde && opt.hoyde ? ` width="${r2(opt.bredde)}" height="${r2(opt.hoyde)}"` : '';
