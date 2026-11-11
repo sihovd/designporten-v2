@@ -119,6 +119,59 @@ test.describe('Skaperverksted', () => {
     await expect(page).toHaveURL(/\/skaperverksted\/$/);
   });
 
+  test('Vectorim: lagpanel med skjul, navn og merge, og tegn på nytt i et område', async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, 'Områdemarkering testes på brede skjermer');
+    await page.goto('/skaperverksted/vectorim/');
+    const rot = page.locator('.vv');
+    await konverterIVerkstedet(page, rot);
+    await rot
+      .getByRole('group', { name: 'Antall farger' })
+      .getByRole('button', { name: '3', exact: true })
+      .click();
+    await expect(rot.locator('.vv-status')).toContainText('2 farger');
+    await rot.getByRole('button', { name: 'Advanced' }).click();
+    await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Edit/ }).click();
+    const verktoy = rot.getByRole('navigation', { name: 'Edit-verktøy' });
+
+    // layers: one per colour; name one, hide it, show it, merge it down
+    await verktoy.getByRole('button', { name: 'Lag', exact: true }).click();
+    const lag = rot.locator('.vv-lag');
+    await expect(lag).toHaveCount(2);
+    await lag
+      .first()
+      .getByRole('textbox', { name: /^Navn på laget/ })
+      .fill('Forrest');
+    await lag
+      .first()
+      .getByRole('button', { name: /^Skjul laget Forrest/ })
+      .click();
+    await expect(rot.locator('.vv-deler path')).not.toHaveCount(0);
+    await lag
+      .first()
+      .getByRole('button', { name: /^Vis laget Forrest/ })
+      .click();
+    await lag
+      .first()
+      .getByRole('button', { name: /^Slå sammen laget Forrest med laget under/ })
+      .click();
+    await expect(lag).toHaveCount(1);
+    await expect(rot.locator('.vv-status')).toContainText('1 farge');
+
+    // local redraw: mark an area and redraw it with its own settings
+    await verktoy.getByRole('button', { name: 'Tegn på nytt i område' }).click();
+    const b = (await rot.locator('.vv-flate').boundingBox())!;
+    await page.mouse.move(b.x + b.width * 0.1, b.y + b.height * 0.1);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.9, b.y + b.height * 0.9, { steps: 6 });
+    await page.mouse.up();
+    await expect(rot.getByText('Område markert.')).toBeVisible();
+    await rot.getByRole('button', { name: 'Tegn på nytt i området' }).click();
+    await expect(rot.getByRole('status').filter({ hasText: 'tegnet på nytt' })).toBeVisible();
+  });
+
   test('den gamle adressen /skaperverksted/vektorverksted/ sender videre til Vectorim', async ({ page }) => {
     await page.goto('/skaperverksted/vektorverksted/');
     await expect(page).toHaveURL(/\/skaperverksted\/vectorim\/$/);

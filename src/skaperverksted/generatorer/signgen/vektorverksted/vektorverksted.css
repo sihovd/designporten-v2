@@ -781,3 +781,85 @@
     bottom: 8px;
   }
 }
+
+/* ---------- Vectorim, etappe 2: layers and local redraw ---------- */
+
+.vv-lagliste {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vv-lag {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 6px;
+  background: var(--vv-panel-2);
+}
+.vv-lag-skjult {
+  opacity: 0.6;
+}
+.vv-lagrad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.vv-lagrad input[type='color'] {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  background: none;
+}
+.vv-lagnavn {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 60px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  background: var(--vv-panel);
+}
+.vv-lagrad-handlinger .vv-dempet {
+  flex: 1;
+  font-size: 12px;
+}
+.vv-lagknapp {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.vv-lagknapp[aria-pressed='false'] {
+  opacity: 0.55;
+}
+.vv-lagknapp:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.vv-lagslaa {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.vv-lokalomrade {
+  fill: rgb(136 61 255 / 0.12);
+  stroke: var(--vv-lilla-lys);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
