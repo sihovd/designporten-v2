@@ -172,6 +172,68 @@ test.describe('Skaperverksted', () => {
     await expect(rot.getByRole('status').filter({ hasText: 'tegnet på nytt' })).toBeVisible();
   });
 
+  test('Vectorim: legg til bilde, lim inn, lagre prosjekt og fortsett etter ny innlasting', async ({
+    page,
+  }) => {
+    await page.goto('/skaperverksted/vectorim/');
+    const rot = page.locator('.vv');
+    await konverterIVerkstedet(page, rot);
+    await rot.getByRole('button', { name: 'Advanced' }).click();
+    await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Mask/ }).click();
+    const status = rot.locator('.vv-status');
+    await expect(status).toContainText('120 × 80 px');
+
+    // add image: the second image goes to the right, at the same height, with a small gap
+    const [valg] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      rot.getByRole('button', { name: 'Legg til bilde' }).click(),
+    ]);
+    await valg.setFiles({ name: 'andre.png', mimeType: 'image/png', buffer: await lagPng(page) });
+    await expect(rot.getByText('«andre» er lagt til til høyre for bildet.')).toBeVisible();
+    await expect(status).toContainText('firkant + andre · 245 × 80 px');
+    await rot.locator('.vv-panel').getByRole('button', { name: 'Angre', exact: true }).last().click();
+    await expect(status).toContainText('firkant · 120 × 80 px');
+
+    // paste: an image on the clipboard is added below when «Under» is chosen
+    await rot.getByRole('button', { name: 'Under', exact: true }).click();
+    const png = (await lagPng(page)).toString('base64');
+    await page.evaluate((b64) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const dt = new DataTransfer();
+      dt.items.add(new File([bytes], 'image.png', { type: 'image/png' }));
+      window.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt }));
+    }, png);
+    await expect(status).toContainText('firkant + Innlimt bilde · 120 × 165 px');
+
+    // a project file opens again with the image and its settings
+    await expect(rot.getByText('Lagret i nettleseren')).toBeVisible();
+    const [fil] = await Promise.all([
+      page.waitForEvent('download'),
+      rot.getByRole('button', { name: 'Lagre prosjekt' }).click(),
+    ]);
+    expect(fil.suggestedFilename()).toBe('firkant + Innlimt bilde.vectorim');
+    const sti = test.info().outputPath('prosjekt.vectorim');
+    await fil.saveAs(sti);
+
+    // autosave: after a reload the work is offered again
+    await page.reload();
+    await expect(rot.getByText('Fortsett der du slapp?')).toBeVisible();
+    await rot.getByRole('button', { name: 'Fortsett', exact: true }).click();
+    await expect(status).toContainText('firkant + Innlimt bilde · 120 × 165 px');
+    await expect(rot.getByRole('navigation', { name: 'Mask-verktøy' })).toBeVisible();
+
+    // the downloaded file opens with «Nytt bilde»
+    await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Edit/ }).click();
+    await expect(status).toContainText('deler');
+    const [apne] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      rot.getByRole('button', { name: 'Nytt bilde' }).click(),
+    ]);
+    await apne.setFiles(sti);
+    await expect(rot.getByText('Prosjektet «firkant + Innlimt bilde» er åpnet.')).toBeVisible();
+    await expect(rot.getByRole('navigation', { name: 'Mask-verktøy' })).toBeVisible();
+  });
+
   test('den gamle adressen /skaperverksted/vektorverksted/ sender videre til Vectorim', async ({ page }) => {
     await page.goto('/skaperverksted/vektorverksted/');
     await expect(page).toHaveURL(/\/skaperverksted\/vectorim\/$/);
