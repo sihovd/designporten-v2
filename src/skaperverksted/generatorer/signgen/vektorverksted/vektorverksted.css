@@ -545,3 +545,239 @@
   stroke-width: 1;
   stroke-dasharray: 4 3;
 }
+
+/* ---------- Vectorim (2026-11-11): modes, tool dock, help ---------- */
+
+.vv-nivaa button {
+  min-width: 84px;
+}
+.vv-modi {
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 999px;
+}
+.vv-modus {
+  min-height: 30px;
+  padding: 4px 16px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+.vv-modus sup {
+  margin-right: 2px;
+  font-size: 10px;
+  color: var(--vv-dempet);
+}
+.vv-modus[aria-current='step'] {
+  background: var(--vv-lilla);
+  border-color: var(--vv-lilla);
+  color: #fff;
+}
+.vv-modus[aria-current='step'] sup {
+  color: #fff;
+}
+.vv-modus:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.vv-hjelpknapp {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 50%;
+  background: transparent;
+  font-weight: 700;
+  cursor: pointer;
+}
+.vv-hjelpknapp:hover {
+  border-color: var(--vv-lilla-lys);
+}
+
+.vv-arbeid {
+  position: relative;
+  display: grid;
+  min-height: 0;
+}
+.vv-arbeid > .vv-flate {
+  grid-area: 1 / 1;
+}
+.vv-dokk {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 999px;
+  background: rgb(29 27 34 / 0.94);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.45);
+  z-index: 3;
+}
+.vv-dokkknapp {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 10px;
+  background: var(--vv-panel-2);
+  cursor: pointer;
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+.vv-dokkknapp:hover:not(:disabled) {
+  border-color: var(--vv-lilla-lys);
+}
+.vv-dokkknapp:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* the active tool glows (Sivert's sketch) */
+.vv-dokkknapp[aria-pressed='true'] {
+  border-color: var(--vv-lilla-lys);
+  box-shadow:
+    0 0 0 2px var(--vv-lilla),
+    0 0 14px 2px rgb(136 61 255 / 0.75);
+  background: #2f2640;
+}
+.vv-dokkmerke {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e0325a;
+}
+.vv-dokkmerke-beskytt {
+  background: #2fd27a;
+}
+
+.vv-verktoyvalg {
+  padding-bottom: 12px;
+}
+.vv-felttype {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.vv-felttype button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.vv-prikk {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.vv-felttype-masker .vv-prikk {
+  background: #e0325a;
+}
+.vv-felttype-beskytt .vv-prikk {
+  background: #2fd27a;
+}
+.vv-felttype-masker[aria-pressed='true'] {
+  border-color: #e0325a;
+  background: rgb(224 50 90 / 0.18);
+}
+.vv-felttype-beskytt[aria-pressed='true'] {
+  border-color: #2fd27a;
+  background: rgb(47 210 122 / 0.16);
+}
+.vv-lasso-beskytt {
+  fill: rgb(47 210 122 / 0.2);
+  stroke: #2fd27a;
+}
+.vv-pensel-beskytt {
+  fill: rgb(47 210 122 / 0.2);
+}
+.vv-forhandsvalg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vv-forhandsvalg button[aria-pressed='true'] {
+  border-color: var(--vv-lilla);
+  background: var(--vv-lilla);
+  color: #fff;
+}
+
+.vv-hjelpvindu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.6);
+}
+.vv-hjelpinnhold {
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 16px 20px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 8px;
+  background: var(--vv-panel);
+}
+.vv-hjelpinnhold header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.vv-hjelpinnhold h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.vv-hjelpinnhold ol {
+  padding-left: 20px;
+}
+.vv-hjelpinnhold li {
+  margin-bottom: 6px;
+}
+.vv-snarveier {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin: 0;
+}
+.vv-snarveier dt {
+  font:
+    12px/1.6 ui-monospace,
+    monospace;
+  color: var(--vv-lilla-lys);
+}
+.vv-snarveier dd {
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .vv-modi {
+    order: 3;
+  }
+  .vv-dokkknapp {
+    width: 40px;
+    height: 40px;
+  }
+  .vv-dokk {
+    bottom: 8px;
+  }
+}

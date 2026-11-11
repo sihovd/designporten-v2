@@ -1,24 +1,21 @@
 ---
-/**
- * Vektorverksted as a standalone tool (Sivert 2026-11-11: «vektoriseringen
- * skal både være et selvstendig verktøy samtidig som at det er en del av
- * signforge»). Not a generator plugin: it makes SVG files, not printable
- * models, so it has its own page beside the generators' [generator] route.
- */
-import Verksted from '@/layouts/Verksted.astro';
+/** The tool's first address (2026-11-11): it is now Vectorim, at /skaperverksted/vectorim/. */
 import { nettsti } from '@/lib/nettsti';
-import { VektorverkstedSide } from '@/skaperverksted/generatorer/signgen/vektorverksted/side/VektorverkstedSide';
+const til = nettsti('/skaperverksted/vectorim/');
 ---
 
-<Verksted
-  tittel="Vektorverksted"
-  beskrivelse="Gjør et bilde eller en logo om til en ren SVG-vektor: beskjær og masker, konverter, rediger deler og kurver, og last ned. Alt skjer i nettleseren; bildet lastes ikke opp."
->
-  <VektorverkstedSide client:only="preact" tilbake={nettsti('/skaperverksted/')} />
-</Verksted>
-
-<style is:global>
-  .vektorverksted-side {
-    height: 100%;
-  }
-</style>
+<!doctype html>
+<html lang="nb">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <meta http-equiv="refresh" content={`0; url=${til}`} />
+    <link rel="canonical" href={til} />
+    <title>Vectorim – Designporten</title>
+  </head>
+  <body>
+    <p>
+      Verktøyet heter nå Vectorim. <a href={til}>Gå til Vectorim</a>.
+    </p>
+  </body>
+</html>

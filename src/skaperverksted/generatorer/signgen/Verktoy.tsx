@@ -180,7 +180,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       />
       {hjelpeknapp(
         'Bilde',
-        'Gjør et bilde (PNG, JPG, WebP) om til vektor i Vektorverkstedet og legg det på skiltet. Logoer og tegninger blir best',
+        'Gjør et bilde (PNG, JPG, WebP) om til vektor i Vectorim og legg det på skiltet. Logoer og tegninger blir best',
         'image',
         () => signtilstand(benk).sett({ vektorverksted: true }),
       )}
