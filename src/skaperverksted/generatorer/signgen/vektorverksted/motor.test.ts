@@ -4,6 +4,7 @@ import type { Piksler } from '../vektoriser';
 import { finnKjeder } from './kanter';
 import {
   byggModell,
+  byttFarge,
   delSti,
   etikettbilde,
   leggTilFelt,
@@ -20,6 +21,7 @@ import {
 } from './modell';
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionvalg } from './regioner';
 import { antallValgt, bakgrunnsutvalg, kombiner, tryllestav, utvid } from './tryllestav';
+import { fargeavstand, fargebruk, flatUt, reduserFarger, slaSammenLikeFarger } from './farger';
 
 type Rgba = [number, number, number, number];
 function bilde(b: number, h: number, farge: (x: number, y: number) => Rgba): Piksler {
@@ -284,5 +286,42 @@ describe('penn', () => {
       .sort();
     const s1 = m.kurver.filter(Boolean).map((k) => JSON.stringify(k!.ankre));
     for (const s of s0) expect(s1).toContain(s);
+  });
+});
+
+describe('farger', () => {
+  const GUL: Rgba = [240, 200, 40, 255];
+  const fire = bilde(120, 60, (x) => (x < 30 ? ROD : x < 60 ? GUL : x < 90 ? BLA : SVART));
+  /** Four colours, the yellow then made nearly the same red as the first. */
+  const modell = () => {
+    const m = byggModell(
+      lagRegionkart(fire, null, { ...STANDARD_REGIONVALG, farger: 4, fjernBakgrunn: false }),
+    );
+    const gul = fargebruk(m).find((f) => fargeavstand(f.farge, '#f0c828') < 60)!.farge;
+    return byttFarge(m, gul, '#e4242e');
+  };
+
+  it('lists the colours with their area, largest first', () => {
+    const bruk = fargebruk(
+      byggModell(lagRegionkart(fire, null, { ...STANDARD_REGIONVALG, farger: 4, fjernBakgrunn: false })),
+    );
+    expect(bruk.length).toBe(4);
+    for (let i = 1; i < bruk.length; i++) expect(bruk[i - 1]!.areal).toBeGreaterThanOrEqual(bruk[i]!.areal);
+  });
+
+  it('merges colours that are nearly the same, and leaves the others', () => {
+    const m = slaSammenLikeFarger(modell(), 40);
+    expect(fargebruk(m).length).toBe(3);
+  });
+
+  it('reduces to a number of colours, and flattens to one', () => {
+    expect(fargebruk(reduserFarger(modell(), 2)).length).toBe(2);
+    const flat = flatUt(modell(), '#000000');
+    expect(fargebruk(flat).map((f) => f.farge)).toEqual(['#000000']);
+  });
+
+  it('measures colour distance so near reds are closer than red and blue', () => {
+    expect(fargeavstand('#dc1e28', '#e4242e')).toBeLessThan(fargeavstand('#dc1e28', '#1e3cdc'));
+    expect(fargeavstand('#123456', '#123456')).toBe(0);
   });
 });

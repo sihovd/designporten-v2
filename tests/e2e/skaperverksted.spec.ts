@@ -57,14 +57,14 @@ async function lagPng(page: Side): Promise<Buffer> {
   return Buffer.from(data, 'base64');
 }
 
-/** Pick an image in the Vektorverksted and convert it. */
+/** Pick an image in Vectorim; Simple converts it at once. */
 async function konverterIVerkstedet(page: Side, rot: import('@playwright/test').Locator): Promise<void> {
   const [valg] = await Promise.all([
     page.waitForEvent('filechooser'),
     rot.getByRole('button', { name: 'Velg bilde' }).first().click(),
   ]);
   await valg.setFiles({ name: 'firkant.png', mimeType: 'image/png', buffer: await lagPng(page) });
-  await rot.getByRole('button', { name: 'Konverter', exact: true }).click();
+  await expect(rot.locator('.vv-status')).toContainText('deler');
   await expect(rot.locator('.vv-jobber')).toBeHidden();
 }
 
@@ -107,18 +107,75 @@ test.describe('Skaperverksted', () => {
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
 
-  test('Vektorverkstedet er et eget verktøy: huben lenker til det, og det konverterer et bilde', async ({
-    page,
-  }) => {
+  test('Vectorim er et eget verktøy: huben lenker til det, og det konverterer et bilde', async ({ page }) => {
     await page.goto('/skaperverksted/');
-    await page.getByRole('link', { name: 'Vektorverksted' }).first().click();
-    await expect(page).toHaveURL(/\/skaperverksted\/vektorverksted\/$/);
+    await page.getByRole('link', { name: 'Vectorim' }).first().click();
+    await expect(page).toHaveURL(/\/skaperverksted\/vectorim\/$/);
     const rot = page.locator('.vv');
     await konverterIVerkstedet(page, rot);
     await expect(rot.getByRole('button', { name: 'Last ned SVG' })).toBeVisible();
     await expect(rot.getByRole('button', { name: 'Legg på skiltet' })).toHaveCount(0);
     await rot.getByRole('button', { name: 'Lukk' }).click();
     await expect(page).toHaveURL(/\/skaperverksted\/$/);
+  });
+
+  test('den gamle adressen /skaperverksted/vektorverksted/ sender videre til Vectorim', async ({ page }) => {
+    await page.goto('/skaperverksted/vektorverksted/');
+    await expect(page).toHaveURL(/\/skaperverksted\/vectorim\/$/);
+  });
+
+  test('Vectorim: Simple med forhåndsinnstilling, Advanced med Mask, Edit og Finalize', async ({ page }) => {
+    await page.goto('/skaperverksted/vectorim/');
+    const rot = page.locator('.vv');
+    await konverterIVerkstedet(page, rot);
+    // Simple: a preset sets the number of colours
+    await rot.getByRole('button', { name: 'Strek', exact: true }).click();
+    await expect(rot.getByRole('button', { name: 'Strek', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(
+      rot.getByRole('group', { name: 'Antall farger' }).getByRole('button', { name: '1', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await rot.getByRole('button', { name: 'Logo', exact: true }).click();
+    await rot.getByRole('group', { name: 'Antall farger' }).getByRole('button', { name: '3' }).click();
+    await expect(rot.locator('.vv-status')).toContainText('farger');
+
+    // Advanced: Mask with the tool dock; the rectangle can protect
+    await rot.getByRole('button', { name: 'Advanced' }).click();
+    await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Mask/ }).click();
+    const dokk = rot.getByRole('navigation', { name: 'Mask-verktøy' });
+    await dokk.getByRole('button', { name: 'Rektangel' }).click();
+    await expect(dokk.getByRole('button', { name: 'Rektangel' })).toHaveAttribute('aria-pressed', 'true');
+    await rot.getByRole('button', { name: 'Beskytt', exact: true }).click();
+    await expect(rot.getByRole('button', { name: 'Beskytt', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    // Edit: colour control reduces the vector to two colours
+    await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Edit/ }).click();
+    const edit = rot.getByRole('navigation', { name: 'Edit-verktøy' });
+    await edit.getByRole('button', { name: 'Farger' }).click();
+    await rot
+      .getByRole('group', { name: 'Høyst så mange farger' })
+      .getByRole('button', { name: '1' })
+      .click();
+    await rot.getByRole('button', { name: 'Reduser til 1' }).click();
+    await expect(rot.locator('.vv-status')).toContainText('1 farge');
+
+    // Finalize: export
+    await rot
+      .getByRole('navigation', { name: 'Steg' })
+      .getByRole('button', { name: /Finalize/ })
+      .click();
+    await expect(rot.getByRole('button', { name: 'Last ned SVG' })).toBeVisible();
+
+    // help
+    await rot.getByRole('button', { name: 'Hjelp' }).click();
+    await expect(page.getByRole('dialog', { name: 'Slik bruker du Vectorim' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Slik bruker du Vectorim' })).toBeHidden();
   });
 });
 
@@ -945,13 +1002,11 @@ test.describe('Signgen', () => {
     await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
   });
 
-  test('Bilde åpner Vektorverkstedet, og «Legg på skiltet» sender vektoren til delvelgeren', async ({
-    page,
-  }) => {
+  test('Bilde åpner Vectorim, og «Legg på skiltet» sender vektoren til delvelgeren', async ({ page }) => {
     await page.getByRole('button', { name: 'Bilde', exact: true }).click();
-    const vindu = page.getByRole('dialog', { name: 'Vektorverksted' });
+    const vindu = page.getByRole('dialog', { name: 'Vectorim' });
     await expect(vindu).toBeVisible();
-    await expect(vindu.getByRole('button', { name: 'Enkel versjon' })).toBeVisible();
+    await expect(vindu.getByRole('button', { name: 'Klassisk vindu' })).toBeVisible();
     await konverterIVerkstedet(page, vindu);
     // Esc clears selections inside the converter and does not close the window
     await page.keyboard.press('Escape');
@@ -961,10 +1016,10 @@ test.describe('Signgen', () => {
     await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
   });
 
-  test('«Enkel versjon» i Vektorverkstedet åpner det enkle «Bilde til vektor»', async ({ page }) => {
+  test('«Klassisk vindu» i Vectorim åpner det gamle «Bilde til vektor»', async ({ page }) => {
     await page.getByRole('button', { name: 'Bilde', exact: true }).click();
-    const vindu = page.getByRole('dialog', { name: 'Vektorverksted' });
-    await vindu.getByRole('button', { name: 'Enkel versjon' }).click();
+    const vindu = page.getByRole('dialog', { name: 'Vectorim' });
+    await vindu.getByRole('button', { name: 'Klassisk vindu' }).click();
     await expect(vindu).toBeHidden();
     await expect(page.getByRole('dialog', { name: 'Bilde til vektor' })).toBeVisible();
   });
