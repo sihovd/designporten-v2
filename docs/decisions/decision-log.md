@@ -325,3 +325,13 @@ Kilde: Sivert i Claude-prosjektet: «Kanskje det heller skal hete vectorium… j
 - **Filformatet:** nye prosjekter lagres som `.vectorium` med `format: "vectorium"`. Eldre `.vectorim`-filer åpnes fortsatt (`vektorverksted/prosjekt.ts`).
 - **Adresser:** `/skaperverksted/vectorium/` er den nye adressen. `/skaperverksted/vectorim/` og `/skaperverksted/vektorverksted/` sender videre dit.
 - **Beholdt:** IndexedDB-databasen heter fortsatt `vectorim`, så autolagret arbeid fra tidligere bygg ikke forsvinner. Mappen `vektorverksted/` og interne funksjonsnavn er ikke endret.
+
+## 2026-11-11 — Vectorium: magnetisk lasso, Fargeområde og ikoner med hover-tekst
+
+Kilde: Sivert i Claude-prosjektet: «Legg til magnet lasso som et verktøy kjent fra photoshop. ha kun ikoner synlig . tekst kommer i hover. så det ikke tar noe stor plass», «jeg tenkte ikoner generelt i menyen til høyre.. og gjerne noe avansert fargeselection valg også», og at seks Mask-verktøy er greit («trenger bare så mange som nødvendig»).
+
+- **Magnetisk lasso** (Mask, Shift+L): linjen fra siste ankerpunkt følger de sterkeste kantene i bildet (Sobel-kantkart og billigste vei, Dijkstra, i en boks rundt punktene), og pekeren fester seg til kanten innenfor «Bredde» (1–40 px, standard 10). Ankerpunkter settes av seg selv mens du følger kanten, eller med klikk. Klikk på startpunktet, dobbeltklikk eller Enter lukker; Backspace fjerner siste punkt; Esc avbryter. Feltet maskeres eller beskyttes som lasso og rektangel (`vektorverksted/magnetlasso.ts`).
+- **Fargeområde** (Mask, I), etter Photoshops «Color Range»: fargeprøver (klikk, Shift + klikk legger til, Alt + klikk fjerner nærmeste), uskarphet 0–100, sammenligning «Slik øyet ser» (CIELAB, ΔE) eller RGB, «Bare sammenhengende med prøvene», og Lyse/Mellom/Mørke toner. Resultatet er et vanlig utvalg med de samme handlingene som tryllestaven (`vektorverksted/fargeomrade.ts`).
+- **Ikoner med hover-tekst**: verktøylinjen og knappene i høyre panel viser bare ikoner; navn og tast vises når musen er over knappen eller den har tastaturfokus (`vektorverksted/Hovertekst.tsx`). Knappene har fortsatt navn for skjermlesere. Valg tatt av Claude: hovedhandlingen i hvert steg (lilla knapp, f.eks. «Masker utvalget», «Videre til Edit») beholder teksten, og valg som Masker/Beskytt, forhåndsinnstillinger og tallknapper er fortsatt tekst, fordi de er valg og ikke handlinger. Toppmenyen er uendret.
+- **Rettet feil**: den røde masken, den grønne beskyttelsen og utvalget ble tegnet med 0 px bredde (nettstedets `canvas { max-width: 100% }`), så de var usynlige. Nå vises de.
+- Mask har nå åtte verktøy: beskjær, tryllestav, fargeområde, pensel, viskelær, lasso, magnetisk lasso og rektangel.

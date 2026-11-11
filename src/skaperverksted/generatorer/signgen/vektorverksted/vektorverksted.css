@@ -964,3 +964,85 @@
   pointer-events: none;
   z-index: 1;
 }
+
+/* ---------- Magnetisk lasso og hover-tekst i verktøylinjen (2026-11-11) ---------- */
+
+.vv-magnetanker {
+  fill: #fff;
+  stroke: var(--vv-lilla);
+  stroke-width: 1.5;
+}
+.vv-magnetanker-start {
+  fill: var(--vv-lilla-lys);
+}
+
+/* hover text for icon buttons (Hovertekst.tsx): fixed to the window, so nothing clips it */
+.vv-tips {
+  position: fixed;
+  z-index: 1000;
+  transform: translate(-50%, -100%);
+  max-width: 320px;
+  padding: 5px 9px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 6px;
+  background: #121016;
+  color: #f3f1f7;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
+}
+.vv-tips-under {
+  transform: translate(-50%, 0);
+}
+
+/* the right panel shows icons only; the name comes as hover text (Sivert, 2026-11-11).
+   The main action in each step (purple) keeps its text. */
+.vv-panel .vv-ikonknapp:not(.vv-primar) {
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+}
+.vv-panel .vv-ikonknapp:not(.vv-primar) > span,
+.vv-panel .vv-ikonknapp:not(.vv-primar) > kbd {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* colour range: the samples as small swatches */
+.vv-prover {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vv-prove {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--vv-linje);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.vv-prove:hover,
+.vv-prove:focus-visible {
+  border-color: var(--vv-lilla-lys);
+}
+
+/* the mask, protection and selection layers are image-sized; the site's
+   `canvas { max-width: 100% }` squeezed them to zero width inside their
+   holders, so red, green and the selection never showed (fixed 2026-11-11) */
+.vv-maske,
+.vv-beskytt,
+.vv-utvalg {
+  max-width: none;
+}

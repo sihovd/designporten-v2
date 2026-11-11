@@ -312,8 +312,10 @@ test.describe('Skaperverksted', () => {
     await konverterIVerkstedet(page, rot);
     await rot.getByRole('button', { name: 'Advanced' }).click();
     await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Edit/ }).click();
-    await page.keyboard.press('t');
     const verktoy = rot.getByRole('navigation', { name: 'Edit-verktøy' });
+    // the editing tools open once the vector is ready; T before that does nothing
+    await expect(verktoy.getByRole('button', { name: 'Flytt, skaler, roter' })).toBeEnabled();
+    await page.keyboard.press('t');
     await expect(verktoy.getByRole('button', { name: 'Flytt, skaler, roter' })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -405,6 +407,134 @@ test.describe('Skaperverksted', () => {
     await expect(page.getByRole('dialog', { name: 'Slik bruker du Vectorium' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: 'Slik bruker du Vectorium' })).toBeHidden();
+  });
+
+  test('Vectorium: magnetisk lasso følger kanten og fyller feltet når det lukkes', async ({ page }) => {
+    test.skip(test.info().project.name === 'mobil', 'pekeren følger kanten bare med mus');
+    await page.goto('/skaperverksted/vectorium/');
+    const rot = page.locator('.vv');
+    await konverterIVerkstedet(page, rot);
+    await rot.getByRole('button', { name: 'Advanced' }).click();
+    await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Mask/ }).click();
+    const dokk = rot.getByRole('navigation', { name: 'Mask-verktøy' });
+    const knapp = dokk.getByRole('button', { name: 'Magnetisk lasso' });
+    // icons only: the name and key come as hover text
+    await expect(knapp).toHaveAttribute('data-tips', 'Magnetisk lasso (Shift+L)');
+    await expect(knapp).not.toHaveAttribute('title');
+    await page.keyboard.press('Shift+L');
+    await expect(knapp).toHaveAttribute('aria-pressed', 'true');
+    await expect(rot.getByRole('heading', { name: 'Magnetisk lasso' })).toBeVisible();
+    await expect(rot.getByRole('slider', { name: 'Bredde' })).toBeVisible();
+
+    // the test image is 120 × 80 px with a dark square from (10,15) to (55,60)
+    const boks = (await rot.locator('rect.vv-utsnitt').boundingBox())!;
+    const skjerm = (x: number, y: number) => ({
+      x: boks.x + (x * boks.width) / 120,
+      y: boks.y + (y * boks.height) / 80,
+    });
+    const til = async (x: number, y: number) => {
+      const q = skjerm(x, y);
+      await page.mouse.move(q.x, q.y, { steps: 8 });
+    };
+    const klikk = async (x: number, y: number) => {
+      await til(x, y);
+      const q = skjerm(x, y);
+      await page.mouse.click(q.x, q.y);
+    };
+    await klikk(12, 13);
+    await klikk(53, 13);
+    await klikk(57, 58);
+    await klikk(12, 62);
+    await expect(rot.locator('.vv-magnetanker').first()).toBeVisible();
+    expect(await rot.locator('.vv-magnetanker').count()).toBeGreaterThanOrEqual(4);
+    // the anchors snapped to the square's edges, not where the pointer was
+    const start = await rot.locator('.vv-magnetanker-start').boundingBox();
+    const ventet = skjerm(10, 15);
+    expect(Math.abs(start!.x + start!.width / 2 - ventet.x)).toBeLessThan((3 * boks.width) / 120);
+    expect(Math.abs(start!.y + start!.height / 2 - ventet.y)).toBeLessThan((3 * boks.height) / 80);
+
+    // Backspace removes the last point; a click on the start point closes and fills the field
+    const for_ = await rot.locator('.vv-magnetanker').count();
+    await page.keyboard.press('Backspace');
+    await expect(rot.locator('.vv-magnetanker')).toHaveCount(for_ - 1);
+    await klikk(12, 62);
+    const angre = rot
+      .locator('section', { hasText: 'Maske og beskyttelse' })
+      .getByRole('button', { name: 'Angre' });
+    await expect(angre).toBeDisabled();
+    await klikk(10, 15);
+    await expect(rot.locator('.vv-magnetanker')).toHaveCount(0);
+    await expect(angre).toBeEnabled();
+
+    // Esc drops a half-drawn lasso without filling anything
+    await angre.click();
+    await klikk(12, 13);
+    await klikk(53, 13);
+    await page.keyboard.press('Escape');
+    await expect(rot.locator('.vv-magnetanker')).toHaveCount(0);
+    await expect(angre).toBeDisabled();
+  });
+
+  test('Vectorium: fargeområde velger farger med fargeprøver, og panelet viser ikoner med hover-tekst', async ({
+    page,
+  }) => {
+    test.skip(test.info().project.name === 'mobil', 'Shift + klikk og hover krever mus og tastatur');
+    await page.goto('/skaperverksted/vectorium/');
+    const rot = page.locator('.vv');
+    await konverterIVerkstedet(page, rot);
+    await rot.getByRole('button', { name: 'Advanced' }).click();
+    await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Mask/ }).click();
+    await page.keyboard.press('i');
+    const dokk = rot.getByRole('navigation', { name: 'Mask-verktøy' });
+    await expect(dokk.getByRole('button', { name: 'Fargeområde' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(rot.getByText('Ingen fargeprøver ennå.')).toBeVisible();
+
+    // the test image is 120 × 80 px: a dark square at (10,15)–(55,60) and a red circle at (90,40)
+    const boks = (await rot.locator('rect.vv-utsnitt').boundingBox())!;
+    const skjerm = (x: number, y: number) => ({
+      x: boks.x + (x * boks.width) / 120,
+      y: boks.y + (y * boks.height) / 80,
+    });
+    const andel = async () =>
+      Number((await rot.locator('.vv-utvalgsboks .vv-tall').innerText()).split(' ')[0]);
+    let q = skjerm(90, 40);
+    await page.mouse.click(q.x, q.y);
+    await expect(rot.getByRole('list', { name: 'Fargeprøver' }).getByRole('button')).toHaveCount(1);
+    await expect(rot.locator('.vv-utvalgsboks')).toBeVisible();
+    // the selection, mask and protection layers are drawn at the image's size (they were squeezed to 0 px)
+    for (const lag of ['canvas.vv-utvalg', 'canvas.vv-maske', 'canvas.vv-beskytt'])
+      expect((await rot.locator(lag).boundingBox())!.width).toBeGreaterThan(boks.width * 0.9);
+    const bareRod = await andel();
+    expect(bareRod).toBeGreaterThan(5);
+    expect(bareRod).toBeLessThan(20);
+
+    // Shift + click adds the dark square
+    q = skjerm(30, 40);
+    await page.keyboard.down('Shift');
+    await page.mouse.click(q.x, q.y);
+    await page.keyboard.up('Shift');
+    await expect(rot.getByRole('list', { name: 'Fargeprøver' }).getByRole('button')).toHaveCount(2);
+    await expect.poll(andel).toBeGreaterThan(bareRod + 15);
+
+    // removing a sample shrinks the selection again
+    await rot.getByRole('list', { name: 'Fargeprøver' }).getByRole('button').nth(1).click();
+    await expect(rot.getByRole('list', { name: 'Fargeprøver' }).getByRole('button')).toHaveCount(1);
+    await expect.poll(andel).toBe(bareRod);
+
+    // light tones: the white background
+    await rot.getByRole('group', { name: 'Velg toner' }).getByRole('button', { name: 'Lyse' }).click();
+    await expect.poll(andel).toBeGreaterThan(60);
+
+    // the panel shows icons only; the name comes on hover
+    const inverter = rot.locator('.vv-panel').getByRole('button', { name: 'Inverter', exact: true });
+    await expect(inverter.locator('span')).toHaveCSS('position', 'absolute');
+    await inverter.hover();
+    await expect(page.getByRole('tooltip')).toHaveText('Inverter');
+    // the main action keeps its text
+    await expect(rot.getByRole('button', { name: 'Masker utvalget' }).locator('span')).not.toHaveCSS(
+      'position',
+      'absolute',
+    );
   });
 });
 
