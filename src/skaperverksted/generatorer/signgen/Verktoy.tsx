@@ -26,6 +26,7 @@ import { Dekorgalleri, Dekorlagringsvindu } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
 import { Csvflyt } from './CsvflytDialog';
 import { Vektoriseringsvindu } from './Vektoriseringsvindu';
+import { Vektorverkstedvindu } from './Vektorverkstedvindu';
 
 export const VERKTOY: {
   id: VerktoyId;
@@ -179,9 +180,9 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       />
       {hjelpeknapp(
         'Bilde',
-        'Gjør et bilde (PNG, JPG, WebP) om til vektor og legg det på skiltet. Logoer og tegninger blir best',
+        'Gjør et bilde (PNG, JPG, WebP) om til vektor i Vektorverkstedet og legg det på skiltet. Logoer og tegninger blir best',
         'image',
-        () => signtilstand(benk).sett({ vektoriser: true }),
+        () => signtilstand(benk).sett({ vektorverksted: true }),
       )}
       {hjelpeknapp('Dekor', 'Legg til et dekor fra galleriet, eller din egen vektor', 'decor-gallery', () =>
         signtilstand(benk).sett({ dekor: true }),
@@ -216,6 +217,7 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {st.dekor && <Dekorgalleri benk={benk} />}
       {st.lagreDekor && <Dekorlagringsvindu benk={benk} />}
       {st.vektoriser && <Vektoriseringsvindu benk={benk} />}
+      {st.vektorverksted && <Vektorverkstedvindu benk={benk} />}
       {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}
       <Csvflyt benk={benk} />
     </>

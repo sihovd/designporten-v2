@@ -4,7 +4,9 @@ import { nettsti } from '@/lib/nettsti';
  * 2026-10-02, §11): the registered generators in their order. Clicker Forge,
  * shown as planned until 2026-10-03, became BuildForge's first product family
  * (decision log 2026-10-03). A planned tool has no link and no preview; it is
- * shown as planned, never as working.
+ * shown as planned, never as working. The Vektorverksted (2026-11-11) is a
+ * tool of its own, not a generator: it makes SVG files, and is also built
+ * into Sign Forge behind «Bilde».
  */
 import { katalog } from '@/skaperverksted/generatorer';
 
@@ -33,4 +35,13 @@ export const verktoy: Verktoy[] = [
     href: nettsti(`/skaperverksted/${g.id}/`),
     forhandsvisning: forhandsvisbare.has(g.id) ? (g.id as Forhandsvisning) : undefined,
   })),
+  {
+    id: 'vektorverksted',
+    navn: 'Vektorverksted',
+    undertittel: 'Bilde til vektor',
+    beskrivelse:
+      'Gjør et bilde eller en logo om til en ren SVG du kan redigere, laste ned eller bruke i Sign Forge.',
+    status: 'tilgjengelig',
+    href: nettsti('/skaperverksted/vektorverksted/'),
+  },
 ];

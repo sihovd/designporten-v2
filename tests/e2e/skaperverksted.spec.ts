@@ -37,6 +37,37 @@ async function bygg3d(page: import('@playwright/test').Page): Promise<void> {
 
 type Side = import('@playwright/test').Page;
 
+/** A small PNG: a dark square and a red circle on white, drawn in the browser so no binary file is needed. */
+async function lagPng(page: Side): Promise<Buffer> {
+  const data = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 120;
+    c.height = 80;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, 120, 80);
+    g.fillStyle = '#222';
+    g.fillRect(10, 15, 45, 45);
+    g.fillStyle = '#d22';
+    g.beginPath();
+    g.arc(90, 40, 20, 0, Math.PI * 2);
+    g.fill();
+    return c.toDataURL('image/png').split(',')[1]!;
+  });
+  return Buffer.from(data, 'base64');
+}
+
+/** Pick an image in the Vektorverksted and convert it. */
+async function konverterIVerkstedet(page: Side, rot: import('@playwright/test').Locator): Promise<void> {
+  const [valg] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    rot.getByRole('button', { name: 'Velg bilde' }).first().click(),
+  ]);
+  await valg.setFiles({ name: 'firkant.png', mimeType: 'image/png', buffer: await lagPng(page) });
+  await rot.getByRole('button', { name: 'Konverter', exact: true }).click();
+  await expect(rot.locator('.vv-jobber')).toBeHidden();
+}
+
 /** Paste a CSV in the import step of «Fra CSV» and read it in. */
 async function limInnCsv(page: Side, csv: string): Promise<void> {
   const vindu = page.getByRole('dialog', { name: 'Fra CSV: Importer CSV' });
@@ -74,6 +105,20 @@ test.describe('Skaperverksted', () => {
     await expect(page.getByRole('link', { name: /Sign Forge/ }).first()).toBeVisible();
     const r = await new AxeBuilder({ page }).analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
+  });
+
+  test('Vektorverkstedet er et eget verktøy: huben lenker til det, og det konverterer et bilde', async ({
+    page,
+  }) => {
+    await page.goto('/skaperverksted/');
+    await page.getByRole('link', { name: 'Vektorverksted' }).first().click();
+    await expect(page).toHaveURL(/\/skaperverksted\/vektorverksted\/$/);
+    const rot = page.locator('.vv');
+    await konverterIVerkstedet(page, rot);
+    await expect(rot.getByRole('button', { name: 'Last ned SVG' })).toBeVisible();
+    await expect(rot.getByRole('button', { name: 'Legg på skiltet' })).toHaveCount(0);
+    await rot.getByRole('button', { name: 'Lukk' }).click();
+    await expect(page).toHaveURL(/\/skaperverksted\/$/);
   });
 });
 
@@ -898,6 +943,30 @@ test.describe('Signgen', () => {
     await expect(sol.getByRole('button', { name: 'Velg deler av Sol' })).toBeVisible();
     await sol.getByRole('button', { name: 'Velg deler av Sol' }).click();
     await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
+  });
+
+  test('Bilde åpner Vektorverkstedet, og «Legg på skiltet» sender vektoren til delvelgeren', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'Bilde', exact: true }).click();
+    const vindu = page.getByRole('dialog', { name: 'Vektorverksted' });
+    await expect(vindu).toBeVisible();
+    await expect(vindu.getByRole('button', { name: 'Enkel versjon' })).toBeVisible();
+    await konverterIVerkstedet(page, vindu);
+    // Esc clears selections inside the converter and does not close the window
+    await page.keyboard.press('Escape');
+    await expect(vindu).toBeVisible();
+    await vindu.getByRole('button', { name: 'Legg på skiltet' }).click();
+    await expect(vindu).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
+  });
+
+  test('«Enkel versjon» i Vektorverkstedet åpner det enkle «Bilde til vektor»', async ({ page }) => {
+    await page.getByRole('button', { name: 'Bilde', exact: true }).click();
+    const vindu = page.getByRole('dialog', { name: 'Vektorverksted' });
+    await vindu.getByRole('button', { name: 'Enkel versjon' }).click();
+    await expect(vindu).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Bilde til vektor' })).toBeVisible();
   });
 
   test('Lagre dekorelement: markerte vektorer blir ett dekor under Dine egne', async ({ page, isMobile }) => {

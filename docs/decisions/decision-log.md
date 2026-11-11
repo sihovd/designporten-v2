@@ -245,3 +245,11 @@ Kilde: Sivert i Claude-prosjektet: «Kan vi løsrive oss fra denne cmsen?» (om 
 - Kategorier, materialtyper, farger og verktøy er fortsatt faste lister i koden; de er regler, ikke innhold.
 - Fjernet fordi de ikke brukes lenger: `/admin` (Sveltia CMS, GitHub-innlogging), «Rediger tekst» via GitHub, `render.yaml` (forhåndsvisning på Render), arbeidsflyten `onecom.yml` (SFTP-hemmelighetene ble aldri lagt inn) og engangsarbeidsflyten `pakk-onecom-a9550db.yml`. Nettstedet trenger nå bare one.com (PHP + MySQL) og Stripe; GitHub brukes bare til kodeendringer.
 - Følge: SEO-tittel/-beskrivelse og Inspirasjon-sakene kan bare endres i koden (bloggen i Studio erstatter Inspirasjon). Node-bygget (`npm run build`) finnes fortsatt for tester og lokal kjøring.
+
+## 2026-11-11 — Vektorverksted: eget verktøy og en del av Sign Forge
+
+Kilde: Sivert i Claude-prosjektet: «dette programmet skal inn i designporten.no», og «Jeg ønsker at vektoriseringen skal både være et selvstendig verktøy samtidig som at det er en del av signforge». Av tre forslag valgte Sivert «alternativ 1»: egen side i Skaperverkstedet og knapp i Sign Forge, med samme komponent begge steder.
+
+- **Egen side:** `/skaperverksted/vektorverksted/` (`src/pages/skaperverksted/vektorverksted.astro`), med kort i Skaperverksted-huben, på forsiden og i søket (`components/showroom/verksted/verktoy.ts`). Det er ikke en generator-plugin, fordi det lager SVG-filer og ikke printbare modeller. Her lastes vektoren ned eller kopieres; «Lukk» går tilbake til huben. Kortet har ingen forhåndstegning (bare rutenettet), fordi vi ikke lager dekorative SVG-er (D-3).
+- **I Sign Forge:** «Bilde» i verktøyskinnen åpner Vektorverkstedet over hele editoren (`signgen/Vektorverkstedvindu.tsx`, lastes først når det åpnes). «Legg på skiltet» sender SVG-en gjennom den vanlige SVG-importen, så en vektor med flere deler åpner delvelgeren.
+- Valg tatt av Claude: det enkle vinduet «Bilde til vektor» er beholdt og nås med «Enkel versjon» øverst i Vektorverkstedet før et bilde er valgt. Esc lukker ikke Vektorverkstedet i Sign Forge (Esc fjerner utvalg inne i verktøyet), så arbeid ikke forsvinner ved et uhell. Siden er åpen for alle, som de andre verktøyene; ingen innlogging eller pakke kreves. Alt kan endres hvis Sivert vil.

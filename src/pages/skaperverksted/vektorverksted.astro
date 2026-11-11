@@ -1,0 +1,24 @@
+---
+/**
+ * Vektorverksted as a standalone tool (Sivert 2026-11-11: «vektoriseringen
+ * skal både være et selvstendig verktøy samtidig som at det er en del av
+ * signforge»). Not a generator plugin: it makes SVG files, not printable
+ * models, so it has its own page beside the generators' [generator] route.
+ */
+import Verksted from '@/layouts/Verksted.astro';
+import { nettsti } from '@/lib/nettsti';
+import { VektorverkstedSide } from '@/skaperverksted/generatorer/signgen/vektorverksted/side/VektorverkstedSide';
+---
+
+<Verksted
+  tittel="Vektorverksted"
+  beskrivelse="Gjør et bilde eller en logo om til en ren SVG-vektor: beskjær og masker, konverter, rediger deler og kurver, og last ned. Alt skjer i nettleseren; bildet lastes ikke opp."
+>
+  <VektorverkstedSide client:only="preact" tilbake={nettsti('/skaperverksted/')} />
+</Verksted>
+
+<style is:global>
+  .vektorverksted-side {
+    height: 100%;
+  }
+</style>
