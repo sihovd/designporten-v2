@@ -279,7 +279,12 @@ function pennSti(ankre: Anker[], lukket: boolean): string {
   return d;
 }
 
-export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => void; lukk?: () => void }) {
+export function Vektorverksted(props: {
+  ferdig?: (svg: string, navn: string) => void;
+  lukk?: () => void;
+  /** Inside Sign Forge: opens the simple «Bilde til vektor» window instead. */
+  enkel?: () => void;
+}) {
   const [kilde, settKilde] = useState<Kildebilde | null>(null);
   const [feil, settFeil] = useState<string | null>(null);
   const [steg, settSteg] = useState<Steg>('forbered');
@@ -1576,6 +1581,11 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
             navn={kilde ? 'Nytt bilde' : 'Velg bilde'}
             onClick={() => filvelger.current?.click()}
           />
+          {props.enkel && !kilde && (
+            <button type="button" class="vv-sekundar" onClick={props.enkel}>
+              Enkel versjon
+            </button>
+          )}
           {props.lukk && (
             <button type="button" class="vv-sekundar vv-ikonknapp" onClick={props.lukk}>
               <Ikon id="panel-close" storrelse={18} />

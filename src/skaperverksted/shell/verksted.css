@@ -5416,3 +5416,49 @@ button.profilfarger.fargeknapp {
     grid-template-columns: 6rem minmax(0, 1fr);
   }
 }
+
+/* ---------- Vektorverksted over Sign Forge (2026-11-11) ---------- */
+
+.vektorverksted-vindu {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #141317;
+  color: var(--fg);
+}
+
+.vektorverksted-vindu::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.vektorverksted-vindu[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.vektorverksted-vindu > .vv {
+  flex: 1;
+  min-height: 0;
+}
+
+.vektorverksted-laster,
+.vektorverksted-feil {
+  margin: 0;
+  padding: 16px;
+}
+
+.vektorverksted-feil {
+  background: var(--grafitt);
+  border-bottom: 1px solid var(--linje);
+}
+
+.vektorverksted-lukk {
+  margin: 0 16px;
+  align-self: flex-start;
+}
