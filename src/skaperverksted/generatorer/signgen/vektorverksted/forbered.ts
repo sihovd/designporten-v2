@@ -307,3 +307,94 @@ export function lesLerret(
   for (let i = 0; i < ut.length; i++) ut[i] = d[i * 4 + 3]! >= 128 ? 1 : 0;
   return ut;
 }
+
+/** Where an added image goes beside the one already there. */
+export type Plassering = 'hoyre' | 'under';
+
+/**
+ * «Add image» (Sivert, 2026-11-11: «Man kan også "add image" om man vil
+ * sette to bilder sammen i samme vektorisering»): the new image is placed to
+ * the right of or below the current one, scaled to the same height or width,
+ * with a small gap. The mask and the protection keep what is drawn on the
+ * first image; the new image starts unmasked. Returns where the new image
+ * lies in the combined one.
+ */
+export async function leggTilBilde(
+  k: Kildebilde,
+  maske: HTMLCanvasElement,
+  beskytt: HTMLCanvasElement,
+  ny: Kildebilde,
+  plassering: Plassering,
+): Promise<{ kilde: Kildebilde; maske: HTMLCanvasElement; beskytt: HTMLCanvasElement; plass: Rektangel }> {
+  const hoyre = plassering === 'hoyre';
+  // the new image matches the old one's height (beside) or width (below)
+  const nyS = hoyre ? k.hoyde / ny.hoyde : k.bredde / ny.bredde;
+  const nyB = ny.bredde * nyS,
+    nyH = ny.hoyde * nyS;
+  const mellom = Math.round(Math.max(k.bredde, k.hoyde) * 0.04);
+  const b0 = hoyre ? k.bredde + mellom + nyB : Math.max(k.bredde, nyB);
+  const h0 = hoyre ? Math.max(k.hoyde, nyH) : k.hoyde + mellom + nyH;
+  const s = Math.min(1, (mobil() ? BILDE_MAKS_MOBIL : BILDE_MAKS) / Math.max(b0, h0));
+  const gammel: Rektangel = { x: 0, y: 0, b: k.bredde * s, h: k.hoyde * s };
+  const plass: Rektangel = {
+    x: hoyre ? (k.bredde + mellom) * s : 0,
+    y: hoyre ? 0 : (k.hoyde + mellom) * s,
+    b: nyB * s,
+    h: nyH * s,
+  };
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(b0 * s));
+  c.height = Math.max(1, Math.round(h0 * s));
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(k.bilde, gammel.x, gammel.y, gammel.b, gammel.h);
+  ctx.drawImage(ny.bilde, plass.x, plass.y, plass.b, plass.h);
+  const kilde = await kildeFraLerret(c, `${k.navn} + ${ny.navn}`);
+  const flytt = (lerret: HTMLCanvasElement) => {
+    const nyL = nyMaske(kilde);
+    const ms = nyL.width / kilde.bredde;
+    nyL.getContext('2d')!.drawImage(lerret, 0, 0, gammel.b * ms, gammel.h * ms);
+    return nyL;
+  };
+  return {
+    kilde,
+    maske: flytt(maske),
+    beskytt: flytt(beskytt),
+    plass: {
+      x: Math.round(plass.x),
+      y: Math.round(plass.y),
+      b: Math.round(plass.b),
+      h: Math.round(plass.h),
+    },
+  };
+}
+
+/** A saved image (from a project) as a source image, at the size it was saved. */
+export async function kildeFraBlob(blob: Blob, navn: string): Promise<Kildebilde> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const bilde = await lastBilde(url);
+    return { navn, url, bilde, bredde: bilde.naturalWidth, hoyde: bilde.naturalHeight };
+  } catch {
+    URL.revokeObjectURL(url);
+    throw new Error('Bildet i prosjektet kunne ikke leses.');
+  }
+}
+
+/** A saved mask (PNG) drawn into a new, empty mask for the image. */
+export async function maskeFraBlob(k: Kildebilde, blob: Blob | null): Promise<HTMLCanvasElement> {
+  const c = nyMaske(k);
+  if (!blob) return c;
+  const url = URL.createObjectURL(blob);
+  try {
+    const b = await lastBilde(url);
+    c.getContext('2d')!.drawImage(b, 0, 0, c.width, c.height);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return c;
+}
+
+/** A canvas as PNG. */
+export const lerretTilPng = (c: HTMLCanvasElement): Promise<Blob | null> =>
+  new Promise((r) => c.toBlob(r, 'image/png'));

@@ -863,3 +863,33 @@
   stroke-width: 1.5;
   stroke-dasharray: 6 4;
 }
+
+/* Etappe 3: add image, projects and autosave */
+.vv-fortsett {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border: 1px solid var(--vv-lilla);
+  border-radius: 6px;
+  background: var(--vv-panel);
+  max-width: 360px;
+}
+.vv-fortsett p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.vv-melding {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--vv-lilla);
+  background: var(--vv-panel);
+  overflow-wrap: anywhere;
+}
+.vv-autolagring {
+  margin-left: auto;
+}
+.vv-autolagring + .vv-zoom {
+  margin-left: 0;
+}

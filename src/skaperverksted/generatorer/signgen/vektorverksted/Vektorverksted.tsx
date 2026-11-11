@@ -34,10 +34,25 @@ import {
   beskyttMaske,
   lesLerret,
   BESKYTTFARGE,
+  kildeFraBlob,
+  leggTilBilde,
+  lerretTilPng,
+  maskeFraBlob,
   tomMaske,
   type Kildebilde,
+  type Plassering,
   type Rektangel,
 } from './forbered';
+import {
+  erProsjektfil,
+  FILENDELSE,
+  hentAutomatisk,
+  lagreAutomatisk,
+  prosjektFraFil,
+  prosjektTilFil,
+  slettAutomatisk,
+  type Prosjekt,
+} from './prosjekt';
 import {
   byggModell,
   byttFarge,
@@ -118,6 +133,42 @@ interface Rensevalg {
   minHull: number;
   smaaDeler: Regionvalg['smaaDeler'];
 }
+
+/** What a project file and the autosave keep beside the image and the masks. */
+interface Prosjekttilstand {
+  nivaa: Nivaa;
+  steg: Steg;
+  utsnitt: Rektangel;
+  farger: number;
+  terskel: number | null;
+  inverter: boolean;
+  fjernBakgrunn: boolean;
+  rens: Rensevalg;
+  tilpasning: Tilpasningsvalg;
+  maksSide: number;
+  forhandsvalgId: string | null;
+  lagMeta: Lagkart;
+  lagRekkefolge: string[];
+  /** The image size the vector belongs to. */
+  bildestorrelse: { bredde: number; hoyde: number };
+  resultat: { faktor: number; utsnitt: Rektangel; fjernet: number } | null;
+  modell: Vektormodell | null;
+  /** The vector as traced, before edits, so undo can go back to it. */
+  grunnmodell: Vektormodell | null;
+}
+
+const erTall = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const erRektangel = (v: unknown): v is Rektangel =>
+  !!v &&
+  typeof v === 'object' &&
+  ['x', 'y', 'b', 'h'].every((k) => erTall((v as Record<string, unknown>)[k]));
+const erModell = (v: unknown): v is Vektormodell =>
+  !!v &&
+  typeof v === 'object' &&
+  Array.isArray((v as Vektormodell).deler) &&
+  Array.isArray((v as Vektormodell).kurver) &&
+  erTall((v as Vektormodell).bredde) &&
+  erTall((v as Vektormodell).hoyde);
 
 interface Forhandsvalg {
   id: string;
@@ -230,8 +281,9 @@ function kurveSti(k: Kurve): string {
   return d;
 }
 
-function lastNed(navn: string, innhold: string) {
-  const url = URL.createObjectURL(new Blob([innhold], { type: 'image/svg+xml' }));
+function lastNed(navn: string, innhold: string | Blob) {
+  const blob = typeof innhold === 'string' ? new Blob([innhold], { type: 'image/svg+xml' }) : innhold;
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = navn;
@@ -403,13 +455,29 @@ export function Vektorverksted(props: {
   const [pennFarge, settPennFarge] = useState('#000000');
   const [pennSlaSammen, settPennSlaSammen] = useState(true);
   const [pennMelding, settPennMelding] = useState<string | null>(null);
-  /** The image before the last applied crop, to undo it. */
-  const beskjaerAngre = useRef<{
+  /** The image before the last applied crop or added image, with the vector it had, to undo it. */
+  const bildeAngre = useRef<{
+    hva: 'beskjaer' | 'leggtil';
     kilde: Kildebilde;
     maske: HTMLCanvasElement;
     beskytt: HTMLCanvasElement;
     utsnitt: Rektangel;
+    resultat: Resultat | null;
+    modell: Vektormodell | null;
+    fortid: Vektormodell[];
   } | null>(null);
+  /** «Legg til bilde»: where the next image goes. */
+  const [plassering, settPlassering] = useState<Plassering>('hoyre');
+  const [leggerTil, settLeggerTil] = useState(false);
+  const leggTilVelger = useRef<HTMLInputElement>(null);
+  /** An autosaved project found when the tool opens, offered on the start screen. */
+  const [lagretProsjekt, settLagretProsjekt] = useState<Prosjekt | null>(null);
+  const [lagreStatus, settLagreStatus] = useState<string | null>(null);
+  const [autolagring, settAutolagring] = useState<'av' | 'lagret' | 'feil'>('av');
+  /** Set when a vector is restored (project, undo): the next conversion adopts it instead of tracing. */
+  const ventGjenopprett = useRef(false);
+  /** The source image as PNG, made once per image for saving. */
+  const bildeBlob = useRef<{ url: string; blob: Blob } | null>(null);
   const [beskjaerer, settBeskjaerer] = useState(false);
 
   const [visning, settVisning] = useState<Visning>({ skala: 1, tx: 0, ty: 0 });
@@ -467,34 +535,244 @@ export function Vektorverksted(props: {
     [kilde],
   );
 
+  /** A new image (or a saved project) replaces what is open. */
   const velgFil = async (f: File | undefined) => {
     if (!f) return;
+    if (erProsjektfil(f)) {
+      try {
+        await apneProsjekt(await prosjektFraFil(f));
+      } catch (e) {
+        settFeil(e instanceof Error ? e.message : 'Prosjektet kunne ikke åpnes.');
+      }
+      return;
+    }
     try {
       const k = await lesBildefil(f);
-      if (kilde) URL.revokeObjectURL(kilde.url);
-      if (beskjaerAngre.current) URL.revokeObjectURL(beskjaerAngre.current.kilde.url);
-      beskjaerAngre.current = null;
-      maskeData.current = null;
-      kartMinne.current = null;
-      settUtvalg(null);
-      settPenn([]);
-      maske.current = nyMaske(k);
-      beskytt.current = nyMaske(k);
-      maskeAngre.current = [];
-      settKilde(k);
-      settUtsnitt({ x: 0, y: 0, b: k.bredde, h: k.hoyde });
+      startBilde(k, nyMaske(k), nyMaske(k));
       settSteg('masker');
-      settFverktoy(null);
-      settResultat(null);
-      settModellRa(null);
-      fortid.current = [];
-      fremtid.current = [];
-      settFeil(null);
-      settMaskeVersjon((v) => v + 1);
     } catch (e) {
       settFeil(e instanceof Error ? e.message : 'Bildet kunne ikke leses.');
     }
   };
+
+  /** Everything about the open image is reset for a new one. */
+  const startBilde = (k: Kildebilde, m: HTMLCanvasElement, b: HTMLCanvasElement) => {
+    if (kilde) URL.revokeObjectURL(kilde.url);
+    if (bildeAngre.current) URL.revokeObjectURL(bildeAngre.current.kilde.url);
+    bildeAngre.current = null;
+    maskeData.current = null;
+    kartMinne.current = null;
+    settUtvalg(null);
+    settPenn([]);
+    maske.current = m;
+    beskytt.current = b;
+    maskeAngre.current = [];
+    settKilde(k);
+    settUtsnitt({ x: 0, y: 0, b: k.bredde, h: k.hoyde });
+    settFverktoy(null);
+    settResultat(null);
+    settModellRa(null);
+    fortid.current = [];
+    fremtid.current = [];
+    settLagMeta({});
+    settLagRekkefolge([]);
+    settLokalOmrade(null);
+    settFeil(null);
+    settLagretProsjekt(null);
+    settMaskeVersjon((v) => v + 1);
+  };
+
+  // ------------------------------------------------------------ projects
+
+  /** Opens a saved project: the image, the masks, the settings and the vector as they were. */
+  const apneProsjekt = async (p: Prosjekt) => {
+    const k = await kildeFraBlob(p.bilde, p.navn);
+    const m = await maskeFraBlob(k, p.maske);
+    const b = await maskeFraBlob(k, p.beskytt);
+    startBilde(k, m, b);
+    bildeBlob.current = { url: k.url, blob: p.bilde };
+    const t = (p.tilstand ?? {}) as Partial<Prosjekttilstand>;
+    if (t.nivaa === 'enkel' || t.nivaa === 'avansert') settNivaa(t.nivaa);
+    settSteg(t.steg === 'rediger' || t.steg === 'ferdig' ? t.steg : 'masker');
+    if (erRektangel(t.utsnitt)) settUtsnitt(t.utsnitt);
+    if (erTall(t.farger)) settFarger(t.farger);
+    if (t.terskel === null || erTall(t.terskel)) settTerskel(t.terskel);
+    if (typeof t.inverter === 'boolean') settInverter(t.inverter);
+    if (typeof t.fjernBakgrunn === 'boolean') settFjernBakgrunn(t.fjernBakgrunn);
+    if (t.rens && typeof t.rens === 'object') settRens({ ...STANDARD_RENS, ...t.rens });
+    if (t.tilpasning && typeof t.tilpasning === 'object')
+      settTilpasning({ ...STANDARD_TILPASNING, ...t.tilpasning });
+    if (erTall(t.maksSide)) settMaksSide(t.maksSide);
+    settForhandsvalgId(typeof t.forhandsvalgId === 'string' ? t.forhandsvalgId : null);
+    if (t.lagMeta && typeof t.lagMeta === 'object') settLagMeta(t.lagMeta);
+    if (Array.isArray(t.lagRekkefolge))
+      settLagRekkefolge(t.lagRekkefolge.filter((f) => typeof f === 'string'));
+    // the vector only fits the image it was made from
+    const sammeBilde = t.bildestorrelse?.bredde === k.bredde && t.bildestorrelse?.hoyde === k.hoyde;
+    if (
+      sammeBilde &&
+      erModell(t.modell) &&
+      t.resultat &&
+      erRektangel(t.resultat.utsnitt) &&
+      erTall(t.resultat.faktor)
+    ) {
+      const grunn = erModell(t.grunnmodell) ? t.grunnmodell : t.modell;
+      ventGjenopprett.current = true;
+      settResultat({
+        ...t.resultat,
+        fjernet: erTall(t.resultat.fjernet) ? t.resultat.fjernet : 0,
+        modell: grunn,
+      });
+      settModellRa(t.modell);
+      fortid.current = grunn !== t.modell ? [grunn] : [];
+    }
+    settLagreStatus(`Prosjektet «${p.navn}» er åpnet.`);
+  };
+
+  /** The open work as a project. */
+  const lagProsjekt = async (): Promise<Prosjekt | null> => {
+    if (!kilde || !maske.current || !beskytt.current) return null;
+    let bilde = bildeBlob.current?.url === kilde.url ? bildeBlob.current.blob : null;
+    if (!bilde) {
+      const c = document.createElement('canvas');
+      c.width = kilde.bredde;
+      c.height = kilde.hoyde;
+      c.getContext('2d')!.drawImage(kilde.bilde, 0, 0);
+      bilde = await lerretTilPng(c);
+      c.width = c.height = 0;
+      if (!bilde) return null;
+      bildeBlob.current = { url: kilde.url, blob: bilde };
+    }
+    const tilstand: Prosjekttilstand = {
+      nivaa,
+      steg,
+      utsnitt,
+      farger,
+      terskel,
+      inverter,
+      fjernBakgrunn,
+      rens,
+      tilpasning,
+      maksSide,
+      forhandsvalgId,
+      lagMeta,
+      lagRekkefolge,
+      bildestorrelse: { bredde: kilde.bredde, hoyde: kilde.hoyde },
+      resultat: resultat
+        ? { faktor: resultat.faktor, utsnitt: resultat.utsnitt, fjernet: resultat.fjernet }
+        : null,
+      modell,
+      grunnmodell: resultat && resultat.modell !== modell ? resultat.modell : null,
+    };
+    return {
+      versjon: 1,
+      navn: kilde.navn,
+      lagret: Date.now(),
+      bilde,
+      maske: await lerretTilPng(maske.current),
+      beskytt: await lerretTilPng(beskytt.current),
+      tilstand,
+    };
+  };
+
+  const lagreProsjektfil = async () => {
+    try {
+      const p = await lagProsjekt();
+      if (!p) return;
+      lastNed(`${p.navn}${FILENDELSE}`, await prosjektTilFil(p));
+      settLagreStatus(
+        `Prosjektet er lastet ned som «${p.navn}${FILENDELSE}». Åpne det igjen med «Velg bilde».`,
+      );
+    } catch {
+      settFeil('Prosjektet kunne ikke lagres.');
+    }
+  };
+
+  // an autosaved project is offered when the tool opens without an image
+  useEffect(() => {
+    let aktiv = true;
+    void hentAutomatisk().then((p) => {
+      if (aktiv && p) settLagretProsjekt((naa) => naa ?? p);
+    });
+    return () => {
+      aktiv = false;
+    };
+  }, []);
+
+  // autosave a moment after the last change
+  useEffect(() => {
+    if (!kilde || jobber) return;
+    let aktiv = true;
+    const t = window.setTimeout(() => {
+      void lagProsjekt()
+        .then((p) => (p && aktiv ? lagreAutomatisk(p) : null))
+        .then((ok) => {
+          if (aktiv && ok !== null) settAutolagring(ok ? 'lagret' : 'feil');
+        })
+        .catch(() => aktiv && settAutolagring('feil'));
+    }, 1500);
+    return () => {
+      aktiv = false;
+      clearTimeout(t);
+    };
+    // lagProsjekt reads exactly these
+  }, [
+    kilde,
+    maskeVersjon,
+    utsnitt,
+    modell,
+    farger,
+    terskel,
+    inverter,
+    fjernBakgrunn,
+    rens,
+    tilpasning,
+    maksSide,
+    lagMeta,
+    lagRekkefolge,
+    nivaa,
+    steg,
+    jobber,
+  ]);
+
+  useEffect(() => {
+    if (!lagreStatus) return;
+    const t = window.setTimeout(() => settLagreStatus(null), 8000);
+    return () => clearTimeout(t);
+  }, [lagreStatus]);
+
+  const fortsettLagret = async () => {
+    const p = lagretProsjekt;
+    if (!p) return;
+    try {
+      await apneProsjekt(p);
+    } catch (e) {
+      settFeil(e instanceof Error ? e.message : 'Prosjektet kunne ikke åpnes.');
+    }
+  };
+  const forkastLagret = () => {
+    settLagretProsjekt(null);
+    void slettAutomatisk();
+  };
+
+  // paste: an image opens, or is added beside the open one. The listener is
+  // set once and reads the latest state through a ref, since effects run a frame late.
+  const limInnRef = useRef<(f: File) => void>(() => {});
+  limInnRef.current = (f) => void (kilde ? leggTil(f) : velgFil(f));
+  useEffect(() => {
+    const lim = (e: ClipboardEvent) => {
+      const mal = e.target as HTMLElement | null;
+      if (mal?.closest?.('input, textarea, [contenteditable="true"]')) return;
+      const fil = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'));
+      if (!fil) return;
+      e.preventDefault();
+      limInnRef.current(
+        fil.name && fil.name !== 'image.png' ? fil : new File([fil], 'Innlimt bilde.png', { type: fil.type }),
+      );
+    };
+    window.addEventListener('paste', lim);
+    return () => window.removeEventListener('paste', lim);
+  }, []);
 
   useEffect(() => {
     if (kilde) tilpassVisning();
@@ -564,12 +842,16 @@ export function Vektorverksted(props: {
     settBeskjaerer(true);
     try {
       const r = await beskjaerBilde(kilde, maske.current, beskytt.current, utsnitt);
-      if (beskjaerAngre.current) URL.revokeObjectURL(beskjaerAngre.current.kilde.url);
-      beskjaerAngre.current = {
+      if (bildeAngre.current) URL.revokeObjectURL(bildeAngre.current.kilde.url);
+      bildeAngre.current = {
+        hva: 'beskjaer',
         kilde,
         maske: maske.current,
         beskytt: beskytt.current,
         utsnitt: { ...utsnitt },
+        resultat,
+        modell,
+        fortid: [...fortid.current],
       };
       byttBilde(r.kilde, r.maske, r.beskytt, { x: 0, y: 0, b: r.kilde.bredde, h: r.kilde.hoyde });
       settFverktoy(null);
@@ -579,12 +861,56 @@ export function Vektorverksted(props: {
       settBeskjaerer(false);
     }
   };
-  const angreBeskjaering = () => {
-    const g = beskjaerAngre.current;
+  /** Undoes the last crop or added image, and brings back the vector from before it. */
+  const angreBilde = () => {
+    const g = bildeAngre.current;
     if (!g || !kilde) return;
     URL.revokeObjectURL(kilde.url);
-    beskjaerAngre.current = null;
+    bildeAngre.current = null;
     byttBilde(g.kilde, g.maske, g.beskytt, g.utsnitt);
+    if (g.modell && g.resultat) {
+      ventGjenopprett.current = true;
+      settResultat(g.resultat);
+      settModellRa(g.modell);
+      fortid.current = g.fortid;
+    }
+  };
+
+  /**
+   * «Legg til bilde»: the image is placed beside or below the current one and
+   * both are vectorised together. One step can be undone.
+   */
+  const leggTil = async (f: File | undefined) => {
+    if (!f) return;
+    if (!kilde || !maske.current || !beskytt.current) return void velgFil(f);
+    if (leggerTil) return;
+    settLeggerTil(true);
+    let ny: Kildebilde | null = null;
+    try {
+      ny = await lesBildefil(f);
+      const r = await leggTilBilde(kilde, maske.current, beskytt.current, ny, plassering);
+      if (bildeAngre.current) URL.revokeObjectURL(bildeAngre.current.kilde.url);
+      bildeAngre.current = {
+        hva: 'leggtil',
+        kilde,
+        maske: maske.current,
+        beskytt: beskytt.current,
+        utsnitt: { ...utsnitt },
+        resultat,
+        modell,
+        fortid: [...fortid.current],
+      };
+      byttBilde(r.kilde, r.maske, r.beskytt, { x: 0, y: 0, b: r.kilde.bredde, h: r.kilde.hoyde });
+      settFeil(null);
+      settLagreStatus(
+        `«${ny.navn}» er lagt til ${plassering === 'hoyre' ? 'til høyre for' : 'under'} bildet.`,
+      );
+    } catch (e) {
+      settFeil(e instanceof Error ? e.message : 'Bildet kunne ikke legges til.');
+    } finally {
+      if (ny) URL.revokeObjectURL(ny.url);
+      settLeggerTil(false);
+    }
   };
   const byttBilde = (k: Kildebilde, m: HTMLCanvasElement, b: HTMLCanvasElement, u: Rektangel) => {
     maske.current = m;
@@ -724,6 +1050,13 @@ export function Vektorverksted(props: {
 
   /** The conversion the shown model came from: switching modes does not trace again. */
   const sistKonvertert = useRef<typeof konverter | null>(null);
+  // a restored vector (project, undone crop) counts as the conversion of the settings it came back with
+  useEffect(() => {
+    if (ventGjenopprett.current && modell) {
+      ventGjenopprett.current = false;
+      sistKonvertert.current = konverter;
+    }
+  }, [konverter, modell]);
   useEffect(() => {
     if (viserMaske || !kilde) return;
     if (redigert) return; // the user decides when edits may be thrown away
@@ -1452,17 +1785,36 @@ export function Vektorverksted(props: {
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
-        void velgFil(e.dataTransfer?.files?.[0]);
+        const f = e.dataTransfer?.files?.[0];
+        // dropped on open work, an image is added beside it; a project replaces it
+        void (kilde && f && !erProsjektfil(f) ? leggTil(f) : velgFil(f));
       }}
     >
       {!kilde && (
         <div class="vv-tom">
-          <p>Dra et bilde hit, eller</p>
+          {lagretProsjekt && (
+            <div class="vv-fortsett">
+              <p>
+                <b>Fortsett der du slapp?</b>
+                <br />«{lagretProsjekt.navn}», lagret{' '}
+                {new Date(lagretProsjekt.lagret).toLocaleString('nb-NO', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </p>
+              <div class="vv-knapperad">
+                <Knapp klasse="vv-primar" ikon="open" navn="Fortsett" onClick={() => void fortsettLagret()} />
+                <Knapp ikon="delete" navn="Forkast" onClick={forkastLagret} />
+              </div>
+            </div>
+          )}
+          <p>Dra et bilde hit, lim det inn, eller</p>
           <button type="button" class="vv-primar" onClick={() => filvelger.current?.click()}>
             Velg bilde
           </button>
           <p class="vv-dempet">
-            PNG, JPG, WebP, GIF eller BMP. Bildet behandles i nettleseren og lastes ikke opp.
+            PNG, JPG, WebP, GIF eller BMP, eller et lagret prosjekt ({FILENDELSE}). Bildet behandles i
+            nettleseren og lastes ikke opp.
           </p>
         </div>
       )}
@@ -2061,8 +2413,8 @@ export function Vektorverksted(props: {
             <Knapp
               ikon="undo"
               navn="Angre beskjæring"
-              onClick={angreBeskjaering}
-              av={!beskjaerAngre.current || beskjaerer}
+              onClick={angreBilde}
+              av={bildeAngre.current?.hva !== 'beskjaer' || beskjaerer}
             />
           </div>
           {kilde.original && (
@@ -2126,6 +2478,40 @@ export function Vektorverksted(props: {
     </section>
   );
 
+  /** «Legg til bilde»: several images in one vectorisation. */
+  const bildeSeksjon = kilde && (
+    <section>
+      <h2>Bilder</h2>
+      <div class="vv-segment" role="group" aria-label="Plassering av bildet som legges til">
+        <button type="button" aria-pressed={plassering === 'hoyre'} onClick={() => settPlassering('hoyre')}>
+          Til høyre
+        </button>
+        <button type="button" aria-pressed={plassering === 'under'} onClick={() => settPlassering('under')}>
+          Under
+        </button>
+      </div>
+      <div class="vv-knapperad">
+        <Knapp
+          ikon="layer-add"
+          navn={leggerTil ? 'Legger til …' : 'Legg til bilde'}
+          onClick={() => leggTilVelger.current?.click()}
+          av={leggerTil}
+        />
+        <Knapp
+          ikon="undo"
+          navn="Angre"
+          tittel="Fjerner bildet som ble lagt til sist."
+          onClick={angreBilde}
+          av={bildeAngre.current?.hva !== 'leggtil' || leggerTil}
+        />
+      </div>
+      <p class="vv-hjelp">
+        Bildet får samme høyde (til høyre) eller bredde (under) som det du har, og alt vektoriseres sammen. Du
+        kan også lime inn eller dra et bilde hit.
+      </p>
+    </section>
+  );
+
   const maskePanel = kilde && (
     <>
       {maskevalg}
@@ -2180,6 +2566,7 @@ export function Vektorverksted(props: {
           />
         </div>
       </section>
+      {bildeSeksjon}
       <Knapp
         ikon="generate"
         navn="Videre til Edit"
@@ -2955,6 +3342,7 @@ export function Vektorverksted(props: {
         />
       </section>
       {eksportSeksjon}
+      {bildeSeksjon}
       <p class="vv-hjelp">
         Trenger du å maskere, redigere kurver eller slå sammen deler? Bytt til <b>Advanced</b> øverst.
         Ingenting går tapt.
@@ -3033,13 +3421,20 @@ export function Vektorverksted(props: {
             (grønt). Pensel, lasso og rektangel kan både maskere og beskytte; X bytter.
           </li>
           <li>
-            <b>Edit</b>: konverteringen (forhåndsinnstilling, farger, små deler, kurver), fargene, deler,
-            linjer, punkter og pennen.
+            <b>Edit</b>: konverteringen (forhåndsinnstilling, farger, små deler, kurver), lagene, fargene,
+            «Tegn på nytt i område», deler, linjer, punkter og pennen.
           </li>
           <li>
             <b>Finalize</b>: last ned SVG-en, kopier den eller legg den på skiltet.
           </li>
         </ol>
+        <h3>Flere bilder og prosjekter</h3>
+        <p>
+          «Legg til bilde» setter et nytt bilde til høyre for eller under det du har, og alt vektoriseres
+          sammen. Du kan også lime inn (Ctrl V) eller dra et bilde inn. Arbeidet lagres automatisk i
+          nettleseren og tilbys igjen neste gang. «Lagre prosjekt» laster det ned som en fil du kan åpne igjen
+          med «Velg bilde».
+        </p>
         <h3>Snarveier</h3>
         <dl class="vv-snarveier">
           <dt>1 2 3</dt>
@@ -3050,6 +3445,8 @@ export function Vektorverksted(props: {
           <dd>Bytt mellom Masker og Beskytt</dd>
           <dt>K Y F R V L P N</dt>
           <dd>Konvertering, lag, farger, tegn på nytt i område, deler, linjer, punkter, penn (Edit)</dd>
+          <dt>Ctrl V</dt>
+          <dd>Lim inn et bilde: åpner det, eller legger det til det du har</dd>
           <dt>Ctrl Z / Ctrl Y</dt>
           <dd>Angre / gjør om</dd>
           <dt>Mellomrom + dra</dt>
@@ -3103,8 +3500,17 @@ export function Vektorverksted(props: {
           <Knapp
             ikon="image"
             navn={kilde ? 'Nytt bilde' : 'Velg bilde'}
+            tittel={`Åpne et bilde eller et lagret prosjekt (${FILENDELSE})`}
             onClick={() => filvelger.current?.click()}
           />
+          {kilde && (
+            <Knapp
+              ikon="save"
+              navn="Lagre prosjekt"
+              tittel="Last ned bildet, maskene, innstillingene og vektoren som én fil du kan åpne igjen."
+              onClick={() => void lagreProsjektfil()}
+            />
+          )}
           {props.enkel && !kilde && (
             <button type="button" class="vv-sekundar" onClick={props.enkel}>
               Klassisk vindu
@@ -3120,11 +3526,23 @@ export function Vektorverksted(props: {
         <input
           ref={filvelger}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif,image/bmp"
+          accept={`image/png,image/jpeg,image/webp,image/gif,image/bmp,${FILENDELSE}`}
           hidden
           onChange={(e) => {
             const inp = e.target as HTMLInputElement;
             void velgFil(inp.files?.[0]);
+            inp.value = '';
+          }}
+        />
+        <input
+          ref={leggTilVelger}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif,image/bmp"
+          hidden
+          aria-label="Bilde å legge til"
+          onChange={(e) => {
+            const inp = e.target as HTMLInputElement;
+            void leggTil(inp.files?.[0]);
             inp.value = '';
           }}
         />
@@ -3139,6 +3557,11 @@ export function Vektorverksted(props: {
           {feil && (
             <p class="vv-feil" role="alert">
               {feil}
+            </p>
+          )}
+          {lagreStatus && kilde && (
+            <p class="vv-melding" role="status">
+              {lagreStatus}
             </p>
           )}
           {!kilde && <p class="vv-dempet">Start med å velge et bilde.</p>}
@@ -3177,6 +3600,14 @@ export function Vektorverksted(props: {
           </span>
         ) : (
           <span>Ingen bilde valgt</span>
+        )}
+        {kilde && autolagring !== 'av' && (
+          <span
+            class="vv-autolagring"
+            title="Arbeidet lagres i denne nettleseren og tilbys igjen neste gang du åpner Vectorim."
+          >
+            {autolagring === 'lagret' ? 'Lagret i nettleseren' : 'Kunne ikke lagre i nettleseren'}
+          </span>
         )}
         <span class="vv-zoom">{Math.round(visning.skala * 100)} %</span>
       </footer>
