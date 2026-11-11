@@ -22,6 +22,7 @@ async function nullstill() {
   for (const del of ['', '-wal', '-shm']) await rm(`var/konto-test.sqlite${del}`, { force: true });
   await rm('var/konto-post', { recursive: true, force: true });
   await rm('dist/api/cms/data/publisert.json', { force: true });
+  await rm('dist/api/cms/data/butikk.json', { force: true });
   await rm('dist/api/cms/data/medier', { recursive: true, force: true });
   await rm('dist/medier/2026', { recursive: true, force: true });
 }
@@ -722,4 +723,64 @@ test('pakker: Studio endrer prisen på Skaper, og Min konto viser den med en gan
   await skaper.getByLabel('Pris per måned').fill('59');
   await skaper.getByRole('button', { name: 'Lagre Skaper' }).click();
   await expect(redaktor.getByText('Skaper er lagret og gjelder nå.')).toBeVisible();
+});
+
+// 2026-11-11 (Sivert: «Kan vi løsrive oss fra denne cmsen?», «Ja alt som ikke brukes bør bort»)
+test('butikk: et nytt produkt lages i Studio med bilde fra biblioteket og får egen side uten nytt bygg', async ({
+  browser,
+}) => {
+  await redaktor.setViewportSize({ width: 1440, height: 1000 });
+  await redaktor.goto(`${base}/cms/`);
+  await redaktor.getByRole('button', { name: 'Butikk og betaling', exact: true }).click();
+  await redaktor.getByRole('button', { name: '+ Nytt produkt' }).click();
+  const skjema = redaktor.getByRole('form', { name: 'Nytt produkt' });
+  try {
+    await skjema.getByLabel('Navn', { exact: true }).fill('Prøvekrok fra Studio');
+    await expect(skjema.getByLabel(/^Adresse/)).toHaveValue('provekrok-fra-studio');
+    await skjema.getByLabel(/^Kort beskrivelse/).fill('En krok laget i Studio.');
+    await skjema.getByLabel(/^Beskrivelse/).fill('Første avsnitt.\n\nAndre avsnitt.');
+    // Without a picture the form says what is missing.
+    await skjema.getByRole('button', { name: 'Lagre det nye produktet' }).click();
+    await expect(skjema).toContainText('Velg et bilde fra bildebiblioteket.');
+    const hovedbilde = skjema.getByRole('group', { name: 'Hovedbilde' });
+    await hovedbilde.getByLabel('Bilde', { exact: true }).selectOption({ index: 1 });
+    await hovedbilde.getByLabel(/Hva viser bildet/).fill('En hvit krok på en vegg');
+    await skjema.getByLabel('Bredde').fill('40');
+    await skjema.getByLabel('Dybde').fill('25');
+    await skjema.getByLabel('Høyde').fill('60,5');
+    await skjema.getByLabel('Vis produktet på nettsiden').check();
+    for (const bredde of [320, 390, 768, 1024, 1440]) {
+      await redaktor.setViewportSize({ width: bredde, height: 900 });
+      const bred = await redaktor.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+      expect(bred, `${bredde} px`).toBeLessThanOrEqual(0);
+      if (process.env.DP_SKJERMBILDER) {
+        await skjema.screenshot({ path: `${process.env.DP_SKJERMBILDER}/studio-nytt-produkt-${bredde}.png` });
+      }
+    }
+    await redaktor.setViewportSize({ width: 1440, height: 1000 });
+    await skjema.getByRole('button', { name: 'Lagre det nye produktet' }).click();
+    const rad = redaktor.locator('.cms__rad', { hasText: 'Prøvekrok fra Studio' });
+    await expect(rad).toContainText('Laget i Studio');
+
+    const gjest = await (await browser.newContext({ baseURL: 'http://127.0.0.1:4322' })).newPage();
+    const svar = await gjest.goto(`${base}/produkter/provekrok-fra-studio/`);
+    expect(svar?.status()).toBe(200);
+    await expect(gjest.getByRole('heading', { level: 1 })).toHaveText('Prøvekrok fra Studio');
+    await expect(gjest.getByRole('img', { name: 'En hvit krok på en vegg' }).first()).toBeVisible();
+    await expect(gjest.locator('body')).toContainText('40 × 25 × 60,5 mm');
+    await expect(gjest.locator('body')).toContainText('Andre avsnitt.');
+    expect(await gjest.content()).not.toContain('§');
+    await gjest.goto(`${base}/produkter/`);
+    await expect(gjest.locator('.produktkort__navn', { hasText: 'Prøvekrok fra Studio' })).toHaveCount(1);
+    await gjest.close();
+
+    // Deleted again: the page is gone.
+    await rad.getByRole('button', { name: /Rediger/ }).click();
+    redaktor.once('dialog', (d) => void d.accept());
+    await rad.getByRole('button', { name: 'Slett produktet' }).click();
+    await expect(redaktor.locator('.cms__rad', { hasText: 'Prøvekrok fra Studio' })).toHaveCount(0);
+    expect((await redaktor.request.get(`${base}/produkter/provekrok-fra-studio/`)).status()).toBe(404);
+  } finally {
+    await rm('dist/api/cms/data/butikk.json', { force: true });
+  }
 });

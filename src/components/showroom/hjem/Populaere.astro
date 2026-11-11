@@ -36,12 +36,17 @@ const bareplassholdere = utvalg.every((p) => p.status === 'plassholder');
         <Ikon navn="pil-hoyre" storrelse={18} />
       </a>
     </div>
-    <ProduktRutenett produkter={utvalg} nivaa="h3" etikett={t('populaere.tittel')} class="populaere__kort" />
-    {bareplassholdere && (
-      <p class="ramme populaere__merknad">
-        Produktene er plassholdere med konseptbilder til det ekte utvalget er klart.
-      </p>
-    )}
+    <ProduktRutenett
+      produkter={utvalg}
+      nivaa="h3"
+      etikett={t('populaere.tittel')}
+      class="populaere__kort"
+      utvalg="populaere"
+    />
+    <!-- The one.com server shows or hides this when Studio changes the catalogue (php/api/_katalog.php). -->
+    <p class="ramme populaere__merknad" data-bare-plassholdere hidden={!bareplassholdere}>
+      Produktene er plassholdere med konseptbilder til det ekte utvalget er klart.
+    </p>
   </section>
 )}
 

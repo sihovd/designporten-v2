@@ -94,7 +94,11 @@ if ($relativ === 'api/cms/' || $relativ === 'api/cms/index.php') { require $rot 
 if ($relativ === 'api/konto/' || $relativ === 'api/konto/index.php') { require $rot . '/api/konto/index.php'; return; }
 if ($relativ === 'sitemap.xml') { $_GET['kart'] = '1'; require $rot . '/api/cms/blogg.php'; return; }
 if ($relativ === 'blogg' || str_starts_with($relativ, 'blogg/') || $relativ === 'api/cms/blogg.php') { require $rot . '/api/cms/blogg.php'; return; }
-if (str_ends_with($relativ, '.php') || preg_match('~^api/cms/(data/|nokler\.json)~', $relativ)) { http_response_code(403); return; }
+if (str_ends_with($relativ, '.php') || preg_match('~^api/cms/(data/|maler/|nokler\.json)~', $relativ)) { http_response_code(403); return; }
+// Like .htaccess: once Studio has saved the shop, product and category pages come from its catalogue.
+if (preg_match('~^produkter/(?:kategori/)?[a-z0-9-]+/$~', $relativ) && is_file($rot . '/api/cms/data/butikk.json')) {
+    require $rot . '/api/cms/side.php'; return;
+}
 // Like the CMS rule in .htaccess: pages go through side.php once something is published.
 if (($relativ === '' || str_ends_with($relativ, '/')) && is_file($rot . '/' . $relativ . 'index.html')
     && is_file($rot . '/api/cms/data/publisert.json')) { require $rot . '/api/cms/side.php'; return; }

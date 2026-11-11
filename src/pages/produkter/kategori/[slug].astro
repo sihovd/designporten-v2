@@ -3,12 +3,18 @@ import type { GetStaticPaths } from 'astro';
 import Side from '@/layouts/Side.astro';
 import ProduktListe from '@/components/produkt/ProduktListe.astro';
 import { hentProdukter, kategorierMedProdukter } from '@/lib/handel/katalog';
-import type { Kategori } from '@/lib/handel/kategorier';
+import { kategorier, type Kategori } from '@/lib/handel/kategorier';
+import { lagerMal } from '@/lib/handel/mal';
 
-/** One page per category that has products. Empty categories get no page. */
+/**
+ * One page per category that has products. Empty categories get no page,
+ * except in the PHP build: there Studio may put products in any category
+ * later, and the server answers 404 for a category that is still empty
+ * (php/api/_katalog.php).
+ */
 export const getStaticPaths = (async () => {
   const produkter = await hentProdukter();
-  return kategorierMedProdukter(produkter).map((kategori) => ({
+  return (lagerMal ? kategorier : kategorierMedProdukter(produkter)).map((kategori) => ({
     params: { slug: kategori.slug },
     props: { kategori },
   }));

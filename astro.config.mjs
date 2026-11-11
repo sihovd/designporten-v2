@@ -2,8 +2,6 @@
 import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
 import preact from '@astrojs/preact';
-import { cp, readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import { byggoppsett } from './scripts/onecom-oppsett.mjs';
 
 /**
@@ -43,38 +41,12 @@ function serverruter() {
   };
 }
 
-/**
- * Serves the content editor's script (Sveltia CMS, devDependency) at
- * /admin/sveltia-cms.js: from node_modules in dev, copied into the build.
- * @returns {import('astro').AstroIntegration}
- */
-function sveltiaAdmin() {
-  const kilde = fileURLToPath(new URL('./node_modules/@sveltia/cms/dist/', import.meta.url));
-  const filer = ['sveltia-cms.js', 'chunks/react-dom.js'];
-  return {
-    name: 'designporten-sveltia-admin',
-    hooks: {
-      'astro:server:setup': ({ server }) => {
-        server.middlewares.use(async (req, res, neste) => {
-          const fil = filer.find((f) => req.url === `/admin/${f}`);
-          if (!fil) return neste();
-          res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
-          res.end(await readFile(kilde + fil));
-        });
-      },
-      'astro:build:done': async ({ dir }) => {
-        for (const f of filer) await cp(kilde + f, fileURLToPath(new URL(`admin/${f}`, dir)));
-      },
-    },
-  };
-}
-
 export default defineConfig({
   site: 'https://www.designporten.no',
   base,
   output: 'static',
   adapter: maal === 'node' ? node({ mode: 'standalone' }) : undefined,
-  integrations: [preact(), serverruter(), sveltiaAdmin()],
+  integrations: [preact(), serverruter()],
   trailingSlash: 'always',
   prefetch: { prefetchAll: false, defaultStrategy: 'hover' },
   vite: {

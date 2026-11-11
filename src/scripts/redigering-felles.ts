@@ -1,4 +1,4 @@
-/** Shared by both inline editors: the GitHub one (redigeringsverktoy.ts) and the CMS one (cmsverktoy.ts). */
+/** Helpers for the inline CMS editor (cmsverktoy.ts). */
 import { normaliser, type Felttype } from '@/lib/redigering/kjerne';
 
 export const typeFor = (el: HTMLElement): Felttype =>

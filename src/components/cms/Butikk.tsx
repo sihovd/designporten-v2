@@ -2,20 +2,22 @@
  * Studio → Butikk og betaling (Sivert 2026-11-09: «vi må ha alt i cms
  * funksjonen»). Products (status, price, text surcharge, name, texts), the
  * card payment switch and shipping, and the paid orders Stripe reports.
- * Every save is used on the site at once (php/api/cms/_handel.php). Stripe
- * keys are never shown or typed here: they live in api/stripe/konfig.php.
- * Pictures, colours, materials, sizes and new products are still edited in
- * the product administration (/admin) and need a new build.
+ * Every product field lives here, including pictures from the media
+ * library, colours, materials, sizes and new products (Sivert 2026-11-11).
+ * Every save is used on the site at once (php/api/cms/_handel.php,
+ * php/api/_katalog.php): no new build and no GitHub. Stripe keys are never
+ * shown or typed here: they live in api/stripe/konfig.php.
  */
-import { useEffect, useState } from 'preact/hooks';
-import { nettsti } from '@/lib/nettsti';
+import { useEffect, useId, useState } from 'preact/hooks';
 import {
   cms,
   type Butikkinnstillinger,
   type Butikkoversikt,
   type Butikkprodukt,
   type Fraktvalg,
+  type Medium,
   type Ordre,
+  type Produktbilde,
 } from '@/lib/cms/api';
 import { formaterKroner } from '@/lib/handel/kurv';
 
@@ -79,47 +81,190 @@ function Kronefelt({
 
 // ---------------------------------------------------------------- Products
 
+const idag = () => new Date().toISOString().slice(0, 10);
+
+/** «Spiral­vase i tre» → «spiralvase-i-tre»: a suggestion for a new product's address. */
+export function lagAdresse(navn: string): string {
+  return navn
+    .toLowerCase()
+    .replaceAll('æ', 'ae')
+    .replaceAll('ø', 'o')
+    .replaceAll('å', 'a')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60)
+    .replace(/-$/, '');
+}
+
+/** «12,5» → 12.5. Empty → null. Anything else → NaN. */
+export function lesMillimeter(v: string): number | null {
+  const t = v.trim().replace(',', '.');
+  if (t === '') return null;
+  return /^\d{1,5}(\.\d)?$/.test(t) && Number(t) > 0 ? Number(t) : NaN;
+}
+const mmTekst = (n: number | undefined) => (n == null ? '' : String(n).replace('.', ','));
+
+function tomtProdukt(data: Butikkoversikt): Butikkprodukt {
+  const ref = data.referanse;
+  const sist = Math.max(0, ...data.produkter.map((r) => r.skjema?.rekkefolge ?? 0));
+  return {
+    status: 'plassholder',
+    prisOre: null,
+    navn: '',
+    kortBeskrivelse: '',
+    beskrivelse: '',
+    kategori: ref.kategorier[0]?.slug ?? '',
+    bilde: null,
+    bildeAlternativ: null,
+    mal: null,
+    materialer: ref.materialer.slice(0, 1).map((m) => m.type),
+    farger: ref.farger.slice(0, 1).map((f) => f.id),
+    egenTekst: null,
+    generator: null,
+    rekkefolge: sist + 1,
+    lagtTil: idag(),
+    // New products start hidden, so nothing half-done shows on the site.
+    skjult: true,
+  };
+}
+
+/** Picks a picture from the media library, with its alt text. */
+function Bildevalg({
+  etikett,
+  hjelp,
+  verdi,
+  medier,
+  bygget,
+  tillatTomt,
+  endre,
+}: {
+  etikett: string;
+  hjelp: string;
+  verdi: Produktbilde | 'bygget' | null;
+  medier: Medium[];
+  /** The build's picture, offered as «as built» when there is one. */
+  bygget: string | null;
+  tillatTomt: boolean;
+  endre: (v: Produktbilde | 'bygget' | null) => void;
+}) {
+  const id = useId();
+  const valgt = verdi && verdi !== 'bygget' ? verdi : null;
+  const medium = valgt ? medier.find((m) => m.id === valgt.medium) : undefined;
+  const forhand = verdi === 'bygget' ? bygget : (medium?.miniatyr ?? null);
+  const velg = (v: string) => {
+    if (v === 'bygget') return endre('bygget');
+    if (v === '') return endre(null);
+    const m = medier.find((x) => x.id === Number(v));
+    endre({ medium: Number(v), alt: valgt?.alt || m?.alt || '' });
+  };
+  return (
+    <fieldset class="butikk__bilde">
+      <legend>{etikett}</legend>
+      <div class="butikk__bildevalg">
+        {forhand ? (
+          <img src={forhand} alt="" width={96} height={96} loading="lazy" />
+        ) : (
+          <span class="butikk__ingenbilde" aria-hidden="true">
+            Ingen
+          </span>
+        )}
+        <div class="butikk__bildefelt">
+          <label class="cms__felt" for={`${id}-velg`}>
+            Bilde
+          </label>
+          <select
+            id={`${id}-velg`}
+            value={verdi === 'bygget' ? 'bygget' : (valgt?.medium ?? '')}
+            onChange={(e) => velg(e.currentTarget.value)}
+          >
+            {tillatTomt && <option value="">Ingen</option>}
+            {!tillatTomt && !bygget && !valgt && <option value="">Velg et bilde …</option>}
+            {bygget && <option value="bygget">Bildet fra nettsidebygget</option>}
+            {valgt && !medium && (
+              <option value={valgt.medium}>Bilde #{valgt.medium} (ikke i aktivt bibliotek)</option>
+            )}
+            {medier.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.navn}
+                {m.konsept ? ' (konseptbilde)' : ''}
+              </option>
+            ))}
+          </select>
+          {valgt && (
+            <label class="cms__felt">
+              Hva viser bildet? <span class="cms__dempet">(alt-tekst for dem som ikke ser det)</span>
+              <input
+                value={valgt.alt}
+                maxLength={300}
+                required
+                minLength={3}
+                onInput={(e) => endre({ ...valgt, alt: (e.target as HTMLInputElement).value })}
+              />
+            </label>
+          )}
+          <span class="cms__dempet butikk__hjelp">{hjelp}</span>
+        </div>
+      </div>
+    </fieldset>
+  );
+}
+
 function Produktskjema({
   rad,
+  data,
+  medier,
   lagret,
   lukk,
 }: {
-  rad: Produktrad;
+  /** null: a new product. */
+  rad: Produktrad | null;
+  data: Butikkoversikt;
+  medier: Medium[];
   lagret: (b: Butikkoversikt) => void;
   lukk: () => void;
 }) {
-  const start: Butikkprodukt = rad.studio ?? rad.bygget;
-  const [status, settStatus] = useState(start.status);
-  const [pris, settPris] = useState(oreTilKroner(start.prisOre));
-  const [tillegg, settTillegg] = useState(oreTilKroner(start.tilleggOre));
-  const [navn, settNavn] = useState(start.navn);
-  const [kort, settKort] = useState(start.kortBeskrivelse);
-  const [beskrivelse, settBeskrivelse] = useState(start.beskrivelse);
+  const ny = rad === null;
+  const ref = data.referanse;
+  const [p, settP] = useState<Butikkprodukt>(() => rad?.skjema ?? tomtProdukt(data));
+  const [adresse, settAdresse] = useState('');
+  const [adresseRort, settAdresseRort] = useState(false);
+  const [pris, settPris] = useState(oreTilKroner(p.prisOre));
+  const [tillegg, settTillegg] = useState(oreTilKroner(p.egenTekst?.tilleggOre));
+  const [mal, settMal] = useState({
+    bredde: mmTekst(p.mal?.bredde),
+    dybde: mmTekst(p.mal?.dybde),
+    hoyde: mmTekst(p.mal?.hoyde),
+  });
   const [melding, settMelding] = useState<Melding>(null);
   const [lagrer, settLagrer] = useState(false);
-
-  const prisOre = kronerTilOre(pris);
-  const tilleggOre = kronerTilOre(tillegg);
+  const id = useId();
+  const sett = <K extends keyof Butikkprodukt>(k: K, v: Butikkprodukt[K]) => {
+    settP((x) => ({ ...x, [k]: v }));
+    // an old error no longer says what is wrong
+    settMelding((m) => (m?.feil ? null : m));
+  };
+  const veksle = (liste: string[], v: string) =>
+    liste.includes(v) ? liste.filter((x) => x !== v) : [...liste, v];
+  const nyAdresse = adresseRort ? adresse : lagAdresse(p.navn);
 
   async function send(verdi: Butikkprodukt | null) {
     settLagrer(true);
     settMelding(null);
     try {
-      const svar = await cms.butikkProdukt(rad.id, rad.versjon, verdi);
+      const svar = await cms.butikkProdukt(ny ? nyAdresse : rad.id, rad?.versjon ?? 0, verdi, ny);
       lagret(svar.butikk);
-      if (!verdi) {
-        const b = rad.bygget;
-        settStatus(b.status);
-        settPris(oreTilKroner(b.prisOre));
-        settTillegg(oreTilKroner(b.tilleggOre));
-        settNavn(b.navn);
-        settKort(b.kortBeskrivelse);
-        settBeskrivelse(b.beskrivelse);
-      }
+      if (ny) return lukk();
+      const oppdatert = svar.butikk.produkter.find((r) => r.id === rad.id);
+      if (!verdi && oppdatert?.skjema) settP(oppdatert.skjema);
+      if (!verdi && !oppdatert) return lukk();
       settMelding({
         feil: false,
         tekst: verdi
-          ? 'Lagret. Endringen gjelder på nettsiden nå.'
+          ? verdi.skjult
+            ? 'Lagret. Produktet er skjult på nettsiden.'
+            : 'Lagret. Endringen gjelder på nettsiden nå.'
           : 'Tilbakestilt til verdiene fra nettsidebygget.',
       });
     } catch (e) {
@@ -131,31 +276,44 @@ function Produktskjema({
 
   function lagre(e: Event) {
     e.preventDefault();
+    const prisOre = kronerTilOre(pris);
+    const tilleggOre = kronerTilOre(tillegg);
     if (Number.isNaN(prisOre))
       return settMelding({ feil: true, tekst: 'Skriv prisen i hele kroner, for eksempel 249.' });
-    if (rad.bygget.egenTekst && Number.isNaN(tilleggOre))
+    if (p.egenTekst && Number.isNaN(tilleggOre))
       return settMelding({ feil: true, tekst: 'Skriv tillegget for egen tekst i hele kroner.' });
+    const tall = [lesMillimeter(mal.bredde), lesMillimeter(mal.dybde), lesMillimeter(mal.hoyde)];
+    if (tall.some((t) => Number.isNaN(t)))
+      return settMelding({ feil: true, tekst: 'Skriv målene i millimeter, for eksempel 120 eller 12,5.' });
+    const antallMal = tall.filter((t) => t !== null).length;
+    if (antallMal !== 0 && antallMal !== 3)
+      return settMelding({
+        feil: true,
+        tekst: 'Fyll ut alle tre målene, eller ingen hvis de ikke er fastsatt.',
+      });
+    if (!p.materialer.length) return settMelding({ feil: true, tekst: 'Velg minst ett materiale.' });
+    if (!p.farger.length) return settMelding({ feil: true, tekst: 'Velg minst én farge.' });
+    if (ny && !p.bilde) return settMelding({ feil: true, tekst: 'Velg et bilde fra bildebiblioteket.' });
     void send({
-      status,
+      ...p,
       prisOre,
-      ...(rad.bygget.egenTekst ? { tilleggOre } : {}),
-      navn,
-      kortBeskrivelse: kort,
-      beskrivelse,
+      mal: antallMal === 3 ? { bredde: tall[0]!, dybde: tall[1]!, hoyde: tall[2]! } : null,
+      egenTekst: p.egenTekst ? { maksTegn: p.egenTekst.maksTegn, tilleggOre } : null,
     });
   }
 
-  const id = `produkt-${rad.id}`;
+  const rekkefolge = (a: string[], alle: string[]) => alle.filter((x) => a.includes(x));
   return (
-    <form class="butikk__skjema" onSubmit={lagre} aria-label={`Rediger ${rad.bygget.navn}`}>
+    <form class="butikk__skjema" onSubmit={lagre} aria-label={ny ? 'Nytt produkt' : `Rediger ${p.navn}`}>
+      {ny && <h3>Nytt produkt</h3>}
       <fieldset class="butikk__valg">
         <legend>Status</legend>
         <label>
           <input
             type="radio"
             name={`${id}-status`}
-            checked={status === 'bekreftet'}
-            onChange={() => settStatus('bekreftet')}
+            checked={p.status === 'bekreftet'}
+            onChange={() => sett('status', 'bekreftet')}
           />{' '}
           Klar for salg
         </label>
@@ -163,12 +321,64 @@ function Produktskjema({
           <input
             type="radio"
             name={`${id}-status`}
-            checked={status === 'plassholder'}
-            onChange={() => settStatus('plassholder')}
+            checked={p.status === 'plassholder'}
+            onChange={() => sett('status', 'plassholder')}
           />{' '}
           Plassholder (merkes tydelig, kan bare sendes som forespørsel)
         </label>
       </fieldset>
+      <label class="butikk__bryter">
+        <input
+          type="checkbox"
+          checked={!p.skjult}
+          onChange={(e) => sett('skjult', !e.currentTarget.checked)}
+        />
+        <span>Vis produktet på nettsiden</span>
+      </label>
+      {p.skjult && (
+        <p class="cms__dempet">
+          Skjult: produktet ligger trygt i Studio, men vises ikke i butikken og kan ikke bestilles.
+        </p>
+      )}
+
+      <label class="cms__felt">
+        Navn
+        <input
+          value={p.navn}
+          maxLength={80}
+          required
+          onInput={(e) => sett('navn', (e.target as HTMLInputElement).value)}
+        />
+      </label>
+      {ny && (
+        <label class="cms__felt">
+          Adresse <span class="cms__dempet">(kan ikke endres senere)</span>
+          <span class="butikk__adresse-felt">
+            <span class="cms__dempet">/produkter/</span>
+            <input
+              value={nyAdresse}
+              maxLength={60}
+              required
+              pattern="[a-z0-9]+(-[a-z0-9]+)*"
+              onInput={(e) => {
+                settAdresseRort(true);
+                settAdresse((e.target as HTMLInputElement).value);
+              }}
+            />
+            <span class="cms__dempet">/</span>
+          </span>
+        </label>
+      )}
+      <label class="cms__felt">
+        Kategori
+        <select value={p.kategori} onChange={(e) => sett('kategori', e.currentTarget.value)}>
+          {ref.kategorier.map((k) => (
+            <option key={k.slug} value={k.slug}>
+              {k.navn}
+            </option>
+          ))}
+        </select>
+      </label>
       <div class="cms__pakkefelt">
         <Kronefelt
           navn="Pris"
@@ -176,58 +386,217 @@ function Produktskjema({
           sett={settPris}
           hjelp="Tomt felt betyr at prisen ikke er fastsatt. Hele kroner."
         />
-        {rad.bygget.egenTekst && (
-          <Kronefelt
-            navn="Tillegg for egen tekst"
-            verdi={tillegg}
-            sett={settTillegg}
-            hjelp="Tomt felt: varer med egen tekst får ingen pris og sendes som forespørsel."
-          />
-        )}
       </div>
-      {status === 'bekreftet' && prisOre === null && (
+      {p.status === 'bekreftet' && kronerTilOre(pris) === null && (
         <p class="cms__dempet">
           Uten pris kan varen ikke betales med kort. Kunden kan sende den som forespørsel.
         </p>
       )}
       <label class="cms__felt">
-        Navn
+        Kort beskrivelse{' '}
+        <span class="cms__dempet">({p.kortBeskrivelse.length}/160, vises på kort og i søk)</span>
         <input
-          value={navn}
-          maxLength={80}
-          required
-          onInput={(e) => settNavn((e.target as HTMLInputElement).value)}
-        />
-      </label>
-      <label class="cms__felt">
-        Kort beskrivelse <span class="cms__dempet">({kort.length}/160, vises på kort og i søk)</span>
-        <input
-          value={kort}
+          value={p.kortBeskrivelse}
           maxLength={160}
           required
-          onInput={(e) => settKort((e.target as HTMLInputElement).value)}
+          onInput={(e) => sett('kortBeskrivelse', (e.target as HTMLInputElement).value)}
         />
       </label>
       <label class="cms__felt">
         Beskrivelse <span class="cms__dempet">(produktsiden, tom linje mellom avsnitt)</span>
         <textarea
           rows={6}
-          value={beskrivelse}
+          value={p.beskrivelse}
           required
-          onInput={(e) => settBeskrivelse((e.target as HTMLTextAreaElement).value)}
+          onInput={(e) => sett('beskrivelse', (e.target as HTMLTextAreaElement).value)}
         />
       </label>
+
+      <Bildevalg
+        etikett="Hovedbilde"
+        hjelp="Last opp nye bilder under Bilder i menyen. Bruk et kvadratisk bilde. Konseptbilder merkes «Konseptbilde» på siden."
+        verdi={p.bilde ?? (rad?.byggetBilde ? 'bygget' : null)}
+        medier={medier}
+        bygget={rad?.fraBygget ? rad.byggetBilde : null}
+        tillatTomt={false}
+        endre={(v) => sett('bilde', v === 'bygget' || v === null ? null : v)}
+      />
+      <Bildevalg
+        etikett="Ekstra bilde (valgfritt)"
+        hjelp="Vises når musen holdes over produktkortet, for eksempel en annen vinkel."
+        verdi={p.bildeAlternativ}
+        medier={medier}
+        bygget={rad?.fraBygget ? rad.byggetAlternativ : null}
+        tillatTomt
+        endre={(v) => sett('bildeAlternativ', v)}
+      />
+
+      <fieldset class="butikk__mal">
+        <legend>Mål i millimeter</legend>
+        {(['bredde', 'dybde', 'hoyde'] as const).map((k) => (
+          <label class="cms__felt" key={k}>
+            {k === 'bredde' ? 'Bredde' : k === 'dybde' ? 'Dybde' : 'Høyde'}
+            <span class="cms__tallfelt">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={mal[k]}
+                onInput={(e) => settMal((m) => ({ ...m, [k]: (e.target as HTMLInputElement).value }))}
+              />
+              <span class="cms__dempet">mm</span>
+            </span>
+          </label>
+        ))}
+        <span class="cms__dempet butikk__hjelp">Tomme felt: siden sier «Ikke fastsatt ennå».</span>
+      </fieldset>
+
+      <fieldset class="butikk__avkrysning">
+        <legend>Materialer</legend>
+        {ref.materialer.map((m) => (
+          <label key={m.type}>
+            <input
+              type="checkbox"
+              checked={p.materialer.includes(m.type)}
+              onChange={() =>
+                sett(
+                  'materialer',
+                  rekkefolge(
+                    veksle(p.materialer, m.type),
+                    ref.materialer.map((x) => x.type),
+                  ),
+                )
+              }
+            />{' '}
+            {m.type}
+          </label>
+        ))}
+        <span class="cms__dempet butikk__hjelp">Det første i listen er forhåndsvalgt for kunden.</span>
+      </fieldset>
+
+      <fieldset class="butikk__avkrysning butikk__farger">
+        <legend>Farger</legend>
+        {ref.farger.map((f) => (
+          <label key={f.id}>
+            <input
+              type="checkbox"
+              checked={p.farger.includes(f.id)}
+              onChange={() =>
+                sett(
+                  'farger',
+                  rekkefolge(
+                    veksle(p.farger, f.id),
+                    ref.farger.map((x) => x.id),
+                  ),
+                )
+              }
+            />
+            <span class="butikk__prikk" style={{ '--prikk': f.hex }} aria-hidden="true" /> {f.navn}
+            {ref.farger.filter((x) => x.navn === f.navn).length > 1 && (
+              <span class="cms__dempet"> ({f.id.split('-')[0]?.toUpperCase()})</span>
+            )}
+          </label>
+        ))}
+        <span class="cms__dempet butikk__hjelp">
+          Fargelisten er den samme som i Skaperverkstedet. Den første valgte er forhåndsvalgt for kunden.
+        </span>
+      </fieldset>
+
+      <fieldset class="butikk__valg">
+        <legend>Egen tekst</legend>
+        <label class="butikk__bryter">
+          <input
+            type="checkbox"
+            checked={p.egenTekst !== null}
+            onChange={(e) =>
+              sett('egenTekst', e.currentTarget.checked ? { maksTegn: 20, tilleggOre: null } : null)
+            }
+          />
+          <span>Kunden kan skrive en egen tekst på produktet</span>
+        </label>
+        {p.egenTekst && (
+          <div class="cms__pakkefelt">
+            <label class="cms__felt">
+              Høyst antall tegn
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={p.egenTekst.maksTegn}
+                onInput={(e) =>
+                  sett('egenTekst', {
+                    maksTegn: Math.max(1, Math.min(60, Number((e.target as HTMLInputElement).value) || 1)),
+                    tilleggOre: p.egenTekst?.tilleggOre ?? null,
+                  })
+                }
+              />
+            </label>
+            <Kronefelt
+              navn="Tillegg for egen tekst"
+              verdi={tillegg}
+              sett={settTillegg}
+              hjelp="Tomt felt: varer med egen tekst får ingen pris og sendes som forespørsel."
+            />
+          </div>
+        )}
+      </fieldset>
+
+      <div class="cms__pakkefelt">
+        <label class="cms__felt">
+          Tilpass i Skaperverkstedet
+          <select
+            value={p.generator ?? ''}
+            onChange={(e) => sett('generator', e.currentTarget.value || null)}
+          >
+            <option value="">Ingen lenke</option>
+            {ref.generatorer.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.navn}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="cms__felt">
+          Rekkefølge <span class="cms__dempet">(lavest først under «Utvalgt»)</span>
+          <input
+            type="number"
+            min={0}
+            max={100000}
+            value={p.rekkefolge}
+            onInput={(e) =>
+              sett('rekkefolge', Math.max(0, Math.round(Number((e.target as HTMLInputElement).value) || 0)))
+            }
+          />
+        </label>
+      </div>
+
       <Meldingslinje melding={melding} />
       <div class="cms__knapper">
         <button type="submit" class="cms__knapp cms__knapp--primar" disabled={lagrer}>
-          {lagrer ? 'Lagrer …' : 'Lagre og bruk på nettsiden'}
+          {lagrer ? 'Lagrer …' : ny ? 'Lagre det nye produktet' : 'Lagre og bruk på nettsiden'}
         </button>
         <button type="button" class="cms__knapp" onClick={lukk}>
-          Lukk
+          {ny ? 'Avbryt' : 'Lukk'}
         </button>
-        {rad.studio && (
+        {rad?.studio && rad.fraBygget && (
           <button type="button" class="cms__lenkeknapp" disabled={lagrer} onClick={() => void send(null)}>
             Tilbakestill til nettsidebygget
+          </button>
+        )}
+        {rad && !rad.fraBygget && (
+          <button
+            type="button"
+            class="cms__lenkeknapp"
+            disabled={lagrer}
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Slette «${p.navn}» for godt? Vil du bare ta det bort fra butikken, skjul det i stedet.`,
+                )
+              )
+                void send(null);
+            }}
+          >
+            Slett produktet
           </button>
         )}
       </div>
@@ -237,55 +606,95 @@ function Produktskjema({
 
 function Produkter({ data, lagret }: { data: Butikkoversikt; lagret: (b: Butikkoversikt) => void }) {
   const [apen, settApen] = useState<string | null>(null);
+  const [medier, settMedier] = useState<Medium[]>([]);
+  const [feil, settFeil] = useState('');
+  useEffect(() => {
+    cms
+      .medier()
+      .then((d) => settMedier(d.medier))
+      .catch((e) => settFeil(feiltekst(e, 'Kunne ikke hente bildebiblioteket.')));
+  }, []);
   return (
-    <ul class="cms__liste">
-      {data.produkter.map((rad) => {
-        const p = rad.studio ?? rad.bygget;
-        const klar = p.status === 'bekreftet';
-        return (
-          <li key={rad.id} class={`cms__rad ${klar && p.prisOre !== null ? 'cms__rad--publisert' : ''}`}>
-            <div class="butikk__produkt">
-              {rad.bygget.bilde && (
-                <img
-                  class="cms__miniatyr"
-                  src={rad.bygget.bilde}
-                  alt=""
-                  width={56}
-                  height={56}
-                  loading="lazy"
+    <>
+      {feil && <p role="alert">{feil}</p>}
+      {apen === 'ny' ? (
+        <Produktskjema rad={null} data={data} medier={medier} lagret={lagret} lukk={() => settApen(null)} />
+      ) : (
+        <button type="button" class="cms__knapp" onClick={() => settApen('ny')}>
+          + Nytt produkt
+        </button>
+      )}
+      <ul class="cms__liste">
+        {data.produkter.map((rad) => {
+          const p = rad.skjema;
+          const klar = p?.status === 'bekreftet';
+          return (
+            <li
+              key={rad.id}
+              class={`cms__rad ${rad.vises && klar && p?.prisOre !== null ? 'cms__rad--publisert' : ''}`}
+            >
+              <div class="butikk__produkt">
+                {rad.bilde && (
+                  <img class="cms__miniatyr" src={rad.bilde} alt="" width={56} height={56} loading="lazy" />
+                )}
+                <div class="butikk__produkttekst">
+                  <div class="cms__radhode">
+                    <span class="cms__feltnavn">{p?.navn ?? rad.id}</span>
+                    <span>
+                      {!rad.vises && (
+                        <span class="cms__merke cms__merke--utkast">
+                          {p?.skjult ? 'Skjult' : 'Mangler noe'}
+                        </span>
+                      )}{' '}
+                      {p && (
+                        <span class={`cms__merke ${klar ? 'cms__merke--publisert' : ''}`}>
+                          {klar ? 'Klar for salg' : 'Plassholder'}
+                        </span>
+                      )}{' '}
+                      {!rad.fraBygget && <span class="cms__merke">Laget i Studio</span>}
+                      {rad.fraBygget && rad.studio && (
+                        <span class="cms__merke cms__merke--utkast">Endret i Studio</span>
+                      )}
+                    </span>
+                  </div>
+                  <p class="cms__dempet">
+                    {rad.kategoriNavn} ·{' '}
+                    {p?.prisOre != null ? formaterKroner(p.prisOre) : 'Pris ikke fastsatt'}
+                    {p?.egenTekst &&
+                      ` · egen tekst ${p.egenTekst.tilleggOre != null ? `+${formaterKroner(p.egenTekst.tilleggOre)}` : 'uten pris'}`}
+                    {rad.endret &&
+                      ` · endret ${dato(rad.endret)}${rad.endretAv ? ` av ${rad.endretAv}` : ''}`}
+                    {rad.vises && rad.href && (
+                      <>
+                        {' · '}
+                        <a href={rad.href} target="_blank" rel="noopener">
+                          Se siden ↗
+                        </a>
+                      </>
+                    )}
+                  </p>
+                </div>
+                {apen !== rad.id && p && (
+                  <button type="button" class="cms__knapp" onClick={() => settApen(rad.id)}>
+                    Rediger<span class="visuelt-skjult"> {p.navn}</span>
+                  </button>
+                )}
+              </div>
+              {apen === rad.id && (
+                <Produktskjema
+                  key={rad.id}
+                  rad={rad}
+                  data={data}
+                  medier={medier}
+                  lagret={lagret}
+                  lukk={() => settApen(null)}
                 />
               )}
-              <div class="butikk__produkttekst">
-                <div class="cms__radhode">
-                  <span class="cms__feltnavn">{p.navn}</span>
-                  <span>
-                    <span class={`cms__merke ${klar ? 'cms__merke--publisert' : ''}`}>
-                      {klar ? 'Klar for salg' : 'Plassholder'}
-                    </span>{' '}
-                    {rad.studio && <span class="cms__merke cms__merke--utkast">Endret i Studio</span>}
-                  </span>
-                </div>
-                <p class="cms__dempet">
-                  {rad.bygget.kategori} ·{' '}
-                  {p.prisOre !== null ? formaterKroner(p.prisOre) : 'Pris ikke fastsatt'}
-                  {rad.bygget.egenTekst &&
-                    ` · egen tekst ${p.tilleggOre != null ? `+${formaterKroner(p.tilleggOre)}` : 'uten pris'}`}
-                  {rad.endret && ` · endret ${dato(rad.endret)}${rad.endretAv ? ` av ${rad.endretAv}` : ''}`}
-                </p>
-              </div>
-              {apen !== rad.id && (
-                <button type="button" class="cms__knapp" onClick={() => settApen(rad.id)}>
-                  Rediger<span class="visuelt-skjult"> {p.navn}</span>
-                </button>
-              )}
-            </div>
-            {apen === rad.id && (
-              <Produktskjema key={rad.id} rad={rad} lagret={lagret} lukk={() => settApen(null)} />
-            )}
-          </li>
-        );
-      })}
-    </ul>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 
@@ -645,12 +1054,10 @@ export default function Butikk() {
   if (!data) return <p role="status">Henter butikken fra CMS-databasen …</p>;
 
   const innst = data.innstillinger.studio ?? data.innstillinger.bygget;
-  const klare = data.produkter.filter((r) => {
-    const p = r.studio ?? r.bygget;
-    return p.status === 'bekreftet' && p.prisOre !== null;
-  }).length;
+  const synlige = data.produkter.filter((r) => r.vises);
+  const klare = synlige.filter((r) => r.skjema?.status === 'bekreftet' && r.skjema.prisOre !== null).length;
   const faner: [Visning, string][] = [
-    ['produkter', `Produkter (${data.produkter.length})`],
+    ['produkter', `Produkter (${synlige.length})`],
     ['betaling', 'Kortbetaling og frakt'],
     ['ordrer', `Ordrer${data.nyeOrdrer ? ` (${data.nyeOrdrer} nye)` : ''}`],
   ];
@@ -682,7 +1089,7 @@ export default function Butikk() {
           <div>
             <dt>Klare for salg med pris</dt>
             <dd>
-              {klare} av {data.produkter.length}
+              {klare} av {synlige.length}
             </dd>
           </div>
         </dl>
@@ -706,12 +1113,8 @@ export default function Butikk() {
         {visning === 'produkter' && (
           <>
             <p class="cms__dempet">
-              Status, pris, navn og tekster lagres her og gjelder på nettsiden med en gang. Bilder, farger,
-              materialer, mål og nye produkter endres fortsatt i{' '}
-              <a href={nettsti('/admin/')} target="_blank" rel="noopener">
-                produktadministrasjonen ↗
-              </a>{' '}
-              og krever en ny publisering av nettsiden.
+              Alt om produktene lagres her og gjelder på nettsiden med en gang: bilder, farger, materialer,
+              mål, priser, tekster og nye produkter. Bildene hentes fra bildebiblioteket under Bilder.
             </p>
             <Produkter data={data} lagret={settData} />
           </>

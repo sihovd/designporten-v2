@@ -1,62 +1,70 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { kronerTilOre } from '@/components/cms/Butikk';
-import { brukOverstyring } from './overstyring';
-import { beregnPris } from './pris';
+import { alleProdukter, glemKatalog, medButikk } from './overstyring';
+import type { ProduktVisning } from './visning';
 
-const vase = {
+const vase: ProduktVisning = {
   id: 'vase',
   navn: 'Vase',
-  status: 'plassholder' as const,
-  prisOre: null,
+  status: 'plassholder',
+  kategori: 'interior',
+  kategoriNavn: 'Interiør',
   kortBeskrivelse: 'En vase.',
+  href: '/produkter/vase/',
+  bilde: { src: '/vase.webp', alt: 'Vase', bredde: 900, hoyde: 900, konsept: true, midlertidig: true },
+  bildeAlternativ: null,
+  mal: null,
+  prisOre: null,
+  materialer: [{ type: 'PLA', beskrivelse: '' }],
+  farger: [{ id: 'pla-kritthvit', navn: 'Kritthvit', hex: '#fff' }],
   egenTekst: { maksTegn: 20, tilleggOre: null },
-  farger: [{ id: 'hvit', navn: 'Hvit', hex: '#fff' }],
+  generator: null,
 };
 
-describe('Studio-endringer over produktdataene (overstyring.ts)', () => {
-  it('lar produktet være som bygget uten endring', () => {
-    expect(brukOverstyring(vase, undefined)).toBe(vase);
+/** A page whose <script id="dp-katalog"> holds `tekst` (no DOM library needed). */
+function side(tekst: string | null): void {
+  glemKatalog();
+  vi.stubGlobal('document', {
+    getElementById: (id: string) => (id === 'dp-katalog' && tekst !== null ? { textContent: tekst } : null),
+  });
+}
+const katalog = (data: unknown) => side(JSON.stringify(data));
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  glemKatalog();
+});
+
+describe('Studio-katalogen på siden (overstyring.ts)', () => {
+  it('lar produktet være som bygget uten Studio-katalog', () => {
+    side(null);
+    expect(medButikk(vase)).toBe(vase);
+    expect(alleProdukter({ vase })).toEqual({ vase });
   });
 
-  it('legger navn, status, pris og teksttillegg over, og beholder resten', () => {
-    const p = brukOverstyring(vase, {
-      navn: 'Spiralvase',
-      status: 'bekreftet',
-      prisOre: 24900,
-      kortBeskrivelse: 'Ny tekst.',
-      tilleggOre: 5000,
-    });
-    expect(p).toMatchObject({
-      navn: 'Spiralvase',
-      status: 'bekreftet',
-      prisOre: 24900,
-      kortBeskrivelse: 'Ny tekst.',
-    });
-    expect(p.egenTekst).toEqual({ maksTegn: 20, tilleggOre: 5000 });
-    expect(p.farger).toBe(vase.farger);
-    expect(beregnPris(p, { farge: 'hvit', materiale: 'PLA', tekst: 'Hei' })).toBe(29900);
+  it('bruker produktet slik Studio har det nå', () => {
+    const ny = { ...vase, navn: 'Spiralvase', status: 'bekreftet' as const, prisOre: 24900 };
+    katalog({ produkter: { vase: ny }, side: null });
+    expect(medButikk(vase)).toEqual(ny);
   });
 
-  it('ignorerer felt med feil form', () => {
-    const p = brukOverstyring(
-      { ...vase, prisOre: 10000 },
-      {
-        navn: '  ',
-        status: 'solgt' as never,
-        prisOre: -5,
-        tilleggOre: 1.5,
-      },
-    );
-    expect(p).toMatchObject({ navn: 'Vase', status: 'plassholder', prisOre: 10000 });
-    expect(p.egenTekst).toEqual(vase.egenTekst);
+  it('kjenner produkter Studio har lagt til, og glemmer dem Studio har fjernet', () => {
+    const krok = { ...vase, id: 'krok', navn: 'Krok' };
+    katalog({ produkter: { krok }, side: null });
+    expect(Object.keys(alleProdukter({ vase }))).toEqual(['krok']);
   });
 
-  it('kan fjerne en pris (null = ikke fastsatt)', () => {
-    expect(brukOverstyring({ ...vase, prisOre: 10000 }, { prisOre: null }).prisOre).toBeNull();
+  it('lar produktmalen stå for sidens eget produkt', () => {
+    const krok = { ...vase, id: 'krok', navn: 'Krok' };
+    katalog({ produkter: { krok }, side: 'krok' });
+    expect(medButikk({ ...vase, id: '§id§' }).navn).toBe('Krok');
+    // A product the catalogue does not have stays as it was.
+    expect(medButikk(vase)).toBe(vase);
   });
 
-  it('gir ikke teksttillegg til et produkt uten egen tekst', () => {
-    expect(brukOverstyring({ ...vase, egenTekst: null }, { tilleggOre: 5000 }).egenTekst).toBeNull();
+  it('tåler en ødelagt katalog', () => {
+    side('{ikke json');
+    expect(medButikk(vase)).toBe(vase);
   });
 });
 

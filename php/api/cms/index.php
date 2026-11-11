@@ -22,7 +22,7 @@
  *   POST last-opp            upload one picture (multipart, field «fil»)
  *   POST medium              change a picture's name, alt text, labels, or archive it
  *   GET  drift               what this server supports (admin), no secrets
- *   GET  butikk / POST butikk-produkt / POST butikk-innstillinger   the shop (admin, _handel.php)
+ *   GET  butikk / POST butikk-produkt / POST butikk-innstillinger   the shop and every product (admin, _handel.php)
  *   GET  ordrer / POST ordre / POST ordre-varsle                     paid orders (admin)
  *
  * See docs/cms/README.md.
@@ -592,7 +592,11 @@ try {
         cms_logg($aktor, isset($sett['status']) ? 'medium.' . ($sett['status'] === 'arkivert' ? 'arkiver' : 'hent-fram') : 'medium.endre',
             $m['navn'], $for, $sett);
         // A published picture's «Konseptbilde» label follows the library.
-        if (isset($sett['konsept'])) cms_skriv_publisert();
+        if (isset($sett['konsept'])) {
+            cms_skriv_publisert();
+            // and so does a product picture's (Studio → Butikk).
+            if (is_file(cms_datamappe() . '/butikk.json')) cms_skriv_butikk();
+        }
         $bruk = cms_mediebruk();
         cms_svar(['medium' => cms_medium_ut(cms_medium_rad((int) $m['id']), $bruk[(int) $m['id']] ?? [])]);
     }

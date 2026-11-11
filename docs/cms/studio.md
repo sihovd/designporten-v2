@@ -19,7 +19,7 @@ Ingen besøkssporing er lagt til. Omsetning, konvertering, ordre, betalingsforbi
 
 ## Gjenstående moduler
 
-Full vare-/variant-/lagerstyring, ordre, Vipps/Stripe, besøksanalyse, planlagt publisering, automatisk artikkelimport fra eksisterende Markdown, riktekst/lenkeblokker, produktkoblinger og direkte bildebytte for alle nettstedets bilder er ikke ferdigstilt av denne leveransen. Den eksisterende produktadministrasjonen er fortsatt tilgjengelig via en tydelig lenke og bruker GitHub. Denne leveransen er en fungerende CMS-/bloggutvidelse, ikke en ferdig handelsplattform.
+Full vare-/variant-/lagerstyring, ordre, Vipps/Stripe, besøksanalyse, planlagt publisering, automatisk artikkelimport fra eksisterende Markdown, riktekst/lenkeblokker, produktkoblinger og direkte bildebytte for alle nettstedets bilder er ikke ferdigstilt av denne leveransen. Produktene ble senere flyttet helt inn i Studio, og den GitHub-baserte produktadministrasjonen (`/admin`) er fjernet (beslutningsloggen 2026-11-11). Denne leveransen er en fungerende CMS-/bloggutvidelse, ikke en ferdig handelsplattform.
 
 Eksisterende Inspirasjon-saker beholdes. En lenke fra Inspirasjon leder til den nye bloggen; det er ingen destruktiv automatisk migrering av eldre artikler.
 

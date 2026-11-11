@@ -12,7 +12,6 @@ import {
   type Filter,
   type Sorteringsgrunnlag,
 } from '@/lib/handel/sortering';
-import { butikkOverstyring } from '@/lib/handel/overstyring';
 import { visUtvalg } from './kategoribytte';
 
 interface Listedata {
@@ -29,13 +28,8 @@ export function startProduktliste(): void {
   if (!rot || !dataEl || !rutenett || rot.dataset.klar) return;
   rot.dataset.klar = '1';
 
+  // On one.com the server writes this from Studio's catalogue (php/api/_katalog.php).
   const data = JSON.parse(dataEl.textContent ?? '{}') as Listedata;
-  // Sort by the price Studio has set, when it changed after the build.
-  const endret = butikkOverstyring();
-  data.grunnlag = data.grunnlag.map((g) => {
-    const o = endret[g.id];
-    return o ? { ...g, navn: o.navn || g.navn, prisOre: o.prisOre ?? null } : g;
-  });
   const $ = <T extends Element>(s: string) => rot.querySelector<T>(s);
   const $$ = <T extends Element>(s: string) => [...rot.querySelectorAll<T>(s)];
   const tittel = $<HTMLElement>('[data-liste-tittel]');

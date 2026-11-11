@@ -15,6 +15,12 @@ interface Props {
    * (api/cms/side.php). See docs/cms/README.md#bilder.
    */
   rediger?: string;
+  /**
+   * Product template only (src/lib/handel/mal.ts): the picture's values become
+   * «§<mal>.src§» and so on, and the «Konseptbilde» label is kept only for
+   * concept pictures. php/api/_katalog.php fills them in.
+   */
+  mal?: string;
 }
 
 const {
@@ -25,27 +31,40 @@ const {
   sizes,
   merke = true,
   rediger,
+  mal,
 } = Astro.props;
 const cms = rediger ? { 'data-rediger-bilde': rediger, 'data-konsept': bilde.konsept ? '1' : '0' } : {};
+const v = mal
+  ? {
+      src: `§${mal}.src§`,
+      srcset: `§${mal}.srcset§`,
+      alt: `§${mal}.alt§`,
+      bredde: `§${mal}.bredde§`,
+      hoyde: `§${mal}.hoyde§`,
+    }
+  : { src: bilde.src, srcset: bilde.srcset, alt: bilde.alt, bredde: bilde.bredde, hoyde: bilde.hoyde };
 ---
 
 <span class:list={['konseptbilde', klasse]}>
   <img
-    src={bilde.src}
-    alt={bilde.alt}
-    width={bilde.bredde}
-    height={bilde.hoyde}
+    src={v.src}
+    srcset={v.srcset || undefined}
+    alt={v.alt}
+    width={v.bredde}
+    height={v.hoyde}
     loading={lasting}
     decoding="async"
     fetchpriority={prioritet}
     sizes={sizes}
     {...cms}
   />
-  {merke && (bilde.konsept || rediger) && (
-    <span class="konseptbilde__merke mono" data-konseptmerke={rediger} hidden={!bilde.konsept}>
+  {mal && merke && <Fragment set:html={`<!--hvis:${mal}.konsept-->`} />}
+  {merke && (bilde.konsept || rediger || mal) && (
+    <span class="konseptbilde__merke mono" data-konseptmerke={rediger} hidden={!mal && !bilde.konsept}>
       Konseptbilde
     </span>
   )}
+  {mal && merke && <Fragment set:html={`<!--/hvis:${mal}.konsept-->`} />}
 </span>
 
 <style>

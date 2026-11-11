@@ -23,7 +23,9 @@ import {
   sorteringsnokler,
   tilgjengeligeSorteringer,
 } from '@/lib/handel/katalog';
-import { finnKategori, spesialbestillinger } from '@/lib/handel/kategorier';
+import { finnKategori, kategorier as alleKategorier, spesialbestillinger } from '@/lib/handel/kategorier';
+import { lagerMal } from '@/lib/handel/mal';
+import { materialer as alleFarger, materialtyper } from '@/skaperverksted/core/materialer';
 import { antallTekst, utvalgFor, type Sorteringsgrunnlag } from '@/lib/handel/sortering';
 import Ikon from '@/components/Ikon.astro';
 import ProduktRutenett from './ProduktRutenett.astro';
@@ -36,8 +38,23 @@ interface Props {
 const { aktiv } = Astro.props;
 const produkter = await hentProdukter();
 const nokler = await sorteringsnokler();
-const kategorier = kategorierMedProdukter(produkter);
-const sorteringer = tilgjengeligeSorteringer(produkter, nokler);
+const brukteKategorier = kategorierMedProdukter(produkter);
+/*
+ * On one.com Studio may add products in any category, colour or material
+ * after the build. The PHP build therefore renders every option and hides
+ * the unused ones; the server shows them again when Studio uses them
+ * (php/api/_katalog.php). The Node build only renders what is used.
+ */
+const kategorier = lagerMal ? alleKategorier : brukteKategorier;
+const brukteSorteringer = tilgjengeligeSorteringer(produkter, nokler);
+const sorteringer = lagerMal
+  ? [
+      { verdi: 'utvalgt', navn: 'Utvalgt' },
+      { verdi: 'nyeste', navn: 'Nyeste' },
+      { verdi: 'pris', navn: 'Pris' },
+      { verdi: 'navn', navn: 'Navn A–Å' },
+    ]
+  : brukteSorteringer;
 
 const grunnlag: Sorteringsgrunnlag[] = produkter.map((p) => ({
   id: p.id,
@@ -58,13 +75,18 @@ const rekkefolge = [
 ];
 
 // Filter options come from the catalogue itself: only what some product has.
-const fargevalg = [
-  ...new Map(produkter.flatMap((p) => p.farger).map((f) => [f.id, f] as const)).values(),
-].sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
-const materialvalg = [...new Set(produkter.flatMap((p) => p.materialer.map((m) => m.type)))].sort((a, b) =>
+const brukteFarger = new Set(produkter.flatMap((p) => p.farger.map((f) => f.id)));
+const fargevalg = (
+  lagerMal
+    ? alleFarger.map((m) => ({ id: m.id, navn: m.navn, hex: m.hex }))
+    : [...new Map(produkter.flatMap((p) => p.farger).map((f) => [f.id, f] as const)).values()]
+).sort((a, b) => a.navn.localeCompare(b.navn, 'nb'));
+const brukteMaterialer = new Set(produkter.flatMap((p) => p.materialer.map((m) => m.type)));
+const materialvalg = (lagerMal ? Object.keys(materialtyper) : [...brukteMaterialer]).sort((a, b) =>
   a.localeCompare(b, 'nb'),
 );
 const harEgenTekst = produkter.some((p) => p.egenTekst !== null);
+const brukteKategoriSlugger = new Set(brukteKategorier.map((k) => k.slug));
 
 const alleTekst = {
   tittel: 'Vårt utvalg',
@@ -109,7 +131,7 @@ const data = { grunnlag, tekster };
             </a>
           </li>
           {kategorier.map((k) => (
-            <li>
+            <li data-kategori-plass={k.slug} hidden={!brukteKategoriSlugger.has(k.slug)}>
               <a
                 href={nettsti(`/produkter/kategori/${k.slug}/`)}
                 data-kategori={k.slug}
@@ -143,7 +165,7 @@ const data = { grunnlag, tekster };
               </a>
             </li>
             {kategorier.map((k) => (
-              <li>
+              <li data-kategori-plass={k.slug} hidden={!brukteKategoriSlugger.has(k.slug)}>
                 <a
                   href={nettsti(`/produkter/kategori/${k.slug}/`)}
                   data-kategori={k.slug}
@@ -163,12 +185,17 @@ const data = { grunnlag, tekster };
         </fieldset>
 
         <div class="filter__js" data-kun-js>
-          {fargevalg.length > 1 && (
-            <fieldset class="filter__gruppe">
+          {(lagerMal || fargevalg.length > 1) && (
+            <fieldset class="filter__gruppe" data-filtergruppe="farge" hidden={brukteFarger.size < 2}>
               <legend>Farge</legend>
               <div class="filter__farger">
                 {fargevalg.map((f) => (
-                  <label class="fargeprikk" title={f.navn}>
+                  <label
+                    class="fargeprikk"
+                    title={f.navn}
+                    data-farge-plass={f.id}
+                    hidden={!brukteFarger.has(f.id)}
+                  >
                     <input type="checkbox" name="farge" value={f.id} data-filter-farge />
                     <span class="fargeprikk__prikk" style={`--f: ${f.hex}`} aria-hidden="true"></span>
                     <span class="visuelt-skjult">{f.navn}</span>
@@ -178,12 +205,12 @@ const data = { grunnlag, tekster };
             </fieldset>
           )}
 
-          {materialvalg.length > 1 && (
-            <fieldset class="filter__gruppe">
+          {(lagerMal || materialvalg.length > 1) && (
+            <fieldset class="filter__gruppe" data-filtergruppe="materiale" hidden={brukteMaterialer.size < 2}>
               <legend>Materiale</legend>
               <div class="filter__valgliste">
                 {materialvalg.map((m) => (
-                  <label class="filter__valg">
+                  <label class="filter__valg" data-materiale-plass={m} hidden={!brukteMaterialer.has(m)}>
                     <input type="checkbox" name="materiale" value={m} data-filter-materiale />
                     {m}
                   </label>
@@ -192,8 +219,8 @@ const data = { grunnlag, tekster };
             </fieldset>
           )}
 
-          {harEgenTekst && (
-            <fieldset class="filter__gruppe">
+          {(lagerMal || harEgenTekst) && (
+            <fieldset class="filter__gruppe" data-filtergruppe="tekst" hidden={!harEgenTekst}>
               <legend>Tilpasning</legend>
               <label class="filter__valg">
                 <input type="checkbox" name="egen-tekst" data-filter-tekst />
@@ -237,13 +264,10 @@ const data = { grunnlag, tekster };
             </select>
           </div>
         </div>
-        {harPlassholdere && (
-          <p class="produktliste__notis">
-            <strong>Under oppbygging.</strong> Produktene er plassholdere med konseptbilder. Navn, mål og
-            priser er ikke fastsatt ennå, men du kan legge dem i handlekurven og sende en uforpliktende
-            forespørsel.
-          </p>
-        )}
+        <p class="produktliste__notis" data-plassholdernotis hidden={!harPlassholdere}>
+          <strong>Under oppbygging.</strong> Produktene er plassholdere med konseptbilder. Navn, mål og priser
+          er ikke fastsatt ennå, men du kan legge dem i handlekurven og sende en uforpliktende forespørsel.
+        </p>
       </div>
 
       <ProduktRutenett
@@ -252,6 +276,7 @@ const data = { grunnlag, tekster };
         nivaa="h2"
         etikett="Produkter"
         class="produktliste__rutenett"
+        utvalg="liste"
       />
       <p class="produktliste__tom" data-liste-tom hidden>
         Ingen produkter passer filteret.{' '}

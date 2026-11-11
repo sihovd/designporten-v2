@@ -1,18 +1,17 @@
 import { nettsti } from '@/lib/nettsti';
 /**
  * Page texts: the words on the showroom pages, kept in one JSON file per page
- * (src/content/sider/<side>.json) so they can be edited in two places that
- * share one truth: the content editor at /admin and inline on the page itself
+ * (src/content/sider/<side>.json). They are the defaults Studio (the CMS on
+ * one.com) starts from; editors change them there and inline on the page
  * (src/scripts/redigering.ts). This file describes every field once; the
- * editor's form, the build's validation and the tests are all generated from
- * it.
+ * build's validation and the tests are generated from it.
  *
  * Only words live here. Links, pictures, prices and anything a rule depends
  * on stay in code.
  */
 
 export type Felt =
-  /** One line or one paragraph of plain text. `lang` gives a bigger box in /admin. */
+  /** One line or one paragraph of plain text. `lang` marks a long text. */
   | { type: 'tekst'; etikett: string; hint?: string; lang?: boolean; valgfri?: boolean }
   | { type: 'gruppe'; etikett: string; felt: Record<string, Felt> }
   | {
@@ -22,7 +21,7 @@ export type Felt =
       felt: Record<string, Felt>;
       min?: number;
       max?: number;
-      /** Field shown in the list summary in /admin. */
+      /** Field that names an entry in a list. */
       sammendrag: string;
     };
 
@@ -30,7 +29,7 @@ const linje = (etikett: string, hint?: string): Felt => ({ type: 'tekst', etiket
 const avsnitt = (etikett: string, hint?: string): Felt => ({ type: 'tekst', etikett, hint, lang: true });
 const gruppe = (etikett: string, felt: Record<string, Felt>): Felt => ({ type: 'gruppe', etikett, felt });
 
-/** Search engine title and description: edited in /admin only (not visible on the page). */
+/** Search engine title and description: set in the file (not visible on the page). */
 const meta = gruppe('Søkemotorer og deling', {
   tittel: linje('Sidetittel', 'Vises i fanen og i søkeresultater.'),
   beskrivelse: avsnitt('Beskrivelse', 'Én eller to setninger, helst under 160 tegn.'),
@@ -49,7 +48,7 @@ const helt = (medKnapp = 0) =>
 
 export interface Side {
   etikett: string;
-  /** Path on the site, for the «Se siden» link in /admin. */
+  /** Path on the site, used by Studio and the tests. */
   sti: string;
   felt: Record<string, Felt>;
 }
