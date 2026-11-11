@@ -8,12 +8,16 @@
  */
 import { areal, forskyv, regionFraRinger, ringerI, type Region, type Ring } from '../../../geometri/polygon';
 import { stiTilRinger } from '../../../geometri/stidata';
-import { delSti, type Del, type Vektormodell } from './modell';
+import { bruk, delSti, IDENTITET, type Del, type Vektormodell } from './modell';
 
 /** A part as a region in mm. */
 export function delRegion(m: Vektormodell, d: Del, mmPerEnhet: number): Region {
+  const t = m.transformer?.[d.id] ?? IDENTITET;
   const ringer = stiTilRinger(delSti(m, d), 0.02 / mmPerEnhet).map((r) =>
-    r.map((p) => ({ x: p.x * mmPerEnhet, y: p.y * mmPerEnhet })),
+    r.map((p) => {
+      const q = bruk(t, p.x, p.y);
+      return { x: q.x * mmPerEnhet, y: q.y * mmPerEnhet };
+    }),
   );
   return regionFraRinger(ringer, 'evenodd');
 }
