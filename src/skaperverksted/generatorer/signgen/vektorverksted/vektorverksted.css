@@ -546,7 +546,7 @@
   stroke-dasharray: 4 3;
 }
 
-/* ---------- Vectorim (2026-11-11): modes, tool dock, help ---------- */
+/* ---------- Vectorium (2026-11-11): modes, tool dock, help ---------- */
 
 .vv-nivaa button {
   min-width: 84px;
@@ -782,7 +782,7 @@
   }
 }
 
-/* ---------- Vectorim, etappe 2: layers and local redraw ---------- */
+/* ---------- Vectorium, etappe 2: layers and local redraw ---------- */
 
 .vv-lagliste {
   display: flex;

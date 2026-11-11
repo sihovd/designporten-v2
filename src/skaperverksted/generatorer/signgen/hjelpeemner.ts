@@ -94,7 +94,7 @@ export const HJELPEEMNER: Hjelpeemne[] = [
   },
   {
     sporsmal: 'Gjøre et bilde eller en logo om til vektor',
-    svar: 'Trykk Bilde i verktøyskinnen. Vectorim åpnes: velg en PNG, JPG eller WebP, velg en forhåndsinnstilling og antall farger, og trykk «Legg på skiltet». Advanced gir maskering, redigering av deler og kurver, og fargestyring. «Klassisk vindu» øverst gir det gamle, raske vinduet.',
+    svar: 'Trykk Vectorium i verktøyskinnen. Vectorium åpnes: velg en PNG, JPG eller WebP, velg en forhåndsinnstilling og antall farger, og trykk «Legg på skiltet». Advanced gir maskering, redigering av deler og kurver, og fargestyring.',
     ord: 'vektorisere trace logo png jpg foto konvertere',
   },
   {

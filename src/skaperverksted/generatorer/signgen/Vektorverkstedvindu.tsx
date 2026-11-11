@@ -1,5 +1,5 @@
 /**
- * Vectorim (first called Vektorverksted) inside Sign Forge (Sivert, 2026-11-11: «dette programmet
+ * Vectorium (first called Vektorverksted) inside Sign Forge (Sivert, 2026-11-11: «dette programmet
  * skal inn i designporten.no»). The «Bilde» button opens it over the whole
  * editor; «Legg på skiltet» sends the SVG through the ordinary SVG import, so
  * a result with several parts opens the part picker. The converter is loaded
@@ -17,7 +17,6 @@ import { signtilstand } from './tilstand';
 type VerkstedProps = {
   ferdig?: (svg: string, navn: string) => void;
   lukk?: () => void;
-  enkel?: () => void;
 };
 
 const lastVerksted = () =>
@@ -41,7 +40,7 @@ export function Vektorverkstedvindu({ benk }: { benk: Arbeidsbenk }) {
     let aktiv = true;
     lastVerksted().then(
       (k) => aktiv && settVerksted(() => k),
-      () => aktiv && settFeil('Vectorim kunne ikke lastes. Sjekk nettet og prøv igjen.'),
+      () => aktiv && settFeil('Vectorium kunne ikke lastes. Sjekk nettet og prøv igjen.'),
     );
     return () => {
       aktiv = false;
@@ -62,7 +61,7 @@ export function Vektorverkstedvindu({ benk }: { benk: Arbeidsbenk }) {
   };
 
   return (
-    <dialog ref={ref} class="vektorverksted-vindu" aria-label="Vectorim">
+    <dialog ref={ref} class="vektorverksted-vindu" aria-label="Vectorium">
       {feil && (
         <p class="vektorverksted-feil" role="alert">
           {feil}{' '}
@@ -72,15 +71,11 @@ export function Vektorverkstedvindu({ benk }: { benk: Arbeidsbenk }) {
         </p>
       )}
       {Verksted ? (
-        <Verksted
-          ferdig={ferdig}
-          lukk={lukk}
-          enkel={() => signtilstand(benk).sett({ vektorverksted: false, vektoriser: true })}
-        />
+        <Verksted ferdig={ferdig} lukk={lukk} />
       ) : (
         !feil && (
           <p class="vektorverksted-laster" role="status">
-            Laster Vectorim …
+            Laster Vectorium …
           </p>
         )
       )}

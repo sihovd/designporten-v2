@@ -25,7 +25,6 @@ import { kontoMulig } from '@/lib/konto/api';
 import { Dekorgalleri, Dekorlagringsvindu } from './Dekorgalleri';
 import { Delvelger } from './Delvelger';
 import { Csvflyt } from './CsvflytDialog';
-import { Vektoriseringsvindu } from './Vektoriseringsvindu';
 import { Vektorverkstedvindu } from './Vektorverkstedvindu';
 
 export const VERKTOY: {
@@ -179,8 +178,8 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
         }}
       />
       {hjelpeknapp(
-        'Bilde',
-        'Gjør et bilde (PNG, JPG, WebP) om til vektor i Vectorim og legg det på skiltet. Logoer og tegninger blir best',
+        'Vectorium',
+        'Gjør et bilde (PNG, JPG, WebP) om til vektor i Vectorium og legg det på skiltet. Logoer og tegninger blir best',
         'image',
         () => signtilstand(benk).sett({ vektorverksted: true }),
       )}
@@ -216,7 +215,6 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
       {st.fontvindu && <Fontvindu benk={benk} />}
       {st.dekor && <Dekorgalleri benk={benk} />}
       {st.lagreDekor && <Dekorlagringsvindu benk={benk} />}
-      {st.vektoriser && <Vektoriseringsvindu benk={benk} />}
       {st.vektorverksted && <Vektorverkstedvindu benk={benk} />}
       {st.svgdeler && <Delvelger benk={benk} oppgave={st.svgdeler} />}
       <Csvflyt benk={benk} />

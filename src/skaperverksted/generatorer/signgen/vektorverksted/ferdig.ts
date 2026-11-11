@@ -1,5 +1,5 @@
 /**
- * Finalize in Vectorim (Sivert approved the Finalize list, 2026-11-11): size
+ * Finalize in Vectorium (Sivert approved the Finalize list, 2026-11-11): size
  * in millimetres, a warning for parts too thin to cut, a contour (offset
  * outline) around the motif, and export as DXF and PNG beside SVG.
  *

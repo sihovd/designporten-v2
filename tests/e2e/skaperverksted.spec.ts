@@ -57,7 +57,7 @@ async function lagPng(page: Side): Promise<Buffer> {
   return Buffer.from(data, 'base64');
 }
 
-/** Pick an image in Vectorim; Simple converts it at once. */
+/** Pick an image in Vectorium; Simple converts it at once. */
 async function konverterIVerkstedet(page: Side, rot: import('@playwright/test').Locator): Promise<void> {
   const [valg] = await Promise.all([
     page.waitForEvent('filechooser'),
@@ -107,10 +107,12 @@ test.describe('Skaperverksted', () => {
     expect(r.violations.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
   });
 
-  test('Vectorim er et eget verktøy: huben lenker til det, og det konverterer et bilde', async ({ page }) => {
+  test('Vectorium er et eget verktøy: huben lenker til det, og det konverterer et bilde', async ({
+    page,
+  }) => {
     await page.goto('/skaperverksted/');
-    await page.getByRole('link', { name: 'Vectorim' }).first().click();
-    await expect(page).toHaveURL(/\/skaperverksted\/vectorim\/$/);
+    await page.getByRole('link', { name: 'Vectorium' }).first().click();
+    await expect(page).toHaveURL(/\/skaperverksted\/vectorium\/$/);
     const rot = page.locator('.vv');
     await konverterIVerkstedet(page, rot);
     await expect(rot.getByRole('button', { name: 'Last ned SVG' })).toBeVisible();
@@ -119,12 +121,12 @@ test.describe('Skaperverksted', () => {
     await expect(page).toHaveURL(/\/skaperverksted\/$/);
   });
 
-  test('Vectorim: lagpanel med skjul, navn og merge, og tegn på nytt i et område', async ({
+  test('Vectorium: lagpanel med skjul, navn og merge, og tegn på nytt i et område', async ({
     page,
     isMobile,
   }) => {
     test.skip(isMobile, 'Områdemarkering testes på brede skjermer');
-    await page.goto('/skaperverksted/vectorim/');
+    await page.goto('/skaperverksted/vectorium/');
     const rot = page.locator('.vv');
     await konverterIVerkstedet(page, rot);
     await rot
@@ -172,10 +174,10 @@ test.describe('Skaperverksted', () => {
     await expect(rot.getByRole('status').filter({ hasText: 'tegnet på nytt' })).toBeVisible();
   });
 
-  test('Vectorim: legg til bilde, lim inn, lagre prosjekt og fortsett etter ny innlasting', async ({
+  test('Vectorium: legg til bilde, lim inn, lagre prosjekt og fortsett etter ny innlasting', async ({
     page,
   }) => {
-    await page.goto('/skaperverksted/vectorim/');
+    await page.goto('/skaperverksted/vectorium/');
     const rot = page.locator('.vv');
     await konverterIVerkstedet(page, rot);
     await rot.getByRole('button', { name: 'Advanced' }).click();
@@ -211,8 +213,8 @@ test.describe('Skaperverksted', () => {
       page.waitForEvent('download'),
       rot.getByRole('button', { name: 'Lagre prosjekt' }).click(),
     ]);
-    expect(fil.suggestedFilename()).toBe('firkant + Innlimt bilde.vectorim');
-    const sti = test.info().outputPath('prosjekt.vectorim');
+    expect(fil.suggestedFilename()).toBe('firkant + Innlimt bilde.vectorium');
+    const sti = test.info().outputPath('prosjekt.vectorium');
     await fil.saveAs(sti);
 
     // autosave: after a reload the work is offered again
@@ -234,10 +236,10 @@ test.describe('Skaperverksted', () => {
     await expect(rot.getByRole('navigation', { name: 'Mask-verktøy' })).toBeVisible();
   });
 
-  test('Vectorim Finalize: størrelse i mm, tynne steder, kontur, flat ut og SVG/DXF/PNG', async ({
+  test('Vectorium Finalize: størrelse i mm, tynne steder, kontur, flat ut og SVG/DXF/PNG', async ({
     page,
   }) => {
-    await page.goto('/skaperverksted/vectorim/');
+    await page.goto('/skaperverksted/vectorium/');
     const rot = page.locator('.vv');
     await konverterIVerkstedet(page, rot);
     await rot.getByRole('button', { name: 'Advanced' }).click();
@@ -303,9 +305,9 @@ test.describe('Skaperverksted', () => {
     await expect(rot.locator('.vv-status')).toContainText('1 farge');
   });
 
-  test('Vectorim: flytt, roter og skaler deler, og delt visning', async ({ page, isMobile }) => {
+  test('Vectorium: flytt, roter og skaler deler, og delt visning', async ({ page, isMobile }) => {
     test.skip(isMobile, 'Dra med mus testes på brede skjermer');
-    await page.goto('/skaperverksted/vectorim/');
+    await page.goto('/skaperverksted/vectorium/');
     const rot = page.locator('.vv');
     await konverterIVerkstedet(page, rot);
     await rot.getByRole('button', { name: 'Advanced' }).click();
@@ -346,13 +348,13 @@ test.describe('Skaperverksted', () => {
     await expect(rot.locator('.vv-skillelinje')).toHaveCount(0);
   });
 
-  test('den gamle adressen /skaperverksted/vektorverksted/ sender videre til Vectorim', async ({ page }) => {
+  test('den gamle adressen /skaperverksted/vektorverksted/ sender videre til Vectorium', async ({ page }) => {
     await page.goto('/skaperverksted/vektorverksted/');
-    await expect(page).toHaveURL(/\/skaperverksted\/vectorim\/$/);
+    await expect(page).toHaveURL(/\/skaperverksted\/vectorium\/$/);
   });
 
-  test('Vectorim: Simple med forhåndsinnstilling, Advanced med Mask, Edit og Finalize', async ({ page }) => {
-    await page.goto('/skaperverksted/vectorim/');
+  test('Vectorium: Simple med forhåndsinnstilling, Advanced med Mask, Edit og Finalize', async ({ page }) => {
+    await page.goto('/skaperverksted/vectorium/');
     const rot = page.locator('.vv');
     await konverterIVerkstedet(page, rot);
     // Simple: a preset sets the number of colours
@@ -400,9 +402,9 @@ test.describe('Skaperverksted', () => {
 
     // help
     await rot.getByRole('button', { name: 'Hjelp' }).click();
-    await expect(page.getByRole('dialog', { name: 'Slik bruker du Vectorim' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Slik bruker du Vectorium' })).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('dialog', { name: 'Slik bruker du Vectorim' })).toBeHidden();
+    await expect(page.getByRole('dialog', { name: 'Slik bruker du Vectorium' })).toBeHidden();
   });
 });
 
@@ -1229,11 +1231,12 @@ test.describe('Signgen', () => {
     await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
   });
 
-  test('Bilde åpner Vectorim, og «Legg på skiltet» sender vektoren til delvelgeren', async ({ page }) => {
-    await page.getByRole('button', { name: 'Bilde', exact: true }).click();
-    const vindu = page.getByRole('dialog', { name: 'Vectorim' });
+  test('Vectorium-knappen åpner Vectorium, og «Legg på skiltet» sender vektoren til delvelgeren', async ({
+    page,
+  }) => {
+    await page.getByRole('button', { name: 'Vectorium', exact: true }).click();
+    const vindu = page.getByRole('dialog', { name: 'Vectorium' });
     await expect(vindu).toBeVisible();
-    await expect(vindu.getByRole('button', { name: 'Klassisk vindu' })).toBeVisible();
     await konverterIVerkstedet(page, vindu);
     // Esc clears selections inside the converter and does not close the window
     await page.keyboard.press('Escape');
@@ -1241,14 +1244,6 @@ test.describe('Signgen', () => {
     await vindu.getByRole('button', { name: 'Legg på skiltet' }).click();
     await expect(vindu).toBeHidden();
     await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
-  });
-
-  test('«Klassisk vindu» i Vectorim åpner det gamle «Bilde til vektor»', async ({ page }) => {
-    await page.getByRole('button', { name: 'Bilde', exact: true }).click();
-    const vindu = page.getByRole('dialog', { name: 'Vectorim' });
-    await vindu.getByRole('button', { name: 'Klassisk vindu' }).click();
-    await expect(vindu).toBeHidden();
-    await expect(page.getByRole('dialog', { name: 'Bilde til vektor' })).toBeVisible();
   });
 
   test('Lagre dekorelement: markerte vektorer blir ett dekor under Dine egne', async ({ page, isMobile }) => {

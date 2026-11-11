@@ -13,7 +13,7 @@ describe('prosjektfil', () => {
       beskytt: null,
       tilstand: { farger: 3, lagMeta: { '#ff0000': { navn: 'Rødt' } } },
     };
-    const fil = new File([await prosjektTilFil(p)], 'Logo + skilt.vectorim');
+    const fil = new File([await prosjektTilFil(p)], 'Logo + skilt.vectorium');
     expect(erProsjektfil(fil)).toBe(true);
     const ut = await prosjektFraFil(fil);
     expect(ut.navn).toBe('Logo + skilt');
@@ -24,12 +24,32 @@ describe('prosjektfil', () => {
     expect(ut.maske?.size).toBe(10);
   });
 
+  it('åpner en eldre .vectorim-fil fra før navnet ble Vectorium', async () => {
+    const gammel = JSON.stringify({
+      format: 'vectorim',
+      versjon: 1,
+      navn: 'Gammelt',
+      lagret: 1,
+      bilde: 'data:image/png;base64,iVBORw0KGgo=',
+      tilstand: {},
+    });
+    const fil = new File([gammel], 'Gammelt.vectorim');
+    expect(erProsjektfil(fil)).toBe(true);
+    const ut = await prosjektFraFil(fil);
+    expect(ut.navn).toBe('Gammelt');
+    expect(ut.bilde.type).toBe('image/png');
+  });
+
   it('avviser filer som ikke er prosjekter', async () => {
-    await expect(prosjektFraFil(new File(['hei'], 'a.vectorim'))).rejects.toThrow(
-      /ikke et Vectorim-prosjekt/,
+    await expect(prosjektFraFil(new File(['hei'], 'a.vectorium'))).rejects.toThrow(
+      /ikke et Vectorium-prosjekt/,
     );
-    const feilBilde = JSON.stringify({ format: 'vectorim', versjon: 1, bilde: 'data:text/html;base64,PGI+' });
-    await expect(prosjektFraFil(new File([feilBilde], 'b.vectorim'))).rejects.toThrow();
+    const feilBilde = JSON.stringify({
+      format: 'vectorium',
+      versjon: 1,
+      bilde: 'data:text/html;base64,PGI+',
+    });
+    await expect(prosjektFraFil(new File([feilBilde], 'b.vectorium'))).rejects.toThrow();
     expect(erProsjektfil(new File([''], 'bilde.png'))).toBe(false);
   });
 });

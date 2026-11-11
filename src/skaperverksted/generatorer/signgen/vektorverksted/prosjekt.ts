@@ -1,10 +1,10 @@
 /**
- * Saving Vectorim projects (Sivert approved «prosjektlagring med
+ * Saving Vectorium projects (Sivert approved «prosjektlagring med
  * autolagring», 2026-11-11): the image, the mask, the protection, the
  * settings and the vector are kept together, so work can be picked up again.
  *
  * Autosave goes to the browser's IndexedDB (one project, overwritten as you
- * work); «Lagre prosjekt» downloads the same as a .vectorim file that
+ * work); «Lagre prosjekt» downloads the same as a .vectorium file that
  * «Åpne prosjekt» reads. Nothing leaves the browser.
  */
 
@@ -20,7 +20,7 @@ export interface Prosjekt {
   tilstand: unknown;
 }
 
-export const FILENDELSE = '.vectorim';
+export const FILENDELSE = '.vectorium';
 const DB = 'vectorim';
 const LAGER = 'prosjekter';
 const NOKKEL = 'autolagring';
@@ -99,7 +99,7 @@ function fraDataUrl(u: unknown): Blob | null {
 /** The project as a file to download. */
 export async function prosjektTilFil(p: Prosjekt): Promise<Blob> {
   const innhold = {
-    format: 'vectorim',
+    format: 'vectorium',
     versjon: 1,
     navn: p.navn,
     lagret: p.lagret,
@@ -111,22 +111,29 @@ export async function prosjektTilFil(p: Prosjekt): Promise<Blob> {
   return new Blob([JSON.stringify(innhold)], { type: 'application/json' });
 }
 
-export const erProsjektfil = (f: File) => f.name.toLowerCase().endsWith(FILENDELSE);
+/** Files saved before the name became Vectorium (.vectorim) still open. */
+const GAMLE_FILENDELSER = ['.vectorim'];
+const GAMMELT_FORMAT = 'vectorim';
 
-/** Reads a .vectorim file. Throws with a message for the user when it is not one. */
+export const erProsjektfil = (f: File) => {
+  const n = f.name.toLowerCase();
+  return n.endsWith(FILENDELSE) || GAMLE_FILENDELSER.some((e) => n.endsWith(e));
+};
+
+/** Reads a .vectorium file (or an older .vectorim). Throws with a message for the user when it is not one. */
 export async function prosjektFraFil(f: File): Promise<Prosjekt> {
   let d: Record<string, unknown>;
   try {
     d = JSON.parse(await f.text()) as Record<string, unknown>;
   } catch {
-    throw new Error('Filen er ikke et Vectorim-prosjekt.');
+    throw new Error('Filen er ikke et Vectorium-prosjekt.');
   }
   const bilde = fraDataUrl(d.bilde);
-  if (d.format !== 'vectorim' || d.versjon !== 1 || !bilde)
-    throw new Error('Filen er ikke et Vectorim-prosjekt, eller den er laget av en nyere versjon.');
+  if ((d.format !== 'vectorium' && d.format !== GAMMELT_FORMAT) || d.versjon !== 1 || !bilde)
+    throw new Error('Filen er ikke et Vectorium-prosjekt, eller den er laget av en nyere versjon.');
   return {
     versjon: 1,
-    navn: typeof d.navn === 'string' ? d.navn : f.name.replace(/\.vectorim$/i, ''),
+    navn: typeof d.navn === 'string' ? d.navn : f.name.replace(/\.vectorium$|\.vectorim$/i, ''),
     lagret: typeof d.lagret === 'number' ? d.lagret : Date.now(),
     bilde,
     maske: fraDataUrl(d.maske),

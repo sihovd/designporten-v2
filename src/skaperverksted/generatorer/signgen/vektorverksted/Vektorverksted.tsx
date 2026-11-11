@@ -1,5 +1,5 @@
 /**
- * Vectorim (Sivert, 2026-11-09, renamed and laid out after his sketch on
+ * Vectorium (Sivert, 2026-11-09, renamed and laid out after his sketch on
  * 2026-11-11): the image-to-SVG converter, as its own tool and inside Sign
  * Forge behind «Bilde».
  *
@@ -403,12 +403,7 @@ function pennSti(ankre: Anker[], lukket: boolean): string {
   return d;
 }
 
-export function Vektorverksted(props: {
-  ferdig?: (svg: string, navn: string) => void;
-  lukk?: () => void;
-  /** Inside Sign Forge: opens the older «Bilde til vektor» window instead. */
-  enkel?: () => void;
-}) {
+export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => void; lukk?: () => void }) {
   const [nivaa, settNivaa] = useState<Nivaa>('enkel');
   const [hjelpApen, settHjelpApen] = useState(false);
   const [felttype, settFelttype] = useState<Felttype>('masker');
@@ -2402,7 +2397,7 @@ export function Vektorverksted(props: {
     });
   }
 
-  const filnavn = () => kilde?.navn || 'vectorim';
+  const filnavn = () => kilde?.navn || 'vectorium';
 
   const lastNedDxf = () => {
     if (!modell) return;
@@ -4091,7 +4086,7 @@ export function Vektorverksted(props: {
     <div class="vv-hjelpvindu" role="dialog" aria-modal="true" aria-labelledby="vv-hjelp-tittel">
       <div class="vv-hjelpinnhold">
         <header>
-          <h2 id="vv-hjelp-tittel">Slik bruker du Vectorim</h2>
+          <h2 id="vv-hjelp-tittel">Slik bruker du Vectorium</h2>
           <button
             type="button"
             class="vv-sekundar vv-ikonknapp"
@@ -4161,7 +4156,7 @@ export function Vektorverksted(props: {
   return (
     <div class="vv">
       <header class="vv-topp">
-        <strong class="vv-tittel">Vectorim</strong>
+        <strong class="vv-tittel">Vectorium</strong>
         <div class="vv-segment vv-nivaa" role="group" aria-label="Modus">
           <button type="button" aria-pressed={nivaa === 'enkel'} onClick={() => byttNivaa('enkel')}>
             Simple
@@ -4210,11 +4205,6 @@ export function Vektorverksted(props: {
               tittel="Last ned bildet, maskene, innstillingene og vektoren som én fil du kan åpne igjen."
               onClick={() => void lagreProsjektfil()}
             />
-          )}
-          {props.enkel && !kilde && (
-            <button type="button" class="vv-sekundar" onClick={props.enkel}>
-              Klassisk vindu
-            </button>
           )}
           {props.lukk && (
             <button type="button" class="vv-sekundar vv-ikonknapp" onClick={props.lukk}>
@@ -4304,7 +4294,7 @@ export function Vektorverksted(props: {
         {kilde && autolagring !== 'av' && (
           <span
             class="vv-autolagring"
-            title="Arbeidet lagres i denne nettleseren og tilbys igjen neste gang du åpner Vectorim."
+            title="Arbeidet lagres i denne nettleseren og tilbys igjen neste gang du åpner Vectorium."
           >
             {autolagring === 'lagret' ? 'Lagret i nettleseren' : 'Kunne ikke lagre i nettleseren'}
           </span>

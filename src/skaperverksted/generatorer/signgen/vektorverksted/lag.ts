@@ -1,5 +1,5 @@
 /**
- * Layers and local redraw for Vectorim (Sivert, 2026-11-11: «Når det
+ * Layers and local redraw for Vectorium (Sivert, 2026-11-11: «Når det
  * vektoriseres så vektoriseres det i lag så da må merge være med», and «et
  * verktøy som lar deg markere et område som tegner på nytt med lokale
  * innstillinger akkurat der markeringen ligger»).
