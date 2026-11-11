@@ -1233,7 +1233,6 @@ test.describe('Signgen', () => {
     await page.getByRole('button', { name: 'Bilde', exact: true }).click();
     const vindu = page.getByRole('dialog', { name: 'Vectorim' });
     await expect(vindu).toBeVisible();
-    await expect(vindu.getByRole('button', { name: 'Klassisk vindu' })).toBeVisible();
     await konverterIVerkstedet(page, vindu);
     // Esc clears selections inside the converter and does not close the window
     await page.keyboard.press('Escape');
@@ -1241,14 +1240,6 @@ test.describe('Signgen', () => {
     await vindu.getByRole('button', { name: 'Legg på skiltet' }).click();
     await expect(vindu).toBeHidden();
     await expect(page.getByRole('dialog', { name: 'Velg deler av SVG-en' })).toBeVisible();
-  });
-
-  test('«Klassisk vindu» i Vectorim åpner det gamle «Bilde til vektor»', async ({ page }) => {
-    await page.getByRole('button', { name: 'Bilde', exact: true }).click();
-    const vindu = page.getByRole('dialog', { name: 'Vectorim' });
-    await vindu.getByRole('button', { name: 'Klassisk vindu' }).click();
-    await expect(vindu).toBeHidden();
-    await expect(page.getByRole('dialog', { name: 'Bilde til vektor' })).toBeVisible();
   });
 
   test('Lagre dekorelement: markerte vektorer blir ett dekor under Dine egne', async ({ page, isMobile }) => {

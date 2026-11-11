@@ -17,7 +17,6 @@ import { signtilstand } from './tilstand';
 type VerkstedProps = {
   ferdig?: (svg: string, navn: string) => void;
   lukk?: () => void;
-  enkel?: () => void;
 };
 
 const lastVerksted = () =>
@@ -72,11 +71,7 @@ export function Vektorverkstedvindu({ benk }: { benk: Arbeidsbenk }) {
         </p>
       )}
       {Verksted ? (
-        <Verksted
-          ferdig={ferdig}
-          lukk={lukk}
-          enkel={() => signtilstand(benk).sett({ vektorverksted: false, vektoriser: true })}
-        />
+        <Verksted ferdig={ferdig} lukk={lukk} />
       ) : (
         !feil && (
           <p class="vektorverksted-laster" role="status">

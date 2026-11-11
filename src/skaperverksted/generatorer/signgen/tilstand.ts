@@ -154,8 +154,6 @@ export interface Signtilstand {
   fontvindu: boolean;
   /** The decoration gallery is open. */
   dekor: boolean;
-  /** The «Bilde til vektor» window (the simple converter) is open. */
-  vektoriser: boolean;
   /** The Vektorverksted (the full image-to-vector converter) is open over the editor. */
   vektorverksted: boolean;
   /** The «Lagre dekorelement» window: the selected vectors become one gallery element. */
@@ -201,7 +199,6 @@ class Lager {
     malvindu: null,
     fontvindu: false,
     dekor: false,
-    vektoriser: false,
     vektorverksted: false,
     lagreDekor: false,
     csv: null,

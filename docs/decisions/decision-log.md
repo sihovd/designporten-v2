@@ -307,3 +307,12 @@ Kilde: Sivert godkjente forslagene i Claude-prosjektet («Flott implementer dett
 - Rettelser:
   - «Konverterer …» kunne bli stående hvis man redigerte rett etter en endring i innstillingene.
   - Statuslinjen er en `div` med `role="status"` (axe: `aria-allowed-role` på `footer`).
+
+## 2026-11-11 — Vectorim erstatter det gamle vektorverktøyet
+
+Kilde: Sivert i Claude-prosjektet: «vectorim skal erstatte det gamle vektor verktøyet. og det skal også bygges inn i skiltverktøyet». Det gamle «Bilde til vektor»-vinduet var det vi hadde beholdt til Sivert sa fra; nå er det fjernet.
+
+- **Fjernet:** vinduet «Bilde til vektor» (`signgen/Vektoriseringsvindu.tsx`), knappen «Klassisk vindu» i Vectorim, og tilstandsflagget `vektoriser`. Den gamle sporingen med imagetracerjs er tatt ut, og pakken er fjernet fra `package.json`.
+- **Beholdt:** `vektoriser.ts` inneholder bare fargeanalysen Vectorim bruker (terskel, hovedfarger, blanding og palett). Tester for dette ligger i `vektoriser.test.ts`.
+- **Sign Forge:** «Bilde» i verktøyskinnen åpner Vectorim direkte, og «Legg på skiltet» sender vektoren til delvelgeren, som før.
+- **Beholdt:** redirecten fra `/skaperverksted/vektorverksted/` til `/skaperverksted/vectorim/`.

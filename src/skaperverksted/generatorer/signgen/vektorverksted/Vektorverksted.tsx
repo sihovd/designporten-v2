@@ -403,12 +403,7 @@ function pennSti(ankre: Anker[], lukket: boolean): string {
   return d;
 }
 
-export function Vektorverksted(props: {
-  ferdig?: (svg: string, navn: string) => void;
-  lukk?: () => void;
-  /** Inside Sign Forge: opens the older «Bilde til vektor» window instead. */
-  enkel?: () => void;
-}) {
+export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => void; lukk?: () => void }) {
   const [nivaa, settNivaa] = useState<Nivaa>('enkel');
   const [hjelpApen, settHjelpApen] = useState(false);
   const [felttype, settFelttype] = useState<Felttype>('masker');
@@ -4210,11 +4205,6 @@ export function Vektorverksted(props: {
               tittel="Last ned bildet, maskene, innstillingene og vektoren som én fil du kan åpne igjen."
               onClick={() => void lagreProsjektfil()}
             />
-          )}
-          {props.enkel && !kilde && (
-            <button type="button" class="vv-sekundar" onClick={props.enkel}>
-              Klassisk vindu
-            </button>
           )}
           {props.lukk && (
             <button type="button" class="vv-sekundar vv-ikonknapp" onClick={props.lukk}>
