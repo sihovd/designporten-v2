@@ -295,3 +295,15 @@ Kilde: Sivert godkjente forslagene til Finalize i Claude-prosjektet («Flott imp
 - **Flat ut**: alle delene får én farge (angres med Ctrl Z).
 - **Eksport**: SVG som før, **DXF** (R12, lukkede polylinjer i mm, ett lag per farge med lagnavnet, Y snudd) og **PNG** i 150/300/600 dpi med gjennomsiktig bakgrunn (høyst 8000 px; ellers skaleres den ned og meldingen sier fra). Størrelse og kontur lagres i prosjektet. Geometrien ligger i `vektorverksted/ferdig.ts` og bruker Clipper-funksjonene fra `geometri/polygon.ts`.
 - Valg tatt av Claude: konturlinjen er magenta (#ff00ff), vanlig for skjærelinjer i print-og-skjær. Forslaget til minste bredde (1 mm) og tersklene for «tynn» (over 3 % av delens flate) bør prøves på ekte folie.
+
+## 2026-11-11 — Vectorim, etappe 5: flytt, skaler, roter og delt visning
+
+Kilde: Sivert godkjente forslagene i Claude-prosjektet («Flott implementer dette også»): flytt/skaler/roter i Edit, delt visning og hurtigtaster/hjelp.
+
+- **Flytt, skaler, roter** (Edit, tast T): klikk og dra en del, Shift-klikk velger flere, piltastene flytter (Shift: lenger). Panelet har rotering (±15°, ±90° og grader), skalering (90 %, 110 % og prosent), speilvending vannrett og loddrett, «Velg alle», «Tilbake til plassen» og «Slett». Alt skjer rundt midten av utvalget og kan angres.
+- Slik er det bygget: hver flyttet del får en matrise i modellen (`transformer`), og kantene blir liggende der de ble sporet. Det delte kantkartet forblir helt, så den flyttede delen etterlater et tomrom og kan ligge over andre. Matrisen kommer med i SVG (`transform` på stien, som Sign Forge leser), DXF, kontur og sjekken av tynne steder.
+- Valg tatt av Claude: en flyttet del er låst for de andre Edit-verktøyene (linjer, punkter, tegn på nytt, slå sammen) til den er «Tilbake til plassen», siden kantene dens deles med naboene på den gamle plassen.
+- **Delt visning** (Visning, tast D): originalen vises til venstre og vektoren til høyre, med en skillelinje du kan flytte.
+- Rettelser:
+  - «Konverterer …» kunne bli stående hvis man redigerte rett etter en endring i innstillingene.
+  - Statuslinjen er en `div` med `role="status"` (axe: `aria-allowed-role` på `footer`).

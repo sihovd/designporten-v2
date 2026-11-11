@@ -942,3 +942,25 @@
   background: var(--vv-panel);
   color: var(--vv-tekst);
 }
+
+/* Etappe 5: transform and split view */
+.vv-underoverskrift {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--vv-dempet);
+}
+.vv-flyttboks {
+  fill: none;
+  stroke: var(--vv-valg);
+  pointer-events: none;
+}
+.vv-skillelinje {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--vv-valg);
+  pointer-events: none;
+  z-index: 1;
+}

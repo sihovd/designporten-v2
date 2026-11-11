@@ -53,6 +53,87 @@ export interface Vektormodell {
   hoyde: number;
   kurver: (Kurve | null)[];
   deler: (Del | null)[];
+  /**
+   * Parts moved, scaled or rotated in Edit (Sivert's «flytt/skaler/roter»):
+   * an affine matrix per part id, applied when drawn and exported. The part
+   * keeps its borders where they were traced, so the shared-border map stays
+   * whole; a moved part leaves a gap behind and may overlap others.
+   */
+  transformer?: Record<number, Matrise>;
+}
+
+/** An affine matrix as in SVG: [a, b, c, d, e, f] maps (x, y) to (ax + cy + e, bx + dy + f). */
+export type Matrise = [number, number, number, number, number, number];
+export const IDENTITET: Matrise = [1, 0, 0, 1, 0, 0];
+
+/** m1 after m2: the matrix that first applies m2, then m1. */
+export function gang(m1: Matrise, m2: Matrise): Matrise {
+  const [a, b, c, d, e, f] = m1;
+  const [A, B, C, D, E, F] = m2;
+  return [a * A + c * B, b * A + d * B, a * C + c * D, b * C + d * D, a * E + c * F + e, b * E + d * F + f];
+}
+export const bruk = (m: Matrise, x: number, y: number) => ({
+  x: m[0] * x + m[2] * y + m[4],
+  y: m[1] * x + m[3] * y + m[5],
+});
+export const flyttMatrise = (dx: number, dy: number): Matrise => [1, 0, 0, 1, dx, dy];
+/** Scale (sx, sy) and turn (degrees) around a point. */
+export function rundt(cx: number, cy: number, grader: number, sx = 1, sy = sx): Matrise {
+  const r = (grader * Math.PI) / 180;
+  const cos = Math.cos(r),
+    sin = Math.sin(r);
+  const indre: Matrise = [cos * sx, sin * sx, -sin * sy, cos * sy, 0, 0];
+  return gang(flyttMatrise(cx, cy), gang(indre, flyttMatrise(-cx, -cy)));
+}
+export const matriseTekst = (m: Matrise) => `matrix(${m.map((v) => +v.toFixed(6)).join(' ')})`;
+
+/** The given parts transformed by `t` on top of what they had. */
+export function transformerDeler(m: Vektormodell, ider: number[], t: Matrise): Vektormodell {
+  const transformer = { ...(m.transformer ?? {}) };
+  for (const id of ider) if (m.deler[id]) transformer[id] = gang(t, transformer[id] ?? IDENTITET);
+  return { ...m, transformer };
+}
+
+/** The given parts back where they were traced. */
+export function nullstillTransform(m: Vektormodell, ider: number[]): Vektormodell {
+  if (!m.transformer) return m;
+  const transformer = { ...m.transformer };
+  for (const id of ider) delete transformer[id];
+  return { ...m, transformer };
+}
+
+/** Parts that have been moved, scaled or rotated. */
+export const transformerte = (m: Vektormodell): number[] =>
+  Object.entries(m.transformer ?? {}).flatMap(([id, t]) =>
+    m.deler[+id] && t.some((v, i) => Math.abs(v - IDENTITET[i]!) > 1e-9) ? [+id] : [],
+  );
+
+/** The box around the given parts as drawn (with their transforms). */
+export function delBoks(
+  m: Vektormodell,
+  ider: number[],
+): { x0: number; y0: number; x1: number; y1: number } | null {
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  for (const id of ider) {
+    const d = m.deler[id];
+    if (!d) continue;
+    const t = m.transformer?.[id] ?? IDENTITET;
+    for (const ring of d.ringer)
+      for (const b of ring) {
+        const p = m.kurver[b.kjede]?.punkter ?? [];
+        for (let i = 0; i < p.length; i += 2) {
+          const q = bruk(t, p[i]!, p[i + 1]!);
+          x0 = Math.min(x0, q.x);
+          y0 = Math.min(y0, q.y);
+          x1 = Math.max(x1, q.x);
+          y1 = Math.max(y1, q.y);
+        }
+      }
+  }
+  return x0 <= x1 ? { x0, y0, x1, y1 } : null;
 }
 
 export const kopier = (m: Vektormodell): Vektormodell => structuredClone(m);
@@ -254,7 +335,10 @@ export function tilSvg(
   const deler = m.deler
     .filter((d): d is Del => !!d && !opt.skjulte?.has(d.farge))
     .sort((a, b) => rang(a.farge) - rang(b.farge));
-  const sti = (d: Del) => `<path id="del-${d.id}" fill="${d.farge}" d="${delSti(m, d)}"/>`;
+  const sti = (d: Del) => {
+    const t = m.transformer?.[d.id];
+    return `<path id="del-${d.id}" fill="${d.farge}"${t ? ` transform="${matriseTekst(t)}"` : ''} d="${delSti(m, d)}"/>`;
+  };
   let innhold: string;
   if (opt.grupperEtterFarge) {
     const grupper = new Map<string, Del[]>();

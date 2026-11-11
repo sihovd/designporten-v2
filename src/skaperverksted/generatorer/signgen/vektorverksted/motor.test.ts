@@ -17,6 +17,15 @@ import {
   tall,
   tilSvg,
   vater,
+  bruk,
+  delBoks,
+  flyttMatrise,
+  gang,
+  IDENTITET,
+  nullstillTransform,
+  rundt,
+  transformerDeler,
+  transformerte,
   type Vektormodell,
 } from './modell';
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionvalg } from './regioner';
@@ -450,5 +459,41 @@ describe('ferdig', () => {
     // every coordinate fits the 60 × 40 mm drawing
     const xs = [...dxf.matchAll(/\n10\n([-\d.]+)/g)].map((t) => Number(t[1]));
     expect(Math.max(...xs)).toBeLessThan(62);
+  });
+});
+
+describe('flytt, skaler, roter', () => {
+  const m0 = () => byggModell(lagRegionkart(halvdeler, null, toFarger));
+
+  it('moves a part in the drawing and the SVG, and back again', () => {
+    const m = m0();
+    const id = m.deler.find(Boolean)!.id;
+    const for_ = delBoks(m, [id])!;
+    const flyttet = transformerDeler(m, [id], flyttMatrise(10, -5));
+    const etter = delBoks(flyttet, [id])!;
+    expect(etter.x0 - for_.x0).toBeCloseTo(10);
+    expect(etter.y0 - for_.y0).toBeCloseTo(-5);
+    expect(transformerte(flyttet)).toEqual([id]);
+    expect(tilSvg(flyttet)).toContain(`id="del-${id}" fill=`);
+    expect(tilSvg(flyttet)).toMatch(/transform="matrix\(1 0 0 1 10 -5\)"/);
+    // the shared borders are untouched
+    expect(flyttet.kurver).toBe(m.kurver);
+    expect(transformerte(nullstillTransform(flyttet, [id]))).toEqual([]);
+  });
+
+  it('turns and scales around the given point', () => {
+    const t = rundt(10, 10, 90, 2);
+    const p = bruk(t, 11, 10);
+    expect(p.x).toBeCloseTo(10);
+    expect(p.y).toBeCloseTo(12);
+    expect(bruk(gang(t, IDENTITET), 10, 10)).toEqual({ x: 10, y: 10 });
+  });
+
+  it('exports moved parts where they were moved to', () => {
+    const m = m0();
+    const id = m.deler.find(Boolean)!.id;
+    const flyttet = transformerDeler(m, [id], flyttMatrise(1000, 0));
+    const xs = [...tilDxf(flyttet, 1).matchAll(/\n10\n([-\d.]+)/g)].map((t) => Number(t[1]));
+    expect(Math.max(...xs)).toBeGreaterThan(1000);
   });
 });

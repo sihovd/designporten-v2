@@ -78,6 +78,13 @@ import {
   tilpassPaNytt,
   tilSvg,
   vater,
+  delBoks,
+  flyttMatrise,
+  matriseTekst,
+  nullstillTransform,
+  rundt,
+  transformerDeler,
+  transformerte,
   type Kurve,
   type Vektormodell,
 } from './modell';
@@ -113,7 +120,7 @@ type Nivaa = 'enkel' | 'avansert';
 type Forberedverktoy = 'beskjaer' | 'tryllestav' | 'pensel' | 'viskelar' | 'lasso' | 'rektangel';
 /** What a drawn field does: red removes (masks), green protects. */
 type Felttype = 'masker' | 'beskytt';
-type Redigerverktoy = 'spor' | 'lag' | 'farger' | 'omrade' | 'del' | 'linje' | 'punkt' | 'penn';
+type Redigerverktoy = 'spor' | 'lag' | 'farger' | 'omrade' | 'del' | 'flytt' | 'linje' | 'punkt' | 'penn';
 interface Visning {
   skala: number;
   tx: number;
@@ -503,6 +510,8 @@ export function Vektorverksted(props: {
   const [forenkleStyrke, settForenkleStyrke] = useState(0.3);
   const [dpi, settDpi] = useState(300);
   const [ferdigMelding, settFerdigMelding] = useState<string | null>(null);
+  /** Split view: the original left of the line, the vector right of it (percent of the width). */
+  const [delt, settDelt] = useState<number | null>(null);
   /** Set when a vector is restored (project, undo): the next conversion adopts it instead of tracing. */
   const ventGjenopprett = useRef(false);
   /** The source image as PNG, made once per image for saving. */
@@ -535,6 +544,7 @@ export function Vektorverksted(props: {
         lukk: boolean;
       }
     | { type: 'anker'; kurve: number; idx: number; base: Vektormodell }
+    | { type: 'flytt'; start: { x: number; y: number }; base: Vektormodell; ider: number[] }
     | { type: 'handtak'; kurve: number; idx: number; side: 'inn' | 'ut'; base: Vektormodell; bryt: boolean }
   >(null);
   const mellomrom = useRef(false);
@@ -1144,6 +1154,8 @@ export function Vektorverksted(props: {
     return () => {
       avbrutt = true;
       clearTimeout(t);
+      // a conversion called off before it ran is not running («Konverterer …» stayed up after a quick edit)
+      settJobber(false);
     };
   }, [viserMaske, konverter, redigert, kilde]);
 
@@ -1229,23 +1241,40 @@ export function Vektorverksted(props: {
     () => new Set(Object.entries(lagMeta).flatMap(([f, l]) => (l.last ? [f] : []))),
     [lagMeta],
   );
-  const lasteDeler = useMemo(
+  /** Parts in locked layers: nothing may change them. */
+  const lagLaste = useMemo(
     () => (modell ? delerIFarger(modell, lasteFarger) : new Set<number>()),
     [modell, lasteFarger],
   );
+  /** Moved, scaled or rotated parts: drawn where they were moved to, edited only with «Flytt». */
+  const flyttede = useMemo(() => new Set(modell ? transformerte(modell) : []), [modell]);
+  /** Parts the other edit tools leave alone: locked layers and moved parts. */
+  const lasteDeler = useMemo(() => new Set([...lagLaste, ...flyttede]), [lagLaste, flyttede]);
   const lagliste = useMemo(
     () => (modell ? lagrekkefolge(modell, lagRekkefolge) : []),
     [modell, lagRekkefolge],
   );
-  const stier = useMemo(() => {
+  // the outlines only change with the borders and parts, not when parts are moved
+  const kurverOgDeler = modell ? { kurver: modell.kurver, deler: modell.deler } : null;
+  const grunnstier = useMemo(() => {
     if (!modell) return [];
     return modell.deler.flatMap((d) =>
       d && !skjulteFarger.has(d.farge) ? [{ id: d.id, farge: d.farge, d: delSti(modell, d) }] : [],
     );
-  }, [modell, skjulteFarger]);
+  }, [kurverOgDeler?.kurver, kurverOgDeler?.deler, skjulteFarger]);
+  const stier = useMemo(
+    () =>
+      grunnstier.map((s) => {
+        const t = modell?.transformer?.[s.id];
+        return t ? { ...s, t: matriseTekst(t) } : { ...s, t: undefined };
+      }),
+    [grunnstier, modell?.transformer],
+  );
   const kantSti = useMemo(() => {
     if (!modell || !visKanter) return '';
-    const synlig = (id: number) => id >= 0 && !skjulteFarger.has(modell.deler[id]?.farge ?? '');
+    const flyttet = new Set(transformerte(modell));
+    const synlig = (id: number) =>
+      id >= 0 && !flyttet.has(id) && !skjulteFarger.has(modell.deler[id]?.farge ?? '');
     return modell.kurver
       .map((k) => (k && (synlig(k.venstre) || synlig(k.hoyre)) ? kurveSti(k) : ''))
       .join('');
@@ -1311,6 +1340,17 @@ export function Vektorverksted(props: {
     };
     // refit when Finalize opens or the room around changes, not on every edit
   }, [iFerdig, visMarg]);
+  /** The box around the parts selected for «Flytt, skaler, roter». */
+  const flyttBoks =
+    modell && kanRedigere && rverktoy === 'flytt' && valgteDeler.length ? delBoks(modell, valgteDeler) : null;
+  /** A transform of the selected parts around the middle of their box, as one undo step. */
+  const transformerValgte = (lag: (cx: number, cy: number) => Parameters<typeof transformerDeler>[2]) => {
+    if (!modell || !valgteDeler.length) return;
+    const b = delBoks(modell, valgteDeler);
+    if (!b) return;
+    settModell(transformerDeler(modell, valgteDeler, lag((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2)));
+  };
+  const flyttValgte = (dx: number, dy: number) => transformerValgte(() => flyttMatrise(dx, dy));
   const gjeldendeTynne = tynne && tynne.modell === modell && tynne.mm === mmPerEnhet ? tynne : null;
   const iEnhet = (mm: number) => (enhet === 'cm' ? +(mm / 10).toFixed(2) : +mm.toFixed(1));
   const fraEnhet = (v: number) => (enhet === 'cm' ? v * 10 : v);
@@ -1470,6 +1510,25 @@ export function Vektorverksted(props: {
       dra.current = { type: 'penn', idx: penn.length, start: v, siste: v };
       return;
     }
+    if (rverktoy === 'flytt') {
+      const delEl = maal.closest('[data-del]');
+      const funnet = delEl ? Number(delEl.getAttribute('data-del')) : null;
+      const id = funnet !== null && lagLaste.has(funnet) ? null : funnet;
+      if (id === null) {
+        if (!e.shiftKey) settValgteDeler([]);
+        return;
+      }
+      const ider = e.shiftKey
+        ? valgteDeler.includes(id)
+          ? valgteDeler.filter((x) => x !== id)
+          : [...valgteDeler, id]
+        : valgteDeler.includes(id)
+          ? valgteDeler
+          : [id];
+      settValgteDeler(ider);
+      if (ider.includes(id)) dra.current = { type: 'flytt', start: v, base: modell, ider };
+      return;
+    }
     const naer = naermesteKurve(modell, v.x, v.y, 7 / pxPerEnhet);
     if (rverktoy === 'del') {
       const delEl = maal.closest('[data-del]');
@@ -1626,6 +1685,9 @@ export function Vektorverksted(props: {
     } else if (d.type === 'lokal') {
       const v = tilVektor(p);
       settLokalOmrade({ x0: d.start.x, y0: d.start.y, x1: v.x, y1: v.y });
+    } else if (d.type === 'flytt') {
+      const v = tilVektor(p);
+      settModellRa(transformerDeler(d.base, d.ider, flyttMatrise(v.x - d.start.x, v.y - d.start.y)));
     } else if (d.type === 'anker') {
       const v = tilVektor(p);
       settModellRa(flyttAnker(d.base, d.kurve, d.idx, v.x, v.y));
@@ -1670,7 +1732,11 @@ export function Vektorverksted(props: {
         Math.abs(lokalOmrade.x1 - lokalOmrade.x0) * pxPerEnhet < 4 ||
         Math.abs(lokalOmrade.y1 - lokalOmrade.y0) * pxPerEnhet < 4;
       if (liten) settLokalOmrade(null);
-    } else if ((d.type === 'anker' || d.type === 'handtak') && modell && modell !== d.base) {
+    } else if (
+      (d.type === 'anker' || d.type === 'handtak' || d.type === 'flytt') &&
+      modell &&
+      modell !== d.base
+    ) {
       // one undo step for the whole drag
       fortid.current.push(d.base);
       if (fortid.current.length > MAKS_HISTORIKK) fortid.current.shift();
@@ -1713,6 +1779,10 @@ export function Vektorverksted(props: {
       const mod = e.ctrlKey || e.metaKey;
       if (hjelpApen) {
         if (e.key === 'Escape') settHjelpApen(false);
+        return;
+      }
+      if ((e.key === 'd' || e.key === 'D') && !mod && !e.altKey && !viserMaske && modell) {
+        settDelt((v) => (v === null ? 50 : null));
         return;
       }
       if (e.key === '?' && !mod) {
@@ -1762,6 +1832,21 @@ export function Vektorverksted(props: {
           settLokalTilpasning(tilpasning);
         }
         if (e.key === 'v' || e.key === 'V') settRverktoy('del');
+        if ((e.key === 't' || e.key === 'T') && !mod) settRverktoy('flytt');
+        if (rverktoy === 'flytt' && valgteDeler.length && e.key.startsWith('Arrow')) {
+          e.preventDefault();
+          const steg = (e.shiftKey ? 10 : 1) / Math.max(pxPerEnhet, 1e-6);
+          const [dx, dy] =
+            e.key === 'ArrowLeft'
+              ? [-steg, 0]
+              : e.key === 'ArrowRight'
+                ? [steg, 0]
+                : e.key === 'ArrowUp'
+                  ? [0, -steg]
+                  : [0, steg];
+          flyttValgte(dx, dy);
+          return;
+        }
         if (e.key === 'l' || e.key === 'L') settRverktoy('linje');
         if (e.key === 'p' || e.key === 'P') settRverktoy('punkt');
         if (e.key === 'n' || e.key === 'N') settRverktoy('penn');
@@ -1783,7 +1868,8 @@ export function Vektorverksted(props: {
           if (rverktoy === 'punkt' && valgtAnker) {
             settModell(slettAnker(modell, valgtAnker.kurve, valgtAnker.idx));
             settValgtAnker(null);
-          } else if (rverktoy === 'del' && valgteDeler.length) settModell(slettDeler(modell, valgteDeler));
+          } else if ((rverktoy === 'del' || rverktoy === 'flytt') && valgteDeler.length)
+            settModell(slettDeler(modell, valgteDeler));
         }
       }
       if (e.key === '0' && mod) {
@@ -1869,7 +1955,9 @@ export function Vektorverksted(props: {
       ? 'grab'
       : rverktoy === 'linje' || rverktoy === 'penn' || rverktoy === 'omrade'
         ? 'crosshair'
-        : 'default';
+        : rverktoy === 'flytt'
+          ? 'move'
+          : 'default';
 
   const ankerR = 4.5 / pxPerEnhet;
   const handtakR = 3.5 / pxPerEnhet;
@@ -1937,7 +2025,14 @@ export function Vektorverksted(props: {
             src={kilde.url}
             alt=""
             draggable={false}
-            style={{ opacity: viserMaske ? 1 : iFerdig && bakgrunn !== 'rutenett' ? 0 : visOriginal }}
+            style={{
+              opacity:
+                viserMaske || (delt !== null && modell)
+                  ? 1
+                  : iFerdig && bakgrunn !== 'rutenett'
+                    ? 0
+                    : visOriginal,
+            }}
           />
           <div
             ref={beskyttHolder}
@@ -1949,6 +2044,19 @@ export function Vektorverksted(props: {
             class="vv-maskeholder vv-utvalgholder"
             style={{ display: viserMaske && utvalg ? 'block' : 'none' }}
           />
+          {delt !== null && !viserMaske && modell && (
+            <div
+              class="vv-skillelinje"
+              aria-hidden="true"
+              style={{
+                left: `${bruktUtsnitt.x + (bruktUtsnitt.b * delt) / 100}px`,
+                top: `${bruktUtsnitt.y}px`,
+                height: `${bruktUtsnitt.h}px`,
+                bottom: 'auto',
+                borderLeftWidth: `${2 / visning.skala}px`,
+              }}
+            />
+          )}
           <div ref={maskeHolder} class="vv-maskeholder" style={{ display: viserMaske ? 'block' : 'none' }} />
           {!viserMaske && modell && (
             <svg
@@ -1958,6 +2066,7 @@ export function Vektorverksted(props: {
                 top: `${bruktUtsnitt.y}px`,
                 width: `${bruktUtsnitt.b}px`,
                 height: `${bruktUtsnitt.h}px`,
+                clipPath: delt !== null ? `inset(-100000px -100000px -100000px ${delt}%)` : undefined,
               }}
               viewBox={`0 0 ${modell.bredde} ${modell.hoyde}`}
               aria-busy={jobber}
@@ -1981,6 +2090,7 @@ export function Vektorverksted(props: {
                     key={s.id}
                     data-del={s.id}
                     d={s.d}
+                    transform={s.t}
                     fill={s.farge}
                     stroke={s.farge}
                     stroke-width={0.6}
@@ -1993,9 +2103,20 @@ export function Vektorverksted(props: {
                   {stier
                     .filter((s) => valgteDeler.includes(s.id))
                     .map((s) => (
-                      <path key={s.id} d={s.d} vector-effect="non-scaling-stroke" />
+                      <path key={s.id} d={s.d} transform={s.t} vector-effect="non-scaling-stroke" />
                     ))}
                 </g>
+              )}
+              {kanRedigere && rverktoy === 'flytt' && flyttBoks && (
+                <rect
+                  class="vv-flyttboks"
+                  x={flyttBoks.x0}
+                  y={flyttBoks.y0}
+                  width={flyttBoks.x1 - flyttBoks.x0}
+                  height={flyttBoks.y1 - flyttBoks.y0}
+                  stroke-width={1.5 / pxPerEnhet}
+                  stroke-dasharray={`${6 / pxPerEnhet} ${4 / pxPerEnhet}`}
+                />
               )}
               {konturSti && konturType === 'linje' && (
                 <path class="vv-konturlinje" d={konturSti} stroke-width={1.5 / pxPerEnhet} />
@@ -2005,7 +2126,7 @@ export function Vektorverksted(props: {
                   {stier
                     .filter((s) => gjeldendeTynne.deler.some((t) => t.id === s.id))
                     .map((s) => (
-                      <path key={s.id} d={s.d} />
+                      <path key={s.id} d={s.d} transform={s.t} />
                     ))}
                 </g>
               )}
@@ -2251,6 +2372,7 @@ export function Vektorverksted(props: {
     { id: 'farger', ikon: 'palette', navn: 'Farger', tast: 'F' },
     { id: 'omrade', ikon: 'velg-omrade', navn: 'Tegn på nytt i område', tast: 'R' },
     { id: 'del', ikon: 'select', navn: 'Velg deler', tast: 'V' },
+    { id: 'flytt', ikon: 'transform', navn: 'Flytt, skaler, roter', tast: 'T' },
     { id: 'linje', ikon: 'velg-linje', navn: 'Velg linjer', tast: 'L' },
     { id: 'punkt', ikon: 'edit-point', navn: 'Punkter', tast: 'P' },
     { id: 'penn', ikon: 'pen', navn: 'Penn', tast: 'N' },
@@ -2464,6 +2586,27 @@ export function Vektorverksted(props: {
         />
         Vis kanter
       </label>
+      <label class="vv-avkryss">
+        <input
+          type="checkbox"
+          checked={delt !== null}
+          aria-keyshortcuts="D"
+          onChange={(e) => settDelt(e.currentTarget.checked ? 50 : null)}
+        />
+        Delt visning (D)
+      </label>
+      {delt !== null && (
+        <Glidebryter
+          navn="Skillelinje"
+          verdi={delt}
+          min={0}
+          max={100}
+          steg={1}
+          enhet="%"
+          hjelp="Originalen til venstre for linjen, vektoren til høyre."
+          endre={settDelt}
+        />
+      )}
       <button type="button" class="vv-sekundar vv-ikonknapp" onClick={() => tilpassVisning(bruktUtsnitt)}>
         <Ikon id="fit" storrelse={18} />
         <span>Tilpass visning</span>
@@ -3046,6 +3189,125 @@ export function Vektorverksted(props: {
     </>
   );
 
+  const [roterGrader, settRoterGrader] = useState(45);
+  const [skalerProsent, settSkalerProsent] = useState(100);
+  const flyttPanel = modell && (
+    <section>
+      {!valgteDeler.length ? (
+        <p class="vv-hjelp">
+          Klikk en del og dra den. Shift-klikk velger flere. Piltastene flytter (Shift: lenger).
+        </p>
+      ) : (
+        <p class="vv-tall">
+          {valgteDeler.length} {valgteDeler.length === 1 ? 'del valgt' : 'deler valgt'}
+        </p>
+      )}
+      <Knapp
+        ikon="select"
+        navn="Velg alle"
+        onClick={() => settValgteDeler(stier.filter((s) => !lagLaste.has(s.id)).map((s) => s.id))}
+      />
+      {valgteDeler.length > 0 && (
+        <>
+          <h3 class="vv-underoverskrift">Roter</h3>
+          <div class="vv-knapperad">
+            {[-90, -15, 15, 90].map((g) => (
+              <button
+                key={g}
+                type="button"
+                class="vv-sekundar"
+                onClick={() => transformerValgte((cx, cy) => rundt(cx, cy, g))}
+              >
+                {g > 0 ? `+${g}°` : `${g}°`}
+              </button>
+            ))}
+          </div>
+          <div class="vv-storrelse">
+            <label>
+              <span>Grader</span>
+              <input
+                type="number"
+                step={1}
+                value={roterGrader}
+                onChange={(e) => settRoterGrader(Number(e.currentTarget.value) || 0)}
+              />
+            </label>
+            <button
+              type="button"
+              class="vv-sekundar"
+              onClick={() => transformerValgte((cx, cy) => rundt(cx, cy, roterGrader))}
+            >
+              Roter
+            </button>
+          </div>
+          <h3 class="vv-underoverskrift">Skaler</h3>
+          <div class="vv-knapperad">
+            {[90, 110].map((f) => (
+              <button
+                key={f}
+                type="button"
+                class="vv-sekundar"
+                onClick={() => transformerValgte((cx, cy) => rundt(cx, cy, 0, f / 100))}
+              >
+                {f}&nbsp;%
+              </button>
+            ))}
+          </div>
+          <div class="vv-storrelse">
+            <label>
+              <span>Prosent</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={skalerProsent}
+                onChange={(e) => settSkalerProsent(Math.max(1, Number(e.currentTarget.value) || 100))}
+              />
+            </label>
+            <button
+              type="button"
+              class="vv-sekundar"
+              onClick={() => transformerValgte((cx, cy) => rundt(cx, cy, 0, skalerProsent / 100))}
+            >
+              Skaler
+            </button>
+          </div>
+          <h3 class="vv-underoverskrift">Speilvend</h3>
+          <div class="vv-knapperad">
+            <button
+              type="button"
+              class="vv-sekundar"
+              onClick={() => transformerValgte((cx, cy) => rundt(cx, cy, 0, -1, 1))}
+            >
+              Vannrett
+            </button>
+            <button
+              type="button"
+              class="vv-sekundar"
+              onClick={() => transformerValgte((cx, cy) => rundt(cx, cy, 0, 1, -1))}
+            >
+              Loddrett
+            </button>
+          </div>
+          <div class="vv-knapperad">
+            <Knapp
+              ikon="undo"
+              navn="Tilbake til plassen"
+              tittel="Delene går tilbake dit de ble sporet."
+              onClick={() => settModell(nullstillTransform(modell, valgteDeler))}
+              av={!valgteDeler.some((id) => flyttede.has(id))}
+            />
+            <Knapp ikon="delete" navn="Slett" onClick={() => settModell(slettDeler(modell, valgteDeler))} />
+          </div>
+        </>
+      )}
+      <p class="vv-hjelp">
+        En flyttet del etterlater et tomrom og kan ligge over andre. Den redigeres bare her til den er tilbake
+        på plassen sin; kanter og punkter følger den ikke i de andre verktøyene.
+      </p>
+    </section>
+  );
+
   const delPanel = modell && (
     <section>
       <h2>{valgteDeler.length ? `${valgteDeler.length} valgt` : 'Deler'}</h2>
@@ -3534,6 +3796,7 @@ export function Vektorverksted(props: {
       {rverktoy === 'lag' && lagPanel}
       {rverktoy === 'omrade' && omradePanel}
       {rverktoy === 'del' && delPanel}
+      {rverktoy === 'flytt' && flyttPanel}
       {(rverktoy === 'linje' || rverktoy === 'punkt') && linjePanel}
       {rverktoy === 'penn' && pennPanel}
       {!modell && rverktoy !== 'spor' && <p class="vv-dempet">Vektoren lages …</p>}
@@ -3850,7 +4113,7 @@ export function Vektorverksted(props: {
           </li>
           <li>
             <b>Edit</b>: konverteringen (forhåndsinnstilling, farger, små deler, kurver), lagene, fargene,
-            «Tegn på nytt i område», deler, linjer, punkter og pennen.
+            «Tegn på nytt i område», deler, flytt/skaler/roter, linjer, punkter og pennen.
           </li>
           <li>
             <b>Finalize</b>: se vektoren mot lys og mørk bakgrunn eller på et skilt, sett størrelsen i mm
@@ -3873,8 +4136,15 @@ export function Vektorverksted(props: {
           <dd>Beskjær, tryllestav, pensel, viskelær, lasso, rektangel (Mask)</dd>
           <dt>X</dt>
           <dd>Bytt mellom Masker og Beskytt</dd>
-          <dt>K Y F R V L P N</dt>
-          <dd>Konvertering, lag, farger, tegn på nytt i område, deler, linjer, punkter, penn (Edit)</dd>
+          <dt>K Y F R V T L P N</dt>
+          <dd>
+            Konvertering, lag, farger, tegn på nytt i område, deler, flytt/skaler/roter, linjer, punkter, penn
+            (Edit)
+          </dd>
+          <dt>Piltaster</dt>
+          <dd>Flytt de valgte delene med «Flytt, skaler, roter» (Shift: lenger)</dd>
+          <dt>D</dt>
+          <dd>Delt visning: originalen til venstre, vektoren til høyre</dd>
           <dt>Ctrl V</dt>
           <dd>Lim inn et bilde: åpner det, eller legger det til det du har</dd>
           <dt>Ctrl Z / Ctrl Y</dt>
@@ -4002,7 +4272,7 @@ export function Vektorverksted(props: {
         </aside>
       </main>
 
-      <footer class="vv-status" role="status" aria-live="polite">
+      <div class="vv-status" role="status" aria-live="polite">
         {statistikk && !viserMaske ? (
           <>
             <span>
@@ -4040,7 +4310,7 @@ export function Vektorverksted(props: {
           </span>
         )}
         <span class="vv-zoom">{Math.round(visning.skala * 100)} %</span>
-      </footer>
+      </div>
       {hjelp}
     </div>
   );

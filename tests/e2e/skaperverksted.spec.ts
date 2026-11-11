@@ -303,6 +303,49 @@ test.describe('Skaperverksted', () => {
     await expect(rot.locator('.vv-status')).toContainText('1 farge');
   });
 
+  test('Vectorim: flytt, roter og skaler deler, og delt visning', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Dra med mus testes på brede skjermer');
+    await page.goto('/skaperverksted/vectorim/');
+    const rot = page.locator('.vv');
+    await konverterIVerkstedet(page, rot);
+    await rot.getByRole('button', { name: 'Advanced' }).click();
+    await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Edit/ }).click();
+    await page.keyboard.press('t');
+    const verktoy = rot.getByRole('navigation', { name: 'Edit-verktøy' });
+    await expect(verktoy.getByRole('button', { name: 'Flytt, skaler, roter' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    // drag the dark square to the right
+    const del = rot.locator('.vv-deler path').first();
+    const b = (await del.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 60, b.y + b.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await expect(rot.locator('.vv-deler path[transform]')).toHaveCount(1);
+    await expect(rot.getByText('1 del valgt')).toBeVisible();
+
+    // turn and scale, then back to where it was traced
+    await rot.getByRole('button', { name: '+90°' }).click();
+    await rot.getByRole('button', { name: '110 %' }).click();
+    await page.keyboard.press('ArrowLeft');
+    await rot.getByRole('button', { name: 'Tilbake til plassen' }).click();
+    await expect(rot.locator('.vv-deler path[transform]')).toHaveCount(0);
+    await page.keyboard.press('Control+z');
+    await expect(rot.locator('.vv-deler path[transform]')).toHaveCount(1);
+
+    // split view: the original on the left, the vector clipped to the right
+    await page.keyboard.press('d');
+    await expect(rot.getByRole('checkbox', { name: /Delt visning/ })).toBeChecked();
+    await expect(rot.locator('.vv-skillelinje')).toBeVisible();
+    await rot.getByRole('slider', { name: 'Skillelinje' }).fill('30');
+    await expect(rot.locator('.vv-vektor')).toHaveAttribute('style', /inset\(.*30%\)/);
+    await rot.getByRole('checkbox', { name: /Delt visning/ }).uncheck();
+    await expect(rot.locator('.vv-skillelinje')).toHaveCount(0);
+  });
+
   test('den gamle adressen /skaperverksted/vektorverksted/ sender videre til Vectorim', async ({ page }) => {
     await page.goto('/skaperverksted/vektorverksted/');
     await expect(page).toHaveURL(/\/skaperverksted\/vectorim\/$/);
