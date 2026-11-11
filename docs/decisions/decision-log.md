@@ -316,3 +316,12 @@ Kilde: Sivert i Claude-prosjektet: «vectorim skal erstatte det gamle vektor ver
 - **Beholdt:** `vektoriser.ts` inneholder bare fargeanalysen Vectorim bruker (terskel, hovedfarger, blanding og palett). Tester for dette ligger i `vektoriser.test.ts`.
 - **Sign Forge:** «Bilde» i verktøyskinnen åpner Vectorim direkte, og «Legg på skiltet» sender vektoren til delvelgeren, som før.
 - **Beholdt:** redirecten fra `/skaperverksted/vektorverksted/` til `/skaperverksted/vectorim/`.
+
+## 2026-11-11 — Navnet er Vectorium (med u)
+
+Kilde: Sivert i Claude-prosjektet: «Kanskje det heller skal hete vectorium… ja vectorium». Erstatter navnet Vectorim.
+
+- **Navnet:** alle tekster, kort, meny, søk, tittel og metadata, knappen i Sign Forge og hjelpeteksten sier **Vectorium**. Kodenavn og filnavn følger: `vectorium.astro`, id `vectorium`.
+- **Filformatet:** nye prosjekter lagres som `.vectorium` med `format: "vectorium"`. Eldre `.vectorim`-filer åpnes fortsatt (`vektorverksted/prosjekt.ts`).
+- **Adresser:** `/skaperverksted/vectorium/` er den nye adressen. `/skaperverksted/vectorim/` og `/skaperverksted/vektorverksted/` sender videre dit.
+- **Beholdt:** IndexedDB-databasen heter fortsatt `vectorim`, så autolagret arbeid fra tidligere bygg ikke forsvinner. Mappen `vektorverksted/` og interne funksjonsnavn er ikke endret.

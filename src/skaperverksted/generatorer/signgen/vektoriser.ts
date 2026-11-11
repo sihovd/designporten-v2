@@ -1,6 +1,6 @@
 /**
  * Fargeanalyse for bilder som skal vektoriseres (Sivert, 2026-11-08, og
- * 2026-11-11: Vectorim erstatter det gamle vektorverktøyet). Vectorim
+ * 2026-11-11: Vectorium erstatter det gamle vektorverktøyet). Vectorium
  * (vektorverksted/) bruker disse funksjonene til å finne fargene i bildet:
  * terskel, hovedfarger, blanding mellom farger og tilhørende palett.
  *

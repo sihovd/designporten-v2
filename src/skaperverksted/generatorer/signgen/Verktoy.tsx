@@ -178,8 +178,8 @@ export function SigngenVerktoy({ benk }: { benk: Arbeidsbenk }) {
         }}
       />
       {hjelpeknapp(
-        'Bilde',
-        'Gjør et bilde (PNG, JPG, WebP) om til vektor i Vectorim og legg det på skiltet. Logoer og tegninger blir best',
+        'Vectorium',
+        'Gjør et bilde (PNG, JPG, WebP) om til vektor i Vectorium og legg det på skiltet. Logoer og tegninger blir best',
         'image',
         () => signtilstand(benk).sett({ vektorverksted: true }),
       )}

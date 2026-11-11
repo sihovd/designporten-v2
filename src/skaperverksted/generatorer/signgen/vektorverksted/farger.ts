@@ -1,5 +1,5 @@
 /**
- * Colour control for Vectorim (Sivert, 2026-11-11): the colours of a
+ * Colour control for Vectorium (Sivert, 2026-11-11): the colours of a
  * vector with their area, merging colours that are nearly the same, and
  * reducing the vector to a number of colours. A colour that goes away takes
  * the colour it is closest to; the colour with the larger area wins.
