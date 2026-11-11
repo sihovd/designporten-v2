@@ -81,7 +81,9 @@ import {
   type Kurve,
   type Vektormodell,
 } from './modell';
-import { fargebruk, reduserFarger, slaSammenLikeFarger } from './farger';
+import { fargebruk, flatUt, reduserFarger, slaSammenLikeFarger } from './farger';
+import { kontur, ringerTilSti, tilDxf, tynneDeler, type TynnDel } from './ferdig';
+import { ringerI } from '../../../geometri/polygon';
 import {
   delerIFarger,
   flyttLag,
@@ -155,6 +157,16 @@ interface Prosjekttilstand {
   modell: Vektormodell | null;
   /** The vector as traced, before edits, so undo can go back to it. */
   grunnmodell: Vektormodell | null;
+  /** Finalize: size and contour. */
+  ferdig?: {
+    breddeMm: number | null;
+    enhet: 'mm' | 'cm';
+    konturPa: boolean;
+    konturAvstand: number;
+    konturType: 'linje' | 'flate';
+    konturFarge: string;
+    minBredde: number;
+  };
 }
 
 const erTall = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -474,6 +486,23 @@ export function Vektorverksted(props: {
   const [lagretProsjekt, settLagretProsjekt] = useState<Prosjekt | null>(null);
   const [lagreStatus, settLagreStatus] = useState<string | null>(null);
   const [autolagring, settAutolagring] = useState<'av' | 'lagret' | 'feil'>('av');
+  // Finalize (Sivert approved: preview against light/dark and as a sign, size in mm,
+  // simplify for cutting with a minimum width warning, contour, flatten, PNG/DXF)
+  const [bakgrunn, settBakgrunn] = useState<'rutenett' | 'lys' | 'mork' | 'skilt'>('rutenett');
+  const [skiltfarge, settSkiltfarge] = useState('#ffffff');
+  /** The width in mm the vector is exported at; null follows the image (96 px per inch). */
+  const [breddeMm, settBreddeMm] = useState<number | null>(null);
+  const [enhet, settEnhet] = useState<'mm' | 'cm'>('mm');
+  const [minBredde, settMinBredde] = useState(1);
+  const [tynne, settTynne] = useState<{ modell: Vektormodell; mm: number; deler: TynnDel[] } | null>(null);
+  const [konturPa, settKonturPa] = useState(false);
+  const [konturAvstand, settKonturAvstand] = useState(3);
+  const [konturType, settKonturType] = useState<'linje' | 'flate'>('linje');
+  const [konturFarge, settKonturFarge] = useState('#ffffff');
+  const [flatFarge, settFlatFarge] = useState('#000000');
+  const [forenkleStyrke, settForenkleStyrke] = useState(0.3);
+  const [dpi, settDpi] = useState(300);
+  const [ferdigMelding, settFerdigMelding] = useState<string | null>(null);
   /** Set when a vector is restored (project, undo): the next conversion adopts it instead of tracing. */
   const ventGjenopprett = useRef(false);
   /** The source image as PNG, made once per image for saving. */
@@ -577,6 +606,8 @@ export function Vektorverksted(props: {
     settLagMeta({});
     settLagRekkefolge([]);
     settLokalOmrade(null);
+    settBreddeMm(null);
+    settTynne(null);
     settFeil(null);
     settLagretProsjekt(null);
     settMaskeVersjon((v) => v + 1);
@@ -626,6 +657,15 @@ export function Vektorverksted(props: {
       settModellRa(t.modell);
       fortid.current = grunn !== t.modell ? [grunn] : [];
     }
+    const f = t.ferdig;
+    settBreddeMm(f && erTall(f.breddeMm) && f.breddeMm > 0 ? f.breddeMm : null);
+    if (f?.enhet === 'mm' || f?.enhet === 'cm') settEnhet(f.enhet);
+    settKonturPa(f?.konturPa === true);
+    if (f && erTall(f.konturAvstand)) settKonturAvstand(f.konturAvstand);
+    if (f?.konturType === 'linje' || f?.konturType === 'flate') settKonturType(f.konturType);
+    if (typeof f?.konturFarge === 'string' && /^#[0-9a-f]{6}$/i.test(f.konturFarge))
+      settKonturFarge(f.konturFarge);
+    if (f && erTall(f.minBredde)) settMinBredde(f.minBredde);
     settLagreStatus(`Prosjektet «${p.navn}» er åpnet.`);
   };
 
@@ -663,6 +703,7 @@ export function Vektorverksted(props: {
         : null,
       modell,
       grunnmodell: resultat && resultat.modell !== modell ? resultat.modell : null,
+      ferdig: { breddeMm, enhet, konturPa, konturAvstand, konturType, konturFarge, minBredde },
     };
     return {
       versjon: 1,
@@ -733,7 +774,20 @@ export function Vektorverksted(props: {
     nivaa,
     steg,
     jobber,
+    breddeMm,
+    enhet,
+    konturPa,
+    konturAvstand,
+    konturType,
+    konturFarge,
+    minBredde,
   ]);
+
+  useEffect(() => {
+    if (!ferdigMelding) return;
+    const t = window.setTimeout(() => settFerdigMelding(null), 8000);
+    return () => clearTimeout(t);
+  }, [ferdigMelding]);
 
   useEffect(() => {
     if (!lagreStatus) return;
@@ -1209,6 +1263,57 @@ export function Vektorverksted(props: {
   const bruktUtsnitt = resultat?.utsnitt ?? utsnitt;
   /** Screen pixels per vector unit. */
   const pxPerEnhet = modell ? (visning.skala * bruktUtsnitt.b) / modell.bredde : 1;
+
+  // ------------------------------------------------------------ size and contour
+
+  /** Without a chosen size the vector keeps the image's size at 96 px per inch, as before. */
+  const standardMm = Math.round(((bruktUtsnitt.b * 25.4) / 96) * 10) / 10;
+  const bMm = breddeMm ?? standardMm;
+  const mmPerEnhet = modell ? bMm / modell.bredde : 1;
+  const hMm = modell ? modell.hoyde * mmPerEnhet : 0;
+  const konturSti = useMemo(() => {
+    if (!modell || !konturPa || konturAvstand <= 0) return '';
+    try {
+      return ringerTilSti(
+        ringerI(kontur(modell, mmPerEnhet, konturAvstand, true, skjulteFarger)),
+        1 / mmPerEnhet,
+      );
+    } catch (e) {
+      console.error(e);
+      return '';
+    }
+  }, [modell, konturPa, konturAvstand, mmPerEnhet, skjulteFarger]);
+  /** Finalize shows the preview background, the sign plate and thin places. */
+  const iFerdig = nivaa === 'avansert' && steg === 'ferdig';
+  /** Room around the motif on the sign preview: 5 mm beyond the contour. */
+  const skiltMarg = ((konturPa ? konturAvstand : 0) + 5) / mmPerEnhet;
+  // in Finalize the sign plate and the contour reach outside the image: fit them in view
+  /** The room the sign plate or contour takes outside the image, in image pixels. */
+  const visMarg =
+    iFerdig && modell && (bakgrunn === 'skilt' || konturPa)
+      ? Math.round((skiltMarg * bruktUtsnitt.b) / modell.bredde)
+      : 0;
+  useEffect(() => {
+    if (!iFerdig || !modell) return;
+    const g = visMarg;
+    const r = {
+      x: bruktUtsnitt.x - g,
+      y: bruktUtsnitt.y - g,
+      b: bruktUtsnitt.b + 2 * g,
+      h: bruktUtsnitt.h + 2 * g,
+    };
+    // after the mode switch's own fit
+    let indre = 0;
+    const t = requestAnimationFrame(() => (indre = requestAnimationFrame(() => tilpassVisning(r))));
+    return () => {
+      cancelAnimationFrame(t);
+      cancelAnimationFrame(indre);
+    };
+    // refit when Finalize opens or the room around changes, not on every edit
+  }, [iFerdig, visMarg]);
+  const gjeldendeTynne = tynne && tynne.modell === modell && tynne.mm === mmPerEnhet ? tynne : null;
+  const iEnhet = (mm: number) => (enhet === 'cm' ? +(mm / 10).toFixed(2) : +mm.toFixed(1));
+  const fraEnhet = (v: number) => (enhet === 'cm' ? v * 10 : v);
 
   // ------------------------------------------------------------ pointer
 
@@ -1772,7 +1877,7 @@ export function Vektorverksted(props: {
   const lerret = (
     <div
       ref={flate}
-      class="vv-flate"
+      class={`vv-flate${iFerdig && bakgrunn !== 'rutenett' ? ` vv-bakgrunn-${bakgrunn}` : ''}`}
       style={{ cursor: markor }}
       onPointerDown={onPointerDown as unknown as JSX.PointerEventHandler<HTMLDivElement>}
       onPointerMove={onPointerMove as unknown as JSX.PointerEventHandler<HTMLDivElement>}
@@ -1832,7 +1937,7 @@ export function Vektorverksted(props: {
             src={kilde.url}
             alt=""
             draggable={false}
-            style={{ opacity: viserMaske ? 1 : visOriginal }}
+            style={{ opacity: viserMaske ? 1 : iFerdig && bakgrunn !== 'rutenett' ? 0 : visOriginal }}
           />
           <div
             ref={beskyttHolder}
@@ -1857,6 +1962,19 @@ export function Vektorverksted(props: {
               viewBox={`0 0 ${modell.bredde} ${modell.hoyde}`}
               aria-busy={jobber}
             >
+              {iFerdig && bakgrunn === 'skilt' && (
+                <rect
+                  class="vv-skiltplate"
+                  x={-skiltMarg}
+                  y={-skiltMarg}
+                  width={modell.bredde + 2 * skiltMarg}
+                  height={modell.hoyde + 2 * skiltMarg}
+                  rx={skiltMarg * 0.6}
+                  fill={skiltfarge}
+                  stroke-width={1 / pxPerEnhet}
+                />
+              )}
+              {konturSti && konturType === 'flate' && <path d={konturSti} fill={konturFarge} />}
               <g class="vv-deler">
                 {stier.map((s) => (
                   <path
@@ -1879,7 +1997,21 @@ export function Vektorverksted(props: {
                     ))}
                 </g>
               )}
-              {kantSti && <path class="vv-kanter" d={kantSti} vector-effect="non-scaling-stroke" />}
+              {konturSti && konturType === 'linje' && (
+                <path class="vv-konturlinje" d={konturSti} stroke-width={1.5 / pxPerEnhet} />
+              )}
+              {iFerdig && gjeldendeTynne && gjeldendeTynne.deler.length > 0 && (
+                <g class="vv-tynne" stroke-width={2 / pxPerEnhet}>
+                  {stier
+                    .filter((s) => gjeldendeTynne.deler.some((t) => t.id === s.id))
+                    .map((s) => (
+                      <path key={s.id} d={s.d} />
+                    ))}
+                </g>
+              )}
+              {kantSti && !iFerdig && (
+                <path class="vv-kanter" d={kantSti} vector-effect="non-scaling-stroke" />
+              )}
               {valgteKurver.length > 0 && (
                 <path
                   class="vv-valgte-kanter"
@@ -2124,17 +2256,104 @@ export function Vektorverksted(props: {
     { id: 'penn', ikon: 'pen', navn: 'Penn', tast: 'N' },
   ];
 
+  const lagnavn = () => Object.fromEntries(Object.entries(lagMeta).map(([f, l]) => [f, l.navn]));
+
+  /** The SVG as exported: at the chosen size in mm, with the contour when it is on. */
   function svgTekst() {
     if (!modell) return '';
+    const k = konturSti
+      ? konturType === 'flate'
+        ? `<g id="kontur"><title>Kontur</title><path fill="${konturFarge}" d="${konturSti}"/></g>`
+        : `<g id="kontur"><title>Kontur (skjærelinje)</title><path fill="none" stroke="#ff00ff" stroke-width="${+(0.25 / mmPerEnhet).toFixed(4)}" d="${konturSti}"/></g>`
+      : '';
     return tilSvg(modell, {
       grupperEtterFarge: grupper,
-      bredde: bruktUtsnitt.b,
-      hoyde: bruktUtsnitt.h,
+      bredde: bMm,
+      hoyde: hMm,
+      mm: true,
+      marg: konturSti ? (konturAvstand + 0.25) / mmPerEnhet : 0,
+      under: konturType === 'flate' ? k : '',
+      over: konturType === 'linje' ? k : '',
       rekkefolge: lagliste,
       skjulte: skjulteFarger,
-      navn: Object.fromEntries(Object.entries(lagMeta).map(([f, l]) => [f, l.navn])),
+      navn: lagnavn(),
     });
   }
+
+  const filnavn = () => kilde?.navn || 'vectorim';
+
+  const lastNedDxf = () => {
+    if (!modell) return;
+    try {
+      const k = konturPa ? kontur(modell, mmPerEnhet, konturAvstand, true, skjulteFarger) : undefined;
+      const dxf = tilDxf(modell, mmPerEnhet, {
+        rekkefolge: lagliste,
+        skjulte: skjulteFarger,
+        navn: lagnavn(),
+        kontur: k,
+      });
+      lastNed(`${filnavn()}.dxf`, new Blob([dxf], { type: 'application/dxf' }));
+    } catch (e) {
+      console.error(e);
+      settFeil('DXF-filen kunne ikke lages.');
+    }
+  };
+
+  /** PNG at the chosen size and resolution, transparent around the motif. */
+  const lastNedPng = async () => {
+    if (!modell) return;
+    const svg = svgTekst();
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    try {
+      const bilde = new Image();
+      bilde.src = url;
+      await bilde.decode();
+      const marg = konturSti ? (konturAvstand + 0.25) * 2 : 0;
+      const pxPerMm = dpi / 25.4;
+      const s = Math.min(1, 8000 / Math.max((bMm + marg) * pxPerMm, (hMm + marg) * pxPerMm));
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round((bMm + marg) * pxPerMm * s));
+      c.height = Math.max(1, Math.round((hMm + marg) * pxPerMm * s));
+      c.getContext('2d')!.drawImage(bilde, 0, 0, c.width, c.height);
+      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+      c.width = c.height = 0;
+      if (!blob) throw new Error();
+      lastNed(`${filnavn()}.png`, blob);
+      settFerdigMelding(
+        s < 1
+          ? `PNG-en er lastet ned, men skalert ned til ${Math.round(dpi * s)} dpi så den ikke blir større enn 8000 px.`
+          : `PNG-en er lastet ned i ${dpi} dpi.`,
+      );
+    } catch {
+      settFeil('PNG-filen kunne ikke lages.');
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const sjekkTynne = () => {
+    if (!modell) return;
+    try {
+      const deler = tynneDeler(modell, mmPerEnhet, minBredde, skjulteFarger);
+      settTynne({ modell, mm: mmPerEnhet, deler });
+    } catch (e) {
+      console.error(e);
+      settFeil('Kunne ikke sjekke tykkelsen.');
+    }
+  };
+
+  const forenkleAlt = () => {
+    if (!modell) return;
+    const ider = ulaste(modell.kurver.flatMap((k, i) => (k ? [i] : [])));
+    settModell(forenkle(modell, ider, forenkleStyrke));
+    settFerdigMelding(`${ider.length} kurver er forenklet. Angre med Ctrl Z.`);
+  };
+
+  const flatUtNa = () => {
+    if (!modell) return;
+    settModell(flatUt(modell, flatFarge));
+    settFerdigMelding('Alle delene har nå én farge. Angre med Ctrl Z.');
+  };
 
   const fargebrukListe = useMemo(() => (modell ? fargebruk(modell) : []), [modell]);
 
@@ -2287,6 +2506,29 @@ export function Vektorverksted(props: {
           <span>Kopier SVG</span>
         </button>
       </div>
+      {nivaa === 'avansert' && steg === 'ferdig' && (
+        <>
+          <div class="vv-knapperad">
+            <Knapp
+              ikon="export"
+              navn="Last ned DXF"
+              onClick={lastNedDxf}
+              tittel="For skjæreplotter og CAD, i mm."
+            />
+            <Knapp ikon="image" navn="Last ned PNG" onClick={() => void lastNedPng()} />
+          </div>
+          <div class="vv-segment" role="group" aria-label="Oppløsning for PNG">
+            {[150, 300, 600].map((d) => (
+              <button key={d} type="button" aria-pressed={dpi === d} onClick={() => settDpi(d)}>
+                {d} dpi
+              </button>
+            ))}
+          </div>
+          <p class="vv-hjelp">
+            {iEnhet(bMm)} × {iEnhet(hMm)} {enhet}. DXF har ett lag per farge og konturen i laget «Kontur».
+          </p>
+        </>
+      )}
       {kopiStatus && (
         <p class="vv-hjelp" role="status">
           {kopiStatus}
@@ -3308,8 +3550,194 @@ export function Vektorverksted(props: {
     </>
   );
 
+  /** A colour field with its label and code. */
+  const fargefelt = (id: string, navn: string, verdi: string, endre: (v: string) => void) => (
+    <div class="vv-felt">
+      <label for={id}>
+        <span>{navn}</span>
+        <output>{verdi}</output>
+      </label>
+      <input id={id} type="color" value={verdi} onInput={(e) => endre(e.currentTarget.value)} />
+    </div>
+  );
+
+  const settStorrelse = (verdi: string, side: 'b' | 'h') => {
+    const v = fraEnhet(Number(verdi.replace(',', '.')));
+    if (!modell || !Number.isFinite(v) || v <= 0) return;
+    settBreddeMm(side === 'b' ? v : (v * modell.bredde) / modell.hoyde);
+  };
+
+  const forhandsvisningSeksjon = (
+    <section>
+      <h2>Forhåndsvisning</h2>
+      <div class="vv-segment" role="group" aria-label="Bakgrunn">
+        {(
+          [
+            ['rutenett', 'Rutenett'],
+            ['lys', 'Lys'],
+            ['mork', 'Mørk'],
+            ['skilt', 'Som skilt'],
+          ] as const
+        ).map(([id, navn]) => (
+          <button key={id} type="button" aria-pressed={bakgrunn === id} onClick={() => settBakgrunn(id)}>
+            {navn}
+          </button>
+        ))}
+      </div>
+      {bakgrunn === 'skilt' && fargefelt('vv-skiltfarge', 'Skiltfarge', skiltfarge, settSkiltfarge)}
+      <p class="vv-hjelp">Se hvordan vektoren står mot lys og mørk bakgrunn, eller på en skiltplate.</p>
+    </section>
+  );
+
+  const storrelseSeksjon = modell && (
+    <section>
+      <h2>Størrelse</h2>
+      <div class="vv-segment" role="group" aria-label="Enhet">
+        <button type="button" aria-pressed={enhet === 'mm'} onClick={() => settEnhet('mm')}>
+          mm
+        </button>
+        <button type="button" aria-pressed={enhet === 'cm'} onClick={() => settEnhet('cm')}>
+          cm
+        </button>
+      </div>
+      <div class="vv-storrelse">
+        <label>
+          <span>Bredde</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0.1}
+            step={enhet === 'cm' ? 0.1 : 1}
+            value={iEnhet(bMm)}
+            onChange={(e) => settStorrelse(e.currentTarget.value, 'b')}
+          />
+          <span>{enhet}</span>
+        </label>
+        <label>
+          <span>Høyde</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0.1}
+            step={enhet === 'cm' ? 0.1 : 1}
+            value={iEnhet(hMm)}
+            onChange={(e) => settStorrelse(e.currentTarget.value, 'h')}
+          />
+          <span>{enhet}</span>
+        </label>
+      </div>
+      {breddeMm !== null && (
+        <button type="button" class="vv-lenkeknapp" onClick={() => settBreddeMm(null)}>
+          Tilbake til bildets størrelse ({iEnhet(standardMm)} {enhet} bred)
+        </button>
+      )}
+      <p class="vv-hjelp">Størrelsen står i SVG-, DXF- og PNG-filen, og følger med på skiltet.</p>
+    </section>
+  );
+
+  const skjaeringSeksjon = modell && (
+    <section>
+      <h2>Til skjæring</h2>
+      <Glidebryter
+        navn="Minste bredde"
+        verdi={minBredde}
+        min={0.2}
+        max={5}
+        steg={0.1}
+        enhet="mm"
+        hjelp="Folie og fres klarer sjelden streker smalere enn 0,5 til 1 mm."
+        endre={(v) => {
+          settMinBredde(v);
+          settTynne(null);
+        }}
+      />
+      <Knapp ikon="ruler" navn="Sjekk tynne steder" onClick={sjekkTynne} />
+      {gjeldendeTynne && (
+        <p class={gjeldendeTynne.deler.length ? 'vv-advarsel' : 'vv-melding'} role="status">
+          {gjeldendeTynne.deler.length
+            ? `${gjeldendeTynne.deler.length} ${gjeldendeTynne.deler.length === 1 ? 'del har' : 'deler har'} steder smalere enn ${String(minBredde).replace('.', ',')} mm. De er markert med rødt. Gjør vektoren større, slå delene sammen i Edit, eller øk «Fjern tynne streker» i Konvertering.`
+            : `Ingen deler er smalere enn ${String(minBredde).replace('.', ',')} mm.`}
+        </p>
+      )}
+      <Glidebryter
+        navn="Forenkling"
+        verdi={forenkleStyrke}
+        min={0}
+        max={1}
+        steg={0.05}
+        hjelp="Færre punkter gir jevnere og raskere skjæring. Låste lag røres ikke."
+        endre={settForenkleStyrke}
+      />
+      <Knapp ikon="smooth" navn="Forenkle alle kurver" onClick={forenkleAlt} />
+    </section>
+  );
+
+  const konturSeksjon = modell && (
+    <section>
+      <h2>Kontur</h2>
+      <label class="vv-avkryss">
+        <input type="checkbox" checked={konturPa} onChange={(e) => settKonturPa(e.currentTarget.checked)} />
+        Kontur rundt motivet
+      </label>
+      {konturPa && (
+        <>
+          <Glidebryter
+            navn="Avstand"
+            verdi={konturAvstand}
+            min={0.5}
+            max={20}
+            steg={0.5}
+            enhet="mm"
+            endre={settKonturAvstand}
+          />
+          <div class="vv-segment" role="group" aria-label="Konturen er">
+            <button
+              type="button"
+              aria-pressed={konturType === 'linje'}
+              onClick={() => settKonturType('linje')}
+            >
+              Skjærelinje
+            </button>
+            <button
+              type="button"
+              aria-pressed={konturType === 'flate'}
+              onClick={() => settKonturType('flate')}
+            >
+              Flate bak
+            </button>
+          </div>
+          {konturType === 'flate' && fargefelt('vv-konturfarge', 'Farge', konturFarge, settKonturFarge)}
+          <p class="vv-hjelp">
+            {konturType === 'linje'
+              ? 'En magenta linje rundt motivet, i et eget lag, for konturskjæring av klistremerker og folie.'
+              : 'En fylt flate bak motivet, for eksempel som bakplate eller hvit underfarge.'}
+          </p>
+        </>
+      )}
+    </section>
+  );
+
+  const flatUtSeksjon = modell && (
+    <section>
+      <h2>Flat ut</h2>
+      {fargefelt('vv-flatfarge', 'Én farge', flatFarge, settFlatFarge)}
+      <Knapp ikon="fill" navn="Gjør alt til én farge" onClick={flatUtNa} />
+      <p class="vv-hjelp">For folie i én farge eller gravering. Delene beholder formen sin.</p>
+    </section>
+  );
+
   const ferdigPanel = kilde && modell && (
     <>
+      {ferdigMelding && (
+        <p class="vv-melding" role="status">
+          {ferdigMelding}
+        </p>
+      )}
+      {forhandsvisningSeksjon}
+      {storrelseSeksjon}
+      {skjaeringSeksjon}
+      {konturSeksjon}
+      {flatUtSeksjon}
       {eksportSeksjon}
       {visningSeksjon}
     </>
@@ -3425,7 +3853,9 @@ export function Vektorverksted(props: {
             «Tegn på nytt i område», deler, linjer, punkter og pennen.
           </li>
           <li>
-            <b>Finalize</b>: last ned SVG-en, kopier den eller legg den på skiltet.
+            <b>Finalize</b>: se vektoren mot lys og mørk bakgrunn eller på et skilt, sett størrelsen i mm
+            eller cm, sjekk tynne steder og forenkle til skjæring, legg til kontur, gjør alt til én farge, og
+            last ned som SVG, DXF eller PNG, kopier den eller legg den på skiltet.
           </li>
         </ol>
         <h3>Flere bilder og prosjekter</h3>

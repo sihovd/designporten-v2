@@ -23,6 +23,7 @@ import { lagRegionkart, STANDARD_REGIONVALG, type Regionvalg } from './regioner'
 import { antallValgt, bakgrunnsutvalg, kombiner, tryllestav, utvid } from './tryllestav';
 import { fargeavstand, fargebruk, flatUt, reduserFarger, slaSammenLikeFarger } from './farger';
 import { delerIFarger, flyttLag, lagrekkefolge, tegnOmradePaNytt } from './lag';
+import { kontur, tilDxf, tynneDeler } from './ferdig';
 
 type Rgba = [number, number, number, number];
 function bilde(b: number, h: number, farge: (x: number, y: number) => Rgba): Piksler {
@@ -397,5 +398,57 @@ describe('lag', () => {
     expect(svg.indexOf(`farge-${c!.slice(1)}`)).toBeLessThan(svg.indexOf(`farge-${a!.slice(1)}`));
     expect(svg).not.toContain(`farge-${b!.slice(1)}`);
     expect(svg).toContain('<title>Bakgrunn &#38; ramme</title>');
+  });
+});
+
+describe('ferdig', () => {
+  /** A thick black square and a thin black bar, apart. */
+  const tynn = bilde(120, 80, (x, y) => {
+    if (x >= 10 && x < 50 && y >= 20 && y < 60) return SVART;
+    if (x >= 70 && x < 110 && y >= 38 && y < 41) return SVART;
+    return HVIT;
+  });
+  const modell = () =>
+    byggModell(
+      lagRegionkart(tynn, null, {
+        ...STANDARD_REGIONVALG,
+        farger: 1,
+        minAreal: 0,
+        minHull: 0,
+        minTykkelse: 0,
+        stoyfilter: 0,
+      }),
+    );
+
+  it('finds the parts narrower than the limit, not the thick ones', () => {
+    const m = modell();
+    const tynne = tynneDeler(m, 1, 5);
+    expect(tynne).toHaveLength(1);
+    const d = m.deler[tynne[0]!.id]!;
+    expect(delFlate(m, d.id)).toBeLessThan(200);
+    expect(tynneDeler(m, 1, 2)).toHaveLength(0);
+  });
+
+  it('grows a contour around everything, holes closed', () => {
+    const m = modell();
+    const k = kontur(m, 1, 3);
+    expect(k).toHaveLength(2);
+    // square 40 + 3 round: about 2100 mm², bar 40 × 3 + 3 round: about 400 mm²
+    expect(areal(k)).toBeGreaterThan(2350);
+    expect(areal(k)).toBeLessThan(2650);
+    expect(k.every((f) => f.hull.length === 0)).toBe(true);
+    expect(kontur(m, 1, 15)).toHaveLength(1);
+  });
+
+  it('writes DXF with one layer per colour and the contour on its own layer', () => {
+    const m = modell();
+    const dxf = tilDxf(m, 0.5, { navn: { '#000000': 'Tekst æ' }, kontur: kontur(m, 0.5, 2) });
+    expect(dxf).toMatch(/^0\nSECTION\n/);
+    expect(dxf.trim().endsWith('EOF')).toBe(true);
+    expect(dxf).toContain('\n8\nKontur\n');
+    expect((dxf.match(/\nPOLYLINE\n/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    // every coordinate fits the 60 × 40 mm drawing
+    const xs = [...dxf.matchAll(/\n10\n([-\d.]+)/g)].map((t) => Number(t[1]));
+    expect(Math.max(...xs)).toBeLessThan(62);
   });
 });
