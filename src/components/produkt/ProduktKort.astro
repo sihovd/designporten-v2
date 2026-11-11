@@ -13,6 +13,7 @@
 import Ikon from '@/components/Ikon.astro';
 import Konseptbilde from '@/components/Konseptbilde.astro';
 import { formaterKroner } from '@/lib/handel/kurv';
+import { hvis, malfelt } from '@/lib/handel/mal';
 import { formaterMal, type ProduktVisning } from '@/lib/handel/visning';
 
 interface Props {
@@ -21,50 +22,64 @@ interface Props {
   nivaa?: 'h2' | 'h3' | 'h4';
   /** First cards on a page may load eagerly. */
   lasting?: 'lazy' | 'eager';
+  /**
+   * Render the product template (src/lib/handel/mal.ts) that the one.com
+   * server fills in for every product in Studio (php/api/_katalog.php).
+   */
+  mal?: boolean;
 }
 
-const { produkt: p, nivaa = 'h3', lasting = 'lazy' } = Astro.props;
+const { produkt: p, nivaa = 'h3', lasting = 'lazy', mal = false } = Astro.props;
 const Overskrift = nivaa;
-const mal = formaterMal(p.mal);
+const spesifikasjon = mal ? malfelt('spek') : (formaterMal(p.mal) ?? p.kategoriNavn);
+const Hvis = ({ felt, slutt }: { felt: string; slutt?: boolean }) => (mal ? hvis(felt, slutt) : '');
 ---
 
 <article
   class="produktkort"
   data-produktkort
   data-produkt-id={p.id}
-  data-produkt={JSON.stringify(p)}
+  data-produkt={mal ? malfelt('json') : JSON.stringify(p)}
   data-alternativ={p.bildeAlternativ ? '' : undefined}
 >
   <a class="produktkort__lenke" href={p.href} data-produktlenke>
     <span class="produktkort__bilde">
-      <Konseptbilde bilde={p.bilde} class="produktkort__img" lasting={lasting} sizes="208px" />
+      <Konseptbilde
+        bilde={p.bilde}
+        class="produktkort__img"
+        lasting={mal ? (malfelt('lasting') as 'lazy') : lasting}
+        sizes="208px"
+        mal={mal ? 'bilde' : undefined}
+      />
+      <Fragment set:html={Hvis({ felt: 'alt' })} />
       {p.bildeAlternativ && (
         <Konseptbilde
           bilde={p.bildeAlternativ}
           class="produktkort__img produktkort__img--alt"
           merke={false}
           sizes="208px"
+          mal={mal ? 'alt' : undefined}
         />
       )}
+      <Fragment set:html={Hvis({ felt: 'alt', slutt: true })} />
+      <Fragment set:html={Hvis({ felt: 'egenTekst' })} />
       {p.egenTekst && <span class="produktkort__tag mono">Egen tekst</span>}
-      {!p.egenTekst && p.generator && <span class="produktkort__tag mono">Lag i Skaperverksted</span>}
+      <Fragment set:html={Hvis({ felt: 'egenTekst', slutt: true }) + Hvis({ felt: 'bareGenerator' })} />
+      {(mal || !p.egenTekst) && p.generator && (
+        <span class="produktkort__tag mono">Lag i Skaperverksted</span>
+      )}
+      <Fragment set:html={Hvis({ felt: 'bareGenerator', slutt: true })} />
     </span>
     <span class="produktkort__tekst">
-      <!-- data-butikk: Studio can change name, status and price after the build (php/api/_butikk.php). -->
-      <Overskrift class="produktkort__navn" data-butikk={`${p.id}#navn`}>
-        {p.navn}
-      </Overskrift>
-      <span class="produktkort__spec mono">{mal ?? p.kategoriNavn}</span>
-      <span
-        class="produktkort__status mono"
-        data-butikk={`${p.id}#status`}
-        hidden={p.status !== 'plassholder'}
-      >
-        Plassholder
-      </span>
-      <span class="produktkort__pris tall" data-butikk={`${p.id}#pris`} hidden={p.prisOre === null}>
-        {p.prisOre !== null ? formaterKroner(p.prisOre) : ''}
-      </span>
+      <Overskrift class="produktkort__navn">{p.navn}</Overskrift>
+      <span class="produktkort__spec mono">{spesifikasjon}</span>
+      <Fragment set:html={Hvis({ felt: 'plassholder' })} />
+      {(mal || p.status === 'plassholder') && <span class="produktkort__status mono">Plassholder</span>}
+      <Fragment set:html={Hvis({ felt: 'plassholder', slutt: true }) + Hvis({ felt: 'pris' })} />
+      {p.prisOre !== null && (
+        <span class="produktkort__pris tall">{mal ? malfelt('pris') : formaterKroner(p.prisOre)}</span>
+      )}
+      <Fragment set:html={Hvis({ felt: 'pris', slutt: true })} />
     </span>
   </a>
   <div class="produktkort__kapselflate">
@@ -83,18 +98,14 @@ const mal = formaterMal(p.mal);
         <span class="kurvkapsel__plusstegn">
           <Ikon navn="pluss" storrelse={18} />
         </span>
-        <span class="visuelt-skjult">
-          Legg <span data-butikk={`${p.id}#navn`}>{p.navn}</span> i handlekurven
-        </span>
+        <span class="visuelt-skjult">Legg {p.navn} i handlekurven</span>
         <span class="kurvkapsel__merke tall" data-kurv-merke hidden aria-hidden="true">
           0
         </span>
       </button>
       <button class="kurvkapsel__knapp kurvkapsel__minus" type="button" data-kurv-minus hidden>
         <Ikon navn="minus" storrelse={18} />
-        <span class="visuelt-skjult">
-          Ta én <span data-butikk={`${p.id}#navn`}>{p.navn}</span> ut av handlekurven
-        </span>
+        <span class="visuelt-skjult">Ta én {p.navn} ut av handlekurven</span>
       </button>
     </div>
   </div>

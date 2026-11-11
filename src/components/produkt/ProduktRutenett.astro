@@ -20,6 +20,14 @@ interface Props {
   /** Accessible name for the list. */
   etikett?: string;
   class?: string;
+  /**
+   * Which products the one.com server puts here when Studio has changed the
+   * catalogue (php/api/_katalog.php): 'liste' (every product, the listing
+   * hides by category), 'populaere' (homepage) or 'relatert' (product page).
+   */
+  utvalg?: 'liste' | 'populaere' | 'relatert';
+  /** Render the product template's card instead (src/lib/handel/mal.ts). */
+  mal?: boolean;
 }
 
 const {
@@ -29,13 +37,21 @@ const {
   skjulte = new Set<string>(),
   etikett = 'Produkter',
   class: klasse,
+  utvalg,
+  mal = false,
 } = Astro.props;
 ---
 
-<ul class:list={['produktrutenett', klasse]} aria-label={etikett} data-produktrutenett>
+<ul
+  class:list={['produktrutenett', klasse]}
+  aria-label={etikett}
+  data-produktrutenett
+  data-utvalg={utvalg}
+  data-nivaa={nivaa}
+>
   {produkter.map((p, i) => (
     <li class="produktrutenett__plass" data-plass={p.id} hidden={skjulte.has(p.id)}>
-      <ProduktKort produkt={p} nivaa={nivaa} lasting={i < 6 ? 'eager' : 'lazy'} />
+      <ProduktKort produkt={p} nivaa={nivaa} lasting={i < 6 ? 'eager' : 'lazy'} mal={mal} />
     </li>
   ))}
 </ul>

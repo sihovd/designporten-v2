@@ -15,5 +15,7 @@ and live in one place, so they cannot drift apart:
 This repository is the Astro site in `sihovd/designporten-v2`. Instructions
 about the older WordPress site or the Designporten AI Bridge do not apply here.
 
-`main` deploys to Render on every push (see `render.yaml`). Work on a branch
-and open a pull request instead of pushing to `main`.
+The live site is the PHP build on one.com, published by Sivert (see
+[`docs/publisering-lokalt.md`](docs/publisering-lokalt.md)). Pushing to `main`
+deploys nothing. Work on a branch and open a pull request instead of pushing
+to `main`.

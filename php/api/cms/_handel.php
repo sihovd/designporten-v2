@@ -1,14 +1,23 @@
 <?php
 /**
  * Studio → Butikk og betaling (Sivert 2026-11-09: «vi må ha alt i cms
- * funksjonen»). Per product: status, price, text surcharge, name and
- * descriptions. For the shop: the card payment switch and up to five
- * shipping options. And the orders Stripe's webhook saves.
+ * funksjonen», 2026-11-11: the whole product lives in the CMS). Per product
+ * every field: status, price, name, texts, category, pictures from the media
+ * library, size, materials, colours, own text, Skaperverksted tool, order,
+ * and whether it shows at all. New products are made here too. For the
+ * shop: the card payment switch and up to five shipping options. And the
+ * orders Stripe's webhook saves.
  *
- * Every save is used at once: the rows are written to api/cms/data/butikk.json,
- * which api/_butikk.php lays over the build's catalogue for payment, order
- * requests and the pages (side.php). Prices are whole kroner, stored in øre
- * including VAT. Stripe keys never pass through here (api/stripe/konfig.php).
+ * A product row (cms_butikk, «produkt/<id>») holds the fields Studio has
+ * set; a field it leaves out keeps the build's value (api/katalog.json), so
+ * «Tilbakestill» removes the row. A product only Studio has must have every
+ * field. Pictures are stored as {"medium": id, "alt": "…"}.
+ *
+ * Every save is used at once: the rows are written to api/cms/data/butikk.json
+ * (pictures resolved to their files), which api/_butikk.php lays over the
+ * build's catalogue for payment, order requests and the pages (side.php,
+ * api/_katalog.php). Prices are whole kroner, stored in øre including VAT.
+ * Stripe keys never pass through here (api/stripe/konfig.php).
  * Administrators only: redaktører and agents have no shop rights.
  */
 
@@ -18,6 +27,9 @@ require_once __DIR__ . '/../stripe/_ordre.php';
 
 const CMS_MAKS_PRIS_ORE = 10_000_000;
 const CMS_MAKS_FRAKT = 5;
+const CMS_MAKS_PRODUKTER = 500;
+/** Addresses the site uses itself under /produkter/. */
+const CMS_RESERVERTE_ID = ['mal', 'kategori'];
 
 // ---------------------------------------------------------------- Rows
 
@@ -89,7 +101,7 @@ function cms_skriv_butikk(): void
             $data['betaling'] = (bool) $v['betaling'];
             $data['frakt'] = $v['frakt'];
         } elseif (str_starts_with($rad['nokkel'], 'produkt/')) {
-            $produkter[substr($rad['nokkel'], 8)] = $v;
+            $produkter[substr($rad['nokkel'], 8)] = cms_butikk_til_side($v);
         }
     }
     if ($produkter) $data['produkter'] = $produkter;
@@ -98,6 +110,31 @@ function cms_skriv_butikk(): void
     file_put_contents($tmp, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     rename($tmp, $fil);
     if (!is_file(cms_datamappe() . '/publisert.json')) cms_skriv_publisert();
+}
+
+/** A picture value {"medium": id, "alt": "…"} as the pages need it, or null. */
+function cms_butikk_bildefil(mixed $v): ?array
+{
+    if (!is_array($v) || !is_int($v['medium'] ?? null)) return null;
+    $m = cms_medium_rad($v['medium']);
+    if (!$m) return null;
+    $u = cms_medium_ut($m);
+    return ['src' => $u['src'], 'srcset' => $u['srcset'], 'alt' => (string) ($v['alt'] ?? ''),
+        'bredde' => $u['bredde'], 'hoyde' => $u['hoyde'], 'konsept' => $u['konsept'], 'midlertidig' => false];
+}
+
+/** A product row with its pictures resolved, for butikk.json. */
+function cms_butikk_til_side(array $v): array
+{
+    if (array_key_exists('bilde', $v)) {
+        $b = cms_butikk_bildefil($v['bilde']);
+        if ($b) $v['bilde'] = $b; else unset($v['bilde']);
+    }
+    if (array_key_exists('bildeAlternativ', $v) && $v['bildeAlternativ'] !== null) {
+        $b = cms_butikk_bildefil($v['bildeAlternativ']);
+        if ($b) $v['bildeAlternativ'] = $b; else unset($v['bildeAlternativ']);
+    }
+    return $v;
 }
 
 // ---------------------------------------------------------------- Checks
@@ -123,7 +160,25 @@ function cms_butikk_ore(mixed $v, string $navn, int $min, int $maks, bool $null)
     return $v;
 }
 
-function cms_butikk_produkt(array $bygget, mixed $d): array
+/** A picture from the media library: {"medium": id, "alt": "…"}. */
+function cms_butikk_bildeverdi(mixed $v, string $navn): array
+{
+    if (!is_array($v) || !is_int($v['medium'] ?? null)) throw new CmsFeil("Velg $navn fra bildebiblioteket.", 422);
+    $m = cms_medium_rad($v['medium']);
+    if (!$m) throw new CmsFeil(ucfirst($navn) . ' finnes ikke i bildebiblioteket.', 422);
+    if ($m['status'] !== 'aktiv') throw new CmsFeil(ucfirst($navn) . ' er arkivert. Hent det fram igjen i bildebiblioteket først.', 422);
+    $alt = trim((string) preg_replace('/\s+/u', ' ', (string) ($v['alt'] ?? '')));
+    if (!mb_check_encoding($alt, 'UTF-8') || mb_strlen($alt) < 3) throw new CmsFeil("Skriv hva $navn viser (alt-tekst), minst tre tegn.", 422);
+    if (mb_strlen($alt) > CMS_MAKS_ALT) throw new CmsFeil("Alt-teksten for $navn er for lang.", 422);
+    return ['medium' => (int) $m['id'], 'alt' => $alt];
+}
+
+/**
+ * Check a product from Studio and return the row to store. $bygget is the
+ * build's product, or null for a product only Studio has (then every field
+ * is required, and pictures must come from the media library).
+ */
+function cms_butikk_produkt(?array $bygget, mixed $d, array $ref): array
 {
     if (!is_array($d)) throw new CmsFeil('Produktet mangler innhold.', 422);
     if (!in_array($d['status'] ?? null, ['bekreftet', 'plassholder'], true)) throw new CmsFeil('Velg status.', 422);
@@ -133,10 +188,82 @@ function cms_butikk_produkt(array $bygget, mixed $d): array
         'navn' => cms_butikk_tekst($d['navn'] ?? null, 'Navnet', 2, 80),
         'kortBeskrivelse' => cms_butikk_tekst($d['kortBeskrivelse'] ?? null, 'Kort beskrivelse', 1, 160),
         'beskrivelse' => cms_butikk_tekst($d['beskrivelse'] ?? null, 'Beskrivelsen', 1, CMS_MAKS_TEKST, true),
+        'skjult' => ($d['skjult'] ?? false) === true,
     ];
-    if (!empty($bygget['egenTekst'])) {
-        $ut['tilleggOre'] = cms_butikk_ore($d['tilleggOre'] ?? null, 'Tillegget for egen tekst', 100, CMS_MAKS_PRIS_ORE, true);
+    // Studio's first version only sent these fields (and the text surcharge).
+    $fullt = array_key_exists('kategori', $d);
+    if (!$fullt) {
+        if ($bygget === null) throw new CmsFeil('Velg kategori.', 422);
+        if (!empty($bygget['egenTekst'])) {
+            $ut['tilleggOre'] = cms_butikk_ore($d['tilleggOre'] ?? null, 'Tillegget for egen tekst', 100, CMS_MAKS_PRIS_ORE, true);
+        }
+        return $ut;
     }
+
+    if (!is_string($d['kategori']) || !isset($ref['kategorier'][$d['kategori']])) throw new CmsFeil('Velg kategori.', 422);
+    $ut['kategori'] = $d['kategori'];
+
+    // Pictures. null = the picture the site was built with (products from the build only).
+    if (($d['bilde'] ?? null) === null) {
+        if ($bygget === null) throw new CmsFeil('Velg et bilde fra bildebiblioteket.', 422);
+    } else {
+        $ut['bilde'] = cms_butikk_bildeverdi($d['bilde'], 'bildet');
+    }
+    $alternativ = $d['bildeAlternativ'] ?? 'bygget';
+    if ($alternativ === null) $ut['bildeAlternativ'] = null;
+    elseif ($alternativ !== 'bygget') $ut['bildeAlternativ'] = cms_butikk_bildeverdi($alternativ, 'det ekstra bildet');
+    elseif ($bygget === null) $ut['bildeAlternativ'] = null;
+
+    $mal = $d['mal'] ?? null;
+    if ($mal !== null) {
+        if (!is_array($mal)) throw new CmsFeil('Målene kunne ikke leses.', 422);
+        $tall = [];
+        foreach (['bredde' => 'Bredden', 'dybde' => 'Dybden', 'hoyde' => 'Høyden'] as $k => $navn) {
+            $v = $mal[$k] ?? null;
+            if ((!is_int($v) && !is_float($v)) || $v <= 0 || $v > 10000) throw new CmsFeil("$navn må være et tall i millimeter, større enn 0.", 422);
+            $tall[$k] = round((float) $v, 1) == (int) $v ? (int) $v : round((float) $v, 1);
+        }
+        $mal = $tall;
+    }
+    $ut['mal'] = $mal;
+
+    $materialer = $d['materialer'] ?? null;
+    if (!is_array($materialer) || !array_is_list($materialer) || !$materialer) throw new CmsFeil('Velg minst ett materiale.', 422);
+    foreach ($materialer as $t) {
+        if (!is_string($t) || !isset($ref['materialer'][$t])) throw new CmsFeil('Ukjent materiale.', 422);
+    }
+    $ut['materialer'] = array_values(array_unique($materialer));
+
+    $farger = $d['farger'] ?? null;
+    if (!is_array($farger) || !array_is_list($farger) || !$farger) throw new CmsFeil('Velg minst én farge.', 422);
+    foreach ($farger as $id) {
+        if (!is_string($id) || !isset($ref['farger'][$id])) throw new CmsFeil('Ukjent farge.', 422);
+    }
+    $ut['farger'] = array_values(array_unique($farger));
+
+    $tekst = $d['egenTekst'] ?? null;
+    if ($tekst !== null) {
+        $maks = $tekst['maksTegn'] ?? null;
+        if (!is_array($tekst) || !is_int($maks) || $maks < 1 || $maks > 60) throw new CmsFeil('Egen tekst kan ha fra 1 til 60 tegn.', 422);
+        $tekst = ['maksTegn' => $maks,
+            'tilleggOre' => cms_butikk_ore($tekst['tilleggOre'] ?? null, 'Tillegget for egen tekst', 100, CMS_MAKS_PRIS_ORE, true)];
+    }
+    $ut['egenTekst'] = $tekst;
+
+    $generator = $d['generator'] ?? null;
+    if ($generator !== null && (!is_string($generator) || !isset($ref['generatorer'][$generator]))) {
+        throw new CmsFeil('Ukjent verktøy i Skaperverkstedet.', 422);
+    }
+    $ut['generator'] = $generator;
+
+    $rekkefolge = $d['rekkefolge'] ?? null;
+    if (!is_int($rekkefolge) || $rekkefolge < 0 || $rekkefolge > 100000) throw new CmsFeil('Rekkefølgen må være et helt tall fra 0.', 422);
+    $ut['rekkefolge'] = $rekkefolge;
+    $dato = $d['lagtTil'] ?? null;
+    if (!is_string($dato) || !preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $dato, $m) || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+        throw new CmsFeil('Datoen produktet ble lagt til kunne ikke leses.', 422);
+    }
+    $ut['lagtTil'] = $dato;
     return $ut;
 }
 
@@ -184,30 +311,80 @@ function cms_butikk_stripe(): array
     return ['tilkoblet' => true, 'modus' => $konfig['live'] ? 'live' : 'test', 'webhook' => $konfig['webhook'] !== '', 'grunn' => null];
 }
 
+/** The lists Studio offers (colours, materials, categories, tools), as lists. */
+function cms_butikk_referanse_ut(array $ref): array
+{
+    return [
+        'farger' => array_values($ref['farger']),
+        'materialer' => array_map(fn($t, $b) => ['type' => $t, 'beskrivelse' => $b], array_keys($ref['materialer']), $ref['materialer']),
+        'kategorier' => array_values(array_map(fn($k) => ['slug' => $k['slug'], 'navn' => $k['navn']], $ref['kategorier'])),
+        'generatorer' => array_map(fn($id, $navn) => ['id' => $id, 'navn' => $navn], array_keys($ref['generatorer']), $ref['generatorer']),
+    ];
+}
+
+/** A product as Studio's form starts from it (pictures as {"medium", "alt"} or null = as built). */
+function cms_butikk_skjemaverdi(array $p, ?array $rad): array
+{
+    $alternativ = array_key_exists('bildeAlternativ', $rad ?? []) ? $rad['bildeAlternativ'] : ($p['bildeAlternativ'] ? 'bygget' : null);
+    return [
+        'status' => $p['status'], 'prisOre' => $p['prisOre'], 'navn' => $p['navn'],
+        'kortBeskrivelse' => $p['kortBeskrivelse'], 'beskrivelse' => $p['beskrivelse'] ?? $p['kortBeskrivelse'],
+        'kategori' => $p['kategori'], 'bilde' => $rad['bilde'] ?? null, 'bildeAlternativ' => $alternativ,
+        'mal' => $p['mal'] ?? null, 'materialer' => $p['materialer'], 'farger' => array_column($p['farger'], 'id'),
+        'egenTekst' => $p['egenTekst'] ?? null, 'generator' => $p['generator'] ?? null,
+        'rekkefolge' => (int) ($p['rekkefolge'] ?? 1000), 'lagtTil' => (string) ($p['lagtTil'] ?? gmdate('Y-m-d')),
+        'skjult' => !empty($rad['skjult']),
+    ];
+}
+
 function cms_butikk_oversikt(): array
 {
     $bygget = dp_butikk_bygget();
     if ($bygget === null) throw new CmsFeil('Produktlisten fra nettsidebygget (api/katalog.json) mangler.', 503);
+    $ref = dp_butikk_referanse($bygget);
     $navn = cms_brukernavn();
     $rader = [];
     foreach (cms_alle('SELECT * FROM cms_butikk') as $r) $rader[$r['nokkel']] = $r;
     $meta = fn(?array $r) => ['versjon' => (int) ($r['versjon'] ?? 0), 'endret' => $r['endret'] ?? null,
         'endretAv' => isset($r['endret_av']) ? ($navn[(int) $r['endret_av']] ?? null) : null];
+    $over = dp_butikk_overstyring(cms_datamappe() . '/butikk.json');
+    $samlet = dp_butikk_flett($bygget, $over);
+    $vist = array_column($samlet['produkter'], null, 'id');
+    // Also what a hidden product would look like, so the form can show it.
+    $synlig = $over;
+    foreach ($synlig['produkter'] ?? [] as $id => $o) if (is_array($o)) $synlig['produkter'][$id]['skjult'] = false;
+    $alle = array_column(dp_butikk_flett($bygget, $synlig)['produkter'], null, 'id');
+    $fraBygget = array_column($bygget['produkter'], null, 'id');
+
     $produkter = [];
-    foreach ($bygget['produkter'] as $p) {
-        $r = $rader['produkt/' . $p['id']] ?? null;
-        $produkter[] = ['id' => $p['id'], 'bygget' => [
-            'navn' => $p['navn'], 'status' => $p['status'], 'prisOre' => $p['prisOre'],
-            'tilleggOre' => $p['egenTekst']['tilleggOre'] ?? null, 'egenTekst' => !empty($p['egenTekst']),
-            'kortBeskrivelse' => $p['kortBeskrivelse'] ?? '', 'beskrivelse' => $p['beskrivelse'] ?? ($p['kortBeskrivelse'] ?? ''),
-            'kategori' => $p['kategoriNavn'] ?? '', 'bilde' => $p['bilde'] ?? null, 'href' => $p['href'] ?? null,
-        ], 'studio' => cms_butikk_verdi($r)] + $meta($r);
+    $ider = array_unique([...array_keys($alle), ...array_keys($fraBygget),
+        ...array_map(fn($k) => substr($k, 8), array_filter(array_keys($rader), fn($k) => str_starts_with($k, 'produkt/')))]);
+    foreach ($ider as $id) {
+        $r = $rader['produkt/' . $id] ?? null;
+        $studio = cms_butikk_verdi($r);
+        $p = $alle[$id] ?? null;
+        $b = $fraBygget[$id] ?? null;
+        $produkter[] = [
+            'id' => $id,
+            'fraBygget' => $b !== null,
+            'vises' => isset($vist[$id]),
+            'skjema' => $p ? cms_butikk_skjemaverdi($p, $studio) : null,
+            'bilde' => $p['bildeData']['src'] ?? null,
+            'kategoriNavn' => $p['kategoriNavn'] ?? '',
+            'href' => $p['href'] ?? null,
+            'byggetBilde' => $b['bildeData']['src'] ?? $b['bilde'] ?? null,
+            'byggetAlternativ' => $b['bildeAlternativ']['src'] ?? null,
+            'studio' => $studio !== null,
+        ] + $meta($r);
     }
+    usort($produkter, fn($a, $b) => [!$a['vises'], $a['skjema']['rekkefolge'] ?? PHP_INT_MAX, $a['skjema']['navn'] ?? $a['id']]
+        <=> [!$b['vises'], $b['skjema']['rekkefolge'] ?? PHP_INT_MAX, $b['skjema']['navn'] ?? $b['id']]);
+
     $r = $rader['innstillinger'] ?? null;
-    $samlet = dp_butikk_flett($bygget, dp_butikk_overstyring(cms_datamappe() . '/butikk.json'));
     $konfig = dp_stripe_konfig();
     return [
         'produkter' => $produkter,
+        'referanse' => cms_butikk_referanse_ut($ref),
         'innstillinger' => ['bygget' => $bygget['butikk'] ?? ['betaling' => false, 'frakt' => []], 'studio' => cms_butikk_verdi($r)] + $meta($r),
         'stripe' => cms_butikk_stripe(),
         'kasse' => dp_kassestatus($samlet, $konfig),
@@ -287,12 +464,22 @@ function cms_handel_rute(string $r): void
         $aktor = cms_krev('butikk');
         $k = cms_kropp();
         $id = (string) ($k['id'] ?? '');
-        $bygget = null;
-        foreach (dp_butikk_bygget()['produkter'] ?? [] as $p) {
-            if ($p['id'] === $id) $bygget = $p;
+        $katalog = dp_butikk_bygget();
+        if ($katalog === null) throw new CmsFeil('Produktlisten fra nettsidebygget (api/katalog.json) mangler.', 503);
+        $bygget = array_column($katalog['produkter'], null, 'id')[$id] ?? null;
+        $finnes = $bygget !== null || cms_butikk_rad('produkt/' . $id) !== null;
+        if (($k['ny'] ?? false) === true) {
+            // A new product: its address is chosen once and never changes.
+            if (!preg_match(DP_BUTIKK_ID, $id) || strlen($id) > 60 || in_array($id, CMS_RESERVERTE_ID, true)) {
+                throw new CmsFeil('Adressen kan bare ha små bokstaver a–z, tall og bindestrek (for eksempel «gavekort-tre»).', 422);
+            }
+            if ($finnes) throw new CmsFeil('Et produkt har allerede adressen /produkter/' . $id . '/. Velg en annen.', 409);
+            $antall = (int) cms_en("SELECT COUNT(*) AS n FROM cms_butikk WHERE nokkel LIKE 'produkt/%'")['n'];
+            if ($antall >= CMS_MAKS_PRODUKTER) throw new CmsFeil('Butikken har nådd ' . CMS_MAKS_PRODUKTER . ' produkter.', 422);
+        } elseif (!$finnes) {
+            throw new CmsFeil('Fant ikke produktet.', 404);
         }
-        if ($bygget === null) throw new CmsFeil('Fant ikke produktet.', 404);
-        $verdi = ($k['verdi'] ?? null) === null ? null : cms_butikk_produkt($bygget, $k['verdi']);
+        $verdi = ($k['verdi'] ?? null) === null ? null : cms_butikk_produkt($bygget, $k['verdi'], dp_butikk_referanse($katalog));
         cms_butikk_skriv('produkt/' . $id, (int) ($k['versjon'] ?? -1), $verdi, $aktor);
         cms_svar(['butikk' => cms_butikk_oversikt()]);
     }

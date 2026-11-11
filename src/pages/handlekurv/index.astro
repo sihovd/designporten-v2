@@ -12,7 +12,8 @@ const produkter = Object.fromEntries((await hentProdukter()).map((p) => [p.id, p
   beskrivelse="Handlekurven din hos Designporten. Send den som en bestillingsforespørsel."
   ikkeIndekser
 >
-  <div class="handlekurvside ramme">
+  <!-- data-trenger-katalog: the one.com server adds Studio's catalogue to this page (php/api/_katalog.php). -->
+  <div class="handlekurvside ramme" data-trenger-katalog>
     <h1>Handlekurv</h1>
     <Handlekurv client:load produkter={produkter} />
     <noscript>

@@ -7,7 +7,7 @@
  * own packages with scripts/pakk-deler.mjs. See docs/utgivelse.md.
  */
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, renameSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { byggoppsett } from './onecom-oppsett.mjs';
 import { lagNokler } from './cms-nokler.mjs';
 import { APPSTI, byggSignforge } from './bygg-signforge.mjs';
@@ -30,6 +30,11 @@ rmSync(`dist/${APPSTI}`, { recursive: true, force: true });
 cpSync(`var/bygg/signforge/${APPSTI}`, `dist/${APPSTI}`, { recursive: true });
 
 cpSync('php', 'dist', { recursive: true });
+// The product template (src/lib/handel/mal.ts) is for the server only: it
+// fills it in for every product Studio has (php/api/_katalog.php).
+mkdirSync('dist/api/cms/maler', { recursive: true });
+renameSync('dist/produkter/mal/index.html', 'dist/api/cms/maler/produkt.html');
+rmSync('dist/produkter/mal', { recursive: true, force: true });
 rmSync('dist/api/oppsett.eksempel.php');
 rmSync('dist/api/cms/konfig.eksempel.php');
 rmSync('dist/api/konto/konfig.eksempel.php');
@@ -42,7 +47,7 @@ writeFileSync(
 let apache = readFileSync('dist/.htaccess', 'utf8')
   .replace('ErrorDocument 404 /404.html', `ErrorDocument 404 ${base}404.html`)
   .replace('m#^/_astro/#', `m#^${base}_astro/#`)
-  .replace('%{DOCUMENT_ROOT}/api/cms/', `%{DOCUMENT_ROOT}${base}api/cms/`);
+  .replaceAll('%{DOCUMENT_ROOT}/api/cms/', `%{DOCUMENT_ROOT}${base}api/cms/`);
 apache = apache.replace(/(RewriteRule \^\S+\.html\$ )\/(\S+)( \[R=301,L\])/g, `$1${base}$2$3`);
 if (test)
   apache +=
@@ -93,6 +98,8 @@ for (const fil of [
   'api/cms/.htaccess',
   'api/cms/data/.htaccess',
   'api/cms/_medier.php',
+  'api/cms/maler/produkt.html',
+  'api/_katalog.php',
   'api/cms/_studio.php',
   'api/cms/blogg.php',
   'api/konto/index.php',

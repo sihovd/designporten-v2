@@ -158,6 +158,18 @@ function cms_mediebruk(): array
             }
         }
     }
+    // Products in Studio → Butikk (_handel.php): published as soon as they are saved.
+    foreach (cms_alle("SELECT nokkel, verdi FROM cms_butikk WHERE nokkel LIKE 'produkt/%'") as $rad) {
+        $d = json_decode((string) $rad['verdi'], true);
+        if (!is_array($d)) continue;
+        foreach (['bilde', 'bildeAlternativ'] as $k) {
+            $id = is_array($d[$k] ?? null) && is_int($d[$k]['medium'] ?? null) ? $d[$k]['medium'] : null;
+            if ($id === null) continue;
+            $nokkel = 'butikk/' . substr($rad['nokkel'], 8);
+            $bruk[$id][$nokkel] ??= [];
+            if (!in_array('publisert', $bruk[$id][$nokkel], true)) $bruk[$id][$nokkel][] = 'publisert';
+        }
+    }
     return array_map(fn($felt) => array_map(
         fn($n, $hvor) => ['nokkel' => $n, 'publisert' => in_array('publisert', $hvor, true), 'utkast' => in_array('utkast', $hvor, true)],
         array_keys($felt), $felt,

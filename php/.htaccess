@@ -19,6 +19,12 @@ Options -Indexes
   RewriteRule ^blogg(?:/.*)?$ api/cms/blogg.php [L]
   RewriteRule ^sitemap\.xml$ api/cms/blogg.php?kart=1 [L]
 
+  # Studio's catalogue: once the shop has been saved in Studio, product and
+  # category pages come from the server (a product added in Studio has no
+  # built page), see api/cms/side.php and api/_katalog.php.
+  RewriteCond %{DOCUMENT_ROOT}/api/cms/data/butikk.json -f
+  RewriteRule ^produkter/(?:kategori/)?[a-z0-9-]+/$ api/cms/side.php [L]
+
   # CMS: once something has been published, pages are served through
   # api/cms/side.php, which puts the published texts in place (and serves
   # the page as built if anything fails). Before that, nothing changes.

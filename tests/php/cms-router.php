@@ -34,10 +34,17 @@ if ($sti === '/api/konto/') { require $rot . '/api/konto/index.php'; return; }
 if ($sti === '/api/stripe/webhook/') { require $rot . '/api/stripe/webhook/index.php'; return; }
 if ($sti === '/blogg' || str_starts_with($sti, '/blogg/') || $sti === '/api/cms/blogg.php') { require $rot . '/api/cms/blogg.php'; return; }
 if ($sti === '/sitemap.xml') { $_GET['kart'] = '1'; require $rot . '/api/cms/blogg.php'; return; }
+// Like api/cms/.htaccess: the CMS's data and the product template are never served.
+if (preg_match('~^/api/cms/(?:data|maler)(?:/|$)~', $sti)) { http_response_code(403); return; }
 // Like medier/.htaccess: only the picture files the CMS made.
 if (preg_match('~^/medier/[0-9]{4}/[a-z0-9-]+\.(webp|jpg|png)$~', $sti, $m) && is_file($rot . $sti)) {
     header('Content-Type: image/' . ($m[1] === 'jpg' ? 'jpeg' : $m[1]));
     readfile($rot . $sti);
+    return;
+}
+// Like .htaccess: Studio's catalogue serves the product and category pages.
+if (preg_match('~^/produkter/(?:kategori/)?[a-z0-9-]+/$~', $sti) && is_file($rot . '/api/cms/data/butikk.json')) {
+    require $rot . '/api/cms/side.php';
     return;
 }
 if (str_ends_with($sti, '/') && is_file($rot . $sti . 'index.html') && is_file($rot . '/api/cms/data/publisert.json')) {

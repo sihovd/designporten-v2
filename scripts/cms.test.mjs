@@ -864,155 +864,193 @@ describe('CMS', { skip: !harPhp && 'PHP med pdo_sqlite er ikke installert' }, ()
   });
   // ---------------------------------------------------------------- Butikk og betaling (_handel.php)
 
+  const BYGGET_BILDE = {
+    src: '/vase.webp',
+    alt: 'Vase',
+    bredde: 900,
+    hoyde: 900,
+    konsept: true,
+    midlertidig: true,
+  };
+  const byggprodukt = (id, navn, rekkefolge, ekstra = {}) => ({
+    id,
+    navn,
+    status: 'plassholder',
+    prisOre: null,
+    farger: [{ id: 'hvit', navn: 'Hvit' }],
+    materialer: ['PLA'],
+    egenTekst: null,
+    kortBeskrivelse: `En ${navn.toLowerCase()}.`,
+    beskrivelse: `En ${navn.toLowerCase()}.`,
+    kategori: 'interior',
+    kategoriNavn: 'Interiør',
+    bilde: `/${id}.webp`,
+    bildeData: { ...BYGGET_BILDE, src: `/${id}.webp`, alt: navn },
+    bildeAlternativ: null,
+    mal: null,
+    generator: null,
+    rekkefolge,
+    lagtTil: '2026-09-28',
+    href: `/produkter/${id}/`,
+    ...ekstra,
+  });
   const KATALOG = {
     dokumentVersjon: 1,
     butikk: { betaling: false, frakt: [] },
+    referanse: {
+      farger: [
+        { id: 'hvit', navn: 'Hvit', hex: '#ffffff' },
+        { id: 'svart', navn: 'Svart', hex: '#111111' },
+      ],
+      materialtyper: [
+        { type: 'PLA', beskrivelse: 'Plast av maisstivelse.' },
+        { type: 'PETG', beskrivelse: 'Seig plast.' },
+      ],
+      kategorier: [
+        { slug: 'interior', navn: 'Interiør', ingress: '' },
+        { slug: 'figurer', navn: 'Figurer', ingress: '' },
+      ],
+      generatorer: [{ id: 'signgen', navn: 'Sign Forge' }],
+    },
     produkter: [
-      {
-        id: 'vase',
-        navn: 'Vase',
-        status: 'plassholder',
-        prisOre: null,
-        farger: [{ id: 'hvit', navn: 'Hvit' }],
-        materialer: ['PLA'],
+      byggprodukt('vase', 'Vase', 1, {
         egenTekst: { maksTegn: 20, tilleggOre: null },
-        kortBeskrivelse: 'En vase.',
         beskrivelse: 'En vase.\n\nPlassholder.',
-        kategoriNavn: 'Interiør',
-        bilde: '/vase.webp',
-        href: '/produkter/vase/',
-      },
-      {
-        id: 'krok',
-        navn: 'Krok',
-        status: 'plassholder',
-        prisOre: null,
-        farger: [{ id: 'hvit', navn: 'Hvit' }],
-        materialer: ['PLA'],
-        egenTekst: null,
-        kortBeskrivelse: 'En krok.',
-        beskrivelse: 'En krok.',
-        kategoriNavn: 'Interiør',
-        bilde: '/krok.webp',
-        href: '/produkter/krok/',
-      },
+      }),
+      byggprodukt('krok', 'Krok', 2),
     ],
   };
-  const PRODUKTSIDE = `<!doctype html><html><head><title>Vase | Designporten</title>
-<meta name="description" content="En vase."><meta property="og:title" content="Vase | Designporten">
-<meta name="robots" content="noindex">
-<script type="application/ld+json">{"@type":"Product","name":"Vase","offers":{"@type":"Offer","price":"1.00"}}</script>
-</head><body><nav><li aria-current="page" data-butikk="vase#navn">Vase</li></nav>
-<h1 class="t" data-rediger="produkter/data/vase#navn" data-butikk="vase#navn">
-Vase
-</h1>
-<p class="p" data-butikk="vase#plassholder"><strong>Plassholder.</strong> Ikke fastsatt.</p>
-<div class="b" data-butikk="vase#beskrivelse"><p data-x>En vase.</p><p data-x>Plassholder.</p></div>
-<article><h3 data-butikk="krok#navn">Krok</h3><span class="s" data-butikk="krok#status">Plassholder</span><span data-butikk="krok#pris" hidden></span></article>
+  // The product template as the build writes it (api/cms/maler/produkt.html), cut down.
+  const PRODUKTMAL = `<!doctype html><html><head><title>§navn§ | Designporten</title>
+<meta name="description" content="§kortBeskrivelse§"><meta property="og:title" content="§navn§ | Designporten">
+<meta property="og:image" content="https://designporten.no/x.webp"><link rel="canonical" href="https://designporten.no/produkter/mal/">
+</head><body data-produktside="§id§"><h1 class="t">§navn§</h1>
+<!--hvis:plassholder--><p class="p"><strong>Plassholder.</strong></p><!--/hvis:plassholder-->
+<img src="§bilde.src§" srcset="§bilde.srcset§" alt="§bilde.alt§" width="§bilde.bredde§">
+<!--hvis:bilde.konsept--><span class="merke">Konseptbilde</span><!--/hvis:bilde.konsept-->
+<div class="b"><!--gjenta:avsnitt--><p>§avsnitt§</p><!--/gjenta:avsnitt--></div>
+<!--hvis:mal--><p class="mal">§mal§</p><!--/hvis:mal-->
+<ul class="m"><!--gjenta:materiale--><li>§m.type§: §m.beskrivelse§</li><!--/gjenta:materiale--></ul>
+<!--hvis:relatert--><h2>§relatertTittel§</h2><ul class="g" data-produktrutenett data-utvalg="relatert"><li class="k"><article data-alternativ><h3 class="produktkort__navn">§navn§</h3><!--hvis:pris--><span class="pris">§pris§</span><!--/hvis:pris--><!--hvis:plassholder--><span class="s">Plassholder</span><!--/hvis:plassholder--></article></li></ul><!--/hvis:relatert-->
 </body></html>`;
+  const FORSIDE_MED_PRODUKTER = `<!doctype html><html><head><title>Butikk</title></head><body>
+<ul class="g" data-produktrutenett data-utvalg="populaere"><li>bygget kort</li></ul></body></html>`;
+  const kortnavn = (html) => [...html.matchAll(/class="produktkort__navn">([^<]*)</g)].map((m) => m[1]);
+  const klientkatalog = (html) =>
+    JSON.parse(/<script type="application\/json" id="dp-katalog">(.*?)<\/script>/.exec(html)[1]);
+  let produktbilde;
 
   test('butikk: bare administrator kan se og endre butikken', async () => {
     writeFileSync(join(rot, 'api/katalog.json'), JSON.stringify(KATALOG));
-    mkdirSync(join(rot, 'produkter/vase'), { recursive: true });
-    writeFileSync(join(rot, 'produkter/vase/index.html'), PRODUKTSIDE);
+    mkdirSync(join(rot, 'api/cms/maler'), { recursive: true });
+    writeFileSync(join(rot, 'api/cms/maler/produkt.html'), PRODUKTMAL);
+    mkdirSync(join(rot, 'utvalg'), { recursive: true });
+    writeFileSync(join(rot, 'utvalg/index.html'), FORSIDE_MED_PRODUKTER);
+    // The PHP build builds every category page; side.php answers 404 for an empty one.
+    mkdirSync(join(rot, 'produkter/kategori/figurer'), { recursive: true });
+    writeFileSync(join(rot, 'produkter/kategori/figurer/index.html'), FORSIDE_MED_PRODUKTER);
     assert.equal((await redaktor.kall('butikk')).status, 403);
     assert.equal((await klient().kall('butikk')).status, 401);
     const { status, data } = await admin.kall('butikk');
     assert.equal(status, 200);
     assert.deepEqual(
-      data.butikk.produkter.map((p) => [p.id, p.versjon, p.studio]),
+      data.butikk.produkter.map((p) => [p.id, p.versjon, p.studio, p.fraBygget, p.vises]),
       [
-        ['vase', 0, null],
-        ['krok', 0, null],
+        ['vase', 0, false, true, true],
+        ['krok', 0, false, true, true],
       ],
     );
-    assert.equal(data.butikk.produkter[0].bygget.egenTekst, true);
+    assert.deepEqual(data.butikk.produkter[0].skjema.egenTekst, { maksTegn: 20, tilleggOre: null });
+    assert.equal(data.butikk.produkter[0].skjema.bilde, null);
+    assert.deepEqual(
+      data.butikk.referanse.farger.map((f) => f.id),
+      ['hvit', 'svart'],
+    );
     assert.equal(data.butikk.kasse.aktiv, false);
     assert.equal(data.butikk.stripe.tilkoblet, false);
     assert.equal(JSON.stringify(data).includes('sk_'), false);
+    // The template is never served.
+    assert.equal((await fetch(`${URL_}/api/cms/maler/produkt.html`)).status, 403);
   });
 
-  test('butikk: pris i hele kroner, og en lagring gjelder på sidene med en gang', async () => {
+  test('butikk: hvert felt kontrolleres, og en lagring gjelder på sidene med en gang', async () => {
+    const opplastet = await admin.lastOpp(lagBilde('png', 600, 400), 'krok.png', 'image/png');
+    assert.equal(opplastet.status, 201);
+    produktbilde = opplastet.data.medium;
+    const skjema = (await admin.kall('butikk')).data.butikk.produkter[0].skjema;
     const vase = {
+      ...skjema,
       status: 'bekreftet',
       prisOre: 24950,
-      tilleggOre: 5000,
       navn: 'Spiralvase <3',
       kortBeskrivelse: 'Vase i én spiral.',
       beskrivelse: 'Første avsnitt.\n\nAndre avsnitt.',
+      egenTekst: { maksTegn: 20, tilleggOre: 5000 },
+      mal: { bredde: 120, dybde: 80, hoyde: 45.5 },
+      materialer: ['PLA', 'PETG'],
+      farger: ['hvit', 'svart'],
     };
-    const halv = await admin.kall('butikk-produkt', {
-      metode: 'POST',
-      kropp: { id: 'vase', versjon: 0, verdi: vase },
-    });
+    const lagre = (id, verdi, versjon = 0, ny = false) =>
+      admin.kall('butikk-produkt', { metode: 'POST', kropp: { id, versjon, verdi, ...(ny ? { ny } : {}) } });
+    const halv = await lagre('vase', vase);
     assert.equal(halv.status, 422);
     assert.match(halv.data.feil, /hele kroner/);
-    const ukjent = await admin.kall('butikk-produkt', {
-      metode: 'POST',
-      kropp: { id: 'finnes-ikke', versjon: 0, verdi: vase },
-    });
-    assert.equal(ukjent.status, 404);
-    const ok = await admin.kall('butikk-produkt', {
-      metode: 'POST',
-      kropp: { id: 'vase', versjon: 0, verdi: { ...vase, prisOre: 24900 } },
-    });
-    assert.equal(ok.status, 200);
-    assert.equal(ok.data.butikk.produkter[0].versjon, 1);
-    const igjen = await admin.kall('butikk-produkt', {
-      metode: 'POST',
-      kropp: { id: 'vase', versjon: 0, verdi: { ...vase, prisOre: 100 } },
-    });
-    assert.equal(igjen.status, 409);
-    await admin.kall('butikk-produkt', {
-      metode: 'POST',
-      kropp: {
-        id: 'krok',
-        versjon: 0,
-        verdi: {
-          status: 'bekreftet',
-          prisOre: 9900,
-          navn: 'Krok',
-          kortBeskrivelse: 'En krok.',
-          beskrivelse: 'En krok.',
-        },
-      },
-    });
+    assert.match(
+      (await lagre('vase', { ...vase, prisOre: null, farger: ['lilla'] })).data.feil,
+      /Ukjent farge/,
+    );
+    assert.match((await lagre('vase', { ...vase, prisOre: null, kategori: 'ukjent' })).data.feil, /kategori/);
+    assert.match(
+      (await lagre('vase', { ...vase, prisOre: null, mal: { bredde: 0, dybde: 1, hoyde: 1 } })).data.feil,
+      /Bredden/,
+    );
+    assert.match(
+      (await lagre('vase', { ...vase, prisOre: null, bilde: { medium: produktbilde.id, alt: '' } })).data
+        .feil,
+      /alt-tekst/,
+    );
+    assert.equal((await lagre('finnes-ikke', vase)).status, 404);
+    const ok = await lagre('vase', { ...vase, prisOre: 24900 });
+    assert.equal(ok.status, 200, JSON.stringify(ok.data));
+    assert.equal(ok.data.butikk.produkter.find((p) => p.id === 'vase').versjon, 1);
+    assert.equal((await lagre('vase', { ...vase, prisOre: 100 })).status, 409);
 
     // The snapshot is never served, and pages go through side.php once it exists.
     assert.ok(existsSync(join(rot, 'api/cms/data/butikk.json')));
-    assert.ok(existsSync(join(rot, 'api/cms/data/publisert.json')));
+    assert.equal((await fetch(`${URL_}/api/cms/data/butikk.json`)).status, 403);
     const html = await side('/produkter/vase/');
     assert.match(html, /<title>Spiralvase &lt;3 \| Designporten<\/title>/);
     assert.match(html, /<meta property="og:title" content="Spiralvase &lt;3 \| Designporten">/);
     assert.match(html, /<meta name="description" content="Vase i én spiral\.">/);
+    assert.match(html, /<link rel="canonical" href="https:\/\/designporten.no\/produkter\/vase\/">/);
+    assert.match(html, /<meta property="og:image" content="https:\/\/designporten.no\/vase.webp">/);
     assert.doesNotMatch(html, /name="robots"/);
     assert.match(html, /"price":"249\.00"/);
-    assert.match(
-      html,
-      /<h1 class="t" data-rediger="produkter\/data\/vase#navn" data-butikk="vase#navn">Spiralvase &lt;3<\/h1>/,
+    assert.match(html, /<h1 class="t">Spiralvase &lt;3<\/h1>/);
+    assert.doesNotMatch(html, /class="p"/);
+    assert.match(html, /<span class="merke">Konseptbilde<\/span>/);
+    assert.match(html, /<div class="b"><p>Første avsnitt\.<\/p><p>Andre avsnitt\.<\/p><\/div>/);
+    assert.match(html, /<p class="mal">120 × 80 × 45,5 mm<\/p>/);
+    assert.match(html, /<li>PETG: Seig plast\.<\/li>/);
+    assert.match(html, /<img src="\/vase.webp" alt="Vase" width="900">/);
+    assert.doesNotMatch(html, /§/);
+    assert.deepEqual(kortnavn(html), ['Krok']);
+    assert.match(html, /<h2>Mer fra interiør<\/h2>/);
+    const k = klientkatalog(html);
+    assert.equal(k.side, 'vase');
+    assert.equal(k.produkter.vase.prisOre, 24900);
+    assert.deepEqual(k.produkter.vase.egenTekst, { maksTegn: 20, tilleggOre: 5000 });
+    assert.deepEqual(
+      k.produkter.vase.farger.map((f) => f.hex),
+      ['#ffffff', '#111111'],
     );
-    assert.match(html, /<li aria-current="page" data-butikk="vase#navn">Spiralvase &lt;3<\/li>/);
-    assert.match(html, /<p class="p" data-butikk="vase#plassholder" hidden>/);
-    assert.match(html, /<p data-x>Første avsnitt\.<\/p><p data-x>Andre avsnitt\.<\/p><\/div>/);
-    assert.match(html, /<span class="s" data-butikk="krok#status" hidden>Plassholder<\/span>/);
-    assert.match(html, /<span data-butikk="krok#pris">99\u00a0kr<\/span>/);
-    const skript = /<script type="application\/json" id="dp-butikk">(.*?)<\/script><\/head>/.exec(html);
-    assert.ok(skript);
-    assert.deepEqual(JSON.parse(skript[1]).vase, {
-      navn: 'Spiralvase <3',
-      status: 'bekreftet',
-      prisOre: 24900,
-      kortBeskrivelse: 'Vase i én spiral.',
-      tilleggOre: 5000,
-    });
-    assert.doesNotMatch(skript[1], /</);
 
     // Payment and order requests read the same catalogue (api/_butikk.php).
     const r = spawnSync(
       php,
       [
         '-r',
-        'require $argv[1]; echo json_encode(dp_butikk_katalog()["produkter"][0]);',
+        'require $argv[1]; echo json_encode(array_column(dp_butikk_katalog()["produkter"], null, "id")["vase"]);',
         join(rot, 'api/_butikk.php'),
       ],
       { encoding: 'utf8' },
@@ -1021,23 +1059,89 @@ Vase
     assert.equal(solgt.prisOre, 24900);
     assert.equal(solgt.status, 'bekreftet');
     assert.equal(solgt.egenTekst.tilleggOre, 5000);
-    assert.deepEqual(solgt.farger, KATALOG.produkter[0].farger);
+    assert.deepEqual(solgt.farger, [
+      { id: 'hvit', navn: 'Hvit' },
+      { id: 'svart', navn: 'Svart' },
+    ]);
   });
 
-  test('butikk: tilbakestilling gir nettsidebyggets verdier igjen', async () => {
-    const krok = (await admin.kall('butikk')).data.butikk.produkter[1];
-    const svar = await admin.kall('butikk-produkt', {
-      metode: 'POST',
-      kropp: { id: 'krok', versjon: krok.versjon, verdi: null },
-    });
-    assert.equal(svar.status, 200);
-    assert.equal(svar.data.butikk.produkter[1].studio, null);
-    const html = await side('/produkter/vase/');
+  test('butikk: et nytt produkt får egen side og bilde fra bildebiblioteket, uten nytt bygg', async () => {
+    const nytt = {
+      status: 'bekreftet',
+      prisOre: 19900,
+      navn: 'Gavekort-tre',
+      kortBeskrivelse: 'Et lite tre.',
+      beskrivelse: 'Et lite tre.',
+      kategori: 'figurer',
+      bilde: { medium: produktbilde.id, alt: 'Et lite tre i hvit PLA' },
+      bildeAlternativ: null,
+      mal: null,
+      materialer: ['PLA'],
+      farger: ['hvit'],
+      egenTekst: null,
+      generator: 'signgen',
+      rekkefolge: 0,
+      lagtTil: '2026-11-11',
+      skjult: false,
+    };
+    const lagre = (id, verdi, ny = true) =>
+      admin.kall('butikk-produkt', { metode: 'POST', kropp: { id, versjon: 0, verdi, ny } });
+    assert.match((await lagre('Gavekort tre', nytt)).data.feil, /små bokstaver/);
+    assert.equal((await lagre('mal', nytt)).status, 422);
+    assert.equal((await lagre('krok', nytt)).status, 409);
+    assert.match((await lagre('tre', { ...nytt, bilde: null })).data.feil, /bildebiblioteket/);
+    assert.equal((await lagre('tre', nytt)).status, 200);
+
+    const html = await side('/produkter/tre/');
+    assert.match(html, /<h1 class="t">Gavekort-tre<\/h1>/);
     assert.match(
       html,
-      /<h3 data-butikk="krok#navn">Krok<\/h3><span class="s" data-butikk="krok#status">Plassholder/,
+      new RegExp(`<img src="${produktbilde.src}" srcset="[^"]+" alt="Et lite tre i hvit PLA"`),
     );
-    assert.match(html, /<span data-butikk="krok#pris" hidden><\/span>/);
+    assert.match(html, /<h2>Flere produkter<\/h2>/);
+    assert.equal(klientkatalog(html).side, 'tre');
+    assert.equal((await fetch(`${URL_}/produkter/kategori/figurer/`)).status, 200);
+    // The product grids follow Studio's order: rekkefølge 0 first, confirmed first on the homepage.
+    assert.deepEqual(kortnavn(await side('/utvalg/')), ['Gavekort-tre', 'Spiralvase &lt;3']);
+    const bruk = (await admin.kall('medier')).data.medier.find((m) => m.id === produktbilde.id).bruktPa;
+    assert.ok(
+      bruk.some((b) => b.nokkel === 'butikk/tre' && b.publisert),
+      JSON.stringify(bruk),
+    );
+  });
+
+  test('butikk: skjulte og ukjente produkter og tomme kategorier finnes ikke', async () => {
+    const tre = (await admin.kall('butikk')).data.butikk.produkter.find((p) => p.id === 'tre');
+    const svar = await admin.kall('butikk-produkt', {
+      metode: 'POST',
+      kropp: { id: 'tre', versjon: tre.versjon, verdi: { ...tre.skjema, skjult: true } },
+    });
+    assert.equal(svar.status, 200);
+    assert.equal(svar.data.butikk.produkter.find((p) => p.id === 'tre').vises, false);
+    assert.equal((await fetch(`${URL_}/produkter/tre/`)).status, 404);
+    assert.equal((await fetch(`${URL_}/produkter/finnes-ikke/`)).status, 404);
+    assert.equal((await fetch(`${URL_}/produkter/kategori/figurer/`)).status, 404);
+    assert.deepEqual(kortnavn(await side('/utvalg/')), ['Spiralvase &lt;3']);
+    assert.equal(klientkatalog(await side('/utvalg/')).produkter.tre, undefined);
+  });
+
+  test('butikk: tilbakestilling gir nettsidebyggets verdier igjen, og et Studio-produkt slettes', async () => {
+    const produkter = (await admin.kall('butikk')).data.butikk.produkter;
+    const vase = produkter.find((p) => p.id === 'vase');
+    const tre = produkter.find((p) => p.id === 'tre');
+    const kall = (id, versjon) =>
+      admin.kall('butikk-produkt', { metode: 'POST', kropp: { id, versjon, verdi: null } });
+    const svar = await kall('vase', vase.versjon);
+    assert.equal(svar.status, 200);
+    assert.equal(svar.data.butikk.produkter.find((p) => p.id === 'vase').studio, false);
+    assert.equal(
+      (await kall('tre', tre.versjon)).data.butikk.produkter.some((p) => p.id === 'tre'),
+      false,
+    );
+    const html = await side('/produkter/vase/');
+    assert.match(html, /<h1 class="t">Vase<\/h1>/);
+    assert.match(html, /<meta name="robots" content="noindex">/);
+    assert.doesNotMatch(html, /ld\+json/);
     const logg = (await admin.kall('logg')).data.hendelser.map((h) => h.handling);
     assert.ok(logg.includes('butikk.lagre') && logg.includes('butikk.tilbakestill'));
   });

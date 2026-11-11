@@ -95,4 +95,3 @@ Første gang du kobler til, viser skriptet serverens **fingeravtrykk** (`SHA256:
 - Skriptet: `scripts/publiser-produksjon.mjs` (testet i `scripts/publiser-produksjon.test.mjs`). Startes av `verktoy/windows/Publiser Designporten.bat`, oppsett i `verktoy/windows/oppsett.ps1`.
 - Mal for innstillingene: `.env.publisering.example`.
 - Bygget er `npm run build:onecom` (rot `/`, ikke test). E-postoppsettet (`api/oppsett.php`) skrives ikke; serverens fil beholdes.
-- GitHub-arbeidsflyten for testområdet (`onecom.yml`) er uendret og laster fortsatt bare opp til en `-test`-mappe.

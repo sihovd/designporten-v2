@@ -1,11 +1,12 @@
 # Public entry points: index.php, side.php and blogg.php.
-# Settings, shared code, the field list and the data folder never are.
+# Settings, shared code, the field list, the product template and the data
+# folder never are.
 <FilesMatch "^_.*\.php$|^konfig(?:\.eksempel)?\.php$|^nokler\.json$|^\.user\.ini$">
   Require all denied
 </FilesMatch>
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteRule ^data(?:/|$) - [F,L]
+  RewriteRule ^(?:data|maler)(?:/|$) - [F,L]
 </IfModule>
 # Shared hosts often drop the Authorization header before PHP sees it.
 SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1

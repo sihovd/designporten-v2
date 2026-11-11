@@ -2,7 +2,7 @@
 
 Veiledning for Sivert, for ekte betaling med Stripe-kontoen hans. Kortbetaling går gjennom **Stripe Checkout**, en betalingsside som Stripe selv viser. Kortnummer kommer aldri innom serveren vår (CLAUDE.md regel 5).
 
-> **Viktig:** Nøkler fra Stripe limes aldri inn i en chat, en e-post, GitHub eller CMS-et. De skrives bare i én fil på serveren (`api/stripe/konfig.php`) eller i Render → Environment.
+> **Viktig:** Nøkler fra Stripe limes aldri inn i en chat, en e-post, GitHub eller CMS-et. De skrives bare i én fil på serveren (`api/stripe/konfig.php`).
 
 ## Hva som finnes i koden
 
@@ -10,7 +10,7 @@ Veiledning for Sivert, for ekte betaling med Stripe-kontoen hans. Kortbetaling g
 |---|---|
 | Handlekurv med «Gå til betaling» | Ferdig. Knappen vises bare når betaling er slått på, nøklene finnes, minst ett fraktvalg finnes og alle varene i kurven er «Klar for salg» med pris. Ellers sendes kurven som forespørsel, som i dag. |
 | Prisen | Regnes alltid ut på serveren fra produktkatalogen. Nettleseren kan ikke endre prisen. |
-| Stripe Checkout på Render (Node) | Ferdig siden oktober. |
+| Stripe Checkout i Node-bygget | Ferdig siden oktober (brukes nå bare lokalt og i tester). |
 | Stripe Checkout på one.com (PHP) | **Ny:** `api/kasse/`, `api/kasse/okt/` og `api/stripe/webhook/`. |
 | Kvittering til kunden | Nettsiden sender en egen ordrebekreftelse «Takk for bestillingen – ordre DP-…» fra Designporten («fra» i `api/oppsett.php`, må være en e-postkonto på designporten.no), én gang per ordre. Stripe kan i tillegg sende betalingskvittering (steg 5); navnet der settes under Settings → Business → Public details. |
 | Ordre til deg | Webhooken sender deg en e-post med varer, adresse, frakt og sum når betalingen er bekreftet. Hver betaling sendes én gang. |
@@ -71,13 +71,13 @@ Tryggere valg: lag en **Restricted key** (`rk_live_…`) med skrivetilgang til *
 
 ### 6. Slå på butikken
 
-I `/admin` → **Butikk**:
+I Studio (`/cms/`) → **Butikk og betaling**:
 
 1. Slå på **Kortbetaling**.
 2. Legg inn minst ett **fraktvalg** med navn og pris (inkl. MVA). Uten frakt forblir betaling av.
 3. Sett produktene du vil selge til **«Klar for salg»** med pris (inkl. MVA).
 
-Endringene lagres i GitHub, så siden må publiseres på nytt («Publiser Designporten») før one.com får dem. Den nye koden (PR #63) må også være slått sammen i `main` før publiseringen.
+Endringene gjelder med en gang, uten ny publisering.
 
 ### 7. Sjekk med ett ekte kjøp
 
@@ -128,7 +128,7 @@ Kilde: [Stripe: Vipps](https://docs.stripe.com/payments/vipps).
 | Det du ser | Sannsynlig grunn |
 |---|---|
 | Handlekurven sier «Betalingsløsningen er ikke koblet til ennå» | `api/stripe/konfig.php` mangler, nøkkelen har feil form, eller det er en live-nøkkel uten `tillat_live`. |
-| «Frakt er ikke satt opp ennå» | Ingen fraktvalg i `/admin` → Butikk, eller siden er ikke publisert etterpå. |
+| «Frakt er ikke satt opp ennå» | Ingen fraktvalg i Studio → Butikk og betaling. |
 | Betalt, men ingen e-post | Webhooken svarer ikke 200. Se Developers → Webhooks → endepunktet → *Event deliveries*. 400 betyr feil `whsec_`, 503 betyr at konfig-filen mangler, 500 betyr at e-posten feilet (Stripe prøver igjen). |
 | Takkesiden sier «Vi fant ikke betalingen» | Stripe har ikke bekreftet ennå, eller nøkkelen på serveren er en testnøkkel mens betalingen var ekte (eller omvendt). |
 | Webhooken svarer 400 «Feil modus» | Webhooken er laget i Test mode i Stripe. Lag den på nytt med Test mode av. |

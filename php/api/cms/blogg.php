@@ -3,6 +3,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/_kjerne.php';
 require_once __DIR__ . '/_studio.php';
+require_once dirname(__DIR__) . '/_katalog.php';
 
 function blogg_escape(mixed $v): string { return htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 
@@ -31,6 +32,14 @@ try {
     if ($kart) {
         header('Content-Type: application/xml; charset=utf-8');
         $xml = (string) file_get_contents($rot . '/sitemap.xml');
+        // Products and categories as Studio has them now (api/_katalog.php).
+        try {
+            $over = dp_butikk_overstyring(__DIR__ . '/data/butikk.json');
+            $bygget = $over ? dp_butikk_bygget() : null;
+            if ($bygget) $xml = dp_katalog_sitemap($xml, dp_butikk_flett($bygget, $over));
+        } catch (Throwable $e) {
+            error_log('Designporten sitemap: ' . $e->getMessage());
+        }
         $nye = '';
         if (cms_konfig() !== null) {
             foreach (cms_alle('SELECT slug, endret FROM cms_innlegg WHERE publisert IS NOT NULL ORDER BY id') as $r) {

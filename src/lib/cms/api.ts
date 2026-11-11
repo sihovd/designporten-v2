@@ -221,13 +221,35 @@ export const gjeldende = (f: Felt): string => f.publisert ?? (f.type === 'bilde'
 export const visning = (f: Felt): string => f.utkast ?? gjeldende(f);
 
 /** Studio's shop (php/api/cms/_handel.php). Prices in øre including VAT. */
+/** A picture from the media library on a product. */
+export interface Produktbilde {
+  medium: number;
+  alt: string;
+}
+
+/**
+ * A product in Studio → Butikk (php/api/cms/_handel.php). `bilde: null` and
+ * `bildeAlternativ: 'bygget'` keep the picture the site was built with
+ * (products from the build only).
+ */
 export interface Butikkprodukt {
   status: 'bekreftet' | 'plassholder';
   prisOre: number | null;
-  tilleggOre?: number | null;
   navn: string;
   kortBeskrivelse: string;
   beskrivelse: string;
+  kategori: string;
+  bilde: Produktbilde | null;
+  bildeAlternativ: Produktbilde | 'bygget' | null;
+  mal: { bredde: number; dybde: number; hoyde: number } | null;
+  materialer: string[];
+  farger: string[];
+  egenTekst: { maksTegn: number; tilleggOre: number | null } | null;
+  generator: string | null;
+  rekkefolge: number;
+  lagtTil: string;
+  /** Kept in Studio but not shown on the site. */
+  skjult: boolean;
 }
 
 export interface Fraktvalg {
@@ -248,17 +270,31 @@ interface Butikkrad {
   endretAv: string | null;
 }
 
+export interface Butikkreferanse {
+  farger: { id: string; navn: string; hex: string }[];
+  materialer: { type: string; beskrivelse: string }[];
+  kategorier: { slug: string; navn: string }[];
+  generatorer: { id: string; navn: string }[];
+}
+
 export interface Butikkoversikt {
   produkter: (Butikkrad & {
     id: string;
-    bygget: Butikkprodukt & {
-      egenTekst: boolean;
-      kategori: string;
-      bilde: string | null;
-      href: string | null;
-    };
-    studio: Butikkprodukt | null;
+    /** The product came with the site's build (it can be reset to it). */
+    fraBygget: boolean;
+    /** Shown on the site now. */
+    vises: boolean;
+    /** The product as the form starts from it, or null when it is incomplete. */
+    skjema: Butikkprodukt | null;
+    bilde: string | null;
+    kategoriNavn: string;
+    href: string | null;
+    byggetBilde: string | null;
+    byggetAlternativ: string | null;
+    /** Studio has its own values for it. */
+    studio: boolean;
   })[];
+  referanse: Butikkreferanse;
   innstillinger: Butikkrad & { bygget: Butikkinnstillinger; studio: Butikkinnstillinger | null };
   stripe: { tilkoblet: boolean; modus: 'test' | 'live' | null; webhook: boolean; grunn: string | null };
   kasse: { aktiv: boolean; grunn?: string };
@@ -375,8 +411,8 @@ const s = encodeURIComponent;
 export const cms = {
   gjenbyggVisning: () => post<{ ok: true }>('gjenbygg-visning', {}),
   butikk: () => kall<{ butikk: Butikkoversikt }>('butikk'),
-  butikkProdukt: (id: string, versjon: number, verdi: Butikkprodukt | null) =>
-    post<{ butikk: Butikkoversikt }>('butikk-produkt', { id, versjon, verdi }),
+  butikkProdukt: (id: string, versjon: number, verdi: Butikkprodukt | null, ny = false) =>
+    post<{ butikk: Butikkoversikt }>('butikk-produkt', { id, versjon, verdi, ny }),
   butikkInnstillinger: (versjon: number, verdi: Butikkinnstillinger | null) =>
     post<{ butikk: Butikkoversikt }>('butikk-innstillinger', { versjon, verdi }),
   ordrer: () => kall<{ ordrer: Ordre[]; leveringer: Record<string, string> }>('ordrer'),

@@ -3,6 +3,10 @@ import { nettsti } from '@/lib/nettsti';
 /**
  * Product page: shareable URL for every product (the window is the quick
  * view). Placeholder products are marked and kept out of search indexes.
+ *
+ * The PHP build also renders the product template (src/lib/handel/mal.ts) at
+ * /produkter/mal/; the build moves it out of the site, and the one.com
+ * server fills it in for every product Studio has (php/api/_katalog.php).
  */
 import type { GetStaticPaths } from 'astro';
 import Side from '@/layouts/Side.astro';
@@ -10,33 +14,48 @@ import Konseptbilde from '@/components/Konseptbilde.astro';
 import ProduktRutenett from '@/components/produkt/ProduktRutenett.astro';
 import ProduktValg from '@/components/produkt/ProduktValg';
 import { hentProdukter } from '@/lib/handel/katalog';
+import { gjenta, hvis, lagerMal, MAL_ID, malfelt, malprodukt, malValg } from '@/lib/handel/mal';
 import { formaterMal, type ProduktVisning } from '@/lib/handel/visning';
 import { getEntry } from 'astro:content';
 
 export const getStaticPaths = (async () => {
   const produkter = await hentProdukter();
-  return produkter.map((produkt) => ({
+  const sider = produkter.map((produkt) => ({
     params: { slug: produkt.id },
-    props: { produkt, alle: produkter },
+    props: { produkt, alle: produkter, mal: false },
   }));
+  if (lagerMal) sider.push({ params: { slug: MAL_ID }, props: { produkt: malprodukt, alle: [], mal: true } });
+  return sider;
 }) satisfies GetStaticPaths;
 
-const { produkt: p, alle } = Astro.props as { produkt: ProduktVisning; alle: ProduktVisning[] };
-const oppforing = await getEntry('produkter', p.id);
-const avsnitt = (oppforing?.data.beskrivelse ?? p.kortBeskrivelse).split(/\n\s*\n/).filter(Boolean);
-// Inline editing (src/scripts/redigering.ts) saves straight to the product's own file.
-const fil = `produkter/data/${p.id}`;
-const beskrivelseFelt = oppforing?.data.beskrivelse ? 'beskrivelse' : 'kortBeskrivelse';
-const mal = formaterMal(p.mal);
-const plassholder = p.status === 'plassholder';
+const {
+  produkt: p,
+  alle,
+  mal,
+} = Astro.props as { produkt: ProduktVisning; alle: ProduktVisning[]; mal: boolean };
+const oppforing = mal ? undefined : await getEntry('produkter', p.id);
+const avsnitt = mal
+  ? [malfelt('avsnitt')]
+  : (oppforing?.data.beskrivelse ?? p.kortBeskrivelse).split(/\n\s*\n/).filter(Boolean);
+const malTekst = mal ? malfelt('mal') : formaterMal(p.mal);
+const plassholder = !mal && p.status === 'plassholder';
+/** In the template: the part between the markers is kept only when the product has `felt`. */
+const H = (felt: string, slutt = false) => (mal ? hvis(felt, slutt) : '');
+const G = (felt: string, slutt = false) => (mal ? gjenta(felt, slutt) : '');
 
 const sammeKategori = alle.filter((x) => x.id !== p.id && x.kategori === p.kategori);
 const andre = alle.filter((x) => x.id !== p.id && x.kategori !== p.kategori);
-const relaterte = [...sammeKategori, ...andre].slice(0, 6);
+const relaterte = mal ? [malprodukt] : [...sammeKategori, ...andre].slice(0, 6);
+const relatertTittel = mal
+  ? malfelt('relatertTittel')
+  : sammeKategori.length > 0
+    ? `Mer fra ${p.kategoriNavn.toLowerCase()}`
+    : 'Flere produkter';
 
 // Structured data only for confirmed, priced products: never for placeholders.
+// The template leaves it out; the server writes it for each product.
 const strukturert =
-  !plassholder && p.prisOre !== null
+  !mal && !plassholder && p.prisOre !== null
     ? {
         '@context': 'https://schema.org',
         '@type': 'Product',
@@ -55,10 +74,15 @@ const strukturert =
     : null;
 ---
 
-<Side tittel={p.navn} beskrivelse={p.kortBeskrivelse} delingsbilde={p.bilde.src} ikkeIndekser={plassholder}>
+<Side
+  tittel={p.navn}
+  beskrivelse={p.kortBeskrivelse}
+  delingsbilde={mal ? undefined : p.bilde.src}
+  ikkeIndekser={plassholder}
+>
   {strukturert && <script type="application/ld+json" slot="hode" set:html={JSON.stringify(strukturert)} />}
 
-  <article class="produktside ramme">
+  <article class="produktside ramme" data-produktside={p.id}>
     <nav class="produktside__sti mono" aria-label="Brødsmuler">
       <ol>
         <li>
@@ -67,9 +91,7 @@ const strukturert =
         <li>
           <a href={nettsti(`/produkter/kategori/${p.kategori}/`)}>{p.kategoriNavn}</a>
         </li>
-        <li aria-current="page" data-butikk={`${p.id}#navn`}>
-          {p.navn}
-        </li>
+        <li aria-current="page">{p.navn}</li>
       </ol>
     </nav>
 
@@ -81,78 +103,102 @@ const strukturert =
           lasting="eager"
           prioritet="high"
           sizes="(max-width: 800px) 100vw, 50vw"
+          mal={mal ? 'bilde' : undefined}
         />
       </div>
 
       <div class="produktside__tekst">
         <p class="produktside__kategori mono">{p.kategoriNavn}</p>
-        <!-- data-butikk: Studio can change name, status and text after the build (php/api/_butikk.php). -->
-        <h1 class="produktside__tittel" data-rediger={`${fil}#navn`} data-butikk={`${p.id}#navn`}>
-          {p.navn}
-        </h1>
-        <p class="produktside__plassholder" data-butikk={`${p.id}#plassholder`} hidden={!plassholder}>
-          <strong>Plassholder.</strong> Produktet og bildet viser retningen, men modell, mål og pris er ikke
-          fastsatt ennå. Du kan likevel sende en uforpliktende forespørsel.
-        </p>
-        <div
-          class="produktside__beskrivelse"
-          data-rediger={`${fil}#${beskrivelseFelt}`}
-          data-rediger-type="avsnitt"
-          data-butikk={`${p.id}#beskrivelse`}
-        >
+        <h1 class="produktside__tittel">{p.navn}</h1>
+        <Fragment set:html={H('plassholder')} />
+        {(mal || plassholder) && (
+          <p class="produktside__plassholder">
+            <strong>Plassholder.</strong> Produktet og bildet viser retningen, men modell, mål og pris er ikke
+            fastsatt ennå. Du kan likevel sende en uforpliktende forespørsel.
+          </p>
+        )}
+        <Fragment set:html={H('plassholder', true)} />
+        <div class="produktside__beskrivelse">
+          <Fragment set:html={G('avsnitt')} />
           {avsnitt.map((a) => (
             <p>{a}</p>
           ))}
+          <Fragment set:html={G('avsnitt', true)} />
         </div>
 
         <dl class="produktside__fakta">
           <div>
             <dt class="mono">Mål</dt>
-            <dd class:list={['tall', { dempet: !mal }]}>{mal ?? 'Ikke fastsatt ennå'}</dd>
+            <Fragment set:html={H('mal')} />
+            {(mal || malTekst) && <dd class="tall">{malTekst}</dd>}
+            <Fragment set:html={H('mal', true) + H('utenMal')} />
+            {(mal || !malTekst) && <dd class="tall dempet">Ikke fastsatt ennå</dd>}
+            <Fragment set:html={H('utenMal', true)} />
           </div>
           <div>
             <dt class="mono">Materialer</dt>
-            <dd>{p.materialer.map((m) => m.type).join(', ')}</dd>
+            <dd>{mal ? malfelt('materialer') : p.materialer.map((m) => m.type).join(', ')}</dd>
           </div>
+          <Fragment set:html={H('egenTekst')} />
           {p.egenTekst && (
             <div>
               <dt class="mono">Egen tekst</dt>
-              <dd>Inntil {p.egenTekst.maksTegn} tegn</dd>
+              <dd>Inntil {mal ? malfelt('maksTegn') : p.egenTekst.maksTegn} tegn</dd>
             </div>
           )}
+          <Fragment set:html={H('egenTekst', true)} />
         </dl>
 
-        <ProduktValg client:visible produkt={p} />
+        {mal ? (
+          <ProduktValg client:only="preact" produkt={malValg} />
+        ) : (
+          <ProduktValg client:visible produkt={p} />
+        )}
 
+        <Fragment set:html={H('generator')} />
         {p.generator && (
-          <a class="produktside__generator" href={nettsti(`/skaperverksted/${p.generator}/`)}>
+          <a
+            class="produktside__generator"
+            href={nettsti(`/skaperverksted/${mal ? malfelt('generator') : p.generator}/`)}
+          >
             Tilpass i Skaperverksted
           </a>
         )}
+        <Fragment set:html={H('generator', true)} />
       </div>
     </div>
 
     <section class="produktside__materialer" aria-labelledby="om-materialene">
       <h2 id="om-materialene">Om materialene</h2>
       <dl>
+        <Fragment set:html={G('materiale')} />
         {p.materialer.map((m) => (
           <div>
             <dt>{m.type}</dt>
             <dd>{m.beskrivelse}</dd>
           </div>
         ))}
+        <Fragment set:html={G('materiale', true)} />
       </dl>
     </section>
   </article>
 
+  <Fragment set:html={H('relatert')} />
   {relaterte.length > 0 && (
     <section class="produktside__relatert" aria-labelledby="flere-produkter">
       <h2 id="flere-produkter" class="ramme">
-        {sammeKategori.length > 0 ? `Mer fra ${p.kategoriNavn.toLowerCase()}` : 'Flere produkter'}
+        {relatertTittel}
       </h2>
-      <ProduktRutenett produkter={relaterte} nivaa="h3" etikett="Flere produkter" />
+      <ProduktRutenett
+        produkter={relaterte}
+        nivaa="h3"
+        etikett="Flere produkter"
+        utvalg="relatert"
+        mal={mal}
+      />
     </section>
   )}
+  <Fragment set:html={H('relatert', true)} />
 </Side>
 
 <style>

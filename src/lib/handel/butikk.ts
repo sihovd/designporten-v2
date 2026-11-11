@@ -1,5 +1,5 @@
 /**
- * Shop settings edited in the CMS (/admin → Butikk). Card payment is only
+ * Shop settings as the build ships them; on one.com Studio → Butikk og betaling changes them. Card payment is only
  * offered when Sivert has switched it on here AND the Stripe keys exist on the
  * server. Shipping options are his to set; none are invented (CLAUDE.md §3).
  */

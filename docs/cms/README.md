@@ -30,7 +30,7 @@ CMS-et er ikke slått på på designporten.no. Det krever en database og en inns
 Svar på de åpne spørsmålene i planens punkt 6, slik koden og driften er 15. oktober 2026:
 
 1. **Repo, branch og rammeverk.** `sihovd/designporten-v2`, branch `main`. Astro 7 (statiske sider), Preact-øyer, TypeScript. Skaperverkstedet bruker Three.js.
-2. **Hosting, database, lagring, innlogging.** designporten.no kjører på one.com siden 14. oktober: statiske filer pluss PHP-skript for skjemaer og bestilling (`npm run build:onecom`, Apache, PHP 8.1+). one.com-kontoen har MySQL-databaser (det finnes en permanent databasebackup fra 14.10). Render (`designporten.onrender.com`) er en forhåndsvisning med Node, og gratisplanen har ingen fast lagring. Før CMS-et fantes ingen innlogging på nettstedet: `/admin` (Sveltia CMS) og «Rediger tekst» på sidene logger inn mot GitHub med en tilgangsnøkkel.
+2. **Hosting, database, lagring, innlogging.** designporten.no kjører på one.com siden 14. oktober: statiske filer pluss PHP-skript for skjemaer og bestilling (`npm run build:onecom`, Apache, PHP 8.1+). one.com-kontoen har MySQL-databaser (det finnes en permanent databasebackup fra 14.10). Render-forhåndsvisningen og `/admin` (Sveltia CMS, GitHub-innlogging) er fjernet 11.11.2026.
 3. **Produkter, priser, ordre, bilder og SEO.** Produkter: én JSON-fil per produkt i `src/content/produkter/data/` (12 stk., alle merket plassholder, ingen priser). Produktbilder: `src/content/produkter/bilder/` og konseptbilder via `src/lib/ressurser.ts`. Sidetekster: `src/content/sider/*.json` (fem sider). SEO-tittel og -beskrivelse: i de samme sidefilene (`meta`). Ordre: lagres ikke; bestillingsforespørsler og skjemaer sendes på e-post. Butikkinnstillinger: `src/content/butikk/innstillinger.json`.
 4. **Lager og Stripe.** Ingen lagerstyring. Stripe Checkout er bygget for Node-versjonen, men avslått, og one.com-versjonen har ingen betalingsruter.
 5. **Hva skal kunne redigeres fra dag én.** Valgt standard: de 95 tekstene som allerede er merket redigerbare på forsiden, Om, Spesialdesign, For bedrifter og Kontakt ([feltmatrise.md](feltmatrise.md)). Produkter og bilder kommer i fase 3.
@@ -44,7 +44,7 @@ Svar på de åpne spørsmålene i planens punkt 6, slik koden og driften er 15. 
 |---|---|---|
 | Sidetekster (95 felt) | `src/content/sider/*.json` i GitHub | Database på one.com. Teksten i GitHub er standardteksten som vises til noe er publisert i CMS-et. |
 | SEO-tittel og -beskrivelse | Sidefilene | Uendret (fase 3) |
-| Produkter, produktbilder, butikkinnstillinger | JSON og bilder i GitHub, redigeres i `/admin` | Uendret (fase 3) |
+| Produkter, produktbilder, butikkinnstillinger | JSON og bilder i GitHub, redigeres i `/admin` | Database på one.com (Studio → Butikk og betaling), bilder fra bildebiblioteket. PHP lager produktsidene fra en produktmal. Filene i GitHub er standard. |
 | Inspirasjon | `src/content/inspirasjon/` | Uendret |
 | Lenker, priser, prosess-stegene, meny, skjemaer, juridiske sider | Kode | Uendret: dette er design og regler, ikke innhold |
 
@@ -159,9 +159,9 @@ Ikke del passord eller oppsettkode i chat.
 - **Skjemaendringer** gjøres som nye nummererte steg i `cms_migreringer()`. Et steg som ikke kan kjøres, stopper API-et med en feil før noe skrives, og sidene vises fortsatt fra den publiserte filen.
 - **Staging:** testbygget (`npm run build:onecom:test`, `/designporten-test/`) har sin egen `api/cms/` og trenger sin egen database og `konfig.php`. Det skal aldri peke på produksjonsdatabasen.
 
-## /admin og GitHub-redigeringen
+## /admin og GitHub-redigeringen (fjernet)
 
-`/admin` (Sveltia) og «Rediger tekst» via GitHub virker som før, også for sidetekstene. Med CMS-et slått på endrer de bare standardteksten i koden, som vises der CMS-et ikke har publisert noe. På one.com-bygget starter «Rediger innhold» mot CMS-et når du er logget inn i `/cms/`, ellers GitHub-redigeringen som før. Produktene redigeres fortsatt i `/admin` til fase 3. Når CMS-et er i bruk, bør sidetekstene redigeres bare der.
+`/admin` (Sveltia) og «Rediger tekst» via GitHub ble fjernet 11.11.2026 (beslutningsloggen). Sidetekstene redigeres i Studio og med «Rediger innhold» på siden, produktene i Studio → Butikk og betaling. Filene i repoet er standardverdier og endres bare som kodeendringer.
 
 ## Akseptansetester
 
@@ -203,7 +203,7 @@ Alle API-testene er kjørt mot MariaDB 10.11 lokalt (15.10).
 
 1. Hvilke agenter skal få nøkler, og skal noen få publisere uten godkjenning?
 2. Skal SEO-tittel og -beskrivelse inn i CMS-et nå, eller sammen med produktene?
-3. Fase 3: skal produktene flyttes fra GitHub til databasen nå? Det betyr at produktsidene også må lages av PHP, fordi nye produkter ellers trenger et nytt bygg.
+3. Fase 3: produktene er flyttet til databasen, og produktsidene lages av PHP (11.11.2026).
 4. Fase 4: hvilke formater og maler skal bildekomponisten ha først?
 6. Hvilke rettighetstekster skal bildene ha (fotograf, lisens)? Feltet finnes, men er fritt.
-5. Skal `/admin` (Sveltia) fases ut for sidetekster når CMS-et er slått på?
+5. `/admin` (Sveltia) er fjernet (11.11.2026).

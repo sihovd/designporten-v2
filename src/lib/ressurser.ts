@@ -15,6 +15,8 @@ export interface Bilde {
   hoyde: number;
   konsept: boolean;
   midlertidig: boolean;
+  /** Widths for responsive loading (pictures from the Studio media library). */
+  srcset?: string;
   /** Transparent cut-out (PNG/WebP with alpha). */
   utklipp?: boolean;
 }

@@ -8,8 +8,10 @@
  *  - Colours and material types refer to the shared catalogue in
  *    src/skaperverksted/core/materialer.ts, so showroom and editor never drift.
  *
- * Edited by hand or in the CMS (/admin, public/admin + src/pages/admin). Fields
- * the CMS may leave out default to null. A product shows either a registry
+ * These files are the starting catalogue. On one.com Studio (the CMS) keeps
+ * the whole catalogue in its database and may change, hide or add any
+ * product after the build (php/api/_butikk.php). Optional fields default to
+ * null. A product shows either a registry
  * image (`bilde`) or an uploaded photo (`foto`, stored in ../bilder/).
  */
 import { defineCollection, type SchemaContext } from 'astro:content';
