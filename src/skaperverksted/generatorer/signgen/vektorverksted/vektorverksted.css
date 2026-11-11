@@ -893,3 +893,52 @@
 .vv-autolagring + .vv-zoom {
   margin-left: 0;
 }
+
+/* Etappe 4: Finalize */
+.vv-flate.vv-bakgrunn-lys {
+  background: #f4f2ee;
+}
+.vv-flate.vv-bakgrunn-mork {
+  background: #121114;
+}
+.vv-flate.vv-bakgrunn-skilt {
+  background: #6b6672;
+}
+.vv-skiltplate {
+  stroke: rgb(0 0 0 / 0.35);
+}
+.vv-konturlinje {
+  fill: none;
+  stroke: #ff00ff;
+}
+.vv-tynne path {
+  fill: rgb(255 40 70 / 0.35);
+  stroke: #ff2846;
+}
+.vv-storrelse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.vv-storrelse label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vv-storrelse input {
+  width: 7em;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  background: var(--vv-panel-2);
+  color: var(--vv-tekst);
+  font: inherit;
+}
+.vv-advarsel {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--vv-feil);
+  background: var(--vv-panel);
+  color: var(--vv-tekst);
+}

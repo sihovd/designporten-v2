@@ -234,6 +234,75 @@ test.describe('Skaperverksted', () => {
     await expect(rot.getByRole('navigation', { name: 'Mask-verktøy' })).toBeVisible();
   });
 
+  test('Vectorim Finalize: størrelse i mm, tynne steder, kontur, flat ut og SVG/DXF/PNG', async ({
+    page,
+  }) => {
+    await page.goto('/skaperverksted/vectorim/');
+    const rot = page.locator('.vv');
+    await konverterIVerkstedet(page, rot);
+    await rot.getByRole('button', { name: 'Advanced' }).click();
+    await rot
+      .getByRole('navigation', { name: 'Steg' })
+      .getByRole('button', { name: /Finalize/ })
+      .click();
+
+    // preview as a sign
+    await rot.getByRole('button', { name: 'Som skilt' }).click();
+    await expect(rot.locator('.vv-skiltplate')).toBeVisible();
+    await expect(rot.locator('.vv-flate')).toHaveClass(/vv-bakgrunn-skilt/);
+
+    // size: 100 mm wide, the height follows (120 × 80 image)
+    await rot.getByRole('spinbutton', { name: 'Bredde' }).fill('100');
+    await rot.getByRole('spinbutton', { name: 'Bredde' }).press('Enter');
+    await expect(rot.getByRole('spinbutton', { name: 'Høyde' })).toHaveValue(/^66\.\d$/);
+    await rot.getByRole('button', { name: 'cm', exact: true }).click();
+    await expect(rot.getByRole('spinbutton', { name: 'Bredde' })).toHaveValue('10');
+
+    // thin places: none at 1 mm; at 1 cm wide the shapes are thinner than 5 mm
+    await rot.getByRole('button', { name: 'Sjekk tynne steder' }).click();
+    await expect(rot.getByText('Ingen deler er smalere enn 1 mm.')).toBeVisible();
+    await rot.getByRole('spinbutton', { name: 'Bredde' }).fill('1');
+    await rot.getByRole('spinbutton', { name: 'Bredde' }).press('Enter');
+    await rot.getByRole('slider', { name: 'Minste bredde' }).fill('5');
+    await rot.getByRole('button', { name: 'Sjekk tynne steder' }).click();
+    await expect(rot.getByText(/har steder smalere enn 5 mm/)).toBeVisible();
+    await expect(rot.locator('.vv-tynne path')).not.toHaveCount(0);
+    await rot.getByRole('spinbutton', { name: 'Bredde' }).fill('10');
+    await rot.getByRole('spinbutton', { name: 'Bredde' }).press('Enter');
+
+    // contour as a cut line
+    await rot.getByRole('checkbox', { name: 'Kontur rundt motivet' }).check();
+    await expect(rot.locator('.vv-konturlinje')).toBeVisible();
+
+    const [svgFil] = await Promise.all([
+      page.waitForEvent('download'),
+      rot.getByRole('button', { name: 'Last ned SVG' }).click(),
+    ]);
+    const svg = await (await import('node:fs/promises')).readFile((await svgFil.path())!, 'utf8');
+    expect(svg).toMatch(/width="106\.5mm"/);
+    expect(svg).toContain('<g id="kontur">');
+
+    const [dxfFil] = await Promise.all([
+      page.waitForEvent('download'),
+      rot.getByRole('button', { name: 'Last ned DXF' }).click(),
+    ]);
+    expect(dxfFil.suggestedFilename()).toBe('firkant.dxf');
+    const dxf = await (await import('node:fs/promises')).readFile((await dxfFil.path())!, 'utf8');
+    expect(dxf).toContain('\nKontur\n');
+    expect(dxf.trim().endsWith('EOF')).toBe(true);
+
+    const [pngFil] = await Promise.all([
+      page.waitForEvent('download'),
+      rot.getByRole('button', { name: 'Last ned PNG' }).click(),
+    ]);
+    expect(pngFil.suggestedFilename()).toBe('firkant.png');
+    await expect(rot.getByText('PNG-en er lastet ned i 300 dpi.')).toBeVisible();
+
+    // flatten to one colour
+    await rot.getByRole('button', { name: 'Gjør alt til én farge' }).click();
+    await expect(rot.locator('.vv-status')).toContainText('1 farge');
+  });
+
   test('den gamle adressen /skaperverksted/vektorverksted/ sender videre til Vectorim', async ({ page }) => {
     await page.goto('/skaperverksted/vektorverksted/');
     await expect(page).toHaveURL(/\/skaperverksted\/vectorim\/$/);

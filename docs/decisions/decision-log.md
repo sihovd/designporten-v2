@@ -283,3 +283,15 @@ Kilde: Sivert i Claude-prosjektet: «Man kan også «add image» om man vil sett
 - **Autolagring**: arbeidet (bildet, masken, beskyttelsen, innstillingene, lagene og vektoren, med vektoren fra før redigering så Angre virker) lagres i nettleserens IndexedDB et øyeblikk etter hver endring. Neste gang Vectorim åpnes uten bilde, tilbys «Fortsett der du slapp?» med Fortsett og Forkast. Det er ett autolagret prosjekt; et nytt bilde tar over plassen. Statuslinjen viser «Lagret i nettleseren».
 - **Lagre prosjekt** laster ned det samme som én `.vectorim`-fil (JSON med bildene som PNG), som åpnes igjen med «Velg bilde»/«Nytt bilde» (`vektorverksted/prosjekt.ts`). Ingenting lastes opp.
 - Valg tatt av Claude: plasseringen er fast (til høyre eller under) i stedet for fri flytting av hvert bilde; fri flytting, skalering og rotasjon hører til etappe 5. Bilder kan kombineres i flere runder, og beskjæring rydder kantene etterpå.
+
+## 2026-11-11 — Vectorim, etappe 4: Finalize
+
+Kilde: Sivert godkjente forslagene til Finalize i Claude-prosjektet («Flott implementer dette også»): forhåndsvisning mot lys/mørk og som skilt, størrelse i mm/cm, forenkling til skjæring med varsel om minste bredde, kontur/offset, flat ut til én farge og eksport som PNG/DXF.
+
+- **Forhåndsvisning**: Rutenett, Lys, Mørk og Som skilt (en skiltplate i valgfri farge, 5 mm utenfor motivet og konturen). Originalen skjules når en bakgrunn er valgt, og visningen tilpasses så platen og konturen får plass.
+- **Størrelse** i mm eller cm; høyden følger bredden. Uten valgt størrelse er bredden bildets piksler ved 96 dpi, som før. SVG-en har nå `width`/`height` i mm, så Sign Forge og andre programmer får riktig mål.
+- **Til skjæring**: «Sjekk tynne steder» finner deler med steder smalere enn «Minste bredde» (0,2–5 mm) ved å krympe og vokse hver del med halve bredden og se hvor mye som forsvinner, og markerer dem med rødt. «Forenkle alle kurver» bruker den samme forenklingen som i Edit, og hopper over låste lag.
+- **Kontur** rundt alle synlige deler, 0,5–20 mm ut, med lukkede hull: som **skjærelinje** (magenta strek i en egen gruppe «Kontur (skjærelinje)», og eget DXF-lag «Kontur») eller som **flate bak** i valgfri farge. SVG-ens viewBox utvides så konturen kommer med.
+- **Flat ut**: alle delene får én farge (angres med Ctrl Z).
+- **Eksport**: SVG som før, **DXF** (R12, lukkede polylinjer i mm, ett lag per farge med lagnavnet, Y snudd) og **PNG** i 150/300/600 dpi med gjennomsiktig bakgrunn (høyst 8000 px; ellers skaleres den ned og meldingen sier fra). Størrelse og kontur lagres i prosjektet. Geometrien ligger i `vektorverksted/ferdig.ts` og bruker Clipper-funksjonene fra `geometri/polygon.ts`.
+- Valg tatt av Claude: konturlinjen er magenta (#ff00ff), vanlig for skjærelinjer i print-og-skjær. Forslaget til minste bredde (1 mm) og tersklene for «tynn» (over 3 % av delens flate) bør prøves på ekte folie.

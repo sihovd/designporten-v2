@@ -238,6 +238,13 @@ export function tilSvg(
     skjulte?: Set<string>;
     /** Group titles per colour (layer names). */
     navn?: Record<string, string | undefined>;
+    /** Width and height are in millimetres (Finalize's size), not pixels. */
+    mm?: boolean;
+    /** Markup drawn under and over the parts (Finalize's contour). */
+    under?: string;
+    over?: string;
+    /** Room around the drawing (vector units), for a contour that reaches outside it. */
+    marg?: number;
   } = {},
 ): string {
   const rang = (f: string) => {
@@ -260,8 +267,16 @@ export function tilSvg(
       })
       .join('');
   } else innhold = deler.map(sti).join('');
-  const st = opt.bredde && opt.hoyde ? ` width="${r2(opt.bredde)}" height="${r2(opt.hoyde)}"` : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${m.bredde} ${m.hoyde}"${st}>${innhold}</svg>`;
+  const e = opt.mm ? 'mm' : '';
+  const g = Math.max(0, opt.marg ?? 0);
+  const st =
+    opt.bredde && opt.hoyde
+      ? ` width="${r2((opt.bredde * (m.bredde + 2 * g)) / m.bredde)}${e}" height="${r2((opt.hoyde * (m.hoyde + 2 * g)) / m.hoyde)}${e}"`
+      : '';
+  const vb = g
+    ? `${-r2(g)} ${-r2(g)} ${r2(m.bredde + 2 * g)} ${r2(m.hoyde + 2 * g)}`
+    : `0 0 ${m.bredde} ${m.hoyde}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}"${st}>${opt.under ?? ''}${innhold}${opt.over ?? ''}</svg>`;
 }
 
 // ---------------------------------------------------------------- editing
