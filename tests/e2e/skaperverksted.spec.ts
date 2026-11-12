@@ -475,19 +475,24 @@ test.describe('Skaperverksted', () => {
     await expect(angre).toBeDisabled();
   });
 
-  test('Vectorium: fargeområde velger farger med fargeprøver, og panelet viser ikoner med hover-tekst', async ({
+  test('Vectorium: tryllestaven har forhåndsinnstillinger, bakgrunn og toleranse i fargespekteret', async ({
     page,
   }) => {
-    test.skip(test.info().project.name === 'mobil', 'Shift + klikk og hover krever mus og tastatur');
+    test.skip(test.info().project.name === 'mobil', 'hover krever mus');
     await page.goto('/skaperverksted/vectorium/');
     const rot = page.locator('.vv');
     await konverterIVerkstedet(page, rot);
     await rot.getByRole('button', { name: 'Advanced' }).click();
     await rot.getByRole('navigation', { name: 'Steg' }).getByRole('button', { name: /Mask/ }).click();
-    await page.keyboard.press('i');
     const dokk = rot.getByRole('navigation', { name: 'Mask-verktøy' });
-    await expect(dokk.getByRole('button', { name: 'Fargeområde' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(rot.getByText('Ingen fargeprøver ennå.')).toBeVisible();
+    // the colour range tool and the background buttons are gone: the wand does both
+    await expect(dokk.getByRole('button')).toHaveCount(7);
+    await expect(rot.getByRole('button', { name: 'Fjern bakgrunnen nå' })).toHaveCount(0);
+    await expect(rot.getByRole('button', { name: 'Velg bakgrunnen' })).toHaveCount(0);
+    await page.keyboard.press('w');
+    await expect(dokk.getByRole('button', { name: 'Tryllestav' })).toHaveAttribute('aria-pressed', 'true');
+    const forhand = rot.getByRole('group', { name: 'Forhåndsinnstilling for tryllestaven' });
+    await expect(forhand.getByRole('button', { name: 'Logo' })).toHaveAttribute('aria-pressed', 'true');
 
     // the test image is 120 × 80 px: a dark square at (10,15)–(55,60) and a red circle at (90,40)
     const boks = (await rot.locator('rect.vv-utsnitt').boundingBox())!;
@@ -497,9 +502,8 @@ test.describe('Skaperverksted', () => {
     });
     const andel = async () =>
       Number((await rot.locator('.vv-utvalgsboks .vv-tall').innerText()).split(' ')[0]);
-    let q = skjerm(90, 40);
+    const q = skjerm(90, 40);
     await page.mouse.click(q.x, q.y);
-    await expect(rot.getByRole('list', { name: 'Fargeprøver' }).getByRole('button')).toHaveCount(1);
     await expect(rot.locator('.vv-utvalgsboks')).toBeVisible();
     // the selection, mask and protection layers are drawn at the image's size (they were squeezed to 0 px)
     for (const lag of ['canvas.vv-utvalg', 'canvas.vv-maske', 'canvas.vv-beskytt'])
@@ -508,22 +512,20 @@ test.describe('Skaperverksted', () => {
     expect(bareRod).toBeGreaterThan(5);
     expect(bareRod).toBeLessThan(20);
 
-    // Shift + click adds the dark square
-    q = skjerm(30, 40);
-    await page.keyboard.down('Shift');
-    await page.mouse.click(q.x, q.y);
-    await page.keyboard.up('Shift');
-    await expect(rot.getByRole('list', { name: 'Fargeprøver' }).getByRole('button')).toHaveCount(2);
-    await expect.poll(andel).toBeGreaterThan(bareRod + 15);
+    // the spectrum shows the image's colours from the picked one; the slider moves the selection with it
+    await expect(rot.locator('.vv-spekterstripe')).toBeVisible();
+    await expect(rot.locator('.vv-spekter')).toContainText('% av bildet');
+    await rot.getByRole('slider', { name: 'Toleranse' }).fill('255');
+    await expect.poll(andel).toBe(100);
+    await forhand.getByRole('button', { name: 'Presis' }).click();
+    await expect(rot.getByRole('slider', { name: 'Toleranse' })).toHaveValue('10');
+    await expect.poll(andel).toBeLessThanOrEqual(bareRod);
 
-    // removing a sample shrinks the selection again
-    await rot.getByRole('list', { name: 'Fargeprøver' }).getByRole('button').nth(1).click();
-    await expect(rot.getByRole('list', { name: 'Fargeprøver' }).getByRole('button')).toHaveCount(1);
-    await expect.poll(andel).toBe(bareRod);
-
-    // light tones: the white background
-    await rot.getByRole('group', { name: 'Velg toner' }).getByRole('button', { name: 'Lyse' }).click();
-    await expect.poll(andel).toBeGreaterThan(60);
+    // «Bakgrunn» picks the white around the shapes
+    await forhand.getByRole('button', { name: 'Bakgrunn' }).click();
+    await expect(forhand.getByRole('button', { name: 'Bakgrunn' })).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(andel).toBeGreaterThan(55);
+    await expect(rot.locator('.vv-spekter')).toContainText('Bakgrunnsfargen');
 
     // the panel shows icons only; the name comes on hover
     const inverter = rot.locator('.vv-panel').getByRole('button', { name: 'Inverter', exact: true });

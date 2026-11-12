@@ -1017,25 +1017,41 @@
   white-space: nowrap;
 }
 
-/* colour range: the samples as small swatches */
-.vv-prover {
-  display: flex;
+/* the wand's tolerance shown in the picked colour's spectrum (Sivert, 2026-11-12) */
+.vv-stavvalg {
   flex-wrap: wrap;
+}
+.vv-spekter {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
-.vv-prove {
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--vv-linje);
-  border-radius: 6px;
-  cursor: pointer;
+.vv-spekterstripe {
+  position: relative;
+  height: 18px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  overflow: hidden;
+  /* transparent colours show against a checkerboard */
+  background-color: #fff;
 }
-.vv-prove:hover,
-.vv-prove:focus-visible {
-  border-color: var(--vv-lilla-lys);
+.vv-spekterutenfor {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border-left: 2px solid #fff;
+  background: rgb(18 16 22 / 0.72);
+  box-shadow: -1px 0 0 #000;
+}
+.vv-spekterprove {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 3px;
 }
 
 /* the mask, protection and selection layers are image-sized; the site's

@@ -335,3 +335,13 @@ Kilde: Sivert i Claude-prosjektet: «Legg til magnet lasso som et verktøy kjent
 - **Ikoner med hover-tekst**: verktøylinjen og knappene i høyre panel viser bare ikoner; navn og tast vises når musen er over knappen eller den har tastaturfokus (`vektorverksted/Hovertekst.tsx`). Knappene har fortsatt navn for skjermlesere. Valg tatt av Claude: hovedhandlingen i hvert steg (lilla knapp, f.eks. «Masker utvalget», «Videre til Edit») beholder teksten, og valg som Masker/Beskytt, forhåndsinnstillinger og tallknapper er fortsatt tekst, fordi de er valg og ikke handlinger. Toppmenyen er uendret.
 - **Rettet feil**: den røde masken, den grønne beskyttelsen og utvalget ble tegnet med 0 px bredde (nettstedets `canvas { max-width: 100% }`), så de var usynlige. Nå vises de.
 - Mask har nå åtte verktøy: beskjær, tryllestav, fargeområde, pensel, viskelær, lasso, magnetisk lasso og rektangel.
+
+## 2026-11-12 — Vectorium: tryllestaven tar over for Fargeområde og «Fjern bakgrunnen»
+
+Kilde: Sivert i Claude-prosjektet: «Fjern fargeverktøyet for det er jo det samme som tryllestaven i prinsippet. Fjern også knappen "fjern bakgrunn" som også er tryllestav. Utvid heller tryllestaven til å ha noen presets og en glider som viser toleranse i det valgte fargespekteret.»
+
+- **Fjernet:** verktøyet Fargeområde (fra 2026-11-11, aldri publisert) og Bakgrunn-delen i Mask («Velg bakgrunnen» og «Fjern bakgrunnen nå»). Mask har nå sju verktøy.
+- **Tryllestaven** har forhåndsinnstillinger: Presis (toleranse 10), Logo (32, standard), Foto (70), Alle like (32, ikke bare sammenhengende) og Bakgrunn (velger fra bildekanten, som den gamle knappen).
+- **Toleransegliden i fargespekteret:** under gliden vises bildets egne farger ordnet etter hvor langt de ligger fra fargen du klikket (eller bakgrunnsfargen), med den valgte delen lys og resten mørklagt, og hvor stor del av bildet som er innenfor. Utvalget følger gliden og «Bare sammenhengende område» så lenge klikket sto alene (uten Shift eller Alt). Beregningen ligger i `tryllestav.ts` (`fargespekter`, `kantfarge`).
+- Valg tatt av Claude: knappen «Fjern bakgrunnen» i **Simple** er beholdt, fordi Simple ikke har tryllestav og det er den eneste måten å fjerne bakgrunnen på der.
+- Hjelpevinduet lukkes nå av seg selv med Esc (tastelytteren i vinduet kunne henge etter).
