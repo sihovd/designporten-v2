@@ -89,18 +89,18 @@ function fyll(
   return ut;
 }
 
-/**
- * The background: the wand seeded from the image edge. Each edge pixel is
- * compared with the most common edge colour, so a logo touching the edge
- * is not taken along.
- */
-export function bakgrunnsutvalg(data: Uint8ClampedArray, w: number, h: number, toleranse: number): Utvalg {
-  const kant: number[] = [];
-  for (let x = 0; x < w; x++) kant.push(x, (h - 1) * w + x);
-  for (let y = 1; y < h - 1; y++) kant.push(y * w, y * w + w - 1);
-  // the most common edge colour, in 16 levels per channel
+/** A colour with alpha, 0–255 per channel. */
+export interface Rgba {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+/** The most common colour along the image edge (in 16 levels per channel), averaged. */
+export function kantfarge(data: Uint8ClampedArray, w: number, h: number): Rgba {
   const tell = new Map<number, { n: number; r: number; g: number; b: number; a: number }>();
-  for (const i of kant) {
+  for (const i of kantpiksler(w, h)) {
     const p = i * 4;
     const k =
       ((data[p]! >> 4) << 12) | ((data[p + 1]! >> 4) << 8) | ((data[p + 2]! >> 4) << 4) | (data[p + 3]! >> 4);
@@ -115,11 +115,84 @@ export function bakgrunnsutvalg(data: Uint8ClampedArray, w: number, h: number, t
   }
   let beste = { n: 0, r: 255, g: 255, b: 255, a: 255 };
   for (const t of tell.values()) if (t.n > beste.n) beste = t;
-  const r = beste.r / beste.n,
-    g = beste.g / beste.n,
-    b = beste.b / beste.n,
-    a = beste.a / beste.n;
-  return fyll(data, w, h, kant, (i) => forskjell(data, i * 4, r, g, b, a) <= toleranse);
+  const n = Math.max(1, beste.n);
+  return { r: beste.r / n, g: beste.g / n, b: beste.b / n, a: beste.a / n };
+}
+
+function kantpiksler(w: number, h: number): number[] {
+  const kant: number[] = [];
+  for (let x = 0; x < w; x++) kant.push(x, (h - 1) * w + x);
+  for (let y = 1; y < h - 1; y++) kant.push(y * w, y * w + w - 1);
+  return kant;
+}
+
+/**
+ * The background: the wand seeded from the image edge. Each edge pixel is
+ * compared with the most common edge colour, so a logo touching the edge
+ * is not taken along.
+ */
+export function bakgrunnsutvalg(data: Uint8ClampedArray, w: number, h: number, toleranse: number): Utvalg {
+  const { r, g, b, a } = kantfarge(data, w, h);
+  return fyll(data, w, h, kantpiksler(w, h), (i) => forskjell(data, i * 4, r, g, b, a) <= toleranse);
+}
+
+/** The colour at (x, y). */
+export function fargeVed(data: Uint8ClampedArray, w: number, h: number, x: number, y: number): Rgba {
+  const sx = Math.max(0, Math.min(w - 1, Math.floor(x)));
+  const sy = Math.max(0, Math.min(h - 1, Math.floor(y)));
+  const p = (sy * w + sx) * 4;
+  return { r: data[p]!, g: data[p + 1]!, b: data[p + 2]!, a: data[p + 3]! };
+}
+
+/** Number of steps in the colour spectrum (4 tolerance levels each). */
+export const SPEKTERSTEG = 64;
+
+export interface Fargespekter {
+  /**
+   * The image's own colours ordered by how far they lie from the chosen
+   * colour: the average colour (over white) of the pixels in each step of
+   * tolerance, or null where the image has none.
+   */
+  farger: ({ r: number; g: number; b: number } | null)[];
+  /** Share of the image (0–1) within each tolerance 0–255, for «x % av bildet». */
+  andelInnenfor: Float32Array;
+}
+
+/**
+ * The colours of the image as the tolerance slider reaches them
+ * (Sivert, 2026-11-12: «en glider som viser toleranse i det valgte
+ * fargespekteret»). Tolerance is measured as in the wand.
+ */
+export function fargespekter(data: Uint8ClampedArray, w: number, h: number, f: Rgba): Fargespekter {
+  const sum = new Float64Array(SPEKTERSTEG * 3);
+  const antall = new Float64Array(SPEKTERSTEG);
+  const perToleranse = new Float64Array(256);
+  for (let i = 0; i < w * h; i++) {
+    const d = forskjell(data, i * 4, f.r, f.g, f.b, f.a);
+    perToleranse[d]!++;
+    const steg = Math.min(SPEKTERSTEG - 1, Math.floor((d * SPEKTERSTEG) / 256));
+    const a = data[i * 4 + 3]! / 255;
+    sum[steg * 3] = sum[steg * 3]! + data[i * 4]! * a + 255 * (1 - a);
+    sum[steg * 3 + 1] = sum[steg * 3 + 1]! + data[i * 4 + 1]! * a + 255 * (1 - a);
+    sum[steg * 3 + 2] = sum[steg * 3 + 2]! + data[i * 4 + 2]! * a + 255 * (1 - a);
+    antall[steg]!++;
+  }
+  const farger = Array.from({ length: SPEKTERSTEG }, (_, s) =>
+    antall[s]
+      ? {
+          r: Math.round(sum[s * 3]! / antall[s]!),
+          g: Math.round(sum[s * 3 + 1]! / antall[s]!),
+          b: Math.round(sum[s * 3 + 2]! / antall[s]!),
+        }
+      : null,
+  );
+  const andelInnenfor = new Float32Array(256);
+  let samlet = 0;
+  for (let t = 0; t < 256; t++) {
+    samlet += perToleranse[t]!;
+    andelInnenfor[t] = samlet / Math.max(1, w * h);
+  }
+  return { farger, andelInnenfor };
 }
 
 /** Union, difference or replacement of two selections. */

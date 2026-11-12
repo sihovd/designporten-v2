@@ -162,6 +162,7 @@ export type MidlertidigIkon =
   | 'beskjaer'
   | 'tryllestav'
   | 'lasso'
+  | 'magnetlasso'
   | 'viskelar'
   | 'rett-linje'
   | 'vater'
@@ -251,6 +252,14 @@ const midlertidige: Record<MidlertidigIkon, () => JSX.Element> = {
     <>
       <ellipse cx="13" cy="9" rx="8" ry="5" stroke-dasharray="3 2" />
       <path d="M7 12.5c-1 2-1 4 1 5s1 3-1 3.5" />
+    </>
+  ),
+  // magnetic lasso: the lasso loop with a horseshoe magnet at its tail (2026-11-11)
+  magnetlasso: () => (
+    <>
+      <ellipse cx="14" cy="8" rx="7.5" ry="4.5" stroke-dasharray="3 2" />
+      <path d="M4.5 13v4a2.75 2.75 0 0 0 5.5 0v-4" />
+      <path d="M4.5 15h2M8 15h2" />
     </>
   ),
   // eraser: a tilted block on a base line

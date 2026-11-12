@@ -964,3 +964,101 @@
   pointer-events: none;
   z-index: 1;
 }
+
+/* ---------- Magnetisk lasso og hover-tekst i verktøylinjen (2026-11-11) ---------- */
+
+.vv-magnetanker {
+  fill: #fff;
+  stroke: var(--vv-lilla);
+  stroke-width: 1.5;
+}
+.vv-magnetanker-start {
+  fill: var(--vv-lilla-lys);
+}
+
+/* hover text for icon buttons (Hovertekst.tsx): fixed to the window, so nothing clips it */
+.vv-tips {
+  position: fixed;
+  z-index: 1000;
+  transform: translate(-50%, -100%);
+  max-width: 320px;
+  padding: 5px 9px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 6px;
+  background: #121016;
+  color: #f3f1f7;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.4);
+}
+.vv-tips-under {
+  transform: translate(-50%, 0);
+}
+
+/* the right panel shows icons only; the name comes as hover text (Sivert, 2026-11-11).
+   The main action in each step (purple) keeps its text. */
+.vv-panel .vv-ikonknapp:not(.vv-primar) {
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+}
+.vv-panel .vv-ikonknapp:not(.vv-primar) > span,
+.vv-panel .vv-ikonknapp:not(.vv-primar) > kbd {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* the wand's tolerance shown in the picked colour's spectrum (Sivert, 2026-11-12) */
+.vv-stavvalg {
+  flex-wrap: wrap;
+}
+.vv-spekter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vv-spekterstripe {
+  position: relative;
+  height: 18px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 4px;
+  overflow: hidden;
+  /* transparent colours show against a checkerboard */
+  background-color: #fff;
+}
+.vv-spekterutenfor {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border-left: 2px solid #fff;
+  background: rgb(18 16 22 / 0.72);
+  box-shadow: -1px 0 0 #000;
+}
+.vv-spekterprove {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  border: 1px solid var(--vv-linje);
+  border-radius: 3px;
+}
+
+/* the mask, protection and selection layers are image-sized; the site's
+   `canvas { max-width: 100% }` squeezed them to zero width inside their
+   holders, so red, green and the selection never showed (fixed 2026-11-11) */
+.vv-maske,
+.vv-beskytt,
+.vv-utvalg {
+  max-width: none;
+}

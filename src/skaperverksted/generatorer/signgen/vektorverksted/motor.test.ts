@@ -29,7 +29,16 @@ import {
   type Vektormodell,
 } from './modell';
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionvalg } from './regioner';
-import { antallValgt, bakgrunnsutvalg, kombiner, tryllestav, utvid } from './tryllestav';
+import {
+  antallValgt,
+  bakgrunnsutvalg,
+  fargespekter,
+  kantfarge,
+  kombiner,
+  SPEKTERSTEG,
+  tryllestav,
+  utvid,
+} from './tryllestav';
 import { fargeavstand, fargebruk, flatUt, reduserFarger, slaSammenLikeFarger } from './farger';
 import { delerIFarger, flyttLag, lagrekkefolge, tegnOmradePaNytt } from './lag';
 import { kontur, tilDxf, tynneDeler } from './ferdig';
@@ -495,5 +504,30 @@ describe('flytt, skaler, roter', () => {
     const flyttet = transformerDeler(m, [id], flyttMatrise(1000, 0));
     const xs = [...tilDxf(flyttet, 1).matchAll(/\n10\n([-\d.]+)/g)].map((t) => Number(t[1]));
     expect(Math.max(...xs)).toBeGreaterThan(1000);
+  });
+});
+
+describe('tryllestav: kantfarge og fargespekter', () => {
+  // 4 × 1 px: white, light grey, dark grey, black
+  const d = new Uint8ClampedArray([255, 255, 255, 255, 200, 200, 200, 255, 60, 60, 60, 255, 0, 0, 0, 255]);
+
+  it('ordner bildets farger etter avstand fra den valgte fargen', () => {
+    const s = fargespekter(d, 4, 1, { r: 255, g: 255, b: 255, a: 255 });
+    expect(s.farger).toHaveLength(SPEKTERSTEG);
+    expect(s.farger[0]).toEqual({ r: 255, g: 255, b: 255 });
+    // light grey is 55 away, dark grey 195, black 255
+    expect(s.farger[Math.floor((55 * SPEKTERSTEG) / 256)]).toEqual({ r: 200, g: 200, b: 200 });
+    expect(s.farger[SPEKTERSTEG - 1]).toEqual({ r: 0, g: 0, b: 0 });
+    expect(s.farger[30]).toBeNull();
+    expect(s.andelInnenfor[0]).toBeCloseTo(0.25);
+    expect(s.andelInnenfor[60]).toBeCloseTo(0.5);
+    expect(s.andelInnenfor[255]).toBeCloseTo(1);
+  });
+
+  it('finner fargen langs bildekanten', () => {
+    // 3 × 3: white frame, black centre
+    const b = new Uint8ClampedArray(9 * 4).fill(255);
+    b.set([0, 0, 0, 255], 4 * 4);
+    expect(kantfarge(b, 3, 3)).toEqual({ r: 255, g: 255, b: 255, a: 255 });
   });
 });
