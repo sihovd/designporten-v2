@@ -6,7 +6,8 @@ import { mal } from '../../shell/mal';
 import { meta } from './meta';
 import { Filvalg } from './Maldialog';
 import { Innstillingsvalg } from './Prosjektinnstillinger';
-import { fargeplasser, lesInnSigngen, nyttSigngenDokument } from './dokument';
+import { fargeplasser, lesInnSigngen, nyttSigngenDokument, parametre } from './dokument';
+import { fargeskiftForDeler } from './fargeskift';
 import { byggSigngen, forelopigMal, grunnfest, settUnderveis } from './modell';
 import { endreUtkastSider, SigngenLerret } from './SigngenLerret';
 import { SigngenVerktoy, VERKTOY } from './Verktoy';
@@ -192,9 +193,16 @@ const plugin: GeneratorPlugin = {
     ['Valgt hjelpelinje: piler, Delete', 'Flytt 1 mm (Shift: 10 mm) · slett'],
     ['Esc', 'Tilbake til Velg / fjern utvalg'],
   ],
-  eksport(_dok, _modell, benk) {
-    if (!benk) return {};
+  eksport(dok, modell, benk) {
+    const p = parametre(dok);
+    const skift = fargeskiftForDeler(modell.deler, p.lagHoyde);
+    const merknad =
+      p.fargeskift === 'som_tegnet'
+        ? `Fargene printes som tegnet: omtrent ${skift} fargeskift. «Færre fargeskift» i prosjektinnstillingene gir som regel færre.`
+        : `Færre fargeskift er på: materiale som ikke synes, printes i fargen som allerede brukes i samme høyde. Omtrent ${skift} fargeskift.`;
+    if (!benk) return { merknad };
     return {
+      merknad,
       handlinger: [
         {
           navn: 'Eksporter via CSV',

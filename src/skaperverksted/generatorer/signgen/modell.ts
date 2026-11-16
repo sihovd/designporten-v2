@@ -48,6 +48,7 @@ import { ekstruder } from '../../geometri/ekstruder';
 import type { ModellDel } from '../../geometri/mesh';
 import { bareHull, parametre, stable, tekstUtenforTekstlag } from './dokument';
 import { rettProfil } from '../../core/profil';
+import { faerreFargeskift, type Fargeskive } from './fargeskift';
 
 // ---------- fonts ----------
 
@@ -1153,7 +1154,8 @@ export async function byggSigngen(
       tekst: 'En eller flere fonter kunne ikke lastes. Sjekk nettforbindelsen.',
     });
 
-  const { lagHoyde } = parametre(dok);
+  const p = parametre(dok);
+  const { lagHoyde } = p;
   const deler: ModellDel[] = [];
   const plate = dok.plate;
 
@@ -1179,6 +1181,8 @@ export async function byggSigngen(
     materialId: string;
   }
   const skiver: Skive[] = [];
+  /** The same slabs with the part they became, for «Færre fargeskift». */
+  const fargeskiver: Fargeskive[] = [];
   const sjekk = (
     navn: string,
     lagId: string,
@@ -1254,6 +1258,14 @@ export async function byggSigngen(
           hoyde: lag.hoyde,
           materialId: del.materialId,
         });
+        fargeskiver.push({
+          del: deler.at(-1)!,
+          region: del.region,
+          zBunn: lag.zBunn,
+          hoyde: lag.hoyde,
+          materialId: del.materialId,
+          rett: lag.profil.bredde <= 0 && !e.forbrukt,
+        });
         sjekk(delNavn, lag.id, del.region, del.materialId);
       }
 
@@ -1291,6 +1303,14 @@ export async function byggSigngen(
         hoyde: o.hoyde,
         materialId: o.materialId,
       });
+      fargeskiver.push({
+        del: deler.at(-1)!,
+        region: r,
+        zBunn: lag.zBunn,
+        hoyde: o.hoyde,
+        materialId: o.materialId,
+        rett: true,
+      });
       sjekk(navn, lag.id, r, o.materialId, { id: o.id, regioner: [...inne] });
       inne.push(r);
     }
@@ -1316,6 +1336,14 @@ export async function byggSigngen(
       const e = ekstruderHusket(ring, malLag.zBunn, hoyde, rettProfil(), lagHoyde, 'rund');
       deler.push({ id: x.objekt.id, lagId: mal.lagId, navn, materialId, mesh: e.mesh });
       skiver.push({ navn, lagId: mal.lagId, region: ring, zBunn: malLag.zBunn, hoyde, materialId });
+      fargeskiver.push({
+        del: deler.at(-1)!,
+        region: ring,
+        zBunn: malLag.zBunn,
+        hoyde,
+        materialId,
+        rett: true,
+      });
       sjekk(navn, mal.lagId, ring, materialId);
     }
   }
@@ -1359,6 +1387,11 @@ export async function byggSigngen(
       niva: 'advarsel',
       tekst: `Modellen er høyere enn skriveren kan bygge (${mm(plate.hoyde)}).`,
     });
+  }
+  if (p.fargeskift !== 'som_tegnet' && fargeskiver.length > 1) {
+    await meld(0.94);
+    const plan = faerreFargeskift(fargeskiver, lagHoyde);
+    deler.splice(0, deler.length, ...plan.deler);
   }
   await meld(1);
   return { deler, advarsler };
