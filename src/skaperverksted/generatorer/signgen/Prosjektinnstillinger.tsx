@@ -11,6 +11,8 @@ import { Dialog } from '../../shell/Dialog';
 import { Ikon } from '../../shell/ikoner';
 import { TallFelt } from '../../shell/kontroller';
 import { fargeplasser, palett, parametre, stable } from './dokument';
+import { TOPPHUD } from './fargeskift';
+import { mm } from '../../core/enheter';
 import { brukSigntilstand, signtilstand } from './tilstand';
 
 /** Ready-made build plate sizes (width × depth, mm). The height is set on its own. */
@@ -171,6 +173,23 @@ export function Prosjektinnstillinger({ benk }: { benk: Arbeidsbenk }) {
             endre={(v) => settParam('Printlaghøyde', { lagHoyde: v })}
           />
           <p class="merknad">Printlaghøyden brukes i forhåndsvisningen av printlagene. Den er ikke et lag.</p>
+          <label class="avkryssing">
+            <input
+              type="checkbox"
+              checked={p.fargeskift !== 'som_tegnet'}
+              onChange={() =>
+                settParam('Færre fargeskift', {
+                  fargeskift: p.fargeskift === 'som_tegnet' ? 'faerrest' : 'som_tegnet',
+                })
+              }
+            />{' '}
+            Færre fargeskift
+          </label>
+          <p class="merknad">
+            Materiale som ikke synes, printes i fargen som allerede brukes i samme høyde, så skriveren bytter
+            filament sjeldnere. Kanter og topper beholder fargen sin (topper minst {mm(TOPPHUD)} der det er
+            plass). Formen og høydene blir de samme.
+          </p>
         </section>
       </div>
     </Dialog>

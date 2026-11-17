@@ -1707,7 +1707,8 @@ test.describe('Signgen', () => {
     await egen.click();
     await expect(tilbake).toBeHidden();
     await bygg3d(page);
-    await expect(page.locator('.statuslinje')).toContainText('5 deler');
+    // one part per colour in the layer: «Færre fargeskift» joins the dark object with the dark underlay
+    await expect(page.locator('.statuslinje')).toContainText('4 deler');
     if (!isMobile) await expect(page.locator('.lagrad')).toHaveCount(1);
   });
 

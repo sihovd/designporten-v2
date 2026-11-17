@@ -35,6 +35,11 @@ export interface SigngenParametre {
   autoZ: boolean;
   /** Print layer height used to realise side profiles (mm). */
   lagHoyde: number;
+  /**
+   * «Færre fargeskift» (Sivert, 2026-11-16): material nobody can see takes the colour its height
+   * band already prints, so the printer swaps filament less. Missing = on.
+   */
+  fargeskift?: 'faerrest' | 'som_tegnet';
   /** The sign's colour profile: the material ids it may use (Sivert, 2026-10-05). */
   farger?: string[];
   /** False until the start window has been answered for this project. */

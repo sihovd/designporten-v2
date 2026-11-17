@@ -272,6 +272,18 @@ Sivert: «Det henger veldig når vi flytter elementer, og den tåler lite prosje
 
 Before → after (headless Chromium, production build, time per drag frame including one frame of measuring overhead, so 33 ms is the floor): text in a text layer with an outline 180 ms (peaks 400 ms) → 39 ms; a vector of 12 000 points 66 → 44 ms; a 3 000-point vector beside it 102 → 47 ms; a hanging hole 106 → 36 ms; 8 × undo/redo 300 → 180 ms. Letting go of the text costs one pause of about 0.3 s, when its outline and the layer stacking are worked out.
 
+### Fewer colour changes (Sivert, 2026-11-16)
+
+Sivert: «Jeg trenger at fargene ikke overlapper når det ikke er nødvendig. Dette er ikke optimalisert for få fargeskift på printeren.» As drawn, every layer and outline is a full body from its own bottom to its own top, so a text with three outlines starts four colours on the plate and the printer swaps filament several times in every print layer.
+
+- **«Færre fargeskift»** (project settings → Printing, `parametre.fargeskift`, missing = on; `'som_tegnet'` turns it off). The printed volume and every height stay exactly the same; only material nobody can see changes colour (`generatorer/signgen/fargeskift.ts`, run at the end of `byggSigngen`, so the 3D view, the export preview, the 3MF and the CSV plates all get it).
+- **What counts as visible.** The model is cut into height bands at every bottom and top. In a band, a straight slab keeps its colour within 0.8 mm of the band's outer edge (holes and cut-out text included; the hidden 0.01 mm gap between outlines does not count as an edge) and in its top skin where nothing lies on it: 0.6 mm deep, but not below the next lower top in the sign, and never less than two print layers.
+- **Who gets the hidden part.** A colour that shows nowhere in a band gives its hidden part to the band's fill colour: the previous band's when it still shows, else the one that shows most. A colour that shows in the band anyway keeps its hidden part, since moving it saves no change.
+- **Not touched:** layers with a side profile (rounded or bevelled tops) keep their own mesh and colour; they only take up room. Slabs that end up in one colour keep their part as it was. The underside (on the plate) is not treated as visible.
+- **Parts.** One part per layer and colour: hidden fill joins the layer's own part of that colour (so the outer outline swallows the material under the inner ones), and the part keeps the id and name of the slab whose colour it is, so clicking it in 3D still selects the layer. A colour with no own slab in the layer is named «… (skjult fyll)». Slabs that do not change keep their parts exactly; the part count usually stays the same or drops.
+- **Count.** The export dialog states roughly how many filament changes the print needs (`fargeskiftForDeler`: per print layer, ordered like a slicer that starts with the last colour). Measured on a text with three outlines that all start on the plate (`fargeskift.test.ts`): 36 → 3 changes with four colours.
+- **Not verified:** printing, and how Bambu Studio orders the colours; colour showing through a thin top skin of a light colour over a dark fill.
+
 ### Batch (CSV)
 
 - A **master sign** marks one or more text objects as **fields** (for example `navn`), and vectors as **decor fields** (for example `dekor`).

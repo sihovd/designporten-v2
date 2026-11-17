@@ -242,7 +242,24 @@ export function ekstruder(
     skiver.push({ z0: zBunn + p.z0, z1: zBunn + p.z1, region: r });
   }
   if (!skiver.length) return { mesh: b.bygg(), toppZ: zBunn, forbrukt: true };
+  stabel(b, hk, skiver);
+  return { mesh: b.bygg(), toppZ: skiver.at(-1)!.z1, forbrukt };
+}
 
+/**
+ * One closed mesh from a stack of straight slabs lying directly on top of
+ * each other (z1 of one = z0 of the next). Each slab may have its own
+ * region; the steps between them get flat faces.
+ */
+export function ekstruderStabel(skiver: { z0: number; z1: number; region: Region }[]): Mesh {
+  const b = new MeshBygger();
+  const hk = new Hjornekart(b);
+  const s = skiver.filter((x) => x.region.length && x.z1 > x.z0);
+  if (s.length) stabel(b, hk, s);
+  return b.bygg();
+}
+
+function stabel(b: MeshBygger, hk: Hjornekart, skiver: Skive[]): void {
   flate(b, hk, skiver[0]!.region, skiver[0]!.z0, false);
   for (let k = 0; k < skiver.length; k++) {
     const s = skiver[k]!;
@@ -255,5 +272,4 @@ export function ekstruder(
       flate(b, hk, s.region, s.z1, true);
     }
   }
-  return { mesh: b.bygg(), toppZ: skiver.at(-1)!.z1, forbrukt };
 }
