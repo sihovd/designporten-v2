@@ -100,16 +100,23 @@ import {
   type Lagkart,
   type Omrade,
 } from './lag';
+import { Hovertekst } from './Hovertekst';
+import { festTilKant, forenkleSti, kantsti, lagKantkart, type Kantkart, type Punkt } from './magnetlasso';
 import { lagRegionkart, STANDARD_REGIONVALG, type Regionkart, type Regionvalg } from './regioner';
 import { STANDARD_TILPASNING, type Anker, type Tilpasningsvalg } from './tilpass';
 import {
   antallValgt,
   bakgrunnsutvalg,
+  fargespekter,
+  fargeVed,
   inverterUtvalg,
+  kantfarge,
   kombiner,
+  SPEKTERSTEG,
   tryllestav,
   utvalgsbilde,
   utvid,
+  type Rgba,
   type Utvalg,
 } from './tryllestav';
 
@@ -117,7 +124,16 @@ import {
 type Steg = 'masker' | 'rediger' | 'ferdig';
 /** Simple shows only what most people need; Advanced has every mode and tool. */
 type Nivaa = 'enkel' | 'avansert';
-type Forberedverktoy = 'beskjaer' | 'tryllestav' | 'pensel' | 'viskelar' | 'lasso' | 'rektangel';
+type Forberedverktoy =
+  'beskjaer' | 'tryllestav' | 'pensel' | 'viskelar' | 'lasso' | 'magnetlasso' | 'rektangel';
+
+/** A magnetic lasso being drawn: where it started and the edge path to each anchor point after that. */
+interface Magnetlasso {
+  start: Punkt;
+  segmenter: Punkt[][];
+}
+const magnetPunkter = (m: Magnetlasso) => [m.start, ...m.segmenter.flat()];
+const magnetAnker = (m: Magnetlasso) => m.segmenter.at(-1)?.at(-1) ?? m.start;
 /** What a drawn field does: red removes (masks), green protects. */
 type Felttype = 'masker' | 'beskytt';
 type Redigerverktoy = 'spor' | 'lag' | 'farger' | 'omrade' | 'del' | 'flytt' | 'linje' | 'punkt' | 'penn';
@@ -349,6 +365,17 @@ function Glidebryter(props: {
 }
 
 /** A button with an icon from Sign Forge's icon set and its name beside it. */
+/** CSS colour stops for the spectrum: each step at its place, gaps left to blend. */
+function spekterstopp(farger: ({ r: number; g: number; b: number } | null)[]): string {
+  const stopp = farger
+    .map((f, i) => (f ? `rgb(${f.r} ${f.g} ${f.b}) ${(((i + 0.5) / SPEKTERSTEG) * 100).toFixed(1)}%` : null))
+    .filter(Boolean);
+  return stopp.length > 1 ? stopp.join(', ') : `${stopp[0] ?? 'transparent'}, ${stopp[0] ?? 'transparent'}`;
+}
+
+const rgbaTekst = (f: Rgba) =>
+  `rgb(${Math.round(f.r)} ${Math.round(f.g)} ${Math.round(f.b)} / ${(f.a / 255).toFixed(2)})`;
+
 function Knapp(props: {
   ikon: IkonId;
   navn: string;
@@ -368,6 +395,7 @@ function Knapp(props: {
       title={props.tittel}
       aria-pressed={props.trykket}
       aria-keyshortcuts={props.tast}
+      data-tips={props.tast ? `${props.navn} (${props.tast})` : props.navn}
     >
       <Ikon id={props.ikon} storrelse={18} />
       <span>{props.navn}</span>
@@ -519,6 +547,21 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
   const filvelger = useRef<HTMLInputElement>(null);
   const [peker, settPeker] = useState<{ x: number; y: number } | null>(null);
   const [lasso, settLasso] = useState<{ x: number; y: number }[] | null>(null);
+  const [magnet, settMagnet] = useState<Magnetlasso | null>(null);
+  const rotRef = useRef<HTMLDivElement>(null);
+  /**
+   * The wand's last pick: the colour and where (mask pixels), or the image
+   * edge for «Bakgrunn». While it stands alone (no Shift or Alt), the
+   * selection follows the tolerance slider.
+   */
+  const [stavvalg, settStavvalg] = useState<
+    | { type: 'punkt'; x: number; y: number; farge: Rgba; alene: boolean }
+    | { type: 'kant'; farge: Rgba }
+    | null
+  >(null);
+  /** How far from the pointer the magnetic lasso looks for an edge (image px), as Photoshop's «Width». */
+  const [magnetBredde, settMagnetBredde] = useState(10);
+  const kantkartRef = useRef<{ url: string; kart: Kantkart; s: number } | null>(null);
   const [omrade, settOmrade] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const dra = useRef<
     | null
@@ -891,6 +934,63 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     oppdaterMaske();
   };
 
+  // ------------------------------------------------------------ magnetic lasso
+
+  /** The edge map for the magnetic lasso, made once per image. */
+  const kantkart = () => {
+    const d = bildedata();
+    if (!d || !kilde) return null;
+    if (kantkartRef.current?.url !== kilde.url)
+      kantkartRef.current = {
+        url: kilde.url,
+        kart: lagKantkart(d.data, d.width, d.height),
+        s: d.width / kilde.bredde,
+      };
+    return kantkartRef.current;
+  };
+
+  /** Where p snaps to: the strongest edge within the width, in image coordinates. */
+  const festMagnet = (p: Punkt): Punkt => {
+    const k = kantkart();
+    if (!k) return p;
+    const q = festTilKant(k.kart, { x: p.x * k.s, y: p.y * k.s }, magnetBredde * k.s);
+    return { x: q.x / k.s, y: q.y / k.s };
+  };
+
+  /** The edge path from an anchor to p (snapped), in image coordinates; the anchor itself is left out. */
+  const magnetSti = (fra: Punkt, p: Punkt): Punkt[] => {
+    const k = kantkart();
+    const til = festMagnet(p);
+    if (!k) return [til];
+    const sti = kantsti(
+      k.kart,
+      { x: fra.x * k.s, y: fra.y * k.s },
+      { x: til.x * k.s, y: til.y * k.s },
+      Math.max(8, Math.round(magnetBredde * k.s * 1.5)),
+    );
+    return forenkleSti(sti)
+      .slice(1)
+      .map((q) => ({ x: q.x / k.s, y: q.y / k.s }));
+  };
+
+  /** Closes the magnetic lasso and fills it as a field (masked or protected). */
+  const lukkMagnet = (m: Magnetlasso | null = magnet, siste: Punkt[] = []) => {
+    if (m) {
+      const punkter = [...magnetPunkter(m), ...siste];
+      if (punkter.length > 2) fyllFelt(punkter);
+    }
+    settMagnet(null);
+    settLasso(null);
+  };
+
+  const avbrytMagnet = () => {
+    settMagnet(null);
+    settLasso(null);
+  };
+
+  // a half-drawn magnetic lasso ends when the tool, the mode or the image changes
+  useEffect(avbrytMagnet, [fverktoy, steg, kilde?.url]);
+
   // ------------------------------------------------------------ crop
 
   const helt = (k: Kildebilde, u: Rektangel) => u.x === 0 && u.y === 0 && u.b === k.bredde && u.h === k.hoyde;
@@ -1047,10 +1147,70 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     oppdaterMaske();
   };
 
-  const velgBakgrunn = () => {
+  /** The wand from the image edge: the background and everything connected to it. */
+  const velgBakgrunn = (t = toleranse) => {
     const d = bildedata();
-    if (d) settUtvalg(bakgrunnsutvalg(d.data, d.width, d.height, toleranse));
+    if (!d) return;
+    settUtvalg(bakgrunnsutvalg(d.data, d.width, d.height, t));
+    settStavvalg({ type: 'kant', farge: kantfarge(d.data, d.width, d.height) });
   };
+
+  // the wand's pick belongs to one image
+  useEffect(() => settStavvalg(null), [kilde?.url]);
+
+  // a pick that stands alone follows the tolerance and «Bare sammenhengende», so the slider shows what it takes
+  useEffect(() => {
+    if (!stavvalg || fverktoy !== 'tryllestav') return;
+    const d = bildedata();
+    if (!d) return;
+    if (stavvalg.type === 'kant') settUtvalg(bakgrunnsutvalg(d.data, d.width, d.height, toleranse));
+    else if (stavvalg.alene)
+      settUtvalg(tryllestav(d.data, d.width, d.height, stavvalg.x, stavvalg.y, toleranse, sammenhengende));
+  }, [toleranse, sammenhengende]);
+
+  /** The image's colours ordered by distance from the picked colour, for the slider. */
+  const spekter = useMemo(() => {
+    const d = stavvalg && bildedata();
+    return d && stavvalg ? fargespekter(d.data, d.width, d.height, stavvalg.farge) : null;
+  }, [stavvalg, kilde?.url]);
+
+  /** Wand presets (Sivert, 2026-11-12): tolerance and «Bare sammenhengende» in one click. */
+  const stavForhand: {
+    id: string;
+    navn: string;
+    toleranse: number;
+    sammenhengende: boolean;
+    tips: string;
+  }[] = [
+    {
+      id: 'presis',
+      navn: 'Presis',
+      toleranse: 10,
+      sammenhengende: true,
+      tips: 'Bare nesten lik farge, og bare det som henger sammen',
+    },
+    {
+      id: 'logo',
+      navn: 'Logo',
+      toleranse: 32,
+      sammenhengende: true,
+      tips: 'Flate farger med litt kantutjevning',
+    },
+    {
+      id: 'foto',
+      navn: 'Foto',
+      toleranse: 70,
+      sammenhengende: true,
+      tips: 'Skygger og fargeoverganger tas med',
+    },
+    {
+      id: 'alle',
+      navn: 'Alle like',
+      toleranse: 32,
+      sammenhengende: false,
+      tips: 'Samme farge overalt i bildet, også det som ikke henger sammen',
+    },
+  ];
 
   const endreUtvalg = (r: number) => {
     const m = maske.current;
@@ -1437,7 +1597,15 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         if (!d) return;
         const s = d.width / kilde.bredde;
         const ny = tryllestav(d.data, d.width, d.height, p.x * s, p.y * s, toleranse, sammenhengende);
-        settUtvalg((u) => kombiner(u, ny, e.shiftKey ? 'legg-til' : e.altKey ? 'trekk-fra' : 'ny'));
+        const modus = e.shiftKey ? 'legg-til' : e.altKey ? 'trekk-fra' : 'ny';
+        settUtvalg((u) => kombiner(u, ny, modus));
+        settStavvalg({
+          type: 'punkt',
+          x: p.x * s,
+          y: p.y * s,
+          farge: fargeVed(d.data, d.width, d.height, p.x * s, p.y * s),
+          alene: modus === 'ny',
+        });
       } else if (fverktoy === 'pensel' || fverktoy === 'viskelar') {
         lagreMaskeAngre();
         // Alt with the brush erases, as in Photoshop
@@ -1446,6 +1614,23 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
       } else if (fverktoy === 'rektangel') {
         settRekt({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
         dra.current = { type: 'rekt' };
+      } else if (fverktoy === 'magnetlasso') {
+        // click to set an anchor point; click the start point or double-click to close
+        if (!magnet) {
+          const start = festMagnet(p);
+          settMagnet({ start, segmenter: [] });
+          settLasso([start]);
+        } else {
+          const naerStart = Math.hypot(p.x - magnet.start.x, p.y - magnet.start.y) * visning.skala < 10;
+          if (naerStart && magnet.segmenter.length) lukkMagnet(magnet, [magnet.start]);
+          else if (e.detail >= 2) lukkMagnet(magnet);
+          else {
+            const sti = magnetSti(magnetAnker(magnet), p);
+            const ny = sti.length ? { ...magnet, segmenter: [...magnet.segmenter, sti] } : magnet;
+            settMagnet(ny);
+            settLasso(magnetPunkter(ny));
+          }
+        }
       } else {
         settLasso([p]);
         dra.current = { type: 'lasso' };
@@ -1575,6 +1760,26 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     if (!kilde) return;
     const p = tilBilde(e);
     settPeker(p);
+    if (magnet && viserMaske && fverktoy === 'magnetlasso' && !dra.current) {
+      let m = magnet;
+      let live = magnetSti(magnetAnker(m), p);
+      // Photoshop sets anchor points by itself while you follow an edge
+      const AVSTAND = 60 / visning.skala;
+      let lengde = 0;
+      let fra = magnetAnker(m);
+      for (let i = 0; i < live.length; i++) {
+        lengde += Math.hypot(live[i]!.x - fra.x, live[i]!.y - fra.y);
+        fra = live[i]!;
+        if (lengde > AVSTAND && i < live.length - 1) {
+          m = { ...m, segmenter: [...m.segmenter, live.slice(0, i + 1)] };
+          live = live.slice(i + 1);
+          lengde = 0;
+        }
+      }
+      if (m !== magnet) settMagnet(m);
+      settLasso([...magnetPunkter(m), ...live]);
+      return;
+    }
     const d = dra.current;
     if (!d) return;
     // the button was released outside the page (or the frame it runs in): the drag is over
@@ -1811,8 +2016,31 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
           l: 'lasso',
           m: 'rektangel',
         };
-        const v = t[e.key.toLowerCase()];
+        // Shift+L is the magnetic lasso, as in Photoshop's lasso group
+        const v = e.shiftKey && e.key.toLowerCase() === 'l' ? 'magnetlasso' : t[e.key.toLowerCase()];
         if (v) settFverktoy(v);
+        if (magnet) {
+          if (e.key === 'Escape') {
+            avbrytMagnet();
+            return;
+          }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            lukkMagnet();
+            return;
+          }
+          if (e.key === 'Backspace' || e.key === 'Delete') {
+            e.preventDefault();
+            // removes the last anchor point; with none left, the lasso is dropped
+            if (!magnet.segmenter.length) avbrytMagnet();
+            else {
+              const ny = { ...magnet, segmenter: magnet.segmenter.slice(0, -1) };
+              settMagnet(ny);
+              settLasso(magnetPunkter(ny));
+            }
+            return;
+          }
+        }
         // X swaps between Mask (red) and Protect (green)
         if (e.key.toLowerCase() === 'x') settFelttype((f) => (f === 'masker' ? 'beskytt' : 'masker'));
         if (e.key === 'Escape') settUtvalg(null);
@@ -2322,6 +2550,18 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 vector-effect="non-scaling-stroke"
               />
             )}
+            {magnet &&
+              [magnet.start, ...magnet.segmenter.map((s) => s[s.length - 1]!)].map((a, i) => (
+                <rect
+                  key={i}
+                  class={i === 0 ? 'vv-magnetanker vv-magnetanker-start' : 'vv-magnetanker'}
+                  x={a.x - 3 / visning.skala}
+                  y={a.y - 3 / visning.skala}
+                  width={6 / visning.skala}
+                  height={6 / visning.skala}
+                  vector-effect="non-scaling-stroke"
+                />
+              ))}
             {peker && (fverktoy === 'pensel' || fverktoy === 'viskelar') && (
               <circle
                 class={felttype === 'beskytt' ? 'vv-pensel vv-pensel-beskytt' : 'vv-pensel'}
@@ -2359,6 +2599,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     { id: 'pensel', ikon: 'paint', navn: 'Pensel', tast: 'B' },
     { id: 'viskelar', ikon: 'viskelar', navn: 'Viskelær', tast: 'E' },
     { id: 'lasso', ikon: 'lasso', navn: 'Lasso', tast: 'L' },
+    { id: 'magnetlasso', ikon: 'magnetlasso', navn: 'Magnetisk lasso', tast: 'Shift+L' },
     { id: 'rektangel', ikon: 'rectangle', navn: 'Rektangel', tast: 'M' },
   ];
   const redigeringsverktoy: { id: Redigerverktoy; ikon: IkonId; navn: string; tast: string }[] = [
@@ -2715,6 +2956,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
       {(fverktoy === 'pensel' ||
         fverktoy === 'viskelar' ||
         fverktoy === 'lasso' ||
+        fverktoy === 'magnetlasso' ||
         fverktoy === 'rektangel') && (
         <>
           {felttypeVelger}
@@ -2737,27 +2979,90 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
           endre={settPensel}
         />
       )}
-      {(fverktoy === 'lasso' || fverktoy === 'rektangel') && felttype === 'masker' && (
-        <label class="vv-avkryss">
-          <input
-            type="checkbox"
-            checked={beholdInnsiden}
-            onChange={(e) => settBeholdInnsiden((e.target as HTMLInputElement).checked)}
-          />
-          Behold bare innsiden (alt utenfor fjernes)
-        </label>
+      {fverktoy === 'magnetlasso' && (
+        <Glidebryter
+          navn="Bredde"
+          verdi={magnetBredde}
+          min={1}
+          max={40}
+          steg={1}
+          enhet="px"
+          hjelp="Hvor langt fra pekeren kanten kan ligge og fortsatt bli funnet. Smalere følger kanten tettere."
+          endre={settMagnetBredde}
+        />
       )}
+      {(fverktoy === 'lasso' || fverktoy === 'magnetlasso' || fverktoy === 'rektangel') &&
+        felttype === 'masker' && (
+          <label class="vv-avkryss">
+            <input
+              type="checkbox"
+              checked={beholdInnsiden}
+              onChange={(e) => settBeholdInnsiden((e.target as HTMLInputElement).checked)}
+            />
+            Behold bare innsiden (alt utenfor fjernes)
+          </label>
+        )}
       {fverktoy === 'tryllestav' && (
         <>
-          <Glidebryter
-            navn="Toleranse"
-            verdi={toleranse}
-            min={0}
-            max={255}
-            steg={1}
-            hjelp="Hvor ulik en farge kan være den du klikker, og fortsatt bli valgt."
-            endre={settToleranse}
-          />
+          <div class="vv-segment vv-stavvalg" role="group" aria-label="Forhåndsinnstilling for tryllestaven">
+            {stavForhand.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                aria-pressed={toleranse === f.toleranse && sammenhengende === f.sammenhengende}
+                data-tips={f.tips}
+                onClick={() => {
+                  settToleranse(f.toleranse);
+                  settSammenhengende(f.sammenhengende);
+                }}
+              >
+                {f.navn}
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-pressed={stavvalg?.type === 'kant'}
+              data-tips="Velger fargen langs bildekanten og alt som henger sammen med den"
+              onClick={() => velgBakgrunn()}
+            >
+              Bakgrunn
+            </button>
+          </div>
+          <Glidebryter navn="Toleranse" verdi={toleranse} min={0} max={255} steg={1} endre={settToleranse} />
+          {spekter && stavvalg ? (
+            <div class="vv-spekter">
+              <div
+                class="vv-spekterstripe"
+                role="img"
+                aria-label={`Fargene i bildet fra den valgte fargen og utover. ${Math.round(
+                  spekter.andelInnenfor[toleranse]! * 100,
+                )} % av bildet er innenfor toleransen.`}
+                style={{
+                  background: `linear-gradient(to right, ${spekterstopp(spekter.farger)})`,
+                }}
+              >
+                <span
+                  class="vv-spekterutenfor"
+                  style={{ left: `${(toleranse / 255) * 100}%` }}
+                  aria-hidden="true"
+                />
+              </div>
+              <p class="vv-hjelp">
+                <span
+                  class="vv-spekterprove"
+                  style={{ background: rgbaTekst(stavvalg.farge) }}
+                  aria-hidden="true"
+                />
+                {stavvalg.type === 'kant' ? 'Bakgrunnsfargen' : 'Fargen du klikket'} til venstre, bildets
+                andre farger mot høyre. Det lyse feltet blir valgt:{' '}
+                <b>{Math.round(spekter.andelInnenfor[toleranse]! * 100)} % av bildet</b>.
+              </p>
+            </div>
+          ) : (
+            <p class="vv-hjelp">
+              Klikk en farge i bildet, så viser gliden hvilke av bildets farger som blir med.
+            </p>
+          )}
           <label class="vv-avkryss">
             <input
               id="vv-sammenhengende"
@@ -2814,11 +3119,13 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
               ? 'Klikk på en farge for å velge den. Shift legger til, Alt trekker fra. Velg så hva som skal skje med utvalget.'
               : fverktoy === 'lasso'
                 ? 'Tegn rundt et felt.'
-                : fverktoy === 'rektangel'
-                  ? 'Dra et rektangel.'
-                  : fverktoy === 'viskelar'
-                    ? 'Visk ut rødt eller grønt du har malt.'
-                    : 'Mal over et felt. Alt + mal visker ut.'}{' '}
+                : fverktoy === 'magnetlasso'
+                  ? 'Klikk ved en kant og følg den med pekeren: linjen fester seg til kanten, og nye punkter settes av seg selv. Klikk for å sette et punkt selv. Klikk på startpunktet, dobbeltklikk eller trykk Enter for å lukke. Backspace fjerner siste punkt, Esc avbryter.'
+                  : fverktoy === 'rektangel'
+                    ? 'Dra et rektangel.'
+                    : fverktoy === 'viskelar'
+                      ? 'Visk ut rødt eller grønt du har malt.'
+                      : 'Mal over et felt. Alt + mal visker ut.'}{' '}
         Mellomrom + dra flytter visningen, hjulet zoomer.
       </p>
     </section>
@@ -2896,23 +3203,6 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     <>
       {maskevalg}
       {utvalgSeksjon}
-      <section>
-        <h2>Bakgrunn</h2>
-        <div class="vv-knapperad">
-          <Knapp
-            ikon="tryllestav"
-            navn="Velg bakgrunnen"
-            tittel="Velger fargen langs bildekanten og alt som henger sammen med den."
-            onClick={velgBakgrunn}
-          />
-          <Knapp
-            ikon="delete"
-            navn="Fjern bakgrunnen nå"
-            tittel="Masker bakgrunnen i ett steg."
-            onClick={fjernBakgrunnNa}
-          />
-        </div>
-      </section>
       <section>
         <h2>Maske og beskyttelse</h2>
         <div class="vv-knapperad">
@@ -4048,16 +4338,17 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 aria-pressed={fverktoy === v.id}
                 aria-label={v.navn}
                 aria-keyshortcuts={v.tast}
-                title={`${v.navn} (${v.tast})`}
+                data-tips={`${v.navn} (${v.tast})`}
                 onClick={() => settFverktoy((x) => (x === v.id ? null : v.id))}
               >
                 <Ikon id={v.ikon} storrelse={20} />
-                {(v.id === 'pensel' || v.id === 'lasso' || v.id === 'rektangel') && fverktoy === v.id && (
-                  <span
-                    class={felttype === 'beskytt' ? 'vv-dokkmerke vv-dokkmerke-beskytt' : 'vv-dokkmerke'}
-                    aria-hidden="true"
-                  />
-                )}
+                {(v.id === 'pensel' || v.id === 'lasso' || v.id === 'magnetlasso' || v.id === 'rektangel') &&
+                  fverktoy === v.id && (
+                    <span
+                      class={felttype === 'beskytt' ? 'vv-dokkmerke vv-dokkmerke-beskytt' : 'vv-dokkmerke'}
+                      aria-hidden="true"
+                    />
+                  )}
               </button>
             ))
           : redigeringsverktoy.map((v) => (
@@ -4068,7 +4359,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
                 aria-pressed={rverktoy === v.id}
                 aria-label={v.navn}
                 aria-keyshortcuts={v.tast}
-                title={`${v.navn} (${v.tast})`}
+                data-tips={`${v.navn} (${v.tast})`}
                 disabled={v.id !== 'spor' && !modell}
                 onClick={() => {
                   settRverktoy(v.id);
@@ -4083,7 +4374,19 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
     ) : null;
 
   const hjelp = hjelpApen && (
-    <div class="vv-hjelpvindu" role="dialog" aria-modal="true" aria-labelledby="vv-hjelp-tittel">
+    <div
+      class="vv-hjelpvindu"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="vv-hjelp-tittel"
+      onKeyDown={(e) => {
+        // the dialog closes itself: the window's key listener is bound after a render and can lag behind
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          settHjelpApen(false);
+        }
+      }}
+    >
       <div class="vv-hjelpinnhold">
         <header>
           <h2 id="vv-hjelp-tittel">Slik bruker du Vectorium</h2>
@@ -4104,7 +4407,8 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         <ol>
           <li>
             <b>Mask</b>: beskjær bildet og marker hva som skal fjernes (rødt) og hva som alltid skal være med
-            (grønt). Pensel, lasso og rektangel kan både maskere og beskytte; X bytter.
+            (grønt). Tryllestaven velger farger, også bakgrunnen. Pensel, lasso, magnetisk lasso og rektangel
+            kan både maskere og beskytte; X bytter.
           </li>
           <li>
             <b>Edit</b>: konverteringen (forhåndsinnstilling, farger, små deler, kurver), lagene, fargene,
@@ -4129,6 +4433,8 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
           <dd>Mask, Edit, Finalize</dd>
           <dt>C W B E L M</dt>
           <dd>Beskjær, tryllestav, pensel, viskelær, lasso, rektangel (Mask)</dd>
+          <dt>Shift L</dt>
+          <dd>Magnetisk lasso (Mask)</dd>
           <dt>X</dt>
           <dd>Bytt mellom Masker og Beskytt</dd>
           <dt>K Y F R V T L P N</dt>
@@ -4154,7 +4460,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
   );
 
   return (
-    <div class="vv">
+    <div class="vv" ref={rotRef}>
       <header class="vv-topp">
         <strong class="vv-tittel">Vectorium</strong>
         <div class="vv-segment vv-nivaa" role="group" aria-label="Modus">
@@ -4302,6 +4608,7 @@ export function Vektorverksted(props: { ferdig?: (svg: string, navn: string) => 
         <span class="vv-zoom">{Math.round(visning.skala * 100)} %</span>
       </div>
       {hjelp}
+      <Hovertekst rot={rotRef} />
     </div>
   );
 }
